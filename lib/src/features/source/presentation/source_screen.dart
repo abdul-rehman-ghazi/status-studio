@@ -57,6 +57,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
           const SectionLabel('Language of the video'),
           DropdownButtonFormField<ScriptLanguage>(
             initialValue: _language,
+            isExpanded: true,
             items: [
               for (final language in ScriptLanguage.values)
                 DropdownMenuItem(value: language, child: Text(language.label)),

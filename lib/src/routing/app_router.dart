@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/features/clip/presentation/fine_tune_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
@@ -39,7 +40,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.script,
         builder: (context, state) => const ScriptScreen(),
       ),
-      _placeholderRoute(AppRoutes.fineTune),
+      GoRoute(
+        path: AppRoutes.fineTune,
+        builder: (context, state) => const FineTuneScreen(),
+      ),
       _placeholderRoute(AppRoutes.style),
       _placeholderRoute(AppRoutes.export),
       _placeholderRoute(AppRoutes.done),

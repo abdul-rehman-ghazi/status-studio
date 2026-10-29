@@ -1,13 +1,242 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
+import 'package:status_studio/src/core/presentation/script_text.dart';
+import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript.dart';
+import 'package:status_studio/src/routing/app_router.dart';
+import 'package:status_studio/src/theme/app_theme.dart';
 
-class ScriptScreen extends StatelessWidget {
+class ScriptScreen extends ConsumerWidget {
   const ScriptScreen({super.key});
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final draft = ref.watch(reelDraftProvider);
+    final transcript = draft.transcript;
+    if (transcript == null) {
+      throw StateError('The Script screen opened without a transcript.');
+    }
+    final controller = ref.read(reelDraftProvider.notifier);
+    final rangePicked = draft.selection is RangeSelected;
+    return Scaffold(
+      appBar: const FlowAppBar(
+        title: 'Pick the lines',
+        stepLabel: 'Step 2 of 4',
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: _LanguagePicker(
+              draft: draft,
+              onChanged: (language) => _rewriteScript(context, ref, language),
+            ),
+          ),
+          _PickHint(text: _pickHint(draft)),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              itemCount: transcript.lines.length,
+              itemBuilder: (context, index) => _ScriptLineTile(
+                line: transcript.lines[index],
+                selection: draft.selection,
+                onTap: () => controller.tapLine(index),
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: BottomAction(
+        child: FilledButton(
+          onPressed: rangePicked
+              ? () => context.push(AppRoutes.fineTune)
+              : null,
+          child: Text(
+            rangePicked ? 'Next: fine-tune' : 'Pick a start and an end',
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _rewriteScript(
+    BuildContext context,
+    WidgetRef ref,
+    ScriptLanguage language,
+  ) {
+    ref.read(reelDraftProvider.notifier).setLanguage(language);
+    context.pushReplacement(AppRoutes.processing);
+  }
+}
+
+String _pickHint(ReelDraft draft) {
+  return switch ((draft.selection, draft.clip)) {
+    (RangeSelected(), final ClipRange clip) =>
+      'Clip ${formatTimestamp(clip.start)} – ${formatTimestamp(clip.end)} · '
+          '${formatSeconds(clip.length)}. Tap a line to start over.',
+    (StartSelected(), _) => 'Now tap the line where it ends',
+    _ => 'Tap the line where your clip starts',
+  };
+}
+
+class _LanguagePicker extends StatelessWidget {
+  const _LanguagePicker({required this.draft, required this.onChanged});
+
+  final ReelDraft draft;
+  final ValueChanged<ScriptLanguage> onChanged;
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      appBar: FlowAppBar(title: 'Pick the lines', stepLabel: 'Step 2 of 4'),
+    return DropdownButtonFormField<ScriptLanguage>(
+      initialValue: draft.language,
+      isExpanded: true,
+      decoration: const InputDecoration(labelText: 'Language'),
+      items: [
+        for (final language in ScriptLanguage.values)
+          DropdownMenuItem(value: language, child: Text(_labelFor(language))),
+      ],
+      onChanged: (language) {
+        if (language == null || language == draft.language) {
+          return;
+        }
+        onChanged(language);
+      },
+    );
+  }
+
+  String _labelFor(ScriptLanguage language) {
+    if (language != ScriptLanguage.auto) {
+      return language.label;
+    }
+    final detectedCode = draft.transcript?.languageCode;
+    final detected = ScriptLanguage.values
+        .where((candidate) => candidate.whisperCode == detectedCode)
+        .firstOrNull;
+    return detected == null
+        ? 'Detected language'
+        : '${detected.label} (detected)';
+  }
+}
+
+class _PickHint extends StatelessWidget {
+  const _PickHint({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(text, style: const TextStyle(color: AppColors.textPrimary)),
+    );
+  }
+}
+
+class _ScriptLineTile extends StatelessWidget {
+  const _ScriptLineTile({
+    required this.line,
+    required this.selection,
+    required this.onTap,
+  });
+
+  final TranscriptLine line;
+  final LineSelection selection;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final highlighted = selection.isHighlighted(line.index);
+    final badge = _badgeFor(line.index);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Semantics(
+        selected: highlighted,
+        child: Material(
+          color: highlighted
+              ? AppColors.accent.withValues(alpha: 0.18)
+              : AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: badge.isEmpty ? Colors.transparent : AppColors.accent,
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        formatTimestamp(line.start),
+                        style: const TextStyle(color: AppColors.textMuted),
+                      ),
+                      const Spacer(),
+                      if (badge.isNotEmpty) _Badge(text: badge),
+                    ],
+                  ),
+                  ScriptText(line.text, style: const TextStyle(fontSize: 18)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _badgeFor(int index) {
+    return switch (selection) {
+      RangeSelected(:final start, :final end)
+          when start == index && end == index =>
+        'Start · End',
+      RangeSelected(:final start) when start == index => 'Start',
+      RangeSelected(:final end) when end == index => 'End',
+      StartSelected(:final start) when start == index => 'Start',
+      _ => '',
+    };
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.accent,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.onAccent,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

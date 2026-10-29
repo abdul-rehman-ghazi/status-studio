@@ -1,12 +1,21 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
+import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/routing/app_router.dart';
 
+/// Pumps the whole app on a phone-sized screen (360 × 780).
 Future<void> pumpApp(
   WidgetTester tester, {
   List<Override> overrides = const [],
 }) async {
+  tester.view
+    ..physicalSize = const Size(1080, 2340)
+    ..devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(overrides: overrides, child: const StatusStudioApp()),
   );
@@ -20,4 +29,33 @@ Future<void> openSource(
   await pumpApp(tester, overrides: overrides);
   await tester.tap(find.text('New reel'));
   await tester.pumpAndSettle();
+}
+
+/// Starts the app and pushes [routes] in order on top of Home.
+Future<void> pumpRoutes(
+  WidgetTester tester,
+  List<String> routes, {
+  List<Override> overrides = const [],
+}) async {
+  await pumpApp(tester, overrides: overrides);
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(StatusStudioApp)),
+  );
+  for (final route in routes) {
+    container.read(appRouterProvider).push(route).ignore();
+    await tester.pumpAndSettle();
+  }
+}
+
+/// Starts the reel draft at [draft] instead of an empty one.
+Override draftOverride(ReelDraft draft) =>
+    reelDraftProvider.overrideWith(() => _PresetDraftController(draft));
+
+class _PresetDraftController extends ReelDraftController {
+  _PresetDraftController(this.initialDraft);
+
+  final ReelDraft initialDraft;
+
+  @override
+  ReelDraft build() => initialDraft;
 }
