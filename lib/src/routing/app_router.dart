@@ -5,6 +5,7 @@ import 'package:status_studio/src/features/clip/presentation/fine_tune_screen.da
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
+import 'package:status_studio/src/features/style/presentation/style_screen.dart';
 import 'package:status_studio/src/features/transcript/presentation/processing_screen.dart';
 import 'package:status_studio/src/features/transcript/presentation/script_screen.dart';
 
@@ -44,7 +45,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.fineTune,
         builder: (context, state) => const FineTuneScreen(),
       ),
-      _placeholderRoute(AppRoutes.style),
+      GoRoute(
+        path: AppRoutes.style,
+        builder: (context, state) => const StyleScreen(),
+      ),
       _placeholderRoute(AppRoutes.export),
       _placeholderRoute(AppRoutes.done),
       GoRoute(
