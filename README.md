@@ -6,6 +6,24 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 
 > **Status:** early setup. The app skeleton, dependencies and fonts are in place; the features below are being built milestone by milestone.
 
+## Documentation
+
+- **Product and technical spec:** [`docs/superpowers/specs/2026-10-29-status-studio-design.md`](docs/superpowers/specs/2026-10-29-status-studio-design.md). Flow, requirements, domain rules, error states, decisions and open questions.
+- **Implementation plans:** one per milestone in [`docs/superpowers/plans/`](docs/superpowers/plans/), written as test-first tasks with checkboxes.
+- **Design canvas:** clickable prototype, all screens, build plan and logo options: https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
+
+## Roadmap
+
+| Milestone | Delivers | Status |
+|---|---|---|
+| Setup | Project, dependencies, fonts, signing, docs | Done |
+| [M1](docs/superpowers/plans/2026-10-29-m1-app-shell.md) | Every screen wired with fake services; real domain logic | Next |
+| [M2](docs/superpowers/plans/2026-10-29-m2-video-source.md) | YouTube metadata, downloads, cache, clip preview | Planned |
+| [M3](docs/superpowers/plans/2026-10-29-m3-transcription.md) | On-device script: Whisper, YouTube captions, language detection | Planned |
+| [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Planned |
+| [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, FFmpeg export | Planned |
+| [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Planned |
+
 ## Features (planned)
 
 - **Script from a link**: download the audio, detect the language (or choose it), and transcribe it on the phone with Whisper.
@@ -58,9 +76,11 @@ lib/
     routing/                 Routes and the GoRouter provider
     theme/                   Colours, fonts and ThemeData
     features/<feature>/
-      data/                  Repositories and external services
       domain/                Models and pure logic
-      presentation/          Screens, widgets and controllers
+      data/                  Repositories and external services (YouTube, Whisper, FFmpeg…)
+      application/           Riverpod controllers and coordinating services
+      presentation/          Screens and widgets
+docs/superpowers/            Spec and milestone implementation plans
 assets/fonts/                Bundled Urdu and Arabic fonts (OFL)
 test/                        Mirrors lib/
 ```

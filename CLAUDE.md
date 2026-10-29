@@ -8,6 +8,19 @@ Status Studio: a general-purpose Flutter app that turns any YouTube video, in an
 
 Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
+## Spec and plans
+
+- Spec: `docs/superpowers/specs/2026-10-29-status-studio-design.md`. It is the source of truth for behaviour, copy, sizes and error messages.
+- Plans: `docs/superpowers/plans/2026-10-29-m<N>-*.md`, one per milestone, in order M1 → M6. Each task lists files, interfaces and the exact tests to write first.
+- Workflow:
+  - Work on one milestone per branch (`m1-app-shell`, …).
+  - Follow the plan's tasks in order and write the failing test first.
+  - Tick each checkbox in the plan as you go, and commit after each task.
+  - Merge when `fvm flutter analyze` and `fvm flutter test` are clean.
+- If the plan and the spec disagree, the spec wins. Fix the plan in the same commit and say so in the commit message.
+- Spikes (M3 Task 1, M5 Task 1) record their results in spec §10 before dependent tasks start.
+- Update the README Roadmap status when a milestone is merged.
+
 ## Commands
 
 Always go through FVM; the SDK version is pinned in `.fvmrc`.
@@ -22,7 +35,7 @@ fvm flutter build apk --debug
 
 ## Architecture
 
-- Feature-first folders: `lib/src/features/<feature>/{data,domain,presentation}`. Create a layer only when there is code for it.
+- Feature-first folders: `lib/src/features/<feature>/{domain,data,application,presentation}`. `application` holds Riverpod controllers and services that coordinate several data sources. Create a layer only when there is code for it.
 - State with Riverpod (`flutter_riverpod` 3). Expose services and repositories as providers so tests can override them. No global singletons.
 - Navigation with `go_router`. Route paths live in `AppRoutes` (`lib/src/routing/app_router.dart`).
 - Colours and font family names come from `lib/src/theme/app_theme.dart`. Don't hard-code hex colours or font names in widgets.
