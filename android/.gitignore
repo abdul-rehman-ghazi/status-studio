@@ -1,0 +1,17 @@
+gradle-wrapper.jar
+/.gradle
+/captures/
+/gradlew
+/gradlew.bat
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# The release keystore (app/upload-keystore.jks) and key.properties are committed on purpose:
+# this repo is private. Never make it public. See https://flutter.dev/to/reference-keystore
+
+# Gradle build output
+/build/
+
+# Kotlin compiler caches
+/.kotlin/
