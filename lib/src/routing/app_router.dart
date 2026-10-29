@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
+import 'package:status_studio/src/features/transcript/presentation/processing_screen.dart';
+import 'package:status_studio/src/features/transcript/presentation/script_screen.dart';
 
 abstract final class AppRoutes {
   static const home = '/';
@@ -29,8 +31,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.source,
         builder: (context, state) => const SourceScreen(),
       ),
-      _placeholderRoute(AppRoutes.processing),
-      _placeholderRoute(AppRoutes.script),
+      GoRoute(
+        path: AppRoutes.processing,
+        builder: (context, state) => const ProcessingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.script,
+        builder: (context, state) => const ScriptScreen(),
+      ),
       _placeholderRoute(AppRoutes.fineTune),
       _placeholderRoute(AppRoutes.style),
       _placeholderRoute(AppRoutes.export),

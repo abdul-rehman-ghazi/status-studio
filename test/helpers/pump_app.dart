@@ -11,3 +11,13 @@ Future<void> pumpApp(
     ProviderScope(overrides: overrides, child: const StatusStudioApp()),
   );
 }
+
+/// Opens the Source screen the way a user does: Home → New reel.
+Future<void> openSource(
+  WidgetTester tester, {
+  List<Override> overrides = const [],
+}) async {
+  await pumpApp(tester, overrides: overrides);
+  await tester.tap(find.text('New reel'));
+  await tester.pumpAndSettle();
+}
