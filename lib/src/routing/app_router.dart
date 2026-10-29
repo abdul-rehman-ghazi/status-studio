@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/features/clip/presentation/fine_tune_screen.dart';
+import 'package:status_studio/src/features/export/presentation/done_screen.dart';
+import 'package:status_studio/src/features/export/presentation/export_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
@@ -49,8 +50,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.style,
         builder: (context, state) => const StyleScreen(),
       ),
-      _placeholderRoute(AppRoutes.export),
-      _placeholderRoute(AppRoutes.done),
+      GoRoute(
+        path: AppRoutes.export,
+        builder: (context, state) => const ExportScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.done,
+        builder: (context, state) => const DoneScreen(),
+      ),
       GoRoute(
         path: AppRoutes.settings,
         builder: (context, state) => const SettingsScreen(),
@@ -60,8 +67,3 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.onDispose(router.dispose);
   return router;
 });
-
-GoRoute _placeholderRoute(String path) => GoRoute(
-  path: path,
-  builder: (context, state) => Scaffold(appBar: AppBar(title: Text(path))),
-);
