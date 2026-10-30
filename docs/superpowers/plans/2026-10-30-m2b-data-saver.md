@@ -75,16 +75,16 @@
   - The first segment starts at (end of `sidx` box) + first_offset. Segment start times accumulate from earliest_presentation_time ÷ timescale.
 - Test helper: `Uint8List buildMp4Head({required int initBytes, required int timescale, required List<(int size, int duration)> references, int version = 0})` builds an `ftyp` + `moov` (filler) + `sidx`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `parses_segments_from_version_0_sidx`: timescale 1000, refs (100000 B, 5000), (120000 B, 5000) after 800 B of init. The first segment's bytes start right after `sidx`; starts are 0 s and 5 s.
   - `parses_version_1_sidx_with_64_bit_times`
   - `init_range_ends_before_sidx`
   - `short_head_throws_not_found_with_bytes_needed`
   - `moof_before_sidx_throws_no_index`
-- [ ] **Step 2:** Run `fvm flutter test test/src/features/source/domain/segment_index_test.dart` → FAIL.
-- [ ] **Step 3:** Implement with `ByteData` big-endian reads. The parser is pure, with no I/O.
-- [ ] **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit** `feat: parse MP4 segment index`
+- [x] **Step 2:** Run `fvm flutter test test/src/features/source/domain/segment_index_test.dart` → FAIL.
+- [x] **Step 3:** Implement with `ByteData` big-endian reads. The parser is pure, with no I/O.
+- [x] **Step 4:** Run → PASS.
+- [x] **Step 5: Commit** `feat: parse MP4 segment index`
 
 ### Task 3: Clip window and segment selection
 
