@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/source/domain/segment_index.dart';
 
 import '../../../../helpers/mp4_fixture.dart';
@@ -111,5 +112,40 @@ void main() {
 
   test('byte_range_length_includes_both_ends', () {
     expect(const ByteRange(10, 19).length, 10);
+  });
+
+  SegmentIndex fiveSecondSegments(int count) => SegmentIndex(
+    init: const ByteRange(0, 99),
+    segments: [
+      for (var i = 0; i < count; i++)
+        MediaSegment(
+          bytes: ByteRange(100 + i * 1000, 100 + i * 1000 + 999),
+          start: Duration(seconds: 5 * i),
+          duration: const Duration(seconds: 5),
+        ),
+    ],
+  );
+
+  test('selects_segments_overlapping_window', () {
+    const window = ClipWindow(
+      start: Duration(seconds: 12),
+      end: Duration(seconds: 31),
+    );
+
+    final covering = segmentsCovering(fiveSecondSegments(10), window);
+
+    expect(covering.map((segment) => segment.start.inSeconds), [
+      10,
+      15,
+      20,
+      25,
+      30,
+    ]);
+  });
+
+  test('merged_range_spans_first_to_last_segment', () {
+    final segments = fiveSecondSegments(10).segments.sublist(2, 5);
+
+    expect(mergedRange(segments), const ByteRange(2100, 5099));
   });
 }

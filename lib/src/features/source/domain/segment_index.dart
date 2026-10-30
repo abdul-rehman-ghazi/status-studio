@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 
 /// A byte range with both ends inclusive, as in an HTTP `Range` header.
 @immutable
@@ -86,6 +87,20 @@ class NoSegmentIndexException implements Exception {
   @override
   String toString() => 'NoSegmentIndexException';
 }
+
+/// The contiguous run of segments from the one holding [window]'s start to
+/// the one holding its end.
+List<MediaSegment> segmentsCovering(SegmentIndex index, ClipWindow window) {
+  return index.segments
+      .where(
+        (segment) => segment.end > window.start && segment.start <= window.end,
+      )
+      .toList();
+}
+
+/// One range from the first segment's first byte to the last one's last.
+ByteRange mergedRange(List<MediaSegment> segments) =>
+    ByteRange(segments.first.bytes.first, segments.last.bytes.last);
 
 const _boxHeaderBytes = 8;
 const _largeBoxHeaderBytes = 16;

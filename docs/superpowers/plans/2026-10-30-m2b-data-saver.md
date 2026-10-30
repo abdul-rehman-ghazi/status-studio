@@ -97,7 +97,7 @@
   - `List<MediaSegment> segmentsCovering(SegmentIndex index, ClipWindow window)`: the contiguous run of segments from the one containing `window.start` through the one containing `window.end`.
   - `ByteRange mergedRange(List<MediaSegment> segments)`
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `window_pads_five_seconds_each_side`: clip 1:00–1:40, video 6:48 → 0:55–1:45.
   - `window_is_at_least_thirty_seconds`: clip 1:00–1:05 → 0:55–1:30.
   - `window_clamped_at_video_start`
@@ -105,8 +105,8 @@
   - `covers_clip_inside_window`
   - `selects_segments_overlapping_window`: 5 s segments, window 0:12–0:31 → segments starting 0:10…0:30.
   - `merged_range_spans_first_to_last_segment`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: compute clip window and covering segments`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: compute clip window and covering segments`
 
 ### Task 4: Ranged downloader
 
