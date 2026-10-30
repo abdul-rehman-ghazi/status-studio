@@ -4,11 +4,9 @@ import 'package:status_studio/src/routing/app_router.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
-Future<void> pumpFineTune(WidgetTester tester) => pumpRoutes(
-  tester,
-  [AppRoutes.fineTune],
-  overrides: [draftOverride(pickedDraft)],
-);
+Future<void> pumpFineTune(WidgetTester tester) => pumpRoutes(tester, [
+  AppRoutes.fineTune,
+], setup: TestSetup(overrides: [draftOverride(pickedDraft)]));
 
 void main() {
   testWidgets('nudge_start_updates_label', (tester) async {

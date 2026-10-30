@@ -76,8 +76,8 @@
 - `List<String> muxArguments({required String videoPath, required String audioPath, required String outputPath})` → `['-y', '-i', videoPath, '-i', audioPath, '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '-movflags', '+faststart', outputPath]`
 - `class FfmpegRunner { Future<void> run(List<String> arguments, {void Function(Duration processed)? onTime}); Future<void> cancel(); }` throws `FfmpegFailedException(String log)` on a non-success return code. This is the single FFmpeg entry point, also used by M3/M5.
 
-- [ ] **Step 1: Failing tests:** `maps_unavailable_errors`, `maps_socket_errors_to_offline`, `mux_copies_streams_without_reencoding` (exact list above).
-- [ ] **Step 2–4:** Run → FAIL. Implement:
+- [x] **Step 1: Failing tests:** `maps_unavailable_errors`, `maps_socket_errors_to_offline`, `mux_copies_streams_without_reencoding` (exact list above).
+- [x] **Step 2–4:** Run → FAIL. Implement:
   - Metadata via `yt.videos.get(videoId)`.
   - The manifest via `yt.videos.streamsClient.getManifest(videoId)`, mapped to `StreamChoice`s.
   - Bytes via `yt.videos.streamsClient.get(streamInfo)`.
@@ -86,7 +86,7 @@
   
   Run → PASS.
 - [ ] **Step 5: Manual check:** `fvm flutter run --release` on a phone. Paste a public video link; the title, channel and duration match YouTube.
-- [ ] **Step 6: Commit** `feat: fetch YouTube metadata and download sources`
+- [x] **Step 6: Commit** `feat: fetch YouTube metadata and download sources`
 
 ### Task 4: Source preparation in the background
 

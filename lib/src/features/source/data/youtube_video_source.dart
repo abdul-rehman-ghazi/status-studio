@@ -1,0 +1,190 @@
+import 'dart:io';
+
+import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
+import 'package:status_studio/src/core/ffmpeg/mux_arguments.dart';
+import 'package:status_studio/src/features/source/data/source_cache.dart';
+import 'package:status_studio/src/features/source/data/video_source.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/source/domain/stream_choice.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
+
+const _audioExtensions = {'mp4': 'm4a', 'webm': 'webm'};
+const _downloadShare = 0.9;
+
+/// The only class that talks to YouTube (spec §9 Distribution).
+class YouTubeVideoSource implements VideoSource {
+  YouTubeVideoSource(
+    this._youtube, {
+    required this.cache,
+    required this.ffmpeg,
+  });
+
+  factory YouTubeVideoSource.open({
+    required Future<SourceCache> cache,
+    required FfmpegRunner ffmpeg,
+  }) => YouTubeVideoSource(yt.YoutubeExplode(), cache: cache, ffmpeg: ffmpeg);
+
+  final yt.YoutubeExplode _youtube;
+  final Future<SourceCache> cache;
+  final FfmpegRunner ffmpeg;
+
+  void close() => _youtube.close();
+
+  @override
+  Future<SourceVideo> fetchVideo(String videoId) => _guard(() async {
+    final video = await _youtube.videos.get(videoId);
+    final duration = video.duration;
+    if (duration == null) {
+      // A live stream in progress has no length and can't be downloaded.
+      throw const VideoUnavailableException('The video has no duration.');
+    }
+    return SourceVideo(
+      videoId: videoId,
+      title: video.title,
+      channel: video.author,
+      duration: duration,
+    );
+  });
+
+  @override
+  Future<File> downloadAudio(
+    SourceVideo video, {
+    required void Function(double fraction) onProgress,
+  }) => _guard(() async {
+    final sources = await cache;
+    final cached = _cachedAudio(sources, video.videoId);
+    if (cached != null) {
+      onProgress(1);
+      return cached;
+    }
+    final manifest = await _manifest(video.videoId);
+    final streams = manifest.audioOnly;
+    final choice = pickAudioStream([
+      for (final (index, stream) in streams.indexed)
+        _choiceFor(stream, index: index, height: 0),
+    ]);
+    final stream = streams[choice.index];
+    return sources.write(
+      sources.audioFile(video.videoId, _audioExtensions[choice.container]!),
+      _youtube.videos.streamsClient.get(stream),
+      totalBytes: stream.size.totalBytes,
+      onProgress: onProgress,
+    );
+  });
+
+  @override
+  Future<File> prepareSourceVideo(
+    SourceVideo video, {
+    required void Function(double fraction) onProgress,
+  }) => _guard(() async {
+    final sources = await cache;
+    final source = sources.sourceFile(video.videoId);
+    if (sources.isComplete(source)) {
+      onProgress(1);
+      return source;
+    }
+    final audio = await downloadAudio(video, onProgress: (_) {});
+    final videoOnly = await _downloadVideoStream(
+      sources,
+      video,
+      onProgress: (fraction) => onProgress(fraction * _downloadShare),
+    );
+    await _mux(videoOnly: videoOnly, audio: audio, target: source);
+    onProgress(1);
+    return source;
+  });
+
+  Future<File> _downloadVideoStream(
+    SourceCache cache,
+    SourceVideo video, {
+    required void Function(double fraction) onProgress,
+  }) async {
+    final target = cache.videoFile(video.videoId);
+    if (cache.isComplete(target)) {
+      return target;
+    }
+    final streams = (await _manifest(video.videoId)).videoOnly;
+    final choice = pickVideoStream([
+      for (final (index, stream) in streams.indexed)
+        _choiceFor(stream, index: index, height: stream.videoResolution.height),
+    ]);
+    final stream = streams[choice.index];
+    return cache.write(
+      target,
+      _youtube.videos.streamsClient.get(stream),
+      totalBytes: stream.size.totalBytes,
+      onProgress: onProgress,
+    );
+  }
+
+  /// Muxes to a temporary name first so a half-written source never looks
+  /// complete.
+  Future<void> _mux({
+    required File videoOnly,
+    required File audio,
+    required File target,
+  }) async {
+    final muxing = File('${target.path}.muxing.mp4');
+    try {
+      await ffmpeg.run(
+        muxArguments(
+          videoPath: videoOnly.path,
+          audioPath: audio.path,
+          outputPath: muxing.path,
+        ),
+      );
+      await muxing.rename(target.path);
+    } catch (_) {
+      if (muxing.existsSync()) {
+        await muxing.delete();
+      }
+      rethrow;
+    }
+  }
+
+  Future<yt.StreamManifest> _manifest(String videoId) =>
+      _youtube.videos.streamsClient.getManifest(videoId);
+}
+
+/// The audio file already downloaded for [videoId], if any.
+File? _cachedAudio(SourceCache cache, String videoId) {
+  return _audioExtensions.values
+      .map((extension) => cache.audioFile(videoId, extension))
+      .where(cache.isComplete)
+      .firstOrNull;
+}
+
+StreamChoice _choiceFor(
+  yt.StreamInfo stream, {
+  required int index,
+  required int height,
+}) {
+  return StreamChoice(
+    height: height,
+    container: stream.container.name,
+    bitrate: stream.bitrate.bitsPerSecond,
+    index: index,
+  );
+}
+
+Future<T> _guard<T>(Future<T> Function() action) async {
+  try {
+    return await action();
+  } catch (error, stackTrace) {
+    Error.throwWithStackTrace(mapYouTubeError(error), stackTrace);
+  }
+}
+
+/// Turns library and platform failures into the app's typed errors
+/// (spec §8); anything else is returned unchanged to be rethrown.
+Object mapYouTubeError(Object error) {
+  return switch (error) {
+    yt.VideoUnplayableException() => VideoUnavailableException('$error'),
+    SocketException() || HttpException() => OfflineException('$error'),
+    FileSystemException(:final osError?)
+        when osError.message.contains('No space') =>
+      InsufficientStorageException('$error'),
+    _ => error,
+  };
+}

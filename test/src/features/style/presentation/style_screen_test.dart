@@ -6,11 +6,9 @@ import 'package:status_studio/src/routing/app_router.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
-Future<void> pumpStyle(WidgetTester tester) => pumpRoutes(
-  tester,
-  [AppRoutes.style],
-  overrides: [draftOverride(pickedDraft)],
-);
+Future<void> pumpStyle(WidgetTester tester) => pumpRoutes(tester, [
+  AppRoutes.style,
+], setup: TestSetup(overrides: [draftOverride(pickedDraft)]));
 
 /// Scrolls [label] into view, then taps it.
 Future<void> tapText(WidgetTester tester, String label) async {

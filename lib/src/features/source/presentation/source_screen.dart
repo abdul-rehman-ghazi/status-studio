@@ -12,6 +12,7 @@ import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/source/domain/youtube_link.dart';
+import 'package:status_studio/src/features/source/presentation/source_error_message.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -93,7 +94,9 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
   Future<SourceVideo>? _requestVideo(String link) {
     try {
       final videoId = parseYouTubeVideoId(link);
-      return ref.read(videoSourceProvider).fetchVideo(videoId);
+      // The card shows a failure once it builds; ignore() keeps the error
+      // from being reported as unhandled before then.
+      return ref.read(videoSourceProvider).fetchVideo(videoId)..ignore();
     } on InvalidYouTubeLinkException {
       return null;
     }
@@ -112,7 +115,13 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       setState(() => _showLinkError = true);
       return;
     }
-    final video = await request;
+    final SourceVideo video;
+    try {
+      video = await request;
+    } catch (_) {
+      // The video card already shows why; stay on this screen.
+      return;
+    }
     if (!mounted) {
       return;
     }
@@ -162,22 +171,30 @@ class _VideoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return FutureBuilder<SourceVideo>(
       future: request,
-      builder: (context, snapshot) {
-        final video = snapshot.data;
-        return Container(
-          margin: const EdgeInsets.only(top: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: video == null
-              ? const LinearProgressIndicator()
-              : _VideoSummary(video: video),
-        );
-      },
+      builder: (context, snapshot) => Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: _cardContent(context, snapshot),
+      ),
     );
   }
+}
+
+Widget _cardContent(BuildContext context, AsyncSnapshot<SourceVideo> snapshot) {
+  if (snapshot.error case final error?) {
+    return Text(
+      sourceErrorMessage(error),
+      style: TextStyle(color: Theme.of(context).colorScheme.error),
+    );
+  }
+  if (snapshot.data case final video?) {
+    return _VideoSummary(video: video);
+  }
+  return const LinearProgressIndicator();
 }
 
 class _VideoSummary extends StatelessWidget {

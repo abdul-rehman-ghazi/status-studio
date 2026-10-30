@@ -5,28 +5,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/source/data/fake_video_source.dart';
+import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/routing/app_router.dart';
+
+/// What a widget test runs the app with. Services that would touch the
+/// network or a platform plugin default to fakes.
+class TestSetup {
+  const TestSetup({
+    this.overrides = const [],
+    this.videoSource = const FakeVideoSource(),
+  });
+
+  final List<Override> overrides;
+  final VideoSource videoSource;
+
+  List<Override> get allOverrides => [
+    videoSourceProvider.overrideWithValue(videoSource),
+    ...overrides,
+  ];
+}
 
 /// Pumps the whole app on a phone-sized screen (360 × 780).
 Future<void> pumpApp(
   WidgetTester tester, {
-  List<Override> overrides = const [],
+  TestSetup setup = const TestSetup(),
 }) async {
   tester.view
     ..physicalSize = const Size(1080, 2340)
     ..devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    ProviderScope(overrides: overrides, child: const StatusStudioApp()),
+    ProviderScope(
+      overrides: setup.allOverrides,
+      child: const StatusStudioApp(),
+    ),
   );
 }
 
 /// Opens the Source screen the way a user does: Home → New reel.
 Future<void> openSource(
   WidgetTester tester, {
-  List<Override> overrides = const [],
+  TestSetup setup = const TestSetup(),
 }) async {
-  await pumpApp(tester, overrides: overrides);
+  await pumpApp(tester, setup: setup);
   await tester.tap(find.text('New reel'));
   await tester.pumpAndSettle();
 }
@@ -35,9 +57,9 @@ Future<void> openSource(
 Future<void> pumpRoutes(
   WidgetTester tester,
   List<String> routes, {
-  List<Override> overrides = const [],
+  TestSetup setup = const TestSetup(),
 }) async {
-  await pumpApp(tester, overrides: overrides);
+  await pumpApp(tester, setup: setup);
   final container = ProviderScope.containerOf(
     tester.element(find.byType(StatusStudioApp)),
   );

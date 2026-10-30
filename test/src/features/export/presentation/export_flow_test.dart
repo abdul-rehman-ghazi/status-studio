@@ -12,10 +12,12 @@ Future<void> pumpExport(WidgetTester tester, {required Renderer renderer}) =>
     pumpRoutes(
       tester,
       [AppRoutes.style, AppRoutes.export],
-      overrides: [
-        draftOverride(pickedDraft),
-        rendererProvider.overrideWithValue(renderer),
-      ],
+      setup: TestSetup(
+        overrides: [
+          draftOverride(pickedDraft),
+          rendererProvider.overrideWithValue(renderer),
+        ],
+      ),
     );
 
 /// Renders like a slow fake and counts how often it is cancelled.

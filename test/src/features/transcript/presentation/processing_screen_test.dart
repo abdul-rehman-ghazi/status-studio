@@ -11,9 +11,13 @@ Future<void> startProcessing(
 }) async {
   await openSource(
     tester,
-    overrides: [
-      scriptPipelineProvider.overrideWithValue(FakeScriptPipeline(step: step)),
-    ],
+    setup: TestSetup(
+      overrides: [
+        scriptPipelineProvider.overrideWithValue(
+          FakeScriptPipeline(step: step),
+        ),
+      ],
+    ),
   );
   await tester.enterText(
     find.byType(TextField),

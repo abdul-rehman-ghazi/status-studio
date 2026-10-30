@@ -5,11 +5,9 @@ import 'package:status_studio/src/routing/app_router.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
-Future<void> pumpScript(WidgetTester tester) => pumpRoutes(
-  tester,
-  [AppRoutes.script],
-  overrides: [draftOverride(scriptDraft)],
-);
+Future<void> pumpScript(WidgetTester tester) => pumpRoutes(tester, [
+  AppRoutes.script,
+], setup: TestSetup(overrides: [draftOverride(scriptDraft)]));
 
 Future<void> pickLinesOneToThree(WidgetTester tester) async {
   await tester.tap(find.text('علم بڑی دولت ہے'));
