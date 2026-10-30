@@ -81,4 +81,38 @@ void main() {
       ('video/avc', 'audio/mp4a-latm'),
     );
   });
+
+  test('blur_sharp_frame_fits_output_width', () {
+    final spec = renderSpecFor(
+      jobWith(const FrameSettings(fill: FillMode.blur)),
+    );
+
+    // 1920 × 1080 fitted to a 1080-wide story is 607.5 of its 1920 height.
+    expect(
+      [spec['sharpScaleX'], spec['sharpScaleY']],
+      [1.0, closeTo(607.5 / 1920, 1e-9)],
+    );
+  });
+
+  test('blur_sharp_frame_of_tall_source_fits_output_height', () {
+    final job = jobWith(const FrameSettings(fill: FillMode.blur));
+    final tall = RenderJob(
+      source: job.source,
+      clip: job.clip,
+      frame: const FrameSettings(
+        preset: AspectPreset.square1x1,
+        fill: FillMode.blur,
+      ),
+      sourceSize: const OutputSize(720, 1280),
+      overlayPath: job.overlayPath,
+      outputPath: job.outputPath,
+    );
+
+    final spec = renderSpecFor(tall);
+
+    expect(
+      [spec['sharpScaleX'], spec['sharpScaleY']],
+      [closeTo(720 / 1280, 1e-9), 1.0],
+    );
+  });
 }

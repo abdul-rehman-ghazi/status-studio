@@ -58,7 +58,7 @@ Map<String, Object?> renderSpecFor(RenderJob job) {
     'outputHeight': output.height,
     'fill': fill,
     if (fill == 'crop') 'crop': _ndcCrop(job),
-    if (fill == 'blur') 'blurSigma': _blurSigma,
+    if (fill == 'blur') ..._blurSettings(job.sourceSize, output),
     'videoMimeType': 'video/avc',
     'audioMimeType': 'audio/mp4a-latm',
   };
@@ -74,6 +74,20 @@ String _fillOf(FrameSettings frame) {
   return switch (frame.fill) {
     FillMode.crop => 'crop',
     FillMode.blur => 'blur',
+  };
+}
+
+/// Media3's blur draws the whole frame sharp at this share of the output,
+/// over a blurred copy stretched to the output. The sharp frame keeps its
+/// aspect and fits the output width (or height, for a taller source).
+Map<String, double> _blurSettings(OutputSize source, OutputSize output) {
+  final sourceAspect = source.width / source.height;
+  final outputAspect = output.width / output.height;
+  final sourceIsWider = sourceAspect >= outputAspect;
+  return {
+    'blurSigma': _blurSigma,
+    'sharpScaleX': sourceIsWider ? 1.0 : sourceAspect / outputAspect,
+    'sharpScaleY': sourceIsWider ? outputAspect / sourceAspect : 1.0,
   };
 }
 

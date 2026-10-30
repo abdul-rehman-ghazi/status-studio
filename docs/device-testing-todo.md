@@ -37,6 +37,9 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 - [ ] Changing the language on Script reuses the downloaded audio (no data used).
 
 ### M5: render
+- [ ] Effect chain (M5 Task 3 Step 5): render a 10 s clip with each fill (9:16 crop centre, 9:16 blur, 4:5 crop, 16:9 none, free) and a test overlay. Check it's H.264, each frame matches the layout, the overlay is full-frame and sharp, and audio is in sync.
+- [ ] Blur background: Media3's blur stretches the frame behind the sharp copy instead of covering (spec §6.3.1). If it looks wrong, switch to the two-sequence `Composition`.
+- [ ] A release build passes lint with the Media3 `@UnstableApi` opt-ins.
 - [ ] In a release build, export 9:16 crop, 4:5 blur, 16:9 and free crop. Each MP4 plays in the gallery, shares to WhatsApp Status without an "unsupported" error, matches the preview, and shows the Urdu caption in proper Nastaliq.
 
 ### M6: library, settings, polish

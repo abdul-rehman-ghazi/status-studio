@@ -187,7 +187,7 @@ Media3's `Crop` takes normalised device coordinates, so convert each pixel crop 
 - bottom = 1 − 2·(y + h)/sh
 
 Then `Presentation.createForWidthAndHeight(outW, outH, LAYOUT_SCALE_TO_FIT)`.
-- **Blur background:** `GaussianBlurWithFrameOverlaid` (σ ≈ 20) with the sharp frame scaled to fit the output width, after a `Presentation` that covers the output size. Verify the layout on device in M5 Task 2.
+- **Blur background:** `GaussianBlurWithFrameOverlaid` (σ ≈ 20) on the source frame, then `Presentation` to the output size. Read from Media3 1.11.1's source (M5 Task 3): the effect draws the *whole input frame* sharp, scaled by (`sharpScaleX`, `sharpScaleY`) of the output, over a blurred copy of the input stretched to the output's shape. So it can't follow a covering `Presentation` (the sharp layer would be the cropped centre). The sharp scale fits the frame to the output width, or to its height for a taller source. The background is therefore a stretched, not a covered, blur. If that looks wrong on a phone, switch to the two-sequence `Composition` from the M5 plan. Pending the device check in `docs/device-testing-todo.md`.
 - **16:9:** `Presentation` only.
 
 ### 6.4 Language inference (automatic mode)
