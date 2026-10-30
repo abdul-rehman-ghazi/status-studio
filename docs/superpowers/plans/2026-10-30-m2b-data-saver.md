@@ -175,15 +175,15 @@
   - Fine-tune calls `prepareFor` on open and after any nudge whose clip leaves the current window.
   - It shows "Downloading clip… NN %" until ready.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `processing_does_not_download_video` (fake `VideoSource` records calls)
   - `fine_tune_prepares_clip_on_open`
   - `nudge_inside_window_does_not_redownload`
   - `player_seeks_relative_to_offset` (fake controller factory records the seek: clip 1:00, offset 0:55 → 0:05)
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
 - [ ] **Step 5: Manual check** in `--release` on a phone with a long public video:
   - Pick a 30 s clip near the middle and watch Android's per-app data usage. The clip download should be tens of MB, not the full video.
   - The clip plays in sync.
   - Nudging past the window triggers a short new download.
-- [ ] **Step 6:** Run `fvm flutter analyze && fvm flutter test`. Expected: clean, all pass.
-- [ ] **Step 7: Commit** `feat: download only the clip on fine-tune`
+- [x] **Step 6:** Run `fvm flutter analyze && fvm flutter test`. Expected: clean, all pass.
+- [x] **Step 7: Commit** `feat: download only the clip on fine-tune`

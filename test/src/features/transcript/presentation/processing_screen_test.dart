@@ -60,7 +60,7 @@ void main() {
     expect(find.text('Get the script'), findsOneWidget);
   });
 
-  testWidgets('processing_prepares_the_source_video', (tester) async {
+  testWidgets('processing_does_not_download_video', (tester) async {
     final videoSource = CountingVideoSource();
     await startProcessing(
       tester,
@@ -70,6 +70,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(videoSource.prepareCount, 1);
+    expect(videoSource.prepareCount, 0);
   });
 }

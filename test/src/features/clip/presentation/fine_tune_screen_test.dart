@@ -1,12 +1,8 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
-import 'package:status_studio/src/features/source/data/fake_video_source.dart';
-import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
+import '../../../../helpers/fake_clip_preparer.dart';
 import '../../../../helpers/fake_video_player.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
@@ -14,30 +10,21 @@ import '../../../../helpers/pump_app.dart';
 Future<void> pumpFineTune(
   WidgetTester tester, {
   VideoPlayerFactory playerFactory = fakePlayerFactory,
-  FakeVideoSource videoSource = const FakeVideoSource(),
+  FakeClipSourcePreparer? clipPreparer,
 }) => pumpRoutes(
   tester,
   [AppRoutes.fineTune],
   setup: TestSetup(
     overrides: [draftOverride(pickedDraft)],
-    videoSource: videoSource,
     playerFactory: playerFactory,
+    clipPreparer: clipPreparer,
   ),
 );
 
-/// Reports 40 % and then never finishes.
-class StalledVideoSource extends FakeVideoSource {
-  const StalledVideoSource();
-
-  @override
-  Future<File> prepareSourceVideo(
-    SourceVideo video, {
-    required void Function(double fraction) onProgress,
-  }) {
-    onProgress(0.4);
-    return Completer<File>().future;
-  }
-}
+/// The fake clip's window starts 5 s before the clip, so its file time is
+/// video time minus that start.
+Duration fileTime(Duration videoTime) =>
+    videoTime - (pickedDraft.clip!.start - const Duration(seconds: 5));
 
 void main() {
   testWidgets('nudge_start_updates_label', (tester) async {
@@ -70,20 +57,41 @@ void main() {
     expect(find.text('محنت کامیابی کی کنجی ہے'), findsOneWidget);
   });
 
-  testWidgets('preparing_video_shows_progress', (tester) async {
-    await pumpFineTune(tester, videoSource: const StalledVideoSource());
+  testWidgets('downloading_clip_shows_progress', (tester) async {
+    await pumpFineTune(
+      tester,
+      clipPreparer: FakeClipSourcePreparer(stalled: true),
+    );
 
-    expect(find.text('Preparing video… 40 %'), findsOneWidget);
+    expect(find.text('Downloading clip… 40 %'), findsOneWidget);
   });
 
-  testWidgets('play_starts_at_clip_start', (tester) async {
+  testWidgets('fine_tune_prepares_clip_on_open', (tester) async {
+    final preparer = FakeClipSourcePreparer();
+
+    await pumpFineTune(tester, clipPreparer: preparer);
+
+    expect(preparer.calls, 1);
+  });
+
+  testWidgets('nudge_inside_window_does_not_redownload', (tester) async {
+    final preparer = FakeClipSourcePreparer();
+    await pumpFineTune(tester, clipPreparer: preparer);
+
+    await tester.tap(find.bySemanticsLabel('End half a second later'));
+    await tester.pumpAndSettle();
+
+    expect(preparer.calls, 1);
+  });
+
+  testWidgets('player_seeks_relative_to_offset', (tester) async {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);
 
     await tester.tap(find.byTooltip('Play clip'));
     await tester.pump();
 
-    expect(players.created.single.value.position, pickedDraft.clip!.start);
+    expect(players.created.single.value.position, const Duration(seconds: 5));
   });
 
   testWidgets('playback_pauses_at_clip_end', (tester) async {
@@ -93,7 +101,9 @@ void main() {
     await tester.pump();
     final player = players.created.single;
 
-    player.value = player.value.copyWith(position: pickedDraft.clip!.end);
+    player.value = player.value.copyWith(
+      position: fileTime(pickedDraft.clip!.end),
+    );
     await tester.pump();
 
     expect(player.value.isPlaying, isFalse);

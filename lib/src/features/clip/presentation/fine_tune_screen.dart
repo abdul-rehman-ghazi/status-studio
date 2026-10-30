@@ -13,7 +13,7 @@ import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
-import 'package:status_studio/src/features/source/application/source_video_controller.dart';
+import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/source/presentation/source_error_message.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
@@ -86,8 +86,8 @@ List<TranscriptLine> _selectedLines(ReelDraft draft) {
   };
 }
 
-/// The clip player once the source video is ready; until then, how far
-/// its download has got.
+/// The clip player once the clip's window is downloaded (FR-15); until
+/// then, how far the download has got.
 class _SourcePreview extends ConsumerStatefulWidget {
   const _SourcePreview({required this.video, required this.clip});
 
@@ -102,41 +102,56 @@ class _SourcePreviewState extends ConsumerState<_SourcePreview> {
   @override
   void initState() {
     super.initState();
-    // Normally already running since Processing; this starts it if not and
-    // retries it after a failure. Providers can't change during build, so
-    // it waits for the first frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _prepareSource());
+    // Providers can't change during build, so the first download waits for
+    // the first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _prepareFor(widget.clip);
+      }
+    });
   }
 
-  void _prepareSource() {
-    if (!mounted) {
-      return;
+  @override
+  void didUpdateWidget(_SourcePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.clip != oldWidget.clip) {
+      // A nudge past the downloaded window needs a new one; inside it this
+      // does nothing.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _prepareFor(widget.clip);
+        }
+      });
     }
+  }
+
+  void _prepareFor(ClipRange clip) {
     unawaited(
       ref
-          .read(sourceVideoProvider(widget.video.videoId).notifier)
-          .prepare(widget.video),
+          .read(clipSourceProvider(widget.video.videoId).notifier)
+          .prepareFor(widget.video, clip),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final videoId = widget.video.videoId;
-    // unwrapPrevious: a retry must show progress, not the earlier failure.
-    final source = ref.watch(sourceVideoProvider(videoId)).unwrapPrevious();
-    if (source.value case final file?) {
+    // unwrapPrevious: a new window or a retry shows progress, not the
+    // earlier file or failure.
+    final source = ref.watch(clipSourceProvider(videoId)).unwrapPrevious();
+    if (source.value case final clipSource?) {
       return ClipPlayer(
-        key: ValueKey(file.path),
-        source: file,
+        key: ValueKey(clipSource.file.path),
+        source: clipSource,
         clip: widget.clip,
       );
     }
     if (source.error case final error?) {
       return _PreviewMessage(text: sourceErrorMessage(error));
     }
-    final fraction = ref.watch(sourceVideoProgressProvider(videoId));
+    final fraction = ref.watch(clipSourceProgressProvider(videoId));
     final percent = (fraction * 100).round();
-    return _PreviewMessage(text: 'Preparing video… $percent %');
+    return _PreviewMessage(text: 'Downloading clip… $percent %');
   }
 }
 
