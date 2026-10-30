@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
+import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
@@ -13,10 +14,8 @@ Future<void> pumpExport(WidgetTester tester, {required Renderer renderer}) =>
       tester,
       [AppRoutes.style, AppRoutes.export],
       setup: TestSetup(
-        overrides: [
-          draftOverride(pickedDraft),
-          rendererProvider.overrideWithValue(renderer),
-        ],
+        overrides: [draftOverride(pickedDraft)],
+        renderer: renderer,
       ),
     );
 
@@ -30,6 +29,20 @@ class SpyRenderer implements Renderer {
 
   @override
   Future<void> cancel() async => cancelCount++;
+}
+
+/// Fails every render the way a native Media3 error does.
+class FailingRenderer implements Renderer {
+  var renders = 0;
+
+  @override
+  Stream<RenderProgress> render(ReelDraft draft) {
+    renders++;
+    return Stream.error(const RenderFailedException('codec failed'));
+  }
+
+  @override
+  Future<void> cancel() async {}
 }
 
 void main() {
@@ -115,6 +128,31 @@ void main() {
     await pumpExport(tester, renderer: SpyRenderer());
 
     await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Export reel'), findsOneWidget);
+  });
+
+  testWidgets('failed_render_shows_message', (tester) async {
+    await pumpExport(tester, renderer: FailingRenderer());
+
+    expect(find.text("Couldn't make the reel."), findsOneWidget);
+  });
+
+  testWidgets('retry_after_failed_render_renders_again', (tester) async {
+    final renderer = FailingRenderer();
+    await pumpExport(tester, renderer: renderer);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(renderer.renders, 2);
+  });
+
+  testWidgets('back_after_failed_render_returns_to_style', (tester) async {
+    await pumpExport(tester, renderer: FailingRenderer());
+
+    await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
 
     expect(find.text('Export reel'), findsOneWidget);

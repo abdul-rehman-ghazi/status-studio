@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
+import 'package:status_studio/src/features/export/application/fake_renderer.dart';
+import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
@@ -31,6 +33,7 @@ class TestSetup {
     this.clipPreparer,
     this.scriptPipeline = const FakeScriptPipeline(step: Duration.zero),
     this.waveformPeaks,
+    this.renderer = const FakeRenderer(step: Duration.zero),
   });
 
   final List<Override> overrides;
@@ -44,9 +47,11 @@ class TestSetup {
   /// What every clip's waveform resolves to; FFmpeg never runs in tests.
   /// Without peaks the waveform stays loading.
   final List<double>? waveformPeaks;
+  final Renderer renderer;
 
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
+    rendererProvider.overrideWithValue(renderer),
     scriptPipelineProvider.overrideWithValue(scriptPipeline),
     videoPlayerFactoryProvider.overrideWithValue(playerFactory),
     clipSourcePreparerProvider.overrideWithValue(

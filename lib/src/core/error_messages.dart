@@ -1,3 +1,4 @@
+import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
@@ -9,6 +10,7 @@ String errorMessageFor(Object error) {
     InsufficientStorageException() => 'Not enough space on your phone.',
     ModelDownloadException() => "Couldn't download the speech model.",
     NoSpeechFoundException() => 'No speech found in this video.',
+    RenderFailedException() => "Couldn't make the reel.",
     _ => 'Something went wrong. Try again.',
   };
 }
