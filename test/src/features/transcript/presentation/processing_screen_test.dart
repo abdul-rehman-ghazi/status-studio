@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/source/data/fake_video_source.dart';
+import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 
+import '../../../../helpers/counting_video_source.dart';
 import '../../../../helpers/pump_app.dart';
 
 Future<void> startProcessing(
   WidgetTester tester, {
   required Duration step,
+  VideoSource videoSource = const FakeVideoSource(),
 }) async {
   await openSource(
     tester,
     setup: TestSetup(
+      videoSource: videoSource,
       overrides: [
         scriptPipelineProvider.overrideWithValue(
           FakeScriptPipeline(step: step),
@@ -53,5 +58,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Get the script'), findsOneWidget);
+  });
+
+  testWidgets('processing_prepares_the_source_video', (tester) async {
+    final videoSource = CountingVideoSource();
+    await startProcessing(
+      tester,
+      step: Duration.zero,
+      videoSource: videoSource,
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(videoSource.prepareCount, 1);
   });
 }

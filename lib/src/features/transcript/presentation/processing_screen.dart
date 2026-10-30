@@ -7,6 +7,7 @@ import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/source/application/source_video_controller.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
@@ -46,6 +47,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   }
 
   void _onProgress(ScriptProgress progress) {
+    _prepareSourceAfterAudio(progress.stage);
     if (progress.stage == ScriptStage.done) {
       ref.read(reelDraftProvider.notifier).setTranscript(progress.transcript);
       context.pushReplacement(AppRoutes.script);
@@ -55,6 +57,19 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
       _progress = progress;
       _downloadsModel |= progress.stage == ScriptStage.downloadingModel;
     });
+  }
+
+  /// The video downloads while the script is written, so Fine-tune can
+  /// play it as soon as possible without competing with the audio.
+  void _prepareSourceAfterAudio(ScriptStage stage) {
+    if (stage.index <= ScriptStage.downloadingAudio.index) {
+      return;
+    }
+    final video = ref.read(reelDraftProvider).video;
+    if (video == null) {
+      return;
+    }
+    unawaited(ref.read(sourceVideoProvider.notifier).prepare(video));
   }
 
   @override

@@ -96,12 +96,12 @@
 - `final sourceVideoProvider = AsyncNotifierProvider<SourceVideoController, File?>(...)` with `Future<void> prepare(SourceVideo video)`. Its state is an `AsyncValue` carrying progress through a separate `sourceVideoProgressProvider` (`NotifierProvider<…, double>`).
 - Processing calls `prepare` once the audio download finishes, so the video downloads while transcription runs.
 
-- [ ] **Step 1: Failing tests** with a fake `VideoSource`:
+- [x] **Step 1: Failing tests** with a fake `VideoSource`:
   - `prepare_exposes_file_when_done`
   - `prepare_twice_for_same_video_downloads_once`
   - `failure_surfaces_as_error_state`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: prepare source video in the background`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: prepare source video in the background`
 
 ### Task 5: Clip player on Fine-tune
 
