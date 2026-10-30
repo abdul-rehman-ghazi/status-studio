@@ -16,9 +16,22 @@ final scriptProgressProvider =
 class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
   StreamSubscription<ScriptProgress>? _subscription;
 
+  /// Completes once the last cancelled run has stopped.
+  Future<void> _previousStopped = Future.value();
+
+  /// Bumped by every start and cancel, so a run still waiting for the
+  /// previous one to stop knows it has been replaced.
+  var _generation = 0;
+
   @override
   AsyncValue<ScriptProgress> build() {
-    ref.onDispose(_stopListening);
+    ref
+      ..onDispose(cancel)
+      // A new reel or another video makes the running script useless.
+      ..listen(
+        reelDraftProvider.select((draft) => draft.video),
+        (previous, next) => cancel(),
+      );
     return const AsyncLoading();
   }
 
@@ -31,11 +44,28 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
       _follow(ref.read(scriptPipelineProvider).writeAgain(video, language));
 
   /// Stops the run; Whisper releases its model as the stream closes.
-  void cancel() => _stopListening();
+  void cancel() {
+    _generation++;
+    _stopListening();
+  }
 
   void _follow(Stream<ScriptProgress> run) {
-    _stopListening();
+    cancel();
     state = const AsyncLoading();
+    unawaited(_followOnceStopped(run, _generation));
+  }
+
+  /// A cancelled run keeps going until its current step ends (a download,
+  /// an FFmpeg run, a Whisper chunk). Two runs at once would share audio
+  /// files and load the model twice, so the next one waits.
+  Future<void> _followOnceStopped(
+    Stream<ScriptProgress> run,
+    int generation,
+  ) async {
+    await _previousStopped;
+    if (generation != _generation) {
+      return;
+    }
     _subscription = run.listen(
       _onProgress,
       onError: (Object error, StackTrace stackTrace) =>
@@ -49,8 +79,11 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
   }
 
   void _stopListening() {
-    // Not awaited: a cancelled pipeline may only finish its current piece.
-    unawaited(_subscription?.cancel());
+    final stopping = _subscription?.cancel();
     _subscription = null;
+    if (stopping != null) {
+      // An abandoned run's failure is no longer the user's concern.
+      _previousStopped = stopping.then((_) {}, onError: (Object _) {});
+    }
   }
 }

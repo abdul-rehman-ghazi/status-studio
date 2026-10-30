@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/real_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
@@ -36,9 +37,15 @@ const captions = Transcript(
 
 /// Captions when [hasCaptions]; counts script audio downloads.
 class ScriptVideoSource extends FakeVideoSource {
-  ScriptVideoSource({this.hasCaptions = false});
+  ScriptVideoSource({
+    this.hasCaptions = false,
+    this.captionFailure = const NoCaptionTrackException(),
+  });
 
   final bool hasCaptions;
+
+  /// Thrown by [fetchCaptions] when there are no captions.
+  final Exception captionFailure;
   var audioDownloads = 0;
 
   @override
@@ -49,7 +56,7 @@ class ScriptVideoSource extends FakeVideoSource {
     if (hasCaptions) {
       return captions;
     }
-    throw const NoCaptionTrackException();
+    throw captionFailure;
   }
 
   @override
@@ -157,6 +164,16 @@ void main() {
   });
 
   test('falls_back_to_whisper_without_captions', () async {
+    final events = await run();
+
+    expect(events.last.transcript.lines, hasLength(3));
+  });
+
+  test('caption_failure_falls_back_to_whisper', () async {
+    videos = ScriptVideoSource(
+      captionFailure: const OfflineException('captions timed out'),
+    );
+
     final events = await run();
 
     expect(events.last.transcript.lines, hasLength(3));

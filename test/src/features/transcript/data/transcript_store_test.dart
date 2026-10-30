@@ -119,6 +119,23 @@ void main() {
     expect((await store.load(keyFor('a'))).source, 'captions');
   });
 
+  test('prune_keeps_video_with_only_partial_progress', () async {
+    await store.savePartial(
+      keyFor('resuming'),
+      SpeechModel.small,
+      const PartialTranscript(completedChunks: 1, lines: []),
+    );
+    now = start.add(const Duration(days: 1));
+
+    await store.prune();
+
+    final partial = await store.loadPartial(
+      keyFor('resuming'),
+      SpeechModel.small,
+    );
+    expect(partial.completedChunks, 1);
+  });
+
   test('prune_keeps_two_hundred_most_recent_videos', () async {
     for (var video = 0; video < 202; video++) {
       now = start.add(Duration(minutes: video));

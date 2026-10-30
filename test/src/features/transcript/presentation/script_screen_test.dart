@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -90,6 +91,24 @@ void main() {
 
     expect(find.text('Using the saved script from 7 Oct'), findsOneWidget);
   });
+
+  testWidgets('failed_run_shows_message_and_retry', (tester) async {
+    await pumpRoutes(
+      tester,
+      [AppRoutes.script],
+      setup: TestSetup(
+        overrides: [
+          draftOverride(scriptDraft),
+          scriptProgressProvider.overrideWith(FailedRunController.new),
+        ],
+      ),
+    );
+
+    expect(
+      find.textContaining("You're offline", findRichText: true),
+      findsOneWidget,
+    );
+  });
 }
 
 /// A finished run that came from the saved scripts.
@@ -103,4 +122,11 @@ class SavedRunController extends ScriptProgressController {
       savedAt: DateTime(2026, 10, 7),
     ),
   );
+}
+
+/// A run that stopped partway: the lines so far stay on screen.
+class FailedRunController extends ScriptProgressController {
+  @override
+  AsyncValue<ScriptProgress> build() =>
+      const AsyncError(OfflineException('lost'), StackTrace.empty);
 }

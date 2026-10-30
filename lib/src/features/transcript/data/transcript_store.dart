@@ -55,7 +55,11 @@ class TranscriptStore {
     TranscriptKey key,
     SpeechModel model,
     PartialTranscript partial,
-  ) => _write(_partialFile(key, model), partial.toJson());
+  ) async {
+    await _write(_partialFile(key, model), partial.toJson());
+    // Counts as a use, or pruning would drop progress the user can resume.
+    await _touch(key.videoId);
+  }
 
   Future<void> clearPartial(TranscriptKey key, SpeechModel model) async {
     final file = _partialFile(key, model);
