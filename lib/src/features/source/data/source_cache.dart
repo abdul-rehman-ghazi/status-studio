@@ -14,8 +14,13 @@ class SourceCache {
 
   final Directory root;
 
-  File audioFile(String videoId, String extension) =>
-      File('${_folder(videoId)}/audio.$extension');
+  /// Low-bitrate audio for transcription.
+  File scriptAudioFile(String videoId, String extension) =>
+      File('${_folder(videoId)}/script_audio.$extension');
+
+  /// Full-quality audio for the whole-video fallback source.
+  File fullAudioFile(String videoId, String extension) =>
+      File('${_folder(videoId)}/full_audio.$extension');
 
   /// The video-only stream, in whatever container YouTube served.
   File videoFile(String videoId) => File('${_folder(videoId)}/video');

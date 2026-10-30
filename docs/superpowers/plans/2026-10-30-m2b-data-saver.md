@@ -48,14 +48,14 @@
   - `SourceCache.audioFile` is renamed `scriptAudioFile`.
   - `pickAudioStream` (highest bitrate) stays for clip audio.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `script_audio_picks_lowest_bitrate_mp4`: 48 k mp4 over 128 k mp4 and 50 k webm.
   - `script_audio_falls_back_to_lowest_any_container`
   - `script_audio_empty_list_throws_unavailable`
-- [ ] **Step 2:** Run `fvm flutter test test/src/features/source` → FAIL.
-- [ ] **Step 3:** Implement, then rename and update every caller (Processing, fakes, tests).
-- [ ] **Step 4:** Run → PASS. Then `fvm flutter analyze` → "No issues found!".
-- [ ] **Step 5: Commit** `feat: download script audio at the lowest bitrate`
+- [x] **Step 2:** Run `fvm flutter test test/src/features/source` → FAIL.
+- [x] **Step 3:** Implement, then rename and update every caller (Processing, fakes, tests).
+- [x] **Step 4:** Run → PASS. Then `fvm flutter analyze` → "No issues found!".
+- [x] **Step 5: Commit** `feat: download script audio at the lowest bitrate`
 
 ### Task 2: MP4 segment index parser
 

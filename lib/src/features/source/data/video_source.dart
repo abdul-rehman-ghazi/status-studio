@@ -12,8 +12,9 @@ import 'package:status_studio/src/features/source/domain/source_video.dart';
 abstract interface class VideoSource {
   Future<SourceVideo> fetchVideo(String videoId);
 
-  /// The highest-bitrate audio-only stream, cached and reused.
-  Future<File> downloadAudio(
+  /// The lowest-bitrate audio-only stream for transcription, cached and
+  /// reused.
+  Future<File> downloadScriptAudio(
     SourceVideo video, {
     required void Function(double fraction) onProgress,
   });

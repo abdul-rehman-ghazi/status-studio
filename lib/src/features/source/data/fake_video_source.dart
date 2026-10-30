@@ -18,7 +18,7 @@ class FakeVideoSource implements VideoSource {
   }
 
   @override
-  Future<File> downloadAudio(
+  Future<File> downloadScriptAudio(
     SourceVideo video, {
     required void Function(double fraction) onProgress,
   }) async {

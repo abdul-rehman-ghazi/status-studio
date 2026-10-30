@@ -29,7 +29,7 @@ void main() {
     final reported = <double>[];
 
     await cache.write(
-      cache.audioFile(videoId, 'm4a'),
+      cache.scriptAudioFile(videoId, 'm4a'),
       chunks(4),
       totalBytes: 16,
       onProgress: reported.add,
@@ -39,7 +39,7 @@ void main() {
   });
 
   test('write_renames_part_file_on_completion', () async {
-    final target = cache.audioFile(videoId, 'm4a');
+    final target = cache.scriptAudioFile(videoId, 'm4a');
 
     await cache.write(target, chunks(2), totalBytes: 8, onProgress: (_) {});
 
@@ -50,7 +50,7 @@ void main() {
   });
 
   test('partial_download_is_not_reused', () async {
-    final target = cache.audioFile(videoId, 'm4a');
+    final target = cache.scriptAudioFile(videoId, 'm4a');
 
     await expectLater(
       cache.write(target, failingHalfway(), totalBytes: 8, onProgress: (_) {}),
@@ -69,7 +69,7 @@ void main() {
 
   test('files_of_one_video_share_its_folder', () {
     final folders = {
-      cache.audioFile(videoId, 'm4a').parent.path,
+      cache.scriptAudioFile(videoId, 'm4a').parent.path,
       cache.videoFile(videoId).parent.path,
       cache.sourceFile(videoId).parent.path,
     };
