@@ -89,4 +89,33 @@ void main() {
 
     expect(nudged, clip(50, 60));
   });
+
+  test('nudge_that_lengthens_a_short_clip_is_applied', () {
+    const short = ClipRange(
+      start: Duration(seconds: 10),
+      end: Duration(milliseconds: 11500),
+    );
+
+    final nudged = short.nudgeEnd(ClipRange.nudgeStep, videoDuration: video);
+
+    expect(nudged.end, const Duration(seconds: 12));
+  });
+
+  test('nudge_start_allowed_when_clip_end_exceeds_video', () {
+    final nudged = clip(
+      50,
+      62,
+    ).nudgeStart(-ClipRange.nudgeStep, videoDuration: video);
+
+    expect(nudged.start, const Duration(milliseconds: 49500));
+  });
+
+  test('nudge_end_inward_allowed_when_clip_end_exceeds_video', () {
+    final nudged = clip(
+      50,
+      62,
+    ).nudgeEnd(-ClipRange.nudgeStep, videoDuration: video);
+
+    expect(nudged.end, const Duration(milliseconds: 61500));
+  });
 }

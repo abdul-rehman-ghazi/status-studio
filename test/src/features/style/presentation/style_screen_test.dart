@@ -92,4 +92,24 @@ void main() {
 
     expect(find.text('Export reel'), findsNothing);
   });
+
+  testWidgets('tapping_selected_variant_keeps_caption_edits', (tester) async {
+    await pumpStyle(tester);
+    await tester.enterText(find.byType(TextField), 'My own words');
+
+    await tapText(tester, 'Original');
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'My own words');
+  });
+
+  testWidgets('switching_variant_replaces_caption_edits', (tester) async {
+    await pumpStyle(tester);
+    await tester.enterText(find.byType(TextField), 'My own words');
+
+    await tapText(tester, 'English');
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, pickedDraft.caption.text);
+  });
 }

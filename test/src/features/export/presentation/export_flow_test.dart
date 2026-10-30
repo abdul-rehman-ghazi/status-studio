@@ -1,23 +1,34 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
+import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
 /// Opens Export on top of Style, as the flow does.
-Future<void> pumpExport(
-  WidgetTester tester, {
-  required FakeRenderer renderer,
-}) => pumpRoutes(
-  tester,
-  [AppRoutes.style, AppRoutes.export],
-  overrides: [
-    draftOverride(pickedDraft),
-    rendererProvider.overrideWithValue(renderer),
-  ],
-);
+Future<void> pumpExport(WidgetTester tester, {required Renderer renderer}) =>
+    pumpRoutes(
+      tester,
+      [AppRoutes.style, AppRoutes.export],
+      overrides: [
+        draftOverride(pickedDraft),
+        rendererProvider.overrideWithValue(renderer),
+      ],
+    );
+
+/// Renders like a slow fake and counts how often it is cancelled.
+class SpyRenderer implements Renderer {
+  var cancelCount = 0;
+
+  @override
+  Stream<RenderProgress> render(ReelDraft draft) =>
+      const FakeRenderer(step: Duration(seconds: 1)).render(draft);
+
+  @override
+  Future<void> cancel() async => cancelCount++;
+}
 
 void main() {
   testWidgets('export_finishes_on_done_screen', (tester) async {
@@ -86,5 +97,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('New reel'), findsOneWidget);
+  });
+
+  testWidgets('system_back_on_export_cancels_render', (tester) async {
+    final renderer = SpyRenderer();
+    await pumpExport(tester, renderer: renderer);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(renderer.cancelCount, 1);
+  });
+
+  testWidgets('system_back_on_export_returns_to_style', (tester) async {
+    await pumpExport(tester, renderer: SpyRenderer());
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Export reel'), findsOneWidget);
   });
 }

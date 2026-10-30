@@ -21,20 +21,25 @@ class ClipRange {
 
   Duration get length => end - start;
 
-  /// Moves the start by [delta]; a move that breaks a rule is ignored.
+  /// Moves the start by [delta]; a move that makes a rule worse is ignored.
   ClipRange nudgeStart(Duration delta, {required Duration videoDuration}) {
     final moved = copyWith(start: start + delta);
-    return moved._fitsIn(videoDuration) ? moved : this;
+    return moved._worsensRules(this, videoDuration) ? this : moved;
   }
 
-  /// Moves the end by [delta]; a move that breaks a rule is ignored.
+  /// Moves the end by [delta]; a move that makes a rule worse is ignored.
   ClipRange nudgeEnd(Duration delta, {required Duration videoDuration}) {
     final moved = copyWith(end: end + delta);
-    return moved._fitsIn(videoDuration) ? moved : this;
+    return moved._worsensRules(this, videoDuration) ? this : moved;
   }
 
-  bool _fitsIn(Duration videoDuration) =>
-      start >= Duration.zero && end <= videoDuration && length >= minimumLength;
+  // Judged against the clip before the move, so a clip that starts out too
+  // short or past the video's end (from transcript timestamps) can still be
+  // nudged back towards a valid range.
+  bool _worsensRules(ClipRange before, Duration videoDuration) =>
+      (start < Duration.zero && start < before.start) ||
+      (end > videoDuration && end > before.end) ||
+      (length < minimumLength && length < before.length);
 
   ClipRange copyWith({Duration? start, Duration? end}) {
     return ClipRange(start: start ?? this.start, end: end ?? this.end);

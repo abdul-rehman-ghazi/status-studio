@@ -128,6 +128,10 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   /// Until M5 brings transliteration and translation, every variant starts
   /// from the picked lines' original text.
   void _switchVariant(ReelDraft draft, CaptionVariant variant) {
+    // Re-tapping the current chip is not a switch; keep the user's edits.
+    if (variant == draft.caption.variant) {
+      return;
+    }
     final text = _selectedLinesText(draft);
     _captionController.text = text;
     ref
