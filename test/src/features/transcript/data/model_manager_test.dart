@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
@@ -117,5 +118,15 @@ void main() {
       manager.download(SpeechModel.small).drain<void>(),
       throwsA(isA<ModelDownloadException>()),
     );
+  });
+
+  test('full_disk_is_reported_as_insufficient_storage', () {
+    const full = FileSystemException(
+      'Write failed',
+      'ggml-small.bin.part',
+      OSError('No space left on device', 28),
+    );
+
+    expect(modelDownloadError(full), isA<InsufficientStorageException>());
   });
 }

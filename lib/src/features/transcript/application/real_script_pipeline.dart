@@ -91,14 +91,16 @@ class RealScriptPipeline implements ScriptPipeline {
     }
   }
 
-  /// The video's captions, if it has a usable track.
+  /// The video's captions, if it has a usable track. Any caption failure
+  /// falls through to Whisper, which may need nothing from the network:
+  /// the model, script audio and partial progress can all be on the phone.
   Future<Transcript?> _captions(
     SourceVideo video,
     ScriptLanguage language,
   ) async {
     try {
       return await services.videos.fetchCaptions(video, language);
-    } on NoCaptionTrackException {
+    } on Exception {
       return null;
     }
   }

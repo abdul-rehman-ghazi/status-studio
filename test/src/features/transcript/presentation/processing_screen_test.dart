@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/app.dart';
+import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -69,6 +72,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Get the script'), findsOneWidget);
+  });
+
+  testWidgets('system_back_cancels_run', (tester) async {
+    await startProcessing(tester, step: const Duration(seconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(minutes: 1));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(StatusStudioApp)),
+    );
+    expect(container.read(reelDraftProvider).transcript, isNull);
   });
 
   testWidgets('processing_does_not_download_video', (tester) async {

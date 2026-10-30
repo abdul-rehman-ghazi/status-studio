@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -64,7 +65,8 @@ class ScriptScreen extends ConsumerWidget {
         ],
       ),
       bottomNavigationBar: _ScriptFooter(
-        progress: ref.watch(scriptProgressProvider).value,
+        run: ref.watch(scriptProgressProvider),
+        onRetry: () => _resume(ref),
         child: BottomAction(
           child: FilledButton(
             onPressed: rangePicked
@@ -77,6 +79,14 @@ class ScriptScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Starts the run again; Whisper resumes from its saved progress.
+  void _resume(WidgetRef ref) {
+    final draft = ref.read(reelDraftProvider);
+    if (draft.video case final video?) {
+      ref.read(scriptProgressProvider.notifier).start(video, draft.language);
+    }
   }
 
   void _writeAgain(BuildContext context, WidgetRef ref) {
@@ -166,7 +176,8 @@ class _SavedScriptBanner extends StatelessWidget {
         children: [
           Expanded(
             child: HintText(
-              'Using the saved script from ${formatDayMonth(savedAt)}',
+              'Using the saved script from '
+              '${formatDayMonth(savedAt.toLocal())}',
             ),
           ),
           TextButton(
@@ -179,16 +190,43 @@ class _SavedScriptBanner extends StatelessWidget {
   }
 }
 
-/// "Still writing… NN %" above the button until the script is finished.
+/// "Still writing… NN %" above the button until the script is finished,
+/// or why it stopped. A run that fails partway leaves its lines on screen,
+/// so without this the script would look finished.
 class _ScriptFooter extends StatelessWidget {
-  const _ScriptFooter({required this.progress, required this.child});
+  const _ScriptFooter({
+    required this.run,
+    required this.onRetry,
+    required this.child,
+  });
 
-  final ScriptProgress? progress;
+  final AsyncValue<ScriptProgress> run;
+  final VoidCallback onRetry;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final progress = this.progress;
+    if (run.error case final error?) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  errorMessageFor(error),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+              TextButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ),
+          child,
+        ],
+      );
+    }
+    final progress = run.value;
     if (progress == null || progress.stage == ScriptStage.done) {
       return child;
     }

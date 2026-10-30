@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:whisper_ggml/whisper_ggml.dart';
@@ -34,7 +36,8 @@ class ModelManager {
     }
   }
 
-  /// Emits progress from 0 to 1; throws [ModelDownloadException] on any
+  /// Emits progress from 0 to 1; throws [ModelDownloadException], or
+  /// [InsufficientStorageException] for a full disk, on any
   /// failure and leaves no file behind.
   Stream<double> download(SpeechModel model) async* {
     final path = await pathFor(model);
@@ -52,9 +55,7 @@ class ModelManager {
       if (await part.exists()) {
         await part.delete();
       }
-      throw error is ModelDownloadException
-          ? error
-          : ModelDownloadException('$error');
+      throw modelDownloadError(error);
     }
   }
 
@@ -66,6 +67,15 @@ class ModelManager {
     }
     return response;
   }
+}
+
+/// A full disk is reported as such; retrying the download wouldn't help.
+Exception modelDownloadError(Object error) {
+  return switch (mapIoError(error)) {
+    final InsufficientStorageException full => full,
+    final ModelDownloadException failure => failure,
+    _ => ModelDownloadException('$error'),
+  };
 }
 
 Stream<double> _receive(HttpClientResponse response, File part) async* {

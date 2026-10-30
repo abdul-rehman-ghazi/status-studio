@@ -47,30 +47,38 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     final draft = ref.watch(reelDraftProvider);
     final run = ref.watch(scriptProgressProvider);
     _openScriptIfDone(run);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Working'),
-        automaticallyImplyLeading: false,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            'Writing the script',
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          if (draft.video case final video?) _VideoLine(video: video),
-          const SizedBox(height: 20),
-          if (run.error case final error?)
-            _RunFailed(error: error)
-          else
-            _RunSteps(language: draft.language, progress: run.value),
-        ],
-      ),
-      bottomNavigationBar: BottomAction(
-        child: _bottomButton(context, ref, run.value),
+    return PopScope(
+      // System back leaves the run as surely as Cancel does.
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          ref.read(scriptProgressProvider.notifier).cancel();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Working'),
+          automaticallyImplyLeading: false,
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              'Writing the script',
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            if (draft.video case final video?) _VideoLine(video: video),
+            const SizedBox(height: 20),
+            if (run.error case final error?)
+              _RunFailed(error: error)
+            else
+              _RunSteps(language: draft.language, progress: run.value),
+          ],
+        ),
+        bottomNavigationBar: BottomAction(
+          child: _bottomButton(context, ref, run.value),
+        ),
       ),
     );
   }
