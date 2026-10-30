@@ -57,7 +57,7 @@
 - `RecentReel` per spec §6.1, with `toJson`/`fromJson`.
 - `class RecentReelsRepository { RecentReelsRepository(SharedPreferencesAsync prefs); Future<List<RecentReel>> load(); Future<void> add(RecentReel reel); Future<void> delete(String id); static const maximum = 50; }`
 - `List<String> thumbnailArguments({required String videoPath, required String outputPath})` → `['-y', '-ss', '0', '-i', videoPath, '-frames:v', '1', '-vf', 'scale=270:-2', outputPath]`
-- `FfmpegRenderer` (M5) moves its output to `documents/reels/<id>.mp4`, writes `<id>.jpg`, and calls `add`.
+- After `RenderFinished`, the Export screen moves the output to `documents/reels/<id>.mp4`, writes `<id>.jpg` with `thumbnailArguments` via `FfmpegRunner`, and calls `add`. (The M5 renderer is `Media3Renderer`; FFmpeg can still decode H.264 for thumbnails.)
 
 - [ ] **Step 1: Failing tests:**
   - `add_puts_newest_first`
@@ -105,11 +105,13 @@
 
 **Interfaces:**
 - `Future<int> deleteStaleSources(Directory root, {required DateTime now, Duration maxAge = const Duration(days: 7)})` returns the number of folders deleted.
+- On start, also call `TranscriptStore.prune()` (M3), which keeps saved scripts 90 days and at most 200 videos.
 
 - [ ] **Step 1: Failing tests:**
   - `deletes_folders_older_than_seven_days`
   - `keeps_recent_folders`
   - `missing_root_deletes_nothing`
+  - `startup_cleanup_prunes_saved_scripts` (fake store records the `prune` call)
   - `maps_insufficient_storage`
   - `maps_render_failed`
   - `maps_translation_pack_missing`

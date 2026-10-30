@@ -11,7 +11,7 @@ Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact
 ## Spec and plans
 
 - Spec: `docs/superpowers/specs/2026-10-29-status-studio-design.md`. It is the source of truth for behaviour, copy, sizes and error messages.
-- Plans: `docs/superpowers/plans/2026-10-29-m<N>-*.md`, one per milestone, in order M1 → M6. Each task lists files, interfaces and the exact tests to write first.
+- Plans: `docs/superpowers/plans/*-m<N>-*.md`, one per milestone, in this order: **M1 → M2 → M2b → M3 → M4 → M5 → M6**. M2b (`2026-10-30-m2b-data-saver.md`) comes after M2 even though its date sorts later. Each task lists files, interfaces and the exact tests to write first.
 - Workflow:
   - Work on one milestone per branch (`m1-app-shell`, …).
   - Follow the plan's tasks in order and write the failing test first.
@@ -44,10 +44,16 @@ fvm flutter build apk --debug
 
 ## Domain rules that are easy to get wrong
 
-- **Captions and branding are drawn by Flutter, not FFmpeg.** Render caption text plus the logo to a transparent PNG with Flutter's text engine, then overlay it with FFmpeg. FFmpeg's `drawtext` breaks Nastaliq letter joining.
+- **Final render is Media3 Transformer, not FFmpeg.** The bundled FFmpeg is built with `--disable-mediacodec --disable-openssl` and has no libx264: it can't encode H.264 or read https URLs. Android renders through a Kotlin platform channel to Media3 (hardware H.264/AAC). FFmpeg is only for WAV conversion, splitting, stream-copy muxing and thumbnails.
+- **Captions and branding are drawn by Flutter.** Render caption text plus the logo to one transparent PNG at output size with Flutter's text engine; Media3 overlays it. Text rendering elsewhere would break Nastaliq letter joining.
 - **One FFmpeg only.** `whisper_ggml` depends on `ffmpeg_kit_flutter_new_min` ^2.x. Use that same package for all video work. Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL. Upgrade `ffmpeg_kit_flutter_new_min` together with `whisper_ggml` when it moves to 3.x.
 - **Heavy work off the UI thread.** Whisper transcription and FFmpeg runs are long. Stream progress to the UI, and stream transcript lines as they're produced so long videos are usable early.
 - **Whisper model is downloaded on first use, not bundled.** Default `small`; `base` as a lighter option.
+- **Save the user's data.**
+  - Script audio is the lowest-bitrate stream, or nothing when YouTube captions exist.
+  - Video is never downloaded whole when it can be avoided: Fine-tune fetches only the clip window via the MP4 `sidx` index and HTTP range requests (spec FR-15).
+  - Network I/O for media is Dart `HttpClient`.
+- **Reuse earlier work.** Finished scripts are saved per video/language/source and reopened without downloading (spec FR-14). Whisper progress is saved per 90-second chunk and resumed.
 - **RTL text.** Urdu, Arabic and Persian text needs `TextDirection.rtl` and the Nastaliq or Naskh family. Nastaliq needs a tall line height (about 2.1).
 - **Distribution.** YouTube downloading keeps the app off Google Play and the App Store. Keep YouTube access behind one data-layer class so a store build could swap in local-file input.
 
