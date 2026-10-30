@@ -125,13 +125,13 @@
   - Each `ClosedCaption` (`text`, `offset`, `end`) becomes a line; empty ones are skipped.
   - `languageCode` comes from the track.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `prefers_manual_track`
   - `auto_language_accepts_any_track`
   - `ignores_tracks_in_other_language_when_language_chosen`
   - `no_tracks_throws`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: use YouTube captions when available`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: use YouTube captions when available`
 
 ### Task 6: Saved scripts and partial progress
 

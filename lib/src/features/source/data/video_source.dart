@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/youtube_video_source.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// Where to fetch the chosen video and audio streams from, and whether they
 /// are MP4 (only MP4 has the segment index partial downloads need).
@@ -47,6 +49,11 @@ abstract interface class VideoSource {
     SourceVideo video, {
     required void Function(double fraction) onProgress,
   });
+
+  /// The video's own caption track as a transcript (FR-3): manual over
+  /// auto-generated, in [language] unless automatic. Throws
+  /// `NoCaptionTrackException` when there is none to use.
+  Future<Transcript> fetchCaptions(SourceVideo video, ScriptLanguage language);
 
   /// Fresh URLs for the clip's video (≤ 720p) and best audio stream. They
   /// expire, so ask again after an [ExpiredStreamUrlException].
