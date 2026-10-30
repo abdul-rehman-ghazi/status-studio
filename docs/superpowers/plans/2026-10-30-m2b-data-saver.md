@@ -149,7 +149,7 @@
     6. On `ExpiredStreamUrlException`, call `streamUrls` again and retry once.
   - Progress is split as video 70 %, audio 25 %, mux 5 %.
 
-- [ ] **Step 1: Failing tests** with fake `VideoSource`, `RangedDownloader` and `FfmpegRunner`:
+- [x] **Step 1: Failing tests** with fake `VideoSource`, `RangedDownloader` and `FfmpegRunner`:
   - `downloads_only_covering_ranges`
   - `reuses_window_that_still_covers_clip`
   - `downloads_new_window_when_clip_leaves_it`
@@ -157,8 +157,8 @@
   - `falls_back_to_full_download_without_index`
   - `retries_once_after_expired_url`
   - `second_expired_url_surfaces_unavailable`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: prepare clip-only sources`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: prepare clip-only sources`
 
 ### Task 6: Fine-tune downloads only the clip
 

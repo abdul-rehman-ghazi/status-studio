@@ -17,9 +17,8 @@ Future<HttpServer> serve({int? fixedStatus, bool ignoreRange = false}) async {
       await response.close();
       return;
     }
-    final range = RegExp(r'bytes=(\d+)-(\d+)').firstMatch(
-      request.headers.value(HttpHeaders.rangeHeader) ?? '',
-    );
+    final range = RegExp(r'bytes=(\d+)-(\d+)')
+        .firstMatch(request.headers.value(HttpHeaders.rangeHeader) ?? '');
     if (range == null || ignoreRange) {
       response.add(fileBytes);
       await response.close();
@@ -57,7 +56,11 @@ void main() {
 
   RangedDownload rangesOf(HttpServer server) => RangedDownload(
     url: urlOf(server),
-    ranges: const [ByteRange(0, 99), ByteRange(1000, 1999), ByteRange(5000, 5499)],
+    ranges: const [
+      ByteRange(0, 99),
+      ByteRange(1000, 1999),
+      ByteRange(5000, 5499),
+    ],
     target: File('${folder.path}/clip.mp4'),
   );
 

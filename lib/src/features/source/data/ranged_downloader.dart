@@ -20,9 +20,9 @@ class RangedDownload {
 
 /// Fetches parts of a file with HTTP range requests (FR-15).
 class RangedDownloader {
-  RangedDownloader(this.client);
+  RangedDownloader(this._client);
 
-  final HttpClient client;
+  final HttpClient _client;
 
   /// The first [length] bytes of [url].
   Future<Uint8List> fetchHead(Uri url, int length) async {
@@ -79,7 +79,7 @@ class RangedDownloader {
   }
 
   Future<HttpClientResponse> _requestRange(Uri url, ByteRange range) async {
-    final request = await client.getUrl(url);
+    final request = await _client.getUrl(url);
     request.headers.set(
       HttpHeaders.rangeHeader,
       'bytes=${range.first}-${range.last}',

@@ -27,6 +27,16 @@ class FakeVideoSource implements VideoSource {
   }
 
   @override
+  Future<StreamUrls> streamUrls(SourceVideo video) async {
+    return StreamUrls(
+      video: Uri.parse('https://example.com/${video.videoId}/video.mp4'),
+      audio: Uri.parse('https://example.com/${video.videoId}/audio.m4a'),
+      videoIsMp4: true,
+      audioIsMp4: true,
+    );
+  }
+
+  @override
   Future<File> prepareSourceVideo(
     SourceVideo video, {
     required void Function(double fraction) onProgress,

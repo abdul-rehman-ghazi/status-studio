@@ -92,6 +92,27 @@ class YouTubeVideoSource implements VideoSource {
   }
 
   @override
+  Future<StreamUrls> streamUrls(SourceVideo video) => _guard(() async {
+    final manifest = await _manifest(video.videoId);
+    final videoStreams = manifest.videoOnly;
+    final audioStreams = manifest.audioOnly;
+    final videoChoice = pickVideoStream([
+      for (final (index, stream) in videoStreams.indexed)
+        _videoChoice(stream, index),
+    ]);
+    final audioChoice = pickAudioStream([
+      for (final (index, stream) in audioStreams.indexed)
+        _audioChoice(stream, index),
+    ]);
+    return StreamUrls(
+      video: videoStreams[videoChoice.index].url,
+      audio: audioStreams[audioChoice.index].url,
+      videoIsMp4: videoChoice.isPreferredContainer,
+      audioIsMp4: audioChoice.isPreferredContainer,
+    );
+  });
+
+  @override
   Future<File> prepareSourceVideo(
     SourceVideo video, {
     required void Function(double fraction) onProgress,
