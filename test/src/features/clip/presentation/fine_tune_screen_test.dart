@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -12,7 +13,7 @@ import '../../../../helpers/pump_app.dart';
 
 Future<void> pumpFineTune(
   WidgetTester tester, {
-  RecordingPlayerFactory? players,
+  VideoPlayerFactory playerFactory = fakePlayerFactory,
   FakeVideoSource videoSource = const FakeVideoSource(),
 }) => pumpRoutes(
   tester,
@@ -20,7 +21,7 @@ Future<void> pumpFineTune(
   setup: TestSetup(
     overrides: [draftOverride(pickedDraft)],
     videoSource: videoSource,
-    playerFactory: players?.call ?? fakePlayerFactory,
+    playerFactory: playerFactory,
   ),
 );
 
@@ -77,7 +78,7 @@ void main() {
 
   testWidgets('play_starts_at_clip_start', (tester) async {
     final players = RecordingPlayerFactory();
-    await pumpFineTune(tester, players: players);
+    await pumpFineTune(tester, playerFactory: players.call);
 
     await tester.tap(find.byTooltip('Play clip'));
     await tester.pump();
@@ -87,7 +88,7 @@ void main() {
 
   testWidgets('playback_pauses_at_clip_end', (tester) async {
     final players = RecordingPlayerFactory();
-    await pumpFineTune(tester, players: players);
+    await pumpFineTune(tester, playerFactory: players.call);
     await tester.tap(find.byTooltip('Play clip'));
     await tester.pump();
     final player = players.created.single;
@@ -100,11 +101,29 @@ void main() {
 
   testWidgets('player_disposed_when_screen_closes', (tester) async {
     final players = RecordingPlayerFactory();
-    await pumpFineTune(tester, players: players);
+    await pumpFineTune(tester, playerFactory: players.call);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
 
     expect(players.created.single.disposed, isTrue);
+  });
+
+  testWidgets('playback_pauses_when_style_opens', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    await tester.tap(find.byTooltip('Play clip'));
+    await tester.pump();
+
+    await tester.tap(find.text('Next: frame & caption'));
+    await tester.pumpAndSettle();
+
+    expect(players.created.single.value.isPlaying, isFalse);
+  });
+
+  testWidgets('unplayable_source_shows_message', (tester) async {
+    await pumpFineTune(tester, playerFactory: brokenPlayerFactory);
+
+    expect(find.text("Couldn't play this video."), findsOneWidget);
   });
 }

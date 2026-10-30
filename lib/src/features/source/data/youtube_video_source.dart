@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/mux_arguments.dart';
+import 'package:status_studio/src/core/single_flight.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
@@ -28,6 +30,9 @@ class YouTubeVideoSource implements VideoSource {
   final yt.YoutubeExplode _youtube;
   final Future<SourceCache> cache;
   final FfmpegRunner ffmpeg;
+
+  /// Keyed by target path, so one file is never written by two downloads.
+  final _downloads = SingleFlight<File>();
 
   void close() => _youtube.close();
 
@@ -62,14 +67,21 @@ class YouTubeVideoSource implements VideoSource {
     final streams = manifest.audioOnly;
     final choice = pickAudioStream([
       for (final (index, stream) in streams.indexed)
-        _choiceFor(stream, index: index, height: 0),
+        _audioChoice(stream, index),
     ]);
     final stream = streams[choice.index];
-    return sources.write(
-      sources.audioFile(video.videoId, _audioExtensions[choice.container]!),
-      _youtube.videos.streamsClient.get(stream),
-      totalBytes: stream.size.totalBytes,
-      onProgress: onProgress,
+    final target = sources.audioFile(
+      video.videoId,
+      _audioExtensions[choice.container]!,
+    );
+    return _downloads.run(
+      target.path,
+      () => sources.write(
+        target,
+        _youtube.videos.streamsClient.get(stream),
+        totalBytes: stream.size.totalBytes,
+        onProgress: onProgress,
+      ),
     );
   });
 
@@ -84,6 +96,18 @@ class YouTubeVideoSource implements VideoSource {
       onProgress(1);
       return source;
     }
+    return _downloads.run(
+      source.path,
+      () => _buildSource(sources, video, onProgress: onProgress),
+    );
+  });
+
+  Future<File> _buildSource(
+    SourceCache sources,
+    SourceVideo video, {
+    required void Function(double fraction) onProgress,
+  }) async {
+    final source = sources.sourceFile(video.videoId);
     final audio = await downloadAudio(video, onProgress: (_) {});
     final videoOnly = await _downloadVideoStream(
       sources,
@@ -93,7 +117,7 @@ class YouTubeVideoSource implements VideoSource {
     await _mux(videoOnly: videoOnly, audio: audio, target: source);
     onProgress(1);
     return source;
-  });
+  }
 
   Future<File> _downloadVideoStream(
     SourceCache cache,
@@ -107,14 +131,17 @@ class YouTubeVideoSource implements VideoSource {
     final streams = (await _manifest(video.videoId)).videoOnly;
     final choice = pickVideoStream([
       for (final (index, stream) in streams.indexed)
-        _choiceFor(stream, index: index, height: stream.videoResolution.height),
+        _videoChoice(stream, index),
     ]);
     final stream = streams[choice.index];
-    return cache.write(
-      target,
-      _youtube.videos.streamsClient.get(stream),
-      totalBytes: stream.size.totalBytes,
-      onProgress: onProgress,
+    return _downloads.run(
+      target.path,
+      () => cache.write(
+        target,
+        _youtube.videos.streamsClient.get(stream),
+        totalBytes: stream.size.totalBytes,
+        onProgress: onProgress,
+      ),
     );
   }
 
@@ -155,16 +182,24 @@ File? _cachedAudio(SourceCache cache, String videoId) {
       .firstOrNull;
 }
 
-StreamChoice _choiceFor(
-  yt.StreamInfo stream, {
-  required int index,
-  required int height,
-}) {
+StreamChoice _videoChoice(yt.VideoOnlyStreamInfo stream, int index) {
+  final resolution = stream.videoResolution;
   return StreamChoice(
-    height: height,
+    height: qualityHeight(width: resolution.width, height: resolution.height),
     container: stream.container.name,
     bitrate: stream.bitrate.bitsPerSecond,
     index: index,
+    codec: stream.videoCodec,
+  );
+}
+
+StreamChoice _audioChoice(yt.AudioOnlyStreamInfo stream, int index) {
+  return StreamChoice(
+    height: 0,
+    container: stream.container.name,
+    bitrate: stream.bitrate.bitsPerSecond,
+    index: index,
+    isDefaultTrack: stream.audioTrack?.audioIsDefault ?? true,
   );
 }
 
@@ -181,7 +216,11 @@ Future<T> _guard<T>(Future<T> Function() action) async {
 Object mapYouTubeError(Object error) {
   return switch (error) {
     yt.VideoUnplayableException() => VideoUnavailableException('$error'),
-    SocketException() || HttpException() => OfflineException('$error'),
+    // package:http turns most dart:io network failures into ClientException.
+    SocketException() ||
+    HttpException() ||
+    TlsException() ||
+    http.ClientException() => OfflineException('$error'),
     FileSystemException(:final osError?)
         when osError.message.contains('No space') =>
       InsufficientStorageException('$error'),

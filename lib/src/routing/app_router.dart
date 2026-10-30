@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/features/clip/presentation/fine_tune_screen.dart';
@@ -22,9 +23,15 @@ abstract final class AppRoutes {
   static const settings = '/settings';
 }
 
+/// Lets screens react when another screen covers them, e.g. to pause.
+final routeObserverProvider = Provider<RouteObserver<ModalRoute<void>>>(
+  (ref) => RouteObserver<ModalRoute<void>>(),
+);
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: AppRoutes.home,
+    observers: [ref.watch(routeObserverProvider)],
     routes: [
       GoRoute(
         path: AppRoutes.home,

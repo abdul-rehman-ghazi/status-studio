@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
 const _preferredContainer = 'mp4';
+const _preferredVideoCodec = 'avc1';
 
 /// One downloadable stream, reduced to what stream choice needs.
 @immutable
@@ -11,9 +14,12 @@ class StreamChoice {
     required this.container,
     required this.bitrate,
     required this.index,
+    this.codec = '',
+    this.isDefaultTrack = true,
   });
 
-  /// Video height in pixels; 0 for audio.
+  /// Video quality in pixels (the short side, see [qualityHeight]); 0 for
+  /// audio.
   final int height;
   final String container;
 
@@ -23,7 +29,17 @@ class StreamChoice {
   /// Position in the manifest list this choice came from.
   final int index;
 
+  /// Codec string as YouTube reports it, e.g. `avc1.4d401f`.
+  final String codec;
+
+  /// False for dubbed or alternative audio tracks.
+  final bool isDefaultTrack;
+
   bool get isPreferredContainer => container == _preferredContainer;
+
+  /// MP4 with H.264: plays on every Android version and every FFmpeg build.
+  bool get isMostCompatibleVideo =>
+      isPreferredContainer && codec.startsWith(_preferredVideoCodec);
 
   @override
   bool operator ==(Object other) =>
@@ -31,14 +47,22 @@ class StreamChoice {
       other.height == height &&
       other.container == container &&
       other.bitrate == bitrate &&
-      other.index == index;
+      other.index == index &&
+      other.codec == codec &&
+      other.isDefaultTrack == isDefaultTrack;
 
   @override
-  int get hashCode => Object.hash(height, container, bitrate, index);
+  int get hashCode =>
+      Object.hash(height, container, bitrate, index, codec, isDefaultTrack);
 }
 
-/// The highest MP4 stream at or below [maxHeight]; failing that, the lowest
-/// MP4 above it; then the same two steps for any other container.
+/// "720p" means the short side, so a vertical 720 × 1280 Short is 720p.
+int qualityHeight({required int width, required int height}) =>
+    math.min(width, height);
+
+/// Picks by compatibility first (H.264 MP4, other MP4, anything else); in
+/// each group the highest quality at or below [maxHeight], failing that the
+/// lowest above it.
 StreamChoice pickVideoStream(
   List<StreamChoice> videoStreams, {
   int maxHeight = 720,
@@ -46,23 +70,34 @@ StreamChoice pickVideoStream(
   if (videoStreams.isEmpty) {
     throw const VideoUnavailableException('No video streams.');
   }
-  final mp4 = videoStreams.where((s) => s.isPreferredContainer).toList();
-  final others = videoStreams.where((s) => !s.isPreferredContainer).toList();
-  return _bestWithinCap(mp4, maxHeight) ??
-      _lowestAboveCap(mp4) ??
-      _bestWithinCap(others, maxHeight) ??
-      _lowestAboveCap(others)!;
+  final groups = [
+    videoStreams.where((s) => s.isMostCompatibleVideo),
+    videoStreams.where(
+      (s) => s.isPreferredContainer && !s.isMostCompatibleVideo,
+    ),
+    videoStreams.where((s) => !s.isPreferredContainer),
+  ];
+  return groups
+      .map((group) => _pickWithinGroup(group.toList(), maxHeight))
+      .nonNulls
+      .first;
 }
 
-/// The highest-bitrate MP4 audio stream, else the highest-bitrate of any.
+/// The original-language track over dubs, MP4 over other containers, then
+/// the highest bitrate.
 StreamChoice pickAudioStream(List<StreamChoice> audioStreams) {
   if (audioStreams.isEmpty) {
     throw const VideoUnavailableException('No audio streams.');
   }
-  final mp4 = audioStreams.where((s) => s.isPreferredContainer).toList();
-  final candidates = mp4.isEmpty ? audioStreams : mp4;
+  final original = audioStreams.where((s) => s.isDefaultTrack).toList();
+  final tracks = original.isEmpty ? audioStreams : original;
+  final mp4 = tracks.where((s) => s.isPreferredContainer).toList();
+  final candidates = mp4.isEmpty ? tracks : mp4;
   return candidates.reduce((a, b) => b.bitrate > a.bitrate ? b : a);
 }
+
+StreamChoice? _pickWithinGroup(List<StreamChoice> group, int maxHeight) =>
+    _bestWithinCap(group, maxHeight) ?? _lowestAboveCap(group);
 
 StreamChoice? _bestWithinCap(List<StreamChoice> streams, int maxHeight) {
   final withinCap = streams.where((s) => s.height <= maxHeight);

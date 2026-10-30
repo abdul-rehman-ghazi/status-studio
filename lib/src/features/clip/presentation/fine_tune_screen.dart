@@ -112,19 +112,30 @@ class _SourcePreviewState extends ConsumerState<_SourcePreview> {
     if (!mounted) {
       return;
     }
-    unawaited(ref.read(sourceVideoProvider.notifier).prepare(widget.video));
+    unawaited(
+      ref
+          .read(sourceVideoProvider(widget.video.videoId).notifier)
+          .prepare(widget.video),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final source = ref.watch(sourceVideoProvider);
+    final videoId = widget.video.videoId;
+    // unwrapPrevious: a retry must show progress, not the earlier failure.
+    final source = ref.watch(sourceVideoProvider(videoId)).unwrapPrevious();
     if (source.value case final file?) {
-      return ClipPlayer(source: file, clip: widget.clip);
+      return ClipPlayer(
+        key: ValueKey(file.path),
+        source: file,
+        clip: widget.clip,
+      );
     }
     if (source.error case final error?) {
       return _PreviewMessage(text: sourceErrorMessage(error));
     }
-    final percent = (ref.watch(sourceVideoProgressProvider) * 100).round();
+    final fraction = ref.watch(sourceVideoProgressProvider(videoId));
+    final percent = (fraction * 100).round();
     return _PreviewMessage(text: 'Preparing video… $percent %');
   }
 }

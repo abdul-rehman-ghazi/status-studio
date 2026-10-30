@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:status_studio/src/features/source/data/youtube_video_source.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
@@ -25,8 +26,16 @@ void main() {
     expect(mapped, isA<OfflineException>());
   });
 
-  test('maps_http_errors_to_offline', () {
-    final mapped = mapYouTubeError(const HttpException('Connection closed'));
+  test('maps_http_client_errors_to_offline', () {
+    final mapped = mapYouTubeError(
+      http.ClientException('Connection closed before full header was received'),
+    );
+
+    expect(mapped, isA<OfflineException>());
+  });
+
+  test('maps_tls_errors_to_offline', () {
+    final mapped = mapYouTubeError(const HandshakeException('reset'));
 
     expect(mapped, isA<OfflineException>());
   });

@@ -4,47 +4,66 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 
-/// How far the source video preparation has got, from 0 to 1.
+/// How far one video's source preparation has got, from 0 to 1.
 final sourceVideoProgressProvider =
-    NotifierProvider<SourceVideoProgress, double>(SourceVideoProgress.new);
+    NotifierProvider.family<SourceVideoProgress, double, String>(
+      SourceVideoProgress.new,
+    );
 
 class SourceVideoProgress extends Notifier<double> {
+  SourceVideoProgress(this.videoId);
+
+  final String videoId;
+
   @override
   double build() => 0;
 
   void report(double fraction) => state = fraction;
 }
 
-/// The muxed source video for preview and rendering; `null` until
+/// The muxed source video for preview and rendering, per video ID, so one
+/// reel can never show another reel's file or progress. `null` until
 /// [SourceVideoController.prepare] is first called.
-final sourceVideoProvider = AsyncNotifierProvider<SourceVideoController, File?>(
-  SourceVideoController.new,
-);
+final sourceVideoProvider =
+    AsyncNotifierProvider.family<SourceVideoController, File?, String>(
+      SourceVideoController.new,
+    );
 
 class SourceVideoController extends AsyncNotifier<File?> {
-  String? _videoId;
+  SourceVideoController(this.videoId);
+
+  final String videoId;
+  Future<void>? _running;
 
   @override
   Future<File?> build() async => null;
 
-  /// Downloads and muxes [video] in the background. Calls for the video
-  /// already being prepared, or already ready, do nothing.
-  Future<void> prepare(SourceVideo video) async {
-    if (video.videoId == _videoId && !state.hasError) {
-      return;
+  /// Downloads and muxes [video] in the background. Calls while it runs
+  /// share that run; calls after it succeeded do nothing; calls after it
+  /// failed retry.
+  Future<void> prepare(SourceVideo video) {
+    if (video.videoId != videoId) {
+      throw ArgumentError.value(video.videoId, 'video', 'is not $videoId');
     }
-    _videoId = video.videoId;
+    if (state.hasValue && state.value != null) {
+      return Future.value();
+    }
+    return _running ??= _download(video).whenComplete(() {
+      _running = null;
+    });
+  }
+
+  Future<void> _download(SourceVideo video) async {
     state = const AsyncLoading();
-    final progress = ref.read(sourceVideoProgressProvider.notifier)..report(0);
+    final progress = ref.read(sourceVideoProgressProvider(videoId).notifier)
+      ..report(0);
     final result = await AsyncValue.guard<File?>(
       () => ref
           .read(videoSourceProvider)
           .prepareSourceVideo(video, onProgress: progress.report),
     );
-    // A newer video may have been asked for while this one downloaded.
-    if (!ref.mounted || video.videoId != _videoId) {
-      return;
+    if (ref.mounted) {
+      state = result;
     }
-    state = result;
   }
 }

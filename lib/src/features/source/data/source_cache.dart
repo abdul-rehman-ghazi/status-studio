@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
 /// Downloaded sources under `sources/<videoId>/` (spec §4 Storage).
 ///
@@ -41,6 +42,7 @@ class SourceCache {
         onProgress(_fraction(received, totalBytes));
       }
       await sink.close();
+      _checkComplete(received, totalBytes);
     } catch (_) {
       await sink.close();
       await part.delete();
@@ -52,6 +54,16 @@ class SourceCache {
   }
 
   String _folder(String videoId) => '${root.path}/$videoId';
+}
+
+/// youtube_explode can end a stream quietly when its client closes, so the
+/// byte count is the only proof the download finished.
+void _checkComplete(int received, int totalBytes) {
+  if (totalBytes > 0 && received != totalBytes) {
+    throw IncompleteDownloadException(
+      'Received $received of $totalBytes bytes.',
+    );
+  }
 }
 
 double _fraction(int received, int total) =>

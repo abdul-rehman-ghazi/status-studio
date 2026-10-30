@@ -83,4 +83,44 @@ void main() {
       throwsA(isA<VideoUnavailableException>()),
     );
   });
+
+  test('prefers_h264_over_av1_at_same_height', () {
+    const streams = [
+      StreamChoice(
+        height: 720,
+        container: 'mp4',
+        bitrate: 900000,
+        index: 0,
+        codec: 'av01.0.05M.08',
+      ),
+      StreamChoice(
+        height: 720,
+        container: 'mp4',
+        bitrate: 800000,
+        index: 1,
+        codec: 'avc1.4d401f',
+      ),
+    ];
+
+    expect(pickVideoStream(streams).index, 1);
+  });
+
+  test('vertical_video_quality_is_its_short_side', () {
+    expect(qualityHeight(width: 720, height: 1280), 720);
+  });
+
+  test('prefers_original_audio_track_over_dub', () {
+    const streams = [
+      StreamChoice(
+        height: 0,
+        container: 'mp4',
+        bitrate: 128000,
+        index: 0,
+        isDefaultTrack: false,
+      ),
+      StreamChoice(height: 0, container: 'mp4', bitrate: 128000, index: 1),
+    ];
+
+    expect(pickAudioStream(streams).index, 1);
+  });
 }

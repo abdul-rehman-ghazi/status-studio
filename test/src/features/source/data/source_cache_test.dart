@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
 const videoId = 'dQw4w9WgXcQ';
 
@@ -74,5 +75,16 @@ void main() {
     };
 
     expect(folders, {'${root.path}/$videoId'});
+  });
+
+  test('short_stream_is_not_reused', () async {
+    final target = cache.videoFile(videoId);
+
+    await expectLater(
+      cache.write(target, chunks(1), totalBytes: 1000, onProgress: (_) {}),
+      throwsA(isA<IncompleteDownloadException>()),
+    );
+
+    expect(cache.isComplete(target), isFalse);
   });
 }

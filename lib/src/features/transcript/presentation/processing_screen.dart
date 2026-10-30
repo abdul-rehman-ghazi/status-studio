@@ -69,7 +69,9 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     if (video == null) {
       return;
     }
-    unawaited(ref.read(sourceVideoProvider.notifier).prepare(video));
+    unawaited(
+      ref.read(sourceVideoProvider(video.videoId).notifier).prepare(video),
+    );
   }
 
   @override

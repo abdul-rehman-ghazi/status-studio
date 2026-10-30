@@ -28,3 +28,12 @@ class InsufficientStorageException implements Exception {
   @override
   String toString() => 'InsufficientStorageException: $reason';
 }
+
+/// A download stream ended before all its bytes arrived. Treated as a
+/// network failure, since that is what usually cuts a stream short.
+class IncompleteDownloadException extends OfflineException {
+  const IncompleteDownloadException(super.reason);
+
+  @override
+  String toString() => 'IncompleteDownloadException: $reason';
+}

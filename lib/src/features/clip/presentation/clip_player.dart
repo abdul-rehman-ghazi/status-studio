@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/clip/domain/clip_playback.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
@@ -26,10 +27,14 @@ class ClipPlayer extends ConsumerStatefulWidget {
   ConsumerState<ClipPlayer> createState() => _ClipPlayerState();
 }
 
-class _ClipPlayerState extends ConsumerState<ClipPlayer> {
+class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
   late final VideoPlayerController _player = ref.read(
     videoPlayerFactoryProvider,
   )(widget.source);
+  late final RouteObserver<ModalRoute<void>> _routes = ref.read(
+    routeObserverProvider,
+  );
+  var _unplayable = false;
 
   @override
   void initState() {
@@ -38,8 +43,25 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> {
     unawaited(_initialize());
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (ModalRoute.of(context) case final route?) {
+      _routes.subscribe(this, route);
+    }
+  }
+
   Future<void> _initialize() async {
-    await _player.initialize();
+    try {
+      await _player.initialize();
+    } catch (_) {
+      // An unsupported codec or a damaged file; say so instead of showing a
+      // player that never starts.
+      if (mounted) {
+        setState(() => _unplayable = true);
+      }
+      return;
+    }
     if (mounted) {
       setState(() {});
     }
@@ -47,9 +69,18 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> {
 
   @override
   void dispose() {
+    _routes.unsubscribe(this);
     _player.removeListener(_stopAtClipEnd);
     unawaited(_player.dispose());
     super.dispose();
+  }
+
+  /// Another screen now covers this one; the clip must not play on behind it.
+  @override
+  void didPushNext() {
+    if (_player.value.isPlaying) {
+      unawaited(_player.pause());
+    }
   }
 
   void _stopAtClipEnd() {
@@ -70,6 +101,9 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (_unplayable) {
+      return const _Unplayable();
+    }
     final value = _player.value;
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -88,6 +122,29 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Unplayable extends StatelessWidget {
+  const _Unplayable();
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: Text(
+            "Couldn't play this video.",
+            style: TextStyle(color: AppColors.textMuted),
+          ),
         ),
       ),
     );

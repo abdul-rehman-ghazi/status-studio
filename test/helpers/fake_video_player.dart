@@ -48,3 +48,13 @@ class RecordingPlayerFactory {
     return player;
   }
 }
+
+/// A player whose file can't be opened, like an unsupported codec.
+class BrokenVideoPlayerController extends FakeVideoPlayerController {
+  @override
+  Future<void> initialize() async =>
+      throw const FormatException('unsupported codec');
+}
+
+VideoPlayerController brokenPlayerFactory(File source) =>
+    BrokenVideoPlayerController();
