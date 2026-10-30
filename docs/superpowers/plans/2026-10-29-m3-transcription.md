@@ -66,9 +66,9 @@
 - `List<String> chunkArguments({required String wavPath, required String outputPattern, required int chunkSeconds})` → `['-y', '-i', wavPath, '-f', 'segment', '-segment_time', '$chunkSeconds', '-c', 'copy', outputPattern]` (pattern `chunk_%03d.wav`)
 - `class AudioPreparer { AudioPreparer(FfmpegRunner runner); Future<File> toWav(File audio); Future<List<File>> splitIntoChunks(File wav, {int chunkSeconds = 90}); }` returns chunks sorted by name. `toWav` output (`audio.wav`) is reused by M4's waveform.
 
-- [ ] **Step 1: Failing tests:** `wav_arguments_make_16khz_mono_pcm`, `chunk_arguments_use_segment_muxer`.
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: prepare 16 kHz WAV chunks for whisper`
+- [x] **Step 1: Failing tests:** `wav_arguments_make_16khz_mono_pcm`, `chunk_arguments_use_segment_muxer`.
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: prepare 16 kHz WAV chunks for whisper`
 
 ### Task 4: Whisper transcriber and language inference
 
