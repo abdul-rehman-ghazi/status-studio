@@ -19,6 +19,37 @@ void main() {
     ]);
   });
 
+  test('excerpt_wav_pads_a_late_audio_start', () {
+    final arguments = excerptWavArguments(
+      const WavExcerpt(
+        inputPath: 'clip.mp4',
+        outputPath: 'wave.wav',
+        start: Duration(seconds: 3),
+        end: Duration(milliseconds: 53500),
+      ),
+    );
+
+    expect(arguments, [
+      '-y',
+      '-ss',
+      '3.000',
+      '-to',
+      '53.500',
+      '-i',
+      'clip.mp4',
+      '-vn',
+      '-af',
+      'aresample=async=1:first_pts=0',
+      '-ac',
+      '1',
+      '-ar',
+      '16000',
+      '-c:a',
+      'pcm_s16le',
+      'wave.wav',
+    ]);
+  });
+
   test('chunk_arguments_use_segment_muxer', () {
     final arguments = chunkArguments(
       wavPath: 'a.wav',

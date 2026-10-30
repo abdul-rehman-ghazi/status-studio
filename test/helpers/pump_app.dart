@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -29,7 +30,7 @@ class TestSetup {
     this.playerFactory = fakePlayerFactory,
     this.clipPreparer,
     this.scriptPipeline = const FakeScriptPipeline(step: Duration.zero),
-    this.waveformPeaks = const [],
+    this.waveformPeaks,
   });
 
   final List<Override> overrides;
@@ -41,7 +42,8 @@ class TestSetup {
   final ScriptPipeline scriptPipeline;
 
   /// What every clip's waveform resolves to; FFmpeg never runs in tests.
-  final List<double> waveformPeaks;
+  /// Without peaks the waveform stays loading.
+  final List<double>? waveformPeaks;
 
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
@@ -50,7 +52,12 @@ class TestSetup {
     clipSourcePreparerProvider.overrideWithValue(
       clipPreparer ?? FakeClipSourcePreparer(),
     ),
-    waveformProvider.overrideWith((ref, source) async => waveformPeaks),
+    waveformProvider.overrideWith(
+      (ref, span) => switch (waveformPeaks) {
+        final peaks? => Future.value(peaks),
+        null => Completer<List<double>>().future,
+      },
+    ),
     sourceCacheProvider.overrideWith(
       (ref) async => SourceCache(Directory.systemTemp),
     ),

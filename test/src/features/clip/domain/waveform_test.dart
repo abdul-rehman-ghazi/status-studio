@@ -1,10 +1,14 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/clip/domain/waveform.dart';
+import 'package:status_studio/src/features/source/domain/clip_source.dart';
 
 const sampleRate = 16000;
+const videoLength = Duration(hours: 1);
 
 Duration at(int minutes, int seconds) =>
     Duration(minutes: minutes, seconds: seconds);
@@ -49,15 +53,16 @@ WaveformRequest request({
 
 void main() {
   test('peaks_use_source_offset', () {
+    // The file starts 3 s before the window, as a segment boundary would.
     final bytes = wav(
-      seconds: 50,
-      loud: [(fromSecond: 10, toSecond: 10.1, amplitude: 20000)],
+      seconds: 60,
+      loud: [(fromSecond: 13, toSecond: 13.1, amplitude: 20000)],
     );
     final window = ClipWindow(start: at(0, 55), end: at(1, 45));
 
     final peaks = waveformPeaks(
       bytes,
-      request(offset: at(0, 55), window: window),
+      request(offset: at(0, 52), window: window),
       buckets: 60,
     );
 
@@ -138,5 +143,31 @@ void main() {
     );
 
     expect(peaks, [0.0, 1.0]);
+  });
+
+  test('clip_window_source_is_shown_whole', () {
+    final window = ClipWindow(start: at(0, 55), end: at(1, 45));
+    final source = ClipSource(
+      file: File('clip.mp4'),
+      offset: at(0, 52),
+      window: window,
+    );
+    final nudged = ClipRange(start: at(0, 59), end: at(1, 40));
+
+    expect(waveformWindowFor(source, nudged, videoLength), window);
+  });
+
+  test('whole_video_source_shows_window_around_clip', () {
+    final source = ClipSource(
+      file: File('source.mp4'),
+      offset: Duration.zero,
+      window: const ClipWindow(start: Duration.zero, end: videoLength),
+    );
+    final clip = ClipRange(start: at(3, 0), end: at(3, 40));
+
+    expect(
+      waveformWindowFor(source, clip, videoLength),
+      ClipWindow(start: at(2, 55), end: at(3, 45)),
+    );
   });
 }

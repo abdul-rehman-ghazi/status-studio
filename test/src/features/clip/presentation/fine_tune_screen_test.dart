@@ -15,7 +15,7 @@ Future<void> pumpFineTune(
   VideoPlayerFactory playerFactory = fakePlayerFactory,
   FakeClipSourcePreparer? clipPreparer,
   ReelDraft? draft,
-  List<double> waveformPeaks = const [],
+  List<double>? waveformPeaks,
 }) => pumpRoutes(
   tester,
   [AppRoutes.fineTune],

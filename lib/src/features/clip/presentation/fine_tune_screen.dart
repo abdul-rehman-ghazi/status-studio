@@ -13,6 +13,7 @@ import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
+import 'package:status_studio/src/features/clip/domain/waveform.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
@@ -46,7 +47,7 @@ class FineTuneScreen extends ConsumerWidget {
           _ClipSummary(clip: clip),
           if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
           const SizedBox(height: 16),
-          _ClipWaveform(videoId: video.videoId, clip: clip),
+          _ClipWaveform(video: video, clip: clip),
           const SizedBox(height: 16),
           _WholeVideoBar(clip: clip, videoDuration: video.duration),
           const SizedBox(height: 20),
@@ -183,22 +184,28 @@ class _PreviewMessage extends StatelessWidget {
 
 /// The waveform of the downloaded window; empty space until it's ready.
 class _ClipWaveform extends ConsumerWidget {
-  const _ClipWaveform({required this.videoId, required this.clip});
+  const _ClipWaveform({required this.video, required this.clip});
 
-  final String videoId;
+  final SourceVideo video;
   final ClipRange clip;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final source = ref.watch(clipSourceProvider(videoId)).unwrapPrevious();
-    final clipSource = source.value;
-    final peaks = clipSource == null
-        ? null
-        : ref.watch(waveformProvider(clipSource)).value;
-    if (clipSource == null || peaks == null) {
+    final source = ref
+        .watch(clipSourceProvider(video.videoId))
+        .unwrapPrevious()
+        .value;
+    if (source == null) {
       return const SizedBox(height: 56);
     }
-    return WaveformView(peaks: peaks, window: clipSource.window, clip: clip);
+    final shown = waveformWindowFor(source, clip, video.duration);
+    final peaks = ref
+        .watch(waveformProvider((source: source, shown: shown)))
+        .value;
+    if (peaks == null) {
+      return const SizedBox(height: 56);
+    }
+    return WaveformView(peaks: peaks, window: shown, clip: clip);
   }
 }
 

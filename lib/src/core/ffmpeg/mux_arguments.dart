@@ -1,3 +1,5 @@
+import 'package:status_studio/src/core/ffmpeg/ffmpeg_time.dart';
+
 /// Joins a video-only and an audio-only file without re-encoding, with the
 /// index at the front so the preview can start before the whole file loads.
 List<String> muxArguments({
@@ -44,11 +46,11 @@ List<String> clipMuxArguments({
   return [
     '-y',
     '-itsoffset',
-    _seconds(video.delay),
+    ffmpegSeconds(video.delay),
     '-i',
     video.path,
     '-itsoffset',
-    _seconds(audio.delay),
+    ffmpegSeconds(audio.delay),
     '-i',
     audio.path,
     '-map',
@@ -62,6 +64,3 @@ List<String> clipMuxArguments({
     outputPath,
   ];
 }
-
-String _seconds(Duration delay) =>
-    (delay.inMicroseconds / Duration.microsecondsPerSecond).toStringAsFixed(3);
