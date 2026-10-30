@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
+import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
+import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
@@ -11,13 +14,16 @@ Future<void> pumpFineTune(
   WidgetTester tester, {
   VideoPlayerFactory playerFactory = fakePlayerFactory,
   FakeClipSourcePreparer? clipPreparer,
+  ReelDraft? draft,
+  List<double> waveformPeaks = const [],
 }) => pumpRoutes(
   tester,
   [AppRoutes.fineTune],
   setup: TestSetup(
-    overrides: [draftOverride(pickedDraft)],
+    overrides: [draftOverride(draft ?? pickedDraft)],
     playerFactory: playerFactory,
     clipPreparer: clipPreparer,
+    waveformPeaks: waveformPeaks,
   ),
 );
 
@@ -135,5 +141,27 @@ void main() {
     await pumpFineTune(tester, playerFactory: brokenPlayerFactory);
 
     expect(find.text("Couldn't play this video."), findsOneWidget);
+  });
+
+  testWidgets('fine_tune_shows_warning_for_long_clip', (tester) async {
+    final longClip = pickedDraft.copyWith(
+      clip: const ClipRange(
+        start: Duration(seconds: 20),
+        end: Duration(seconds: 90),
+      ),
+    );
+
+    await pumpFineTune(tester, draft: longClip);
+
+    expect(
+      find.text('Longer than 60 s. WhatsApp Status may cut it.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('fine_tune_shows_waveform_when_peaks_ready', (tester) async {
+    await pumpFineTune(tester, waveformPeaks: List.filled(60, 0.5));
+
+    expect(find.byType(WaveformView), findsOneWidget);
   });
 }

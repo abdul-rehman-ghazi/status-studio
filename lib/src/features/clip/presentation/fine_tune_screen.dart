@@ -10,8 +10,11 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
+import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
@@ -41,6 +44,9 @@ class FineTuneScreen extends ConsumerWidget {
           _SourcePreview(video: video, clip: clip),
           const SizedBox(height: 16),
           _ClipSummary(clip: clip),
+          if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
+          const SizedBox(height: 16),
+          _ClipWaveform(videoId: video.videoId, clip: clip),
           const SizedBox(height: 16),
           _WholeVideoBar(clip: clip, videoDuration: video.duration),
           const SizedBox(height: 20),
@@ -170,6 +176,51 @@ class _PreviewMessage extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(child: HintText(text)),
+      ),
+    );
+  }
+}
+
+/// The waveform of the downloaded window; empty space until it's ready.
+class _ClipWaveform extends ConsumerWidget {
+  const _ClipWaveform({required this.videoId, required this.clip});
+
+  final String videoId;
+  final ClipRange clip;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final source = ref.watch(clipSourceProvider(videoId)).unwrapPrevious();
+    final clipSource = source.value;
+    final peaks = clipSource == null
+        ? null
+        : ref.watch(waveformProvider(clipSource)).value;
+    if (clipSource == null || peaks == null) {
+      return const SizedBox(height: 56);
+    }
+    return WaveformView(peaks: peaks, window: clipSource.window, clip: clip);
+  }
+}
+
+class _LongClipWarning extends StatelessWidget {
+  const _LongClipWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.tertiary;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Longer than 60 s. WhatsApp Status may cut it.',
+              style: TextStyle(color: color),
+            ),
+          ),
+        ],
       ),
     );
   }

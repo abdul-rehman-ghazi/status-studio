@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
+import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
@@ -28,6 +29,7 @@ class TestSetup {
     this.playerFactory = fakePlayerFactory,
     this.clipPreparer,
     this.scriptPipeline = const FakeScriptPipeline(step: Duration.zero),
+    this.waveformPeaks = const [],
   });
 
   final List<Override> overrides;
@@ -38,6 +40,9 @@ class TestSetup {
   final ClipSourcePreparer? clipPreparer;
   final ScriptPipeline scriptPipeline;
 
+  /// What every clip's waveform resolves to; FFmpeg never runs in tests.
+  final List<double> waveformPeaks;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     scriptPipelineProvider.overrideWithValue(scriptPipeline),
@@ -45,6 +50,7 @@ class TestSetup {
     clipSourcePreparerProvider.overrideWithValue(
       clipPreparer ?? FakeClipSourcePreparer(),
     ),
+    waveformProvider.overrideWith((ref, source) async => waveformPeaks),
     sourceCacheProvider.overrideWith(
       (ref) async => SourceCache(Directory.systemTemp),
     ),
