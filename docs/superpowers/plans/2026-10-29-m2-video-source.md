@@ -38,11 +38,11 @@
 - `StreamChoice pickAudioStream(List<StreamChoice> audioStreams)`
 - Both throw `VideoUnavailableException` on an empty list.
 
-- [ ] **Step 1: Failing tests:** `picks_highest_mp4_at_or_below_cap` (720 mp4 over 1080 mp4 and 720 webm), `prefers_mp4_over_webm_at_same_height`, `falls_back_to_lowest_stream_above_cap` (only 1080 and 1440 → 1080), `picks_highest_bitrate_mp4_audio`, `empty_list_throws_unavailable`.
-- [ ] **Step 2: Run** `fvm flutter test test/src/features/source/domain` → FAIL.
-- [ ] **Step 3: Implement** the two pure functions.
-- [ ] **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `feat: choose YouTube streams within quality caps`
+- [x] **Step 1: Failing tests:** `picks_highest_mp4_at_or_below_cap` (720 mp4 over 1080 mp4 and 720 webm), `prefers_mp4_over_webm_at_same_height`, `falls_back_to_lowest_stream_above_cap` (only 1080 and 1440 → 1080), `picks_highest_bitrate_mp4_audio`, `empty_list_throws_unavailable`.
+- [x] **Step 2: Run** `fvm flutter test test/src/features/source/domain` → FAIL.
+- [x] **Step 3: Implement** the two pure functions.
+- [x] **Step 4: Run** → PASS.
+- [x] **Step 5: Commit** `feat: choose YouTube streams within quality caps`
 
 ### Task 2: Source cache and resumable-safe writes
 
