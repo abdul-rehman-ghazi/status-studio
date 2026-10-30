@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -89,6 +90,19 @@ void main() {
     );
 
     expect(find.text('Using the saved script from 7 Oct'), findsOneWidget);
+  });
+
+  testWidgets('language_change_clears_selection', (tester) async {
+    await pumpRoutes(tester, [
+      AppRoutes.script,
+    ], setup: TestSetup(overrides: [draftOverride(pickedDraft)]));
+
+    await tester.tap(find.byType(DropdownButtonFormField<ScriptLanguage>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('English').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tap the line where your clip starts'), findsOneWidget);
   });
 }
 
