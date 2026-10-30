@@ -151,7 +151,7 @@
     - `Future<int> prune()`: removes entries unused for 90 days, then the least recently used beyond 200 videos.
   - `transcriptStoreProvider` rooted at `getApplicationSupportDirectory()/transcripts`.
 
-- [ ] **Step 1: Failing tests** (temp dir, fixed clock):
+- [x] **Step 1: Failing tests** (temp dir, fixed clock):
   - `save_then_load_round_trips`
   - `load_missing_throws_no_saved_transcript`
   - `load_prefers_newest_source`
@@ -159,8 +159,8 @@
   - `prune_removes_entries_unused_for_ninety_days`
   - `prune_keeps_two_hundred_most_recent_videos`
   - `corrupt_file_is_treated_as_missing`
-- [ ] **Step 2–4:** Run → FAIL, implement (write via `.part` + rename), run → PASS.
-- [ ] **Step 5: Commit** `feat: save scripts and partial whisper progress`
+- [x] **Step 2–4:** Run → FAIL, implement (write via `.part` + rename), run → PASS.
+- [x] **Step 5: Commit** `feat: save scripts and partial whisper progress`
 
 ### Task 7: Real script pipeline and progressive script
 

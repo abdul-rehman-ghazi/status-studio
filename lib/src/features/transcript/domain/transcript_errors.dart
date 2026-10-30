@@ -33,3 +33,12 @@ class NoCaptionTrackException implements Exception {
   @override
   String toString() => 'NoCaptionTrackException';
 }
+
+/// No saved script (or saved partial progress) exists for a key, or the
+/// file is unreadable.
+class NoSavedTranscriptException implements Exception {
+  const NoSavedTranscriptException();
+
+  @override
+  String toString() => 'NoSavedTranscriptException';
+}
