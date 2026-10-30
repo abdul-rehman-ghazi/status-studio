@@ -43,7 +43,10 @@ void main() {
   setUp(() async {
     folder = await Directory.systemTemp.createTemp('ranged_downloader_test');
     client = HttpClient();
-    downloader = RangedDownloader(client);
+    downloader = RangedDownloader(
+      client,
+      idleTimeout: const Duration(milliseconds: 300),
+    );
   });
 
   tearDown(() async {
@@ -115,5 +118,31 @@ void main() {
     final head = await downloader.fetchHead(urlOf(server), 64);
 
     expect(head, fileBytes.sublist(0, 64));
+  });
+
+  test('server_error_is_retryable_not_range_unsupported', () async {
+    final server = await serve(fixedStatus: HttpStatus.serviceUnavailable);
+
+    await expectLater(
+      downloader.downloadRanges(rangesOf(server), onProgress: (_) {}),
+      throwsA(isA<StreamRequestFailedException>()),
+    );
+  });
+
+  test('stalled_download_times_out_as_offline', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.partialContent
+        ..contentLength = 100
+        ..add(List.filled(10, 1));
+      await request.response.flush();
+    });
+    addTearDown(() => server.close(force: true));
+
+    await expectLater(
+      downloader.downloadRanges(rangesOf(server), onProgress: (_) {}),
+      throwsA(isA<OfflineException>()),
+    );
   });
 }

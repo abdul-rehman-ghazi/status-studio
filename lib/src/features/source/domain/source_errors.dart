@@ -58,3 +58,12 @@ class ExpiredStreamUrlException implements Exception {
   @override
   String toString() => 'ExpiredStreamUrlException: $reason';
 }
+
+/// A stream request failed for a reason a retry may fix (5xx, 429, …).
+/// Shown like being offline, which offers Retry (spec §8).
+class StreamRequestFailedException extends OfflineException {
+  const StreamRequestFailedException(super.reason);
+
+  @override
+  String toString() => 'StreamRequestFailedException: $reason';
+}

@@ -43,9 +43,13 @@ class SourceCache {
     );
   }
 
-  /// One stream of a clip window before muxing; overwritten per window.
-  File windowStreamFile(String videoId, String stream) =>
-      File('${_folder(videoId)}/window_$stream.mp4');
+  /// One stream of a clip window before muxing. Named per window, so two
+  /// windows being fetched can never write into each other's file.
+  File windowStreamFile(String videoId, ClipWindow window, String stream) =>
+      File(
+        '${_folder(videoId)}/window_${window.start.inMilliseconds}_'
+        '${window.end.inMilliseconds}_$stream.mp4',
+      );
 
   /// The complete clip windows already downloaded for [videoId].
   List<ClipSource> cachedClips(String videoId) {

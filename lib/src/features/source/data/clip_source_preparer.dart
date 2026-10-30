@@ -6,6 +6,7 @@ import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/mux_arguments.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
+import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
 import 'package:status_studio/src/features/source/data/ranged_downloader.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
@@ -48,10 +49,16 @@ class ClipSourcePreparer {
   final RangedDownloader downloader;
   final FfmpegRunner ffmpeg;
 
+  /// Failures are thrown as the typed errors in `source_errors.dart`.
   Future<ClipSource> prepare(
     ClipPrepareRequest request, {
     required void Function(double fraction) onProgress,
-  }) async {
+  }) => guardIo(() => _prepare(request, onProgress));
+
+  Future<ClipSource> _prepare(
+    ClipPrepareRequest request,
+    void Function(double fraction) onProgress,
+  ) async {
     final cached = request.cache
         .cachedClips(request.video.videoId)
         .where((source) => source.window.covers(request.clip))
@@ -99,7 +106,7 @@ class ClipSourcePreparer {
       urls.video,
       window,
       _StreamTarget(
-        file: request.cache.windowStreamFile(videoId, 'video'),
+        file: request.cache.windowStreamFile(videoId, window, 'video'),
         onProgress: (fraction) => onProgress(fraction * _videoShare),
       ),
     );
@@ -107,7 +114,7 @@ class ClipSourcePreparer {
       urls.audio,
       window,
       _StreamTarget(
-        file: request.cache.windowStreamFile(videoId, 'audio'),
+        file: request.cache.windowStreamFile(videoId, window, 'audio'),
         onProgress: (fraction) =>
             onProgress(_videoShare + fraction * _audioShare),
       ),
@@ -118,7 +125,11 @@ class ClipSourcePreparer {
       window: window,
       offset: offset,
     );
-    await _mux(video: video.file, audio: audio.file, target: target);
+    await _mux(
+      video: MuxInput(path: video.file.path, delay: video.start - offset),
+      audio: MuxInput(path: audio.file.path, delay: audio.start - offset),
+      target: target,
+    );
     onProgress(1);
     return ClipSource(file: target, offset: offset, window: window);
   }
@@ -161,24 +172,20 @@ class ClipSourcePreparer {
   }
 
   Future<void> _mux({
-    required File video,
-    required File audio,
+    required MuxInput video,
+    required MuxInput audio,
     required File target,
   }) async {
     final muxing = File('${target.path}.muxing.mp4');
     try {
       await ffmpeg.run(
-        muxArguments(
-          videoPath: video.path,
-          audioPath: audio.path,
-          outputPath: muxing.path,
-        ),
+        clipMuxArguments(video: video, audio: audio, outputPath: muxing.path),
       );
       await muxing.rename(target.path);
     } finally {
       await _deleteIfExists(muxing);
-      await _deleteIfExists(video);
-      await _deleteIfExists(audio);
+      await _deleteIfExists(File(video.path));
+      await _deleteIfExists(File(audio.path));
     }
   }
 

@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:http/http.dart' as http;
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/mux_arguments.dart';
 import 'package:status_studio/src/core/single_flight.dart';
+import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
@@ -259,16 +259,8 @@ Future<T> _guard<T>(Future<T> Function() action) async {
 /// Turns library and platform failures into the app's typed errors
 /// (spec §8); anything else is returned unchanged to be rethrown.
 Object mapYouTubeError(Object error) {
-  return switch (error) {
-    yt.VideoUnplayableException() => VideoUnavailableException('$error'),
-    // package:http turns most dart:io network failures into ClientException.
-    SocketException() ||
-    HttpException() ||
-    TlsException() ||
-    http.ClientException() => OfflineException('$error'),
-    FileSystemException(:final osError?)
-        when osError.message.contains('No space') =>
-      InsufficientStorageException('$error'),
-    _ => error,
-  };
+  if (error is yt.VideoUnplayableException) {
+    return VideoUnavailableException('$error');
+  }
+  return mapIoError(error);
 }

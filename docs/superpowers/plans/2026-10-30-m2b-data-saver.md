@@ -115,7 +115,7 @@
 **Interfaces:**
 - Produces:
   - `class RangedDownloader { RangedDownloader(HttpClient client); Future<Uint8List> fetchHead(Uri url, int length); Future<File> downloadRanges(Uri url, List<ByteRange> ranges, File target, {required void Function(double fraction) onProgress}); }`
-  - Each request sends `Range: bytes=first-last` and requires status 206; otherwise it throws `RangeNotSupportedException`. Status 403 throws `ExpiredStreamUrlException`.
+  - Each request sends `Range: bytes=first-last` and requires status 206. Status 200 (range ignored) throws `RangeNotSupportedException`, 403 throws `ExpiredStreamUrlException`, and any other status throws `StreamRequestFailedException` (shown as offline, with Retry) so a transient 5xx never falls back to the whole video. A request that receives nothing for 30 s throws `OfflineException`.
   - Ranges are appended in order to `target.part`, then renamed (same atomic pattern as `SourceCache.write`).
 
 - [x] **Step 1: Failing tests** against a local `HttpServer` that honours `Range`:
@@ -143,7 +143,7 @@
   - Behaviour:
     1. Reuse the cached `ClipSource` for this video if its window covers the clip.
     2. Otherwise compute `clipWindowFor`. For each stream, `fetchHead` (64 KiB, doubling to 2 MiB on `SegmentIndexNotFoundException`), `parseSegmentIndex`, `segmentsCovering`, then download `[init, mergedRange]`.
-    3. Mux with `muxArguments` into `SourceCache.clipFile(videoId, window)` (`clip_<startMs>_<endMs>.mp4`).
+    3. Mux with `clipMuxArguments` into `SourceCache.clipFile(videoId, window:, offset:)` (`clip_<startMs>_<endMs>_<offsetMs>.mp4`, so a cached window and its offset are found again after a restart). FFmpeg moves each input to start at 0, so each input gets `-itsoffset` = its first segment start − `offset`; without it video and audio drift apart by the difference between their first segment starts. Per-window stream files are named `window_<startMs>_<endMs>_<stream>.mp4`.
     4. `offset` = the earlier of the first video and first audio segment start.
     5. Without an index, or on `RangeNotSupportedException`, fall back to `prepareSourceVideo` with `offset: Duration.zero` and a window of the whole video.
     6. On `ExpiredStreamUrlException`, call `streamUrls` again and retry once.
@@ -168,7 +168,7 @@
 
 **Interfaces:**
 - Produces:
-  - `final clipSourceProvider = AsyncNotifierProvider<ClipSourceController, ClipSource?>(...)` with `Future<void> prepareFor(SourceVideo video, ClipRange clip)`. It's single-flight per window (reuse M2's `single_flight.dart`).
+  - `final clipSourceProvider = AsyncNotifierProvider.family<ClipSourceController, ClipSource?, String>(...)`, keyed by video ID, with `Future<void> prepareFor(SourceVideo video, ClipRange clip)`. One download runs at a time per video; requests made meanwhile wait, and only the newest starts another download if the finished window doesn't cover it. Only an `AsyncData` window counts as covering (after a failure Riverpod keeps the old value but the screen shows the error).
   - `ClipPlayer({required ClipSource source, required ClipRange clip})` seeks to `clip.start - source.offset` and stops at `clip.end - source.offset`.
 - Behaviour:
   - Processing no longer starts any video download.

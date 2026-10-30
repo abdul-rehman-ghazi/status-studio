@@ -60,9 +60,12 @@ class UrlVideoSource extends FakeVideoSource {
 
 /// Serves the fixture heads; URLs from [expiredCalls] answer 403.
 class FakeRangedDownloader implements RangedDownloader {
-  FakeRangedDownloader({this.expiredCalls = const {}});
+  FakeRangedDownloader({this.expiredCalls = const {}, this.failure});
 
   final Set<int> expiredCalls;
+
+  /// Thrown by every download when set.
+  final Object? failure;
   final downloads = <RangedDownload>[];
 
   @override
@@ -78,6 +81,9 @@ class FakeRangedDownloader implements RangedDownloader {
     required void Function(double fraction) onProgress,
   }) async {
     _refuseExpired(download.url);
+    if (failure case final error?) {
+      throw error;
+    }
     downloads.add(download);
     onProgress(1);
     await download.target.parent.create(recursive: true);
@@ -119,16 +125,18 @@ void main() {
   late UrlVideoSource videos;
   late FakeRangedDownloader downloader;
   late ClipSourcePreparer preparer;
+  late FakeFfmpegRunner ffmpeg;
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('clip_source_preparer_test');
     cache = SourceCache(root);
     videos = UrlVideoSource();
     downloader = FakeRangedDownloader();
+    ffmpeg = FakeFfmpegRunner();
     preparer = ClipSourcePreparer(
       videos: videos,
       downloader: downloader,
-      ffmpeg: FakeFfmpegRunner(),
+      ffmpeg: ffmpeg,
     );
   });
 
@@ -232,5 +240,51 @@ void main() {
       (downloader.downloads.length, source.offset),
       (2, const Duration(seconds: 50)),
     );
+  });
+
+  test('mux_delays_video_that_starts_after_audio', () async {
+    await prepare(clipAt(60, 100));
+
+    final arguments = ffmpeg.runs.single;
+    final videoDelay = arguments[arguments.indexOf('-itsoffset') + 1];
+    expect(videoDelay, '5.000');
+  });
+
+  Future<Object> failureOf(Object downloadError) async {
+    preparer = ClipSourcePreparer(
+      videos: videos,
+      downloader: FakeRangedDownloader(failure: downloadError),
+      ffmpeg: ffmpeg,
+    );
+    try {
+      await prepare(clipAt(60, 100));
+    } catch (error) {
+      return error;
+    }
+    throw StateError('prepare did not fail');
+  }
+
+  test('server_error_does_not_fall_back_to_full_download', () async {
+    final error = await failureOf(const StreamRequestFailedException('503'));
+
+    expect((error is OfflineException, videos.fullDownloads), (true, 0));
+  });
+
+  test('socket_error_while_downloading_is_offline', () async {
+    final error = await failureOf(const SocketException('reset'));
+
+    expect(error, isA<OfflineException>());
+  });
+
+  test('full_disk_while_downloading_is_insufficient_storage', () async {
+    final error = await failureOf(
+      const FileSystemException(
+        'write failed',
+        '',
+        OSError('No space left on device', 28),
+      ),
+    );
+
+    expect(error, isA<InsufficientStorageException>());
   });
 }

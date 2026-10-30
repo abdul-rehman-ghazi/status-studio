@@ -22,6 +22,9 @@ class FakeClipSourcePreparer extends ClipSourcePreparer {
   final bool stalled;
   var calls = 0;
 
+  /// When set, each preparation waits for it before finishing.
+  Completer<void>? gate;
+
   @override
   Future<ClipSource> prepare(
     ClipPrepareRequest request, {
@@ -32,6 +35,7 @@ class FakeClipSourcePreparer extends ClipSourcePreparer {
     if (stalled) {
       return Completer<ClipSource>().future;
     }
+    await gate?.future;
     if (failing) {
       throw const FileSystemException('disk error');
     }

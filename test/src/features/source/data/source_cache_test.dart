@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
@@ -86,5 +87,21 @@ void main() {
     );
 
     expect(cache.isComplete(target), isFalse);
+  });
+
+  test('window_stream_files_are_named_per_window', () {
+    const first = ClipWindow(
+      start: Duration(seconds: 55),
+      end: Duration(seconds: 105),
+    );
+    const second = ClipWindow(
+      start: Duration(seconds: 54),
+      end: Duration(seconds: 105),
+    );
+
+    expect(
+      cache.windowStreamFile(videoId, first, 'video').path,
+      isNot(cache.windowStreamFile(videoId, second, 'video').path),
+    );
   });
 }

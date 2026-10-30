@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,5 +94,38 @@ void main() {
     await prepareFor(clipAt(60, 100));
 
     expect(container.read(clipSourceProgressProvider(videoId)), 1.0);
+  });
+
+  test('nudge_during_download_starts_no_second_download', () async {
+    final gate = Completer<void>();
+    preparer.gate = gate;
+    final first = prepareFor(clipAt(60, 100));
+    final nudged = prepareFor(
+      const ClipRange(
+        start: Duration(milliseconds: 59500),
+        end: Duration(seconds: 100),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    gate.complete();
+    await Future.wait([first, nudged]);
+
+    expect(preparer.calls, 1);
+  });
+
+  test('nudge_back_into_window_after_failed_download_shows_preview', () async {
+    await prepareFor(clipAt(60, 100));
+    preparer.failing = true;
+    await prepareFor(clipAt(300, 330));
+    preparer.failing = false;
+
+    await prepareFor(clipAt(61, 99));
+
+    final state = container.read(clipSourceProvider(videoId));
+    expect(
+      (state.hasError, state.value?.offset),
+      (false, const Duration(seconds: 56)),
+    );
   });
 }

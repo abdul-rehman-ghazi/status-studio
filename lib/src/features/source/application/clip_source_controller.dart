@@ -1,7 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:status_studio/src/core/single_flight.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
-import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
@@ -35,60 +33,60 @@ class ClipSourceController extends AsyncNotifier<ClipSource?> {
   ClipSourceController(this.videoId);
 
   final String videoId;
-  final _downloads = SingleFlight<ClipSource>();
+
+  /// The one download running for this video. Never completes with an
+  /// error: failures land in [state].
+  Future<void>? _running;
   ClipRange? _latestClip;
 
   @override
   Future<ClipSource?> build() async => null;
 
-  /// Makes sure a downloaded window covers [clip]: does nothing when the
-  /// current one already does, shares a download already running for the
-  /// same window, and retries after a failure.
+  /// Makes sure a downloaded window covers [clip]. Only one download runs
+  /// at a time; a request made meanwhile waits for it, and only the newest
+  /// one starts another download if it's still needed.
   Future<void> prepareFor(SourceVideo video, ClipRange clip) async {
     if (video.videoId != videoId) {
       throw ArgumentError.value(video.videoId, 'video', 'is not $videoId');
     }
     _latestClip = clip;
-    final current = state.value;
-    if (!state.isLoading && current != null && current.window.covers(clip)) {
+    for (var running = _running; running != null; running = _running) {
+      await running;
+      if (_latestClip != clip) {
+        return;
+      }
+    }
+    if (_isCovered(clip)) {
       return;
     }
-    final window = clipWindowFor(clip, video.duration);
+    final download = _download(video, clip);
+    _running = download;
+    await download;
+    _running = null;
+  }
+
+  /// Only a successful state counts: after a failure Riverpod keeps the old
+  /// value, but the screen shows the error, so it must be fetched again.
+  bool _isCovered(ClipRange clip) => switch (state) {
+    AsyncData(value: final current?) => current.window.covers(clip),
+    _ => false,
+  };
+
+  Future<void> _download(SourceVideo video, ClipRange clip) async {
     final progress = ref.read(clipSourceProgressProvider(videoId).notifier);
     state = const AsyncLoading();
     progress.report(0);
-    final result = await AsyncValue.guard<ClipSource?>(
-      () => _downloads.run(
-        '${window.start}-${window.end}',
-        () => _prepare(video, clip, progress),
-      ),
-    );
-    if (ref.mounted && _answersLatestRequest(result, clip)) {
+    final result = await AsyncValue.guard<ClipSource?>(() async {
+      final cache = await ref.read(sourceCacheProvider.future);
+      return ref
+          .read(clipSourcePreparerProvider)
+          .prepare(
+            ClipPrepareRequest(video: video, clip: clip, cache: cache),
+            onProgress: progress.report,
+          );
+    });
+    if (ref.mounted) {
       state = result;
     }
-  }
-
-  Future<ClipSource> _prepare(
-    SourceVideo video,
-    ClipRange clip,
-    ClipSourceProgress progress,
-  ) async {
-    final cache = await ref.read(sourceCacheProvider.future);
-    return ref
-        .read(clipSourcePreparerProvider)
-        .prepare(
-          ClipPrepareRequest(video: video, clip: clip, cache: cache),
-          onProgress: progress.report,
-        );
-  }
-
-  /// A download for an older nudge must not replace one that the newest
-  /// clip still needs.
-  bool _answersLatestRequest(AsyncValue<ClipSource?> result, ClipRange clip) {
-    final latest = _latestClip;
-    if (latest == null || latest == clip) {
-      return true;
-    }
-    return result.value?.window.covers(latest) ?? false;
   }
 }
