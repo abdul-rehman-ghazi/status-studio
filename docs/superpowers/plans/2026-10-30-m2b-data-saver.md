@@ -118,14 +118,14 @@
   - Each request sends `Range: bytes=first-last` and requires status 206; otherwise it throws `RangeNotSupportedException`. Status 403 throws `ExpiredStreamUrlException`.
   - Ranges are appended in order to `target.part`, then renamed (same atomic pattern as `SourceCache.write`).
 
-- [ ] **Step 1: Failing tests** against a local `HttpServer` that honours `Range`:
+- [x] **Step 1: Failing tests** against a local `HttpServer` that honours `Range`:
   - `downloads_requested_ranges_in_order`: init + two segments; the bytes equal the concatenation.
   - `reports_progress_to_one`
   - `rejects_response_without_partial_content`: the server ignores `Range` and returns 200 → throws, and no target exists.
   - `forbidden_throws_expired_url`
   - `fetch_head_returns_first_bytes`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: download byte ranges`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: download byte ranges`
 
 ### Task 5: Clip source preparer
 
