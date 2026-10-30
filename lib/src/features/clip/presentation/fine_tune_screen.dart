@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,8 +10,12 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/source/application/source_video_controller.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/source/presentation/source_error_message.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -32,7 +38,7 @@ class FineTuneScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const _PreviewPlaceholder(),
+          _SourcePreview(video: video, clip: clip),
           const SizedBox(height: 16),
           _ClipSummary(clip: clip),
           const SizedBox(height: 16),
@@ -80,9 +86,53 @@ List<TranscriptLine> _selectedLines(ReelDraft draft) {
   };
 }
 
-/// Stands in for the clip player until M2 brings real video.
-class _PreviewPlaceholder extends StatelessWidget {
-  const _PreviewPlaceholder();
+/// The clip player once the source video is ready; until then, how far
+/// its download has got.
+class _SourcePreview extends ConsumerStatefulWidget {
+  const _SourcePreview({required this.video, required this.clip});
+
+  final SourceVideo video;
+  final ClipRange clip;
+
+  @override
+  ConsumerState<_SourcePreview> createState() => _SourcePreviewState();
+}
+
+class _SourcePreviewState extends ConsumerState<_SourcePreview> {
+  @override
+  void initState() {
+    super.initState();
+    // Normally already running since Processing; this starts it if not and
+    // retries it after a failure. Providers can't change during build, so
+    // it waits for the first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prepareSource());
+  }
+
+  void _prepareSource() {
+    if (!mounted) {
+      return;
+    }
+    unawaited(ref.read(sourceVideoProvider.notifier).prepare(widget.video));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final source = ref.watch(sourceVideoProvider);
+    if (source.value case final file?) {
+      return ClipPlayer(source: file, clip: widget.clip);
+    }
+    if (source.error case final error?) {
+      return _PreviewMessage(text: sourceErrorMessage(error));
+    }
+    final percent = (ref.watch(sourceVideoProgressProvider) * 100).round();
+    return _PreviewMessage(text: 'Preparing video… $percent %');
+  }
+}
+
+class _PreviewMessage extends StatelessWidget {
+  const _PreviewMessage({required this.text});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -93,11 +143,7 @@ class _PreviewPlaceholder extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(
-          Icons.play_circle_outline,
-          size: 48,
-          color: AppColors.textMuted,
-        ),
+        child: Center(child: HintText(text)),
       ),
     );
   }

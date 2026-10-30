@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
+import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/routing/app_router.dart';
+
+import 'fake_video_player.dart';
 
 /// What a widget test runs the app with. Services that would touch the
 /// network or a platform plugin default to fakes.
@@ -15,13 +18,16 @@ class TestSetup {
   const TestSetup({
     this.overrides = const [],
     this.videoSource = const FakeVideoSource(),
+    this.playerFactory = fakePlayerFactory,
   });
 
   final List<Override> overrides;
   final VideoSource videoSource;
+  final VideoPlayerFactory playerFactory;
 
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
+    videoPlayerFactoryProvider.overrideWithValue(playerFactory),
     ...overrides,
   ];
 }

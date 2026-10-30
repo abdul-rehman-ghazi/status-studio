@@ -115,10 +115,10 @@
   - Disposes in `dispose`.
 - While the source isn't ready, Fine-tune shows the M1 placeholder with "Preparing video… NN %".
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `stops_at_clip_end`
   - `keeps_playing_before_clip_end`
   - `player_disposed_when_screen_closes`: the widget test injects a fake controller factory through a `videoPlayerFactoryProvider` and asserts `dispose` was called after `pop`.
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
 - [ ] **Step 5: Manual check:** play a selected clip; it starts at the start line and stops at the end line.
-- [ ] **Step 6: Commit** `feat: play the selected clip on fine-tune`
+- [x] **Step 6: Commit** `feat: play the selected clip on fine-tune`
