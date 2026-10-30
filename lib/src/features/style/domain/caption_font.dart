@@ -11,3 +11,8 @@ String captionFontFamily(String text) {
   }
   return AppFonts.ui;
 }
+
+/// Line height for [text]'s caption font (spec FR-7): Nastaliq's letters
+/// collide below about 2.1.
+double captionLineHeight(String text) =>
+    captionFontFamily(text) == AppFonts.nastaliq ? 2.1 : 1.3;

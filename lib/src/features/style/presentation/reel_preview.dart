@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
+import 'package:status_studio/src/features/export/data/overlay_painter.dart';
+import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
-import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -22,7 +22,6 @@ class ReelPreview extends StatelessWidget {
     final output = outputSizeFor(draft.frame, assumedSourceSize);
     final width = maxWidth;
     final height = width * output.height / output.width;
-    final captionOnTop = draft.caption.position == CaptionPosition.top;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
@@ -31,16 +30,8 @@ class ReelPreview extends StatelessWidget {
         child: Stack(
           children: [
             Positioned.fill(child: _VideoPlaceholder(frame: draft.frame)),
-            if (draft.caption.text.trim().isNotEmpty)
-              _CaptionBlock(
-                caption: draft.caption,
-                frameSize: Size(width, height),
-              ),
-            _BrandingPill(
-              frameWidth: width,
-              alignment: captionOnTop
-                  ? Alignment.bottomLeft
-                  : Alignment.topLeft,
+            _OverlayLayer(
+              spec: OverlaySpec(output: output, caption: draft.caption),
             ),
           ],
         ),
@@ -73,87 +64,92 @@ class _VideoPlaceholder extends StatelessWidget {
   }
 }
 
-class _CaptionBlock extends StatelessWidget {
-  const _CaptionBlock({required this.caption, required this.frameSize});
+/// The caption and branding laid out at full output size by the export's
+/// own layout, then scaled to the preview, so text wraps exactly as in the
+/// exported reel.
+class _OverlayLayer extends StatelessWidget {
+  const _OverlayLayer({required this.spec});
 
-  final CaptionSettings caption;
-  final Size frameSize;
+  final OverlaySpec spec;
 
   @override
   Widget build(BuildContext context) {
-    final edgeMargin = frameSize.height * 0.06;
-    final onTop = caption.position == CaptionPosition.top;
-    return Positioned(
-      left: 0,
-      right: 0,
-      top: onTop ? edgeMargin : null,
-      bottom: onTop ? null : edgeMargin,
-      child: Center(
-        child: ConstrainedBox(
-          // FR-7's shrink-then-ellipsis rule is applied by the M5 renderer;
-          // the preview only caps the block at the same height.
-          constraints: BoxConstraints(
-            maxHeight: frameSize.height * 0.35,
-            maxWidth: frameSize.width * 0.92,
-          ),
-          child: ClipRect(
-            child: Container(
-              padding: EdgeInsets.all(frameSize.width * 0.02),
-              color: AppColors.overlay.withValues(alpha: 0.38),
-              child: ScriptText(
-                caption.text,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: frameSize.width * caption.size.widthFraction,
-                ),
-              ),
+    final layout = layoutOverlay(spec, measureText: measureCaptionText);
+    final text = spec.caption.text;
+    return Positioned.fill(
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: SizedBox(
+          width: spec.output.width.toDouble(),
+          height: spec.output.height.toDouble(),
+          // The export paints at a fixed size; system text scaling would
+          // make the preview disagree with it.
+          child: MediaQuery.withNoTextScaling(
+            child: Stack(
+              children: [
+                if (text.trim().isNotEmpty) ..._caption(text, layout),
+                _brandingPill(layout),
+              ],
             ),
           ),
         ),
       ),
     );
   }
-}
 
-class _BrandingPill extends StatelessWidget {
-  const _BrandingPill({required this.frameWidth, required this.alignment});
-
-  final double frameWidth;
-  final Alignment alignment;
-
-  @override
-  Widget build(BuildContext context) {
-    final logoSize = frameWidth * 0.045;
-    final inset = frameWidth * 0.04;
-    return Positioned.fill(
-      child: Padding(
-        padding: EdgeInsets.all(inset),
-        child: Align(
-          alignment: alignment,
-          child: Container(
-            padding: EdgeInsets.all(logoSize * 0.2),
-            decoration: BoxDecoration(
-              color: AppColors.overlay.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(logoSize),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LogoMark(size: logoSize),
-                SizedBox(width: logoSize * 0.3),
-                Text(
-                  'Status Studio',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontFamily: AppFonts.ui,
-                    fontWeight: FontWeight.w600,
-                    fontSize: logoSize * 0.55,
-                    height: 1,
-                  ),
-                ),
-              ],
-            ),
+  List<Widget> _caption(String text, OverlayLayout layout) {
+    final box = layout.captionBox;
+    return [
+      Positioned.fromRect(
+        rect: box,
+        child: ColoredBox(color: AppColors.overlay.withValues(alpha: 0.38)),
+      ),
+      Positioned(
+        left: box.center.dx - layout.captionTextMaxWidth / 2,
+        top: box.top + layout.captionPadding,
+        width: layout.captionTextMaxWidth,
+        height: box.height - 2 * layout.captionPadding,
+        child: ClipRect(
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            textDirection: captionTextDirection(text),
+            maxLines: layout.captionMaxLines,
+            overflow: TextOverflow.ellipsis,
+            style: captionTextStyle(text, layout.captionFontSize),
           ),
+        ),
+      ),
+    ];
+  }
+
+  Widget _brandingPill(OverlayLayout layout) {
+    final logo = layout.logoSize;
+    return Positioned(
+      left: layout.brandingOrigin.dx,
+      top: layout.brandingOrigin.dy,
+      child: Container(
+        padding: EdgeInsets.all(logo * brandingPillPadding),
+        decoration: BoxDecoration(
+          color: AppColors.overlay.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(logo),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LogoMark(size: logo),
+            SizedBox(width: logo * 0.3),
+            Text(
+              brandingText,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontFamily: AppFonts.ui,
+                fontWeight: FontWeight.w600,
+                fontSize: logo * 0.55,
+                height: 1,
+              ),
+            ),
+          ],
         ),
       ),
     );
