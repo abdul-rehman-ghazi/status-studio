@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:http/http.dart' as http;
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/mux_arguments.dart';
 import 'package:status_studio/src/core/single_flight.dart';
+import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
@@ -53,24 +53,30 @@ class YouTubeVideoSource implements VideoSource {
   });
 
   @override
-  Future<File> downloadAudio(
+  Future<File> downloadScriptAudio(
     SourceVideo video, {
     required void Function(double fraction) onProgress,
-  }) => _guard(() async {
+  }) => _guard(() => _downloadAudio(video, _AudioUse.script, onProgress));
+
+  Future<File> _downloadAudio(
+    SourceVideo video,
+    _AudioUse use,
+    void Function(double fraction) onProgress,
+  ) async {
     final sources = await cache;
-    final cached = _cachedAudio(sources, video.videoId);
+    final cached = _cachedAudio(sources, video.videoId, use);
     if (cached != null) {
       onProgress(1);
       return cached;
     }
-    final manifest = await _manifest(video.videoId);
-    final streams = manifest.audioOnly;
-    final choice = pickAudioStream([
+    final streams = (await _manifest(video.videoId)).audioOnly;
+    final choice = use.pick([
       for (final (index, stream) in streams.indexed)
         _audioChoice(stream, index),
     ]);
     final stream = streams[choice.index];
-    final target = sources.audioFile(
+    final target = use.fileIn(
+      sources,
       video.videoId,
       _audioExtensions[choice.container]!,
     );
@@ -82,6 +88,27 @@ class YouTubeVideoSource implements VideoSource {
         totalBytes: stream.size.totalBytes,
         onProgress: onProgress,
       ),
+    );
+  }
+
+  @override
+  Future<StreamUrls> streamUrls(SourceVideo video) => _guard(() async {
+    final manifest = await _manifest(video.videoId);
+    final videoStreams = manifest.videoOnly;
+    final audioStreams = manifest.audioOnly;
+    final videoChoice = pickVideoStream([
+      for (final (index, stream) in videoStreams.indexed)
+        _videoChoice(stream, index),
+    ]);
+    final audioChoice = pickAudioStream([
+      for (final (index, stream) in audioStreams.indexed)
+        _audioChoice(stream, index),
+    ]);
+    return StreamUrls(
+      video: videoStreams[videoChoice.index].url,
+      audio: audioStreams[audioChoice.index].url,
+      videoIsMp4: videoChoice.isPreferredContainer,
+      audioIsMp4: audioChoice.isPreferredContainer,
     );
   });
 
@@ -108,7 +135,7 @@ class YouTubeVideoSource implements VideoSource {
     required void Function(double fraction) onProgress,
   }) async {
     final source = sources.sourceFile(video.videoId);
-    final audio = await downloadAudio(video, onProgress: (_) {});
+    final audio = await _downloadAudio(video, _AudioUse.full, (_) {});
     final videoOnly = await _downloadVideoStream(
       sources,
       video,
@@ -174,10 +201,28 @@ class YouTubeVideoSource implements VideoSource {
       _youtube.videos.streamsClient.getManifest(videoId);
 }
 
-/// The audio file already downloaded for [videoId], if any.
-File? _cachedAudio(SourceCache cache, String videoId) {
+/// Script audio is the cheapest stream (FR-3); full audio goes with the
+/// whole-video fallback source, so it keeps the best quality.
+enum _AudioUse {
+  script,
+  full;
+
+  StreamChoice pick(List<StreamChoice> streams) => switch (this) {
+    _AudioUse.script => pickScriptAudioStream(streams),
+    _AudioUse.full => pickAudioStream(streams),
+  };
+
+  File fileIn(SourceCache cache, String videoId, String extension) =>
+      switch (this) {
+        _AudioUse.script => cache.scriptAudioFile(videoId, extension),
+        _AudioUse.full => cache.fullAudioFile(videoId, extension),
+      };
+}
+
+/// The audio file already downloaded for [videoId] and [use], if any.
+File? _cachedAudio(SourceCache cache, String videoId, _AudioUse use) {
   return _audioExtensions.values
-      .map((extension) => cache.audioFile(videoId, extension))
+      .map((extension) => use.fileIn(cache, videoId, extension))
       .where(cache.isComplete)
       .firstOrNull;
 }
@@ -214,16 +259,8 @@ Future<T> _guard<T>(Future<T> Function() action) async {
 /// Turns library and platform failures into the app's typed errors
 /// (spec §8); anything else is returned unchanged to be rethrown.
 Object mapYouTubeError(Object error) {
-  return switch (error) {
-    yt.VideoUnplayableException() => VideoUnavailableException('$error'),
-    // package:http turns most dart:io network failures into ClientException.
-    SocketException() ||
-    HttpException() ||
-    TlsException() ||
-    http.ClientException() => OfflineException('$error'),
-    FileSystemException(:final osError?)
-        when osError.message.contains('No space') =>
-      InsufficientStorageException('$error'),
-    _ => error,
-  };
+  if (error is yt.VideoUnplayableException) {
+    return VideoUnavailableException('$error');
+  }
+  return mapIoError(error);
 }

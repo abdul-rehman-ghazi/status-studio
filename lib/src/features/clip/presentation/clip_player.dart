@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/clip/domain/clip_playback.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/source/domain/clip_source.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
@@ -20,7 +21,9 @@ final videoPlayerFactoryProvider = Provider<VideoPlayerFactory>(
 class ClipPlayer extends ConsumerStatefulWidget {
   const ClipPlayer({super.key, required this.source, required this.clip});
 
-  final File source;
+  final ClipSource source;
+
+  /// In video time; the player works in the clip file's time.
   final ClipRange clip;
 
   @override
@@ -30,7 +33,7 @@ class ClipPlayer extends ConsumerStatefulWidget {
 class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
   late final VideoPlayerController _player = ref.read(
     videoPlayerFactoryProvider,
-  )(widget.source);
+  )(widget.source.file);
   late final RouteObserver<ModalRoute<void>> _routes = ref.read(
     routeObserverProvider,
   );
@@ -83,9 +86,15 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     }
   }
 
+  /// [ClipPlayer.clip] moved into the clip file's own time.
+  ClipRange get _clipInFile => ClipRange(
+    start: widget.clip.start - widget.source.offset,
+    end: widget.clip.end - widget.source.offset,
+  );
+
   void _stopAtClipEnd() {
     final value = _player.value;
-    if (value.isPlaying && shouldStopPlayback(value.position, widget.clip)) {
+    if (value.isPlaying && shouldStopPlayback(value.position, _clipInFile)) {
       unawaited(_player.pause());
     }
   }
@@ -95,7 +104,7 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
       await _player.pause();
       return;
     }
-    await _player.seekTo(widget.clip.start);
+    await _player.seekTo(_clipInFile.start);
     await _player.play();
   }
 

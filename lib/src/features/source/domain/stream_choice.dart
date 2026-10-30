@@ -83,17 +83,28 @@ StreamChoice pickVideoStream(
       .first;
 }
 
-/// The original-language track over dubs, MP4 over other containers, then
-/// the highest bitrate.
+/// Audio for the clip: the original-language track over dubs, MP4 over
+/// other containers, then the highest bitrate.
 StreamChoice pickAudioStream(List<StreamChoice> audioStreams) {
+  return _preferredAudio(audioStreams)
+      .reduce((a, b) => b.bitrate > a.bitrate ? b : a);
+}
+
+/// Audio for the script: as [pickAudioStream] but the lowest bitrate, since
+/// Whisper hears 16 kHz mono and more quality only costs data (FR-3).
+StreamChoice pickScriptAudioStream(List<StreamChoice> audioStreams) {
+  return _preferredAudio(audioStreams)
+      .reduce((a, b) => b.bitrate < a.bitrate ? b : a);
+}
+
+List<StreamChoice> _preferredAudio(List<StreamChoice> audioStreams) {
   if (audioStreams.isEmpty) {
     throw const VideoUnavailableException('No audio streams.');
   }
   final original = audioStreams.where((s) => s.isDefaultTrack).toList();
   final tracks = original.isEmpty ? audioStreams : original;
   final mp4 = tracks.where((s) => s.isPreferredContainer).toList();
-  final candidates = mp4.isEmpty ? tracks : mp4;
-  return candidates.reduce((a, b) => b.bitrate > a.bitrate ? b : a);
+  return mp4.isEmpty ? tracks : mp4;
 }
 
 StreamChoice? _pickWithinGroup(List<StreamChoice> group, int maxHeight) =>

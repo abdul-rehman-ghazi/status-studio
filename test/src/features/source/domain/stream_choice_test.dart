@@ -123,4 +123,45 @@ void main() {
 
     expect(pickAudioStream(streams).index, 1);
   });
+
+  test('script_audio_picks_lowest_bitrate_mp4', () {
+    final streams = [
+      audio(128000, 'mp4', index: 0),
+      audio(50000, 'webm', index: 1),
+      audio(48000, 'mp4', index: 2),
+    ];
+
+    expect(pickScriptAudioStream(streams).index, 2);
+  });
+
+  test('script_audio_falls_back_to_lowest_any_container', () {
+    final streams = [
+      audio(160000, 'webm', index: 0),
+      audio(70000, 'webm', index: 1),
+    ];
+
+    expect(pickScriptAudioStream(streams).index, 1);
+  });
+
+  test('script_audio_prefers_original_track', () {
+    const streams = [
+      StreamChoice(
+        height: 0,
+        container: 'mp4',
+        bitrate: 32000,
+        index: 0,
+        isDefaultTrack: false,
+      ),
+      StreamChoice(height: 0, container: 'mp4', bitrate: 48000, index: 1),
+    ];
+
+    expect(pickScriptAudioStream(streams).index, 1);
+  });
+
+  test('script_audio_empty_list_throws_unavailable', () {
+    expect(
+      () => pickScriptAudioStream(const []),
+      throwsA(isA<VideoUnavailableException>()),
+    );
+  });
 }

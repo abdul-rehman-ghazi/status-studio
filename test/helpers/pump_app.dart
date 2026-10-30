@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
@@ -6,10 +8,13 @@ import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
+import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
+import 'fake_clip_preparer.dart';
 import 'fake_video_player.dart';
 
 /// What a widget test runs the app with. Services that would touch the
@@ -19,15 +24,25 @@ class TestSetup {
     this.overrides = const [],
     this.videoSource = const FakeVideoSource(),
     this.playerFactory = fakePlayerFactory,
+    this.clipPreparer,
   });
 
   final List<Override> overrides;
   final VideoSource videoSource;
   final VideoPlayerFactory playerFactory;
 
+  /// Defaults to a fresh [FakeClipSourcePreparer].
+  final ClipSourcePreparer? clipPreparer;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     videoPlayerFactoryProvider.overrideWithValue(playerFactory),
+    clipSourcePreparerProvider.overrideWithValue(
+      clipPreparer ?? FakeClipSourcePreparer(),
+    ),
+    sourceCacheProvider.overrideWith(
+      (ref) async => SourceCache(Directory.systemTemp),
+    ),
     ...overrides,
   ];
 }

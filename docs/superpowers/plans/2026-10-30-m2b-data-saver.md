@@ -48,14 +48,14 @@
   - `SourceCache.audioFile` is renamed `scriptAudioFile`.
   - `pickAudioStream` (highest bitrate) stays for clip audio.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `script_audio_picks_lowest_bitrate_mp4`: 48 k mp4 over 128 k mp4 and 50 k webm.
   - `script_audio_falls_back_to_lowest_any_container`
   - `script_audio_empty_list_throws_unavailable`
-- [ ] **Step 2:** Run `fvm flutter test test/src/features/source` → FAIL.
-- [ ] **Step 3:** Implement, then rename and update every caller (Processing, fakes, tests).
-- [ ] **Step 4:** Run → PASS. Then `fvm flutter analyze` → "No issues found!".
-- [ ] **Step 5: Commit** `feat: download script audio at the lowest bitrate`
+- [x] **Step 2:** Run `fvm flutter test test/src/features/source` → FAIL.
+- [x] **Step 3:** Implement, then rename and update every caller (Processing, fakes, tests).
+- [x] **Step 4:** Run → PASS. Then `fvm flutter analyze` → "No issues found!".
+- [x] **Step 5: Commit** `feat: download script audio at the lowest bitrate`
 
 ### Task 2: MP4 segment index parser
 
@@ -75,16 +75,16 @@
   - The first segment starts at (end of `sidx` box) + first_offset. Segment start times accumulate from earliest_presentation_time ÷ timescale.
 - Test helper: `Uint8List buildMp4Head({required int initBytes, required int timescale, required List<(int size, int duration)> references, int version = 0})` builds an `ftyp` + `moov` (filler) + `sidx`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `parses_segments_from_version_0_sidx`: timescale 1000, refs (100000 B, 5000), (120000 B, 5000) after 800 B of init. The first segment's bytes start right after `sidx`; starts are 0 s and 5 s.
   - `parses_version_1_sidx_with_64_bit_times`
   - `init_range_ends_before_sidx`
   - `short_head_throws_not_found_with_bytes_needed`
   - `moof_before_sidx_throws_no_index`
-- [ ] **Step 2:** Run `fvm flutter test test/src/features/source/domain/segment_index_test.dart` → FAIL.
-- [ ] **Step 3:** Implement with `ByteData` big-endian reads. The parser is pure, with no I/O.
-- [ ] **Step 4:** Run → PASS.
-- [ ] **Step 5: Commit** `feat: parse MP4 segment index`
+- [x] **Step 2:** Run `fvm flutter test test/src/features/source/domain/segment_index_test.dart` → FAIL.
+- [x] **Step 3:** Implement with `ByteData` big-endian reads. The parser is pure, with no I/O.
+- [x] **Step 4:** Run → PASS.
+- [x] **Step 5: Commit** `feat: parse MP4 segment index`
 
 ### Task 3: Clip window and segment selection
 
@@ -97,7 +97,7 @@
   - `List<MediaSegment> segmentsCovering(SegmentIndex index, ClipWindow window)`: the contiguous run of segments from the one containing `window.start` through the one containing `window.end`.
   - `ByteRange mergedRange(List<MediaSegment> segments)`
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `window_pads_five_seconds_each_side`: clip 1:00–1:40, video 6:48 → 0:55–1:45.
   - `window_is_at_least_thirty_seconds`: clip 1:00–1:05 → 0:55–1:30.
   - `window_clamped_at_video_start`
@@ -105,8 +105,8 @@
   - `covers_clip_inside_window`
   - `selects_segments_overlapping_window`: 5 s segments, window 0:12–0:31 → segments starting 0:10…0:30.
   - `merged_range_spans_first_to_last_segment`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: compute clip window and covering segments`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: compute clip window and covering segments`
 
 ### Task 4: Ranged downloader
 
@@ -115,17 +115,17 @@
 **Interfaces:**
 - Produces:
   - `class RangedDownloader { RangedDownloader(HttpClient client); Future<Uint8List> fetchHead(Uri url, int length); Future<File> downloadRanges(Uri url, List<ByteRange> ranges, File target, {required void Function(double fraction) onProgress}); }`
-  - Each request sends `Range: bytes=first-last` and requires status 206; otherwise it throws `RangeNotSupportedException`. Status 403 throws `ExpiredStreamUrlException`.
+  - Each request sends `Range: bytes=first-last` and requires status 206. Status 200 (range ignored) throws `RangeNotSupportedException`, 403 throws `ExpiredStreamUrlException`, and any other status throws `StreamRequestFailedException` (shown as offline, with Retry) so a transient 5xx never falls back to the whole video. A request that receives nothing for 30 s throws `OfflineException`.
   - Ranges are appended in order to `target.part`, then renamed (same atomic pattern as `SourceCache.write`).
 
-- [ ] **Step 1: Failing tests** against a local `HttpServer` that honours `Range`:
+- [x] **Step 1: Failing tests** against a local `HttpServer` that honours `Range`:
   - `downloads_requested_ranges_in_order`: init + two segments; the bytes equal the concatenation.
   - `reports_progress_to_one`
   - `rejects_response_without_partial_content`: the server ignores `Range` and returns 200 → throws, and no target exists.
   - `forbidden_throws_expired_url`
   - `fetch_head_returns_first_bytes`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: download byte ranges`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: download byte ranges`
 
 ### Task 5: Clip source preparer
 
@@ -143,13 +143,13 @@
   - Behaviour:
     1. Reuse the cached `ClipSource` for this video if its window covers the clip.
     2. Otherwise compute `clipWindowFor`. For each stream, `fetchHead` (64 KiB, doubling to 2 MiB on `SegmentIndexNotFoundException`), `parseSegmentIndex`, `segmentsCovering`, then download `[init, mergedRange]`.
-    3. Mux with `muxArguments` into `SourceCache.clipFile(videoId, window)` (`clip_<startMs>_<endMs>.mp4`).
+    3. Mux with `clipMuxArguments` into `SourceCache.clipFile(videoId, window:, offset:)` (`clip_<startMs>_<endMs>_<offsetMs>.mp4`, so a cached window and its offset are found again after a restart). FFmpeg moves each input to start at 0, so each input gets `-itsoffset` = its first segment start − `offset`; without it video and audio drift apart by the difference between their first segment starts. Per-window stream files are named `window_<startMs>_<endMs>_<stream>.mp4`.
     4. `offset` = the earlier of the first video and first audio segment start.
     5. Without an index, or on `RangeNotSupportedException`, fall back to `prepareSourceVideo` with `offset: Duration.zero` and a window of the whole video.
     6. On `ExpiredStreamUrlException`, call `streamUrls` again and retry once.
   - Progress is split as video 70 %, audio 25 %, mux 5 %.
 
-- [ ] **Step 1: Failing tests** with fake `VideoSource`, `RangedDownloader` and `FfmpegRunner`:
+- [x] **Step 1: Failing tests** with fake `VideoSource`, `RangedDownloader` and `FfmpegRunner`:
   - `downloads_only_covering_ranges`
   - `reuses_window_that_still_covers_clip`
   - `downloads_new_window_when_clip_leaves_it`
@@ -157,8 +157,8 @@
   - `falls_back_to_full_download_without_index`
   - `retries_once_after_expired_url`
   - `second_expired_url_surfaces_unavailable`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: prepare clip-only sources`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: prepare clip-only sources`
 
 ### Task 6: Fine-tune downloads only the clip
 
@@ -168,22 +168,22 @@
 
 **Interfaces:**
 - Produces:
-  - `final clipSourceProvider = AsyncNotifierProvider<ClipSourceController, ClipSource?>(...)` with `Future<void> prepareFor(SourceVideo video, ClipRange clip)`. It's single-flight per window (reuse M2's `single_flight.dart`).
+  - `final clipSourceProvider = AsyncNotifierProvider.family<ClipSourceController, ClipSource?, String>(...)`, keyed by video ID, with `Future<void> prepareFor(SourceVideo video, ClipRange clip)`. One download runs at a time per video; requests made meanwhile wait, and only the newest starts another download if the finished window doesn't cover it. Only an `AsyncData` window counts as covering (after a failure Riverpod keeps the old value but the screen shows the error).
   - `ClipPlayer({required ClipSource source, required ClipRange clip})` seeks to `clip.start - source.offset` and stops at `clip.end - source.offset`.
 - Behaviour:
   - Processing no longer starts any video download.
   - Fine-tune calls `prepareFor` on open and after any nudge whose clip leaves the current window.
   - It shows "Downloading clip… NN %" until ready.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `processing_does_not_download_video` (fake `VideoSource` records calls)
   - `fine_tune_prepares_clip_on_open`
   - `nudge_inside_window_does_not_redownload`
   - `player_seeks_relative_to_offset` (fake controller factory records the seek: clip 1:00, offset 0:55 → 0:05)
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
 - [ ] **Step 5: Manual check** in `--release` on a phone with a long public video:
   - Pick a 30 s clip near the middle and watch Android's per-app data usage. The clip download should be tens of MB, not the full video.
   - The clip plays in sync.
   - Nudging past the window triggers a short new download.
-- [ ] **Step 6:** Run `fvm flutter analyze && fvm flutter test`. Expected: clean, all pass.
-- [ ] **Step 7: Commit** `feat: download only the clip on fine-tune`
+- [x] **Step 6:** Run `fvm flutter analyze && fvm flutter test`. Expected: clean, all pass.
+- [x] **Step 7: Commit** `feat: download only the clip on fine-tune`
