@@ -89,7 +89,8 @@ Stream<double> _receive(HttpClientResponse response, File part) async* {
   }
 }
 
-WhisperModel _whisperModel(SpeechModel model) => switch (model) {
+/// whisper_ggml's name for [model].
+WhisperModel whisperModelFor(SpeechModel model) => switch (model) {
   SpeechModel.base => WhisperModel.base,
   SpeechModel.small => WhisperModel.small,
 };
@@ -99,8 +100,8 @@ final modelManagerProvider = Provider<ModelManager>((ref) {
   ref.onDispose(client.close);
   final whisper = WhisperController();
   return ModelManager(
-    pathFor: (model) => whisper.getPath(_whisperModel(model)),
-    uriFor: (model) => _whisperModel(model).modelUri,
+    pathFor: (model) => whisper.getPath(whisperModelFor(model)),
+    uriFor: (model) => whisperModelFor(model).modelUri,
     httpClient: client,
   );
 });

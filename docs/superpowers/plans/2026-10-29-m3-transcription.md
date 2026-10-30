@@ -89,7 +89,7 @@
   - Throws `TranscriptionFailedException` on `null`.
   - Calls `releaseModel()` in a `finally`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `offsets_segment_times_by_chunk_start`: offset 90 s, segment 3–7 s → line 1:33–1:37.
   - `numbers_lines_from_first_index`
   - `drops_non_speech_segments`
@@ -101,8 +101,8 @@
     - `devanagari_infers_hi` (`नमस्ते`)
     - `latin_infers_en`
     - `unknown_script_infers_und` (`你好`)
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: transcribe chunks with whisper and infer language`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: transcribe chunks with whisper and infer language`
 
 ### Task 5: YouTube captions
 
