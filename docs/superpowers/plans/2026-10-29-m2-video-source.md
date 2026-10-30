@@ -30,7 +30,7 @@
 
 ### Task 1: Stream choice
 
-**Files:** Create `lib/src/features/source/domain/stream_choice.dart`; Test `test/src/features/source/domain/stream_choice_test.dart`
+**Files:** Create `lib/src/features/source/domain/stream_choice.dart`, `lib/src/features/source/domain/source_errors.dart` (needed here for `VideoUnavailableException`); Test `test/src/features/source/domain/stream_choice_test.dart`
 
 **Interfaces:**
 - Produces: `class StreamChoice { const StreamChoice({required int height, required String container, required int bitrate, required int index}); }`. Height is 0 for audio, and `index` points back into the manifest list.
@@ -93,7 +93,7 @@
 **Files:** Create `lib/src/features/source/application/source_video_controller.dart`; Modify `source_screen.dart`, `processing_screen.dart`; Test `test/src/features/source/application/source_video_controller_test.dart`
 
 **Interfaces:**
-- `final sourceVideoProvider = AsyncNotifierProvider<SourceVideoController, File?>(...)` with `Future<void> prepare(SourceVideo video)`. Its state is an `AsyncValue` carrying progress through a separate `sourceVideoProgressProvider` (`NotifierProvider<…, double>`).
+- `final sourceVideoProvider = AsyncNotifierProvider.family<SourceVideoController, File?, String>(...)`, keyed by video ID, with `Future<void> prepare(SourceVideo video)`. Progress is a separate `sourceVideoProgressProvider` family (`NotifierProvider.family<…, double, String>`). Keying by video ID keeps a second reel from ever seeing the first reel's file or progress; `prepare` shares an in-flight run and retries only after a failure.
 - Processing calls `prepare` once the audio download finishes, so the video downloads while transcription runs.
 
 - [x] **Step 1: Failing tests** with a fake `VideoSource`:
