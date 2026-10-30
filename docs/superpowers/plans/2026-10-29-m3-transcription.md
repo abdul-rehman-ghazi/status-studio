@@ -49,13 +49,13 @@
 - Downloads `model.modelUri` to `pathFor(model) + '.part'` with progress, renames on success, and throws `ModelDownloadException` on any failure.
 - `modelManagerProvider` wires `WhisperController().getPath` and a real `HttpClient`.
 
-- [ ] **Step 1: Failing tests** with a local `HttpServer` and temp dir:
+- [x] **Step 1: Failing tests** with a local `HttpServer` and temp dir:
   - `download_reports_progress_and_creates_model`
   - `interrupted_download_leaves_no_model` (server closes the socket halfway)
   - `delete_removes_model`
   - `is_downloaded_false_for_part_file`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: download and manage whisper models`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: download and manage whisper models`
 
 ### Task 3: Audio preparation
 
