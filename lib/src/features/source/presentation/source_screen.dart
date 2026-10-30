@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -12,7 +13,7 @@ import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/source/domain/youtube_link.dart';
-import 'package:status_studio/src/features/source/presentation/source_error_message.dart';
+import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -128,6 +129,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     ref.read(reelDraftProvider.notifier)
       ..setVideo(video)
       ..setLanguage(_language);
+    ref.read(scriptProgressProvider.notifier).start(video, _language);
     await context.push(AppRoutes.processing);
   }
 }
@@ -187,7 +189,7 @@ class _VideoCard extends StatelessWidget {
 Widget _cardContent(BuildContext context, AsyncSnapshot<SourceVideo> snapshot) {
   if (snapshot.error case final error?) {
     return Text(
-      sourceErrorMessage(error),
+      errorMessageFor(error),
       style: TextStyle(color: Theme.of(context).colorScheme.error),
     );
   }

@@ -25,6 +25,9 @@ class ReelDraftController extends Notifier<ReelDraft> {
   void setTranscript(Transcript transcript) =>
       state = state.withTranscript(transcript);
 
+  void growTranscript(Transcript transcript) =>
+      state = state.withGrowingTranscript(transcript);
+
   void tapLine(int index) =>
       state = state.withSelection(state.selection.tap(index));
 

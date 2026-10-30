@@ -1,18 +1,21 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
+/// Shows the script run that the previous screen started.
 class ProcessingScreen extends ConsumerStatefulWidget {
   const ProcessingScreen({super.key});
 
@@ -21,51 +24,29 @@ class ProcessingScreen extends ConsumerStatefulWidget {
 }
 
 class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
-  StreamSubscription<ScriptProgress>? _subscription;
-  ScriptProgress? _progress;
-  var _downloadsModel = false;
+  var _leaving = false;
 
-  @override
-  void initState() {
-    super.initState();
-    final draft = ref.read(reelDraftProvider);
-    final video = draft.video;
-    if (video == null) {
-      throw StateError('Processing opened without a video.');
-    }
-    _subscription = ref
-        .read(scriptPipelineProvider)
-        .run(video, draft.language)
-        .listen(_onProgress);
-  }
-
-  @override
-  void dispose() {
-    unawaited(_subscription?.cancel());
-    super.dispose();
-  }
-
-  void _onProgress(ScriptProgress progress) {
-    if (progress.stage == ScriptStage.done) {
-      ref.read(reelDraftProvider.notifier).setTranscript(progress.transcript);
-      context.pushReplacement(AppRoutes.script);
+  /// Checked on every build, not only on change: a saved script can be
+  /// done before this screen is even built.
+  void _openScriptIfDone(AsyncValue<ScriptProgress> run) {
+    if (_leaving) {
       return;
     }
-    setState(() {
-      _progress = progress;
-      _downloadsModel |= progress.stage == ScriptStage.downloadingModel;
-    });
+    if (run case AsyncData(value: ScriptProgress(stage: ScriptStage.done))) {
+      _leaving = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.pushReplacement(AppRoutes.script);
+        }
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(reelDraftProvider);
-    final progress = _progress;
-    final stage = progress?.stage ?? ScriptStage.downloadingAudio;
-    final steps = [
-      if (_downloadsModel) _modelStep,
-      ..._scriptSteps(draft.language, progress),
-    ];
+    final run = ref.watch(scriptProgressProvider);
+    _openScriptIfDone(run);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Working'),
@@ -82,18 +63,101 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
           const SizedBox(height: 4),
           if (draft.video case final video?) _VideoLine(video: video),
           const SizedBox(height: 20),
-          LinearProgressIndicator(value: progress?.fraction ?? 0),
-          const SizedBox(height: 20),
-          for (final step in steps) _StepRow(step: step, current: stage),
+          if (run.error case final error?)
+            _RunFailed(error: error)
+          else
+            _RunSteps(language: draft.language, progress: run.value),
         ],
       ),
       bottomNavigationBar: BottomAction(
-        child: OutlinedButton(
-          onPressed: () => context.pop(),
-          child: const Text('Cancel'),
-        ),
+        child: _bottomButton(context, ref, run.value),
       ),
     );
+  }
+
+  /// Once a line exists the user can start picking (FR-3 progressive).
+  Widget _bottomButton(
+    BuildContext context,
+    WidgetRef ref,
+    ScriptProgress? progress,
+  ) {
+    if (progress != null && progress.transcript.lines.isNotEmpty) {
+      return FilledButton(
+        onPressed: () => context.pushReplacement(AppRoutes.script),
+        child: const Text('Start picking lines'),
+      );
+    }
+    return OutlinedButton(
+      onPressed: () {
+        ref.read(scriptProgressProvider.notifier).cancel();
+        context.pop();
+      },
+      child: const Text('Cancel'),
+    );
+  }
+}
+
+class _RunSteps extends StatelessWidget {
+  const _RunSteps({required this.language, required this.progress});
+
+  final ScriptLanguage language;
+  final ScriptProgress? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = this.progress;
+    final stage = progress?.stage ?? ScriptStage.downloadingAudio;
+    final steps = [
+      if (stage == ScriptStage.downloadingModel) _modelStep,
+      ..._scriptSteps(language, progress),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LinearProgressIndicator(value: progress?.fraction ?? 0),
+        const SizedBox(height: 20),
+        for (final step in steps) _StepRow(step: step, current: stage),
+      ],
+    );
+  }
+}
+
+/// Spec §8 message for a failed run, with the actions it offers.
+class _RunFailed extends ConsumerWidget {
+  const _RunFailed({required this.error});
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          errorMessageFor(error),
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+        const SizedBox(height: 16),
+        if (error is NoSpeechFoundException)
+          OutlinedButton(
+            onPressed: () => context.pop(),
+            child: const Text('Try another language'),
+          )
+        else if (error is! VideoUnavailableException &&
+            error is! InsufficientStorageException)
+          OutlinedButton(
+            onPressed: () => _retry(ref),
+            child: const Text('Retry'),
+          ),
+      ],
+    );
+  }
+
+  void _retry(WidgetRef ref) {
+    final draft = ref.read(reelDraftProvider);
+    if (draft.video case final video?) {
+      ref.read(scriptProgressProvider.notifier).start(video, draft.language);
+    }
   }
 }
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fixtures.dart';
@@ -72,4 +75,32 @@ void main() {
 
     expect(find.text('Lines in this clip'), findsOneWidget);
   });
+
+  testWidgets('saved_script_shows_banner', (tester) async {
+    await pumpRoutes(
+      tester,
+      [AppRoutes.script],
+      setup: TestSetup(
+        overrides: [
+          draftOverride(scriptDraft),
+          scriptProgressProvider.overrideWith(SavedRunController.new),
+        ],
+      ),
+    );
+
+    expect(find.text('Using the saved script from 7 Oct'), findsOneWidget);
+  });
+}
+
+/// A finished run that came from the saved scripts.
+class SavedRunController extends ScriptProgressController {
+  @override
+  AsyncValue<ScriptProgress> build() => AsyncData(
+    ScriptProgress(
+      stage: ScriptStage.done,
+      fraction: 1,
+      transcript: fixture,
+      savedAt: DateTime(2026, 10, 7),
+    ),
+  );
 }

@@ -12,6 +12,8 @@ import 'package:status_studio/src/features/source/data/clip_source_preparer.dart
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
+import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import 'fake_clip_preparer.dart';
@@ -25,6 +27,7 @@ class TestSetup {
     this.videoSource = const FakeVideoSource(),
     this.playerFactory = fakePlayerFactory,
     this.clipPreparer,
+    this.scriptPipeline = const FakeScriptPipeline(step: Duration.zero),
   });
 
   final List<Override> overrides;
@@ -33,9 +36,11 @@ class TestSetup {
 
   /// Defaults to a fresh [FakeClipSourcePreparer].
   final ClipSourcePreparer? clipPreparer;
+  final ScriptPipeline scriptPipeline;
 
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
+    scriptPipelineProvider.overrideWithValue(scriptPipeline),
     videoPlayerFactoryProvider.overrideWithValue(playerFactory),
     clipSourcePreparerProvider.overrideWithValue(
       clipPreparer ?? FakeClipSourcePreparer(),

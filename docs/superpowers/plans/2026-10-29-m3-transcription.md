@@ -171,7 +171,9 @@
 
 **Interfaces:**
 - `class ScriptPipelineServices { const ScriptPipelineServices({required ModelManager models, required VideoSource videos, required YouTubeCaptionSource captions, required AudioPreparer audio, required WhisperTranscriber whisper}); }`. It's a value object, which keeps the pipeline within the 3-parameter rule.
-- `ScriptPipelineServices` also takes `required TranscriptStore store`.
+- `ScriptPipelineServices` also takes `required Future<TranscriptStore> store` (the store's directory comes from an async provider). Captions come from `VideoSource.fetchCaptions`, not a `captions` service (spec §9: YouTube access stays in `YouTubeVideoSource`).
+- Whisper resumes through `WhisperTranscriber.transcribeChunks(ChunkTranscription job)`, a value object carrying the chunks, language, model, completed chunks and first line index.
+- Callers start the run (`scriptProgressProvider.start/writeAgain`) before opening Processing; Processing only shows it, and leaves for Script as soon as it is done, even if it finished before Processing was built (a saved script).
 - `RealScriptPipeline(ScriptPipelineServices services, {required WhisperModel model})` implements `ScriptPipeline` with two entry points (no flag parameter):
   - `run(video, language)`: saved script → captions → Whisper.
   - `writeAgain(video, language)`: Whisper only, replacing the saved script. Add `Stream<ScriptProgress> writeAgain(SourceVideo video, ScriptLanguage language)` to the `ScriptPipeline` interface and the M1 fake.
@@ -195,7 +197,7 @@
 - `final scriptProgressProvider = NotifierProvider<ScriptProgressController, AsyncValue<ScriptProgress>>(...)` with `void start(SourceVideo video, ScriptLanguage language)` and `Future<void> cancel()`.
 - Processing shows "Start picking lines" once the transcript has ≥ 1 line. Script appends lines as they arrive and shows "Still writing… NN %" at the bottom until `done`.
 
-- [ ] **Step 1: Failing tests** with fakes for every dependency:
+- [x] **Step 1: Failing tests** with fakes for every dependency:
   - `uses_captions_when_track_exists`
   - `falls_back_to_whisper_without_captions`
   - `downloads_model_first_when_missing`
@@ -207,11 +209,11 @@
   - `write_again_ignores_saved_script_and_replaces_it`
   - `resumes_from_partial_progress`: 2 of 4 chunks saved, so only chunks 3–4 are transcribed and lines continue the numbering.
   - `finished_run_saves_script_and_clears_partial`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Error states.** Processing maps exceptions to spec §8 messages using `errorMessageFor` (create `lib/src/core/error_messages.dart` with tests `maps_no_speech`, `maps_offline`, `maps_model_download`).
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Error states.** Processing maps exceptions to spec §8 messages using `errorMessageFor` (create `lib/src/core/error_messages.dart` with tests `maps_no_speech`, `maps_offline`, `maps_model_download`).
 - [ ] **Step 6: Manual check** in `--release`:
   - A video with captions: the script appears within seconds.
   - Paste the same link again: Script opens immediately with the saved-script banner, and Android shows no new data use.
   - Kill the app mid-transcription, reopen and repeat: it resumes.
   - A video without captions: lines appear chunk by chunk, and the language shows "Urdu (detected)" for Urdu speech.
-- [ ] **Step 7: Commit** `feat: real script pipeline with progressive lines`
+- [x] **Step 7: Commit** `feat: real script pipeline with progressive lines`

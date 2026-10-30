@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
+import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -40,6 +43,12 @@ class ScriptScreen extends ConsumerWidget {
               onChanged: (language) => _rewriteScript(context, ref, language),
             ),
           ),
+          if (ref.watch(scriptProgressProvider).value?.savedAt
+              case final savedAt?)
+            _SavedScriptBanner(
+              savedAt: savedAt,
+              onWriteAgain: () => _writeAgain(context, ref),
+            ),
           _PickHint(text: _pickHint(draft)),
           Expanded(
             child: ListView.builder(
@@ -54,17 +63,30 @@ class ScriptScreen extends ConsumerWidget {
           ),
         ],
       ),
-      bottomNavigationBar: BottomAction(
-        child: FilledButton(
-          onPressed: rangePicked
-              ? () => context.push(AppRoutes.fineTune)
-              : null,
-          child: Text(
-            rangePicked ? 'Next: fine-tune' : 'Pick a start and an end',
+      bottomNavigationBar: _ScriptFooter(
+        progress: ref.watch(scriptProgressProvider).value,
+        child: BottomAction(
+          child: FilledButton(
+            onPressed: rangePicked
+                ? () => context.push(AppRoutes.fineTune)
+                : null,
+            child: Text(
+              rangePicked ? 'Next: fine-tune' : 'Pick a start and an end',
+            ),
           ),
         ),
       ),
     );
+  }
+
+  void _writeAgain(BuildContext context, WidgetRef ref) {
+    final draft = ref.read(reelDraftProvider);
+    if (draft.video case final video?) {
+      ref
+          .read(scriptProgressProvider.notifier)
+          .writeAgain(video, draft.language);
+      context.pushReplacement(AppRoutes.processing);
+    }
   }
 
   void _rewriteScript(
@@ -73,6 +95,9 @@ class ScriptScreen extends ConsumerWidget {
     ScriptLanguage language,
   ) {
     ref.read(reelDraftProvider.notifier).setLanguage(language);
+    if (ref.read(reelDraftProvider).video case final video?) {
+      ref.read(scriptProgressProvider.notifier).start(video, language);
+    }
     context.pushReplacement(AppRoutes.processing);
   }
 }
@@ -123,6 +148,57 @@ class _LanguagePicker extends StatelessWidget {
     return detected == null
         ? 'Detected language'
         : '${detected.label} (detected)';
+  }
+}
+
+/// FR-14: the script came from the saved scripts, not written just now.
+class _SavedScriptBanner extends StatelessWidget {
+  const _SavedScriptBanner({required this.savedAt, required this.onWriteAgain});
+
+  final DateTime savedAt;
+  final VoidCallback onWriteAgain;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: HintText(
+              'Using the saved script from ${formatDayMonth(savedAt)}',
+            ),
+          ),
+          TextButton(
+            onPressed: onWriteAgain,
+            child: const Text('Write it again'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Still writing… NN %" above the button until the script is finished.
+class _ScriptFooter extends StatelessWidget {
+  const _ScriptFooter({required this.progress, required this.child});
+
+  final ScriptProgress? progress;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = this.progress;
+    if (progress == null || progress.stage == ScriptStage.done) {
+      return child;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        HintText('Still writing… ${(progress.fraction * 100).round()} %'),
+        child,
+      ],
+    );
   }
 }
 

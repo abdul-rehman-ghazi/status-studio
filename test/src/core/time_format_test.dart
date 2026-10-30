@@ -27,4 +27,8 @@ void main() {
   test('formats_seconds_with_one_decimal', () {
     expect(formatSeconds(const Duration(milliseconds: 18500)), '18.5 s');
   });
+
+  test('formats_day_and_short_month', () {
+    expect(formatDayMonth(DateTime(2026, 10, 7)), '7 Oct');
+  });
 }

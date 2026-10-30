@@ -9,6 +9,25 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:whisper_ggml/whisper_ggml.dart';
 
+/// One Whisper run over a video's audio pieces, possibly resuming after
+/// [completedChunks] pieces whose lines ended at [firstIndex] − 1.
+class ChunkTranscription {
+  const ChunkTranscription({
+    required this.chunks,
+    required this.language,
+    required this.model,
+    this.completedChunks = 0,
+    this.firstIndex = 0,
+  });
+
+  /// Every piece of the audio, in order, including finished ones.
+  final List<File> chunks;
+  final ScriptLanguage language;
+  final SpeechModel model;
+  final int completedChunks;
+  final int firstIndex;
+}
+
 /// Runs Whisper over audio chunks one by one, keeping the model loaded
 /// between them, and releases it when the run ends however it ends.
 class WhisperTranscriber {
@@ -17,20 +36,21 @@ class WhisperTranscriber {
   final WhisperController _whisper;
   var _cancelled = false;
 
-  /// Emits each chunk's lines as soon as that chunk is written.
-  Stream<List<TranscriptLine>> transcribeChunks(
-    List<File> chunks, {
-    required ScriptLanguage language,
-    required SpeechModel model,
-  }) async* {
+  /// Emits each remaining chunk's lines as soon as that chunk is written,
+  /// timed from the start of the video.
+  Stream<List<TranscriptLine>> transcribeChunks(ChunkTranscription job) async* {
     _cancelled = false;
-    var nextIndex = 0;
+    var nextIndex = job.firstIndex;
     try {
-      for (final (position, chunk) in chunks.indexed) {
+      for (
+        var position = job.completedChunks;
+        position < job.chunks.length;
+        position++
+      ) {
         if (_cancelled) {
           return;
         }
-        final segments = await _transcribe(chunk, language, model);
+        final segments = await _transcribe(job.chunks[position], job);
         final lines = linesFromSegments(
           segments,
           offset: transcriptionChunk * position,
@@ -49,13 +69,12 @@ class WhisperTranscriber {
 
   Future<List<SpeechSegment>> _transcribe(
     File chunk,
-    ScriptLanguage language,
-    SpeechModel model,
+    ChunkTranscription job,
   ) async {
     final result = await _whisper.transcribe(
-      model: whisperModelFor(model),
+      model: whisperModelFor(job.model),
       audioPath: chunk.path,
-      lang: language.whisperCode,
+      lang: job.language.whisperCode,
       withSegments: true,
       keepModelLoaded: true,
       suppressNonSpeechTokens: true,

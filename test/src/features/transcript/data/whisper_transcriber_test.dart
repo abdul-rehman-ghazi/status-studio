@@ -5,74 +5,32 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/data/whisper_transcriber.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
-// TranscribeResult is the return type of WhisperController.transcribe but
-// isn't exported, and the fake has to name it.
-// ignore: implementation_imports
-import 'package:whisper_ggml/src/models/whisper_result.dart';
-import 'package:whisper_ggml/whisper_ggml.dart';
 
-/// Answers each chunk with one 2–4 s segment, or null when [failing].
-class FakeWhisperController extends WhisperController {
-  FakeWhisperController({this.failing = false});
+import '../../../../helpers/fake_whisper.dart';
 
-  final bool failing;
-  final languages = <String>[];
-  var releaseCount = 0;
+final chunks = [
+  File('chunk_000.wav'),
+  File('chunk_001.wav'),
+  File('chunk_002.wav'),
+];
 
-  @override
-  Future<TranscribeResult?> transcribe({
-    required WhisperModel model,
-    required String audioPath,
-    String lang = 'en',
-    bool diarize = false,
-    String? initialPrompt,
-    bool noContext = false,
-    int? maxContext,
-    bool suppressNonSpeechTokens = false,
-    bool withSegments = false,
-    bool splitOnWord = false,
-    bool keepModelLoaded = false,
-    String? vadModelPath,
-    int? vadSpeechPadMs,
-    void Function(int percent)? onProgress,
-  }) async {
-    languages.add(lang);
-    if (failing) {
-      return null;
-    }
-    return TranscribeResult(
-      time: Duration.zero,
-      transcription: WhisperTranscribeResponse(
-        type: 'transcribe',
-        text: 'line of $audioPath',
-        segments: [
-          WhisperTranscribeSegment(
-            fromTs: const Duration(seconds: 2),
-            toTs: const Duration(seconds: 4),
-            text: 'line of $audioPath',
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Future<void> releaseModel() async => releaseCount++;
-}
-
-final chunks = [File('chunk_000.wav'), File('chunk_001.wav')];
+ChunkTranscription job({
+  ScriptLanguage language = ScriptLanguage.urdu,
+  int completedChunks = 0,
+  int firstIndex = 0,
+}) => ChunkTranscription(
+  chunks: chunks,
+  language: language,
+  model: SpeechModel.small,
+  completedChunks: completedChunks,
+  firstIndex: firstIndex,
+);
 
 void main() {
   test('second_chunk_is_offset_by_90_seconds', () async {
     final transcriber = WhisperTranscriber(FakeWhisperController());
 
-    final batches = await transcriber
-        .transcribeChunks(
-          chunks,
-          language: ScriptLanguage.urdu,
-          model: SpeechModel.small,
-        )
-        .toList();
+    final batches = await transcriber.transcribeChunks(job()).toList();
 
     expect(batches[1].single.start, const Duration(seconds: 92));
   });
@@ -80,29 +38,40 @@ void main() {
   test('lines_are_numbered_across_chunks', () async {
     final transcriber = WhisperTranscriber(FakeWhisperController());
 
-    final batches = await transcriber
-        .transcribeChunks(
-          chunks,
-          language: ScriptLanguage.urdu,
-          model: SpeechModel.small,
-        )
-        .toList();
+    final batches = await transcriber.transcribeChunks(job()).toList();
 
-    expect(batches[1].single.index, 1);
+    expect(batches[2].single.index, 2);
   });
 
   test('passes_the_chosen_language_to_whisper', () async {
     final whisper = FakeWhisperController();
 
+    await WhisperTranscriber(whisper).transcribeChunks(job()).drain<void>();
+
+    expect(whisper.languages, ['ur', 'ur', 'ur']);
+  });
+
+  test('resumed_run_skips_completed_chunks', () async {
+    final whisper = FakeWhisperController();
+
     await WhisperTranscriber(whisper)
-        .transcribeChunks(
-          chunks,
-          language: ScriptLanguage.urdu,
-          model: SpeechModel.small,
-        )
+        .transcribeChunks(job(completedChunks: 2, firstIndex: 5))
         .drain<void>();
 
-    expect(whisper.languages, ['ur', 'ur']);
+    expect(whisper.transcribedPaths, ['chunk_002.wav']);
+  });
+
+  test('resumed_run_keeps_absolute_times_and_numbering', () async {
+    final transcriber = WhisperTranscriber(FakeWhisperController());
+
+    final batches = await transcriber
+        .transcribeChunks(job(completedChunks: 2, firstIndex: 5))
+        .toList();
+
+    expect(
+      (batches.single.single.index, batches.single.single.start),
+      (5, const Duration(seconds: 182)),
+    );
   });
 
   test('failed_chunk_throws_transcription_failed', () async {
@@ -111,13 +80,7 @@ void main() {
     );
 
     await expectLater(
-      transcriber
-          .transcribeChunks(
-            chunks,
-            language: ScriptLanguage.auto,
-            model: SpeechModel.small,
-          )
-          .drain<void>(),
+      transcriber.transcribeChunks(job()).drain<void>(),
       throwsA(isA<TranscriptionFailedException>()),
     );
   });
@@ -125,13 +88,7 @@ void main() {
   test('model_is_released_after_the_last_chunk', () async {
     final whisper = FakeWhisperController();
 
-    await WhisperTranscriber(whisper)
-        .transcribeChunks(
-          chunks,
-          language: ScriptLanguage.auto,
-          model: SpeechModel.small,
-        )
-        .drain<void>();
+    await WhisperTranscriber(whisper).transcribeChunks(job()).drain<void>();
 
     expect(whisper.releaseCount, 1);
   });
@@ -140,11 +97,7 @@ void main() {
     final whisper = FakeWhisperController(failing: true);
 
     await WhisperTranscriber(whisper)
-        .transcribeChunks(
-          chunks,
-          language: ScriptLanguage.auto,
-          model: SpeechModel.small,
-        )
+        .transcribeChunks(job())
         .drain<void>()
         .catchError((Object _) {});
 

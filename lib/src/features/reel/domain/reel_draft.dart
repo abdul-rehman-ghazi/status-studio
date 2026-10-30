@@ -39,6 +39,16 @@ class ReelDraft {
     );
   }
 
+  /// A transcript that only adds lines to the current one (a script still
+  /// being written) keeps the selection and clip; any other replaces it.
+  ReelDraft withGrowingTranscript(Transcript transcript) {
+    final current = this.transcript;
+    if (current == null || !_extends(transcript, current)) {
+      return withTranscript(transcript);
+    }
+    return copyWith(transcript: transcript);
+  }
+
   /// Applies [selection]; a full range also sets the clip and fills the
   /// caption with the selected lines.
   ReelDraft withSelection(LineSelection selection) {
@@ -101,6 +111,10 @@ class ReelDraft {
   int get hashCode =>
       Object.hash(video, language, transcript, selection, clip, frame, caption);
 }
+
+bool _extends(Transcript grown, Transcript current) =>
+    grown.lines.length >= current.lines.length &&
+    listEquals(grown.lines.sublist(0, current.lines.length), current.lines);
 
 String _selectedText(Transcript transcript, RangeSelected selection) {
   return transcript.lines

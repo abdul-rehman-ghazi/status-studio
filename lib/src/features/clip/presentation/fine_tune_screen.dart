@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -15,7 +16,6 @@ import 'package:status_studio/src/features/reel/application/reel_draft_controlle
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
-import 'package:status_studio/src/features/source/presentation/source_error_message.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -147,7 +147,7 @@ class _SourcePreviewState extends ConsumerState<_SourcePreview> {
       );
     }
     if (source.error case final error?) {
-      return _PreviewMessage(text: sourceErrorMessage(error));
+      return _PreviewMessage(text: errorMessageFor(error));
     }
     final fraction = ref.watch(clipSourceProgressProvider(videoId));
     final percent = (fraction * 100).round();

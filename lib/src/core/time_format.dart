@@ -13,6 +13,15 @@ String formatSeconds(Duration length) {
   return '${seconds.toStringAsFixed(1)} s';
 }
 
+const _shortMonths = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// A date as `d MMM`, e.g. `7 Oct`.
+String formatDayMonth(DateTime date) =>
+    '${date.day} ${_shortMonths[date.month - 1]}';
+
 String _clockFace(Duration time) {
   final seconds = _twoDigits(time.inSeconds % 60);
   if (time.inHours == 0) {

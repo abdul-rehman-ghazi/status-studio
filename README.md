@@ -20,8 +20,8 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 | [M1](docs/superpowers/plans/2026-10-29-m1-app-shell.md) | Every screen wired with fake services; real domain logic | Done (branch m1-app-shell) |
 | [M2](docs/superpowers/plans/2026-10-29-m2-video-source.md) | YouTube metadata, downloads, cache, clip preview | Done (branch m2-video-source) |
 | [M2b](docs/superpowers/plans/2026-10-30-m2b-data-saver.md) | Low-bitrate script audio, clip-only download via `sidx` + HTTP ranges | Done (branch m2b-data-saver) |
-| [M3](docs/superpowers/plans/2026-10-29-m3-transcription.md) | On-device script: Whisper, YouTube captions, language detection | Next |
-| [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Planned |
+| [M3](docs/superpowers/plans/2026-10-29-m3-transcription.md) | On-device script: Whisper, YouTube captions, language detection | Done (branch m3-transcription) |
+| [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Next |
 | [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, FFmpeg export | Planned |
 | [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Planned |
 

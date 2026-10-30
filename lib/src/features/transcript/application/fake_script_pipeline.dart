@@ -42,6 +42,12 @@ class FakeScriptPipeline implements ScriptPipeline {
     // Stream.periodic cancels its timer when the listener cancels.
     return Stream.periodic(step, (tick) => events[tick]).take(events.length);
   }
+
+  @override
+  Stream<ScriptProgress> writeAgain(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) => run(video, language);
 }
 
 List<ScriptProgress> _progressEvents() {
