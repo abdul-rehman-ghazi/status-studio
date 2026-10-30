@@ -1,5 +1,6 @@
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/style/domain/translation_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 /// Spec §8 copy for a failure from the data layer.
@@ -11,6 +12,7 @@ String errorMessageFor(Object error) {
     ModelDownloadException() => "Couldn't download the speech model.",
     NoSpeechFoundException() => 'No speech found in this video.',
     RenderFailedException() => "Couldn't make the reel.",
+    TranslationPackMissingException() => 'English needs a one-time download.',
     _ => 'Something went wrong. Try again.',
   };
 }
