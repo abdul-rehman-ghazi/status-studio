@@ -16,10 +16,14 @@ import 'package:status_studio/src/features/source/data/clip_source_preparer.dart
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
+import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
+import 'package:status_studio/src/features/style/data/caption_translator.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
+import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
 import 'fake_video_player.dart';
 
@@ -34,6 +38,7 @@ class TestSetup {
     this.scriptPipeline = const FakeScriptPipeline(step: Duration.zero),
     this.waveformPeaks,
     this.renderer = const FakeRenderer(step: Duration.zero),
+    this.translator = const FakeCaptionTranslator(),
   });
 
   final List<Override> overrides;
@@ -48,10 +53,16 @@ class TestSetup {
   /// Without peaks the waveform stays loading.
   final List<double>? waveformPeaks;
   final Renderer renderer;
+  final CaptionTranslator translator;
 
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
+    captionTranslatorProvider.overrideWithValue(translator),
+    // The probe needs FFprobe; every test clip is 1920 × 1080.
+    clipFrameSizeProvider.overrideWith(
+      (ref, source) async => const OutputSize(1920, 1080),
+    ),
     scriptPipelineProvider.overrideWithValue(scriptPipeline),
     videoPlayerFactoryProvider.overrideWithValue(playerFactory),
     clipSourcePreparerProvider.overrideWithValue(

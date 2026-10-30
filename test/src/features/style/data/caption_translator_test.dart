@@ -5,10 +5,7 @@ void main() {
   const translator = MlKitCaptionTranslator();
 
   test('supports_urdu_arabic_persian_hindi_bengali', () {
-    expect(
-      ['ur', 'ar', 'fa', 'hi', 'bn'].every(translator.supports),
-      isTrue,
-    );
+    expect(['ur', 'ar', 'fa', 'hi', 'bn'].every(translator.supports), isTrue);
   });
 
   test('does_not_support_punjabi', () {

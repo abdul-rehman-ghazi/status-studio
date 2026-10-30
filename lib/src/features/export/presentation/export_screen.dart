@@ -150,7 +150,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                 style: textTheme.titleMedium,
               ),
             const SizedBox(height: 8),
-            for (final line in _summaryLines(ref.watch(reelDraftProvider)))
+            for (final line in _summaryLines(
+              ref.watch(reelDraftProvider),
+              previewSourceSize(ref, ref.watch(reelDraftProvider)),
+            ))
               Center(child: HintText(line)),
           ],
         ),
@@ -160,8 +163,8 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 }
 
-List<String> _summaryLines(ReelDraft draft) {
-  final output = outputSizeFor(draft.frame, assumedSourceSize);
+List<String> _summaryLines(ReelDraft draft, OutputSize sourceSize) {
+  final output = outputSizeFor(draft.frame, sourceSize);
   return [
     if (draft.clip case final clip?)
       'Clip ${formatClipTime(clip.start)} – ${formatClipTime(clip.end)}',

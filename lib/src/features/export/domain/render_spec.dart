@@ -77,19 +77,30 @@ String _fillOf(FrameSettings frame) {
   };
 }
 
-/// Media3's blur draws the whole frame sharp at this share of the output,
-/// over a blurred copy stretched to the output. The sharp frame keeps its
-/// aspect and fits the output width (or height, for a taller source).
 Map<String, double> _blurSettings(OutputSize source, OutputSize output) {
-  final sourceAspect = source.width / source.height;
-  final outputAspect = output.width / output.height;
-  final sourceIsWider = sourceAspect >= outputAspect;
+  final sharp = sharpFrameScale(source, output);
   return {
     'blurSigma': _blurSigma,
-    'sharpScaleX': sourceIsWider ? 1.0 : sourceAspect / outputAspect,
-    'sharpScaleY': sourceIsWider ? outputAspect / sourceAspect : 1.0,
+    'sharpScaleX': sharp.x,
+    'sharpScaleY': sharp.y,
   };
 }
+
+/// Media3's blur draws the whole frame sharp at this share of the output,
+/// over a blurred copy stretched to the output. The sharp frame keeps its
+/// aspect and fits the output width (or height, for a taller source). The
+/// Style preview draws the same.
+({double x, double y}) sharpFrameScale(OutputSize source, OutputSize output) {
+  final sourceAspect = source.width / source.height;
+  final outputAspect = output.width / output.height;
+  if (sourceAspect >= outputAspect) {
+    return (x: 1.0, y: outputAspect / sourceAspect);
+  }
+  return (x: sourceAspect / outputAspect, y: 1.0);
+}
+
+/// Spec §6.3.1's σ is in source pixels; the preview scales it.
+const blurSigmaInSourcePixels = _blurSigma;
 
 Map<String, double> _ndcCrop(RenderJob job) {
   final ndc = toNdc(cropRectFor(job.frame, job.sourceSize), job.sourceSize);

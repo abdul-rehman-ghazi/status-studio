@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/domain/roman_urdu.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
-Future<void> pumpStyle(WidgetTester tester) => pumpRoutes(tester, [
-  AppRoutes.style,
-], setup: TestSetup(overrides: [draftOverride(pickedDraft)]));
+Future<void> pumpStyle(WidgetTester tester, {ReelDraft? draft}) => pumpRoutes(
+  tester,
+  [AppRoutes.style],
+  setup: TestSetup(overrides: [draftOverride(draft ?? pickedDraft)]),
+);
+
+/// The picked draft with its transcript marked as [languageCode].
+ReelDraft pickedIn(String languageCode) => pickedDraft.copyWith(
+  transcript: pickedDraft.transcript!.copyWith(languageCode: languageCode),
+);
 
 /// Scrolls [label] into view, then taps it.
 Future<void> tapText(WidgetTester tester, String label) async {
@@ -106,8 +115,41 @@ void main() {
     await tester.enterText(find.byType(TextField), 'My own words');
 
     await tapText(tester, 'English');
+    await tester.pumpAndSettle();
 
     final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.controller!.text, pickedDraft.caption.text);
+    expect(field.controller!.text, 'EN: ${pickedDraft.caption.text}');
+  });
+
+  testWidgets('roman_hidden_for_non_urdu', (tester) async {
+    await pumpStyle(tester, draft: pickedIn('hi'));
+
+    expect(find.text('Roman'), findsNothing);
+  });
+
+  testWidgets('english_hidden_when_translation_unsupported', (tester) async {
+    await pumpStyle(tester, draft: pickedIn('pa'));
+
+    expect(find.text('English'), findsNothing);
+  });
+
+  testWidgets('switching_variant_replaces_text', (tester) async {
+    await pumpStyle(tester);
+
+    await tapText(tester, 'Roman');
+    await tester.pumpAndSettle();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, romanizeUrdu(pickedDraft.caption.text));
+  });
+
+  testWidgets('english_variant_uses_translation', (tester) async {
+    await pumpStyle(tester);
+
+    await tapText(tester, 'English');
+    await tester.pumpAndSettle();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, startsWith('EN: '));
   });
 }

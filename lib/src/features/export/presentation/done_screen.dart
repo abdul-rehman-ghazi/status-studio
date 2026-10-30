@@ -18,7 +18,7 @@ class DoneScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(reelDraftProvider);
-    final output = outputSizeFor(draft.frame, assumedSourceSize);
+    final output = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
     final length = draft.clip?.length ?? Duration.zero;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(

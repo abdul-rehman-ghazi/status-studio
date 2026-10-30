@@ -134,7 +134,8 @@ void main() {
     await tester.tap(find.text('Next: frame & caption'));
     await tester.pumpAndSettle();
 
-    expect(players.created.single.value.isPlaying, isFalse);
+    // Style's preview makes its own player; Fine-tune's was the first.
+    expect(players.created.first.value.isPlaying, isFalse);
   });
 
   testWidgets('unplayable_source_shows_message', (tester) async {

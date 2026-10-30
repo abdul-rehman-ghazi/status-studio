@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -14,8 +16,11 @@ import 'package:status_studio/src/features/branding/presentation/logo_mark.dart'
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/style/domain/roman_urdu.dart';
+import 'package:status_studio/src/features/style/domain/translation_errors.dart';
 import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
@@ -59,13 +64,21 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
           children: [
             _framePreview(draft),
             const SizedBox(height: 20),
-            _FrameControls(frame: frame, onChanged: controller.updateFrame),
+            _FrameControls(
+              frame: frame,
+              sourceSize: previewSourceSize(ref, draft),
+              onChanged: controller.updateFrame,
+            ),
             const SizedBox(height: 24),
             const SectionLabel('Caption'),
             OptionRow<CaptionVariant>(
-              options: _variantOptions(draft),
+              options: _variantOptions(
+                draft,
+                ref.watch(captionTranslatorProvider),
+              ),
               selected: caption.variant,
-              onSelected: (variant) => _switchVariant(draft, variant),
+              onSelected: (variant) =>
+                  unawaited(_switchVariant(draft, variant)),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -111,7 +124,7 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
             .updateFrame(draft.frame.copyWith(freeCrop: crop)),
       );
     }
-    final output = outputSizeFor(draft.frame, assumedSourceSize);
+    final output = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
     return LayoutBuilder(
       builder: (context, constraints) => Center(
         child: ReelPreview(
@@ -125,20 +138,58 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
     );
   }
 
-  /// Until M5 brings transliteration and translation, every variant starts
-  /// from the picked lines' original text.
-  void _switchVariant(ReelDraft draft, CaptionVariant variant) {
+  /// Replaces the caption with [variant]'s text, discarding edits (FR-7).
+  Future<void> _switchVariant(ReelDraft draft, CaptionVariant variant) async {
     // Re-tapping the current chip is not a switch; keep the user's edits.
     if (variant == draft.caption.variant) {
       return;
     }
-    final text = _selectedLinesText(draft);
-    _captionController.text = text;
-    ref
-        .read(reelDraftProvider.notifier)
-        .updateCaption(draft.caption.copyWith(variant: variant, text: text));
+    try {
+      final text = await _variantText(draft, variant);
+      if (!mounted) {
+        return;
+      }
+      _captionController.text = text;
+      final controller = ref.read(reelDraftProvider.notifier);
+      controller.updateCaption(
+        ref
+            .read(reelDraftProvider)
+            .caption
+            .copyWith(variant: variant, text: text),
+      );
+    } on TranslationPackMissingException catch (error) {
+      _showTranslationFailure(error, () => _switchVariant(draft, variant));
+    }
+  }
+
+  Future<String> _variantText(ReelDraft draft, CaptionVariant variant) {
+    final original = _selectedLinesText(draft);
+    return switch (variant) {
+      CaptionVariant.original => Future.value(original),
+      CaptionVariant.roman => Future.value(romanizeUrdu(original)),
+      CaptionVariant.english =>
+        ref
+            .read(captionTranslatorProvider)
+            .toEnglish(original, _languageCode(draft)),
+    };
+  }
+
+  /// Spec §8: "English needs a one-time download." with Retry.
+  void _showTranslationFailure(Object error, VoidCallback retry) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(errorMessageFor(error)),
+        action: SnackBarAction(label: 'Retry', onPressed: retry),
+      ),
+    );
   }
 }
+
+String _languageCode(ReelDraft draft) =>
+    draft.transcript?.languageCode ?? ScriptLanguage.auto.whisperCode;
 
 String _selectedLinesText(ReelDraft draft) {
   final lines = draft.transcript?.lines ?? const [];
@@ -152,20 +203,31 @@ String _selectedLinesText(ReelDraft draft) {
 TextDirection _captionDirection(String text) =>
     isArabicScript(text) ? TextDirection.rtl : TextDirection.ltr;
 
-List<Option<CaptionVariant>> _variantOptions(ReelDraft draft) {
-  final isUrdu =
-      draft.transcript?.languageCode == ScriptLanguage.urdu.whisperCode;
+List<Option<CaptionVariant>> _variantOptions(
+  ReelDraft draft,
+  CaptionTranslator translator,
+) {
+  final languageCode = _languageCode(draft);
   return [
     (value: CaptionVariant.original, label: 'Original'),
-    if (isUrdu) (value: CaptionVariant.roman, label: 'Roman'),
-    (value: CaptionVariant.english, label: 'English'),
+    if (languageCode == ScriptLanguage.urdu.whisperCode)
+      (value: CaptionVariant.roman, label: 'Roman'),
+    if (translator.supports(languageCode))
+      (value: CaptionVariant.english, label: 'English'),
   ];
 }
 
 class _FrameControls extends StatelessWidget {
-  const _FrameControls({required this.frame, required this.onChanged});
+  const _FrameControls({
+    required this.frame,
+    required this.sourceSize,
+    required this.onChanged,
+  });
 
   final FrameSettings frame;
+
+  /// The clip's frame size, for the free crop's output size.
+  final OutputSize sourceSize;
   final ValueChanged<FrameSettings> onChanged;
 
   static const _presetHints = {
@@ -178,7 +240,7 @@ class _FrameControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final output = outputSizeFor(frame, assumedSourceSize);
+    final output = outputSizeFor(frame, sourceSize);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
