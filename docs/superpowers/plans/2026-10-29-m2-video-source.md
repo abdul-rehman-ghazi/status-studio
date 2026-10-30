@@ -52,13 +52,13 @@
 - Produces: `class SourceCache { SourceCache(Directory root); File audioFile(String videoId, String extension); File videoFile(String videoId); File sourceFile(String videoId); Future<File> write(File target, Stream<List<int>> bytes, {required int totalBytes, required void Function(double fraction) onProgress}); bool isComplete(File target); }`
 - `final sourceCacheProvider = FutureProvider<SourceCache>(...)` rooted at `getTemporaryDirectory()/sources`.
 
-- [ ] **Step 1: Failing tests** (temp dir):
+- [x] **Step 1: Failing tests** (temp dir):
   - `write_reports_progress_to_one`
   - `write_renames_part_file_on_completion`
   - `partial_download_is_not_reused`: the stream errors halfway → `isComplete` is false and no target file exists.
   - `complete_file_is_reused`
-- [ ] **Step 2–4:** Run → FAIL, implement (`<name>.part` then `rename`), run → PASS.
-- [ ] **Step 5: Commit** `feat: add source cache with atomic writes`
+- [x] **Step 2–4:** Run → FAIL, implement (`<name>.part` then `rename`), run → PASS.
+- [x] **Step 5: Commit** `feat: add source cache with atomic writes`
 
 ### Task 3: YouTube video source
 
