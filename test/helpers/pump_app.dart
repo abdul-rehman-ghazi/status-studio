@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/clip/application/waveform_provider.da
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
+import 'package:status_studio/src/features/export/data/reel_actions.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
@@ -25,6 +26,7 @@ import 'package:status_studio/src/routing/app_router.dart';
 
 import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
+import 'fake_reel_actions.dart';
 import 'fake_video_player.dart';
 
 /// What a widget test runs the app with. Services that would touch the
@@ -39,6 +41,7 @@ class TestSetup {
     this.waveformPeaks,
     this.renderer = const FakeRenderer(step: Duration.zero),
     this.translator = const FakeCaptionTranslator(),
+    this.reelActions,
   });
 
   final List<Override> overrides;
@@ -55,10 +58,14 @@ class TestSetup {
   final Renderer renderer;
   final CaptionTranslator translator;
 
+  /// Defaults to a fresh [FakeReelActions].
+  final ReelActions? reelActions;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
     captionTranslatorProvider.overrideWithValue(translator),
+    reelActionsProvider.overrideWithValue(reelActions ?? FakeReelActions()),
     // The probe needs FFprobe; every test clip is 1920 × 1080.
     clipFrameSizeProvider.overrideWith(
       (ref, source) async => const OutputSize(1920, 1080),

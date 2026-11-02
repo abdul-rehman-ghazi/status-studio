@@ -94,16 +94,6 @@ void main() {
     expect(find.text('1080 × 1920 · 27.4 s · MP4'), findsOneWidget);
   });
 
-  testWidgets('save_says_it_comes_later', (tester) async {
-    await pumpExport(tester, renderer: const FakeRenderer(step: Duration.zero));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Save'));
-    await tester.pump();
-
-    expect(find.text('Available in a later update'), findsOneWidget);
-  });
-
   testWidgets('make_another_returns_home', (tester) async {
     await pumpExport(tester, renderer: const FakeRenderer(step: Duration.zero));
     await tester.pumpAndSettle();

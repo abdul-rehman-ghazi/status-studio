@@ -20,6 +20,10 @@ abstract final class AppRoutes {
   static const style = '/style';
   static const export = '/export';
   static const done = '/done';
+
+  /// Done for the reel at [videoPath].
+  static String doneFor(String videoPath) =>
+      Uri(path: done, queryParameters: {'path': videoPath}).toString();
   static const settings = '/settings';
 }
 
@@ -63,7 +67,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.done,
-        builder: (context, state) => const DoneScreen(),
+        builder: (context, state) =>
+            DoneScreen(videoPath: state.uri.queryParameters['path'] ?? ''),
       ),
       GoRoute(
         path: AppRoutes.settings,

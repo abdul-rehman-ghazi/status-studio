@@ -64,8 +64,8 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     switch (progress) {
       case RenderRunning(:final fraction):
         setState(() => _fraction = fraction);
-      case RenderFinished():
-        context.pushReplacement(AppRoutes.done);
+      case RenderFinished(:final videoPath):
+        context.pushReplacement(AppRoutes.doneFor(videoPath));
     }
   }
 

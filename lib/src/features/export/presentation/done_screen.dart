@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/features/export/data/reel_actions.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
@@ -12,11 +14,21 @@ import 'package:status_studio/src/routing/app_router.dart';
 
 const _previewMaxHeight = 360.0;
 
-class DoneScreen extends ConsumerWidget {
-  const DoneScreen({super.key});
+class DoneScreen extends ConsumerStatefulWidget {
+  const DoneScreen({super.key, required this.videoPath});
+
+  /// The finished MP4.
+  final String videoPath;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DoneScreen> createState() => _DoneScreenState();
+}
+
+class _DoneScreenState extends ConsumerState<DoneScreen> {
+  var _saved = false;
+
+  @override
+  Widget build(BuildContext context) {
     final draft = ref.watch(reelDraftProvider);
     final output = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
     final length = draft.clip?.length ?? Duration.zero;
@@ -58,15 +70,17 @@ class DoneScreen extends ConsumerWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => _showComingLater(context),
-                    icon: const Icon(Icons.download),
-                    label: const Text('Save'),
+                    onPressed: _saved ? null : _save,
+                    icon: Icon(_saved ? Icons.check : Icons.download),
+                    label: Text(_saved ? 'Saved' : 'Save'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.tonalIcon(
-                    onPressed: () => _showComingLater(context),
+                    onPressed: () => unawaited(
+                      ref.read(reelActionsProvider).share(widget.videoPath),
+                    ),
                     icon: const Icon(Icons.share),
                     label: const Text('Share'),
                   ),
@@ -87,10 +101,26 @@ class DoneScreen extends ConsumerWidget {
     );
   }
 
-  /// Save and Share arrive in M6.
-  void _showComingLater(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Available in a later update')),
-    );
+  Future<void> _save() async {
+    final actions = ref.read(reelActionsProvider);
+    try {
+      await actions.saveToGallery(widget.videoPath);
+      if (mounted) {
+        setState(() => _saved = true);
+      }
+    } on GalleryAccessDeniedException {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Allow Photos access in Settings to save reels.'),
+          action: SnackBarAction(
+            label: 'Open settings',
+            onPressed: () => unawaited(actions.openAppSettings()),
+          ),
+        ),
+      );
+    }
   }
 }
