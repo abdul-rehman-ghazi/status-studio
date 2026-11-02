@@ -86,10 +86,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _follow(SpeechModel model) async {
     try {
-      await for (final fraction
+      await for (final amount
           in ref.read(modelManagerProvider).download(model)) {
         if (mounted) {
-          setState(() => _downloading[model] = fraction);
+          setState(() => _downloading[model] = amount.fraction);
         }
       }
     } on Exception catch (error) {

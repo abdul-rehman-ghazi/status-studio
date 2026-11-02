@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
@@ -74,8 +75,24 @@ void main() {
     final progress = await manager.download(SpeechModel.small).toList();
 
     expect(
-      (progress.last, await manager.isDownloaded(SpeechModel.small)),
+      (progress.last.fraction, await manager.isDownloaded(SpeechModel.small)),
       (1.0, true),
+    );
+  });
+
+  test('download_reports_received_and_total_bytes', () async {
+    final server = await serveWholeModel();
+    final manager = managerFor(uriOf(server.port));
+
+    final progress = await manager.download(SpeechModel.small).toList();
+
+    expect(
+      progress.last,
+      const WorkAmount(
+        done: modelBytes,
+        total: modelBytes,
+        unit: WorkUnit.bytes,
+      ),
     );
   });
 

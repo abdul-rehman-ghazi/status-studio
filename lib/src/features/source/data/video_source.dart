@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/youtube_video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -44,10 +45,11 @@ abstract interface class VideoSource {
   Future<SourceVideo> fetchVideo(String videoId);
 
   /// The lowest-bitrate audio-only stream for transcription, cached and
-  /// reused.
+  /// reused. Reports the bytes received; a cached file reports itself as
+  /// complete.
   Future<File> downloadScriptAudio(
     SourceVideo video, {
-    required void Function(double fraction) onProgress,
+    required void Function(WorkAmount amount) onProgress,
   });
 
   /// The video's own caption track as a transcript (FR-3): manual over

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/mux_arguments.dart';
 import 'package:status_studio/src/core/single_flight.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
@@ -59,18 +60,19 @@ class YouTubeVideoSource implements VideoSource {
   @override
   Future<File> downloadScriptAudio(
     SourceVideo video, {
-    required void Function(double fraction) onProgress,
+    required void Function(WorkAmount amount) onProgress,
   }) => _guard(() => _downloadAudio(video, _AudioUse.script, onProgress));
 
   Future<File> _downloadAudio(
     SourceVideo video,
     _AudioUse use,
-    void Function(double fraction) onProgress,
+    void Function(WorkAmount amount) onProgress,
   ) async {
     final sources = await cache;
     final cached = _cachedAudio(sources, video.videoId, use);
     if (cached != null) {
-      onProgress(1);
+      final size = cached.lengthSync();
+      onProgress(WorkAmount(done: size, total: size, unit: WorkUnit.bytes));
       return cached;
     }
     final streams = (await _manifest(video.videoId)).audioOnly;
@@ -84,13 +86,20 @@ class YouTubeVideoSource implements VideoSource {
       video.videoId,
       _audioExtensions[choice.container]!,
     );
+    final totalBytes = stream.size.totalBytes;
     return _downloads.run(
       target.path,
       () => sources.write(
         target,
         _youtube.videos.streamsClient.get(stream),
-        totalBytes: stream.size.totalBytes,
-        onProgress: onProgress,
+        totalBytes: totalBytes,
+        onProgress: (fraction) => onProgress(
+          WorkAmount(
+            done: (fraction * totalBytes).round(),
+            total: totalBytes,
+            unit: WorkUnit.bytes,
+          ),
+        ),
       ),
     );
   }

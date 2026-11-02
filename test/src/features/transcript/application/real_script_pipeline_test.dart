@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
@@ -62,7 +63,7 @@ class ScriptVideoSource extends FakeVideoSource {
   @override
   Future<File> downloadScriptAudio(
     SourceVideo video, {
-    required void Function(double fraction) onProgress,
+    required void Function(WorkAmount amount) onProgress,
   }) async {
     audioDownloads++;
     return super.downloadScriptAudio(video, onProgress: onProgress);
@@ -84,11 +85,21 @@ class FakeModelManager extends ModelManager {
   @override
   Future<bool> isDownloaded(SpeechModel model) async => !missing;
 
+  static const modelBytes = 1000;
+
   @override
-  Stream<double> download(SpeechModel model) async* {
-    yield 0.5;
+  Stream<WorkAmount> download(SpeechModel model) async* {
+    yield const WorkAmount(
+      done: modelBytes ~/ 2,
+      total: modelBytes,
+      unit: WorkUnit.bytes,
+    );
     missing = false;
-    yield 1;
+    yield const WorkAmount(
+      done: modelBytes,
+      total: modelBytes,
+      unit: WorkUnit.bytes,
+    );
   }
 }
 
@@ -143,6 +154,45 @@ void main() {
       pipeline(chunkCount: chunkCount)
           .run(sampleVideo, ScriptLanguage.auto)
           .toList();
+
+  List<WorkAmount?> stepsOf(List<ScriptProgress> events, ScriptStage stage) => [
+    for (final event in events)
+      if (event.stage == stage) event.step,
+  ];
+
+  test('model_download_reports_its_bytes', () async {
+    models.missing = true;
+
+    final events = await run();
+
+    expect(
+      stepsOf(events, ScriptStage.downloadingModel).last,
+      const WorkAmount(
+        done: FakeModelManager.modelBytes,
+        total: FakeModelManager.modelBytes,
+        unit: WorkUnit.bytes,
+      ),
+    );
+  });
+
+  test('audio_download_reports_its_bytes', () async {
+    final events = await run();
+
+    expect(
+      stepsOf(events, ScriptStage.downloadingAudio).last,
+      FakeVideoSource.scriptAudioAmount,
+    );
+  });
+
+  test('transcribing_reports_audio_done_of_the_video_length', () async {
+    final events = await run();
+
+    final total = sampleVideo.duration.inMilliseconds;
+    expect(
+      stepsOf(events, ScriptStage.transcribing).map((step) => step!.done),
+      [90000, 180000, total],
+    );
+  });
 
   test('uses_captions_when_track_exists', () async {
     videos = ScriptVideoSource(hasCaptions: true);

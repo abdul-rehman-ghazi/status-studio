@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
@@ -101,6 +102,70 @@ void main() {
     await tester.pump();
 
     expect(find.text('Downloading the speech model'), findsOneWidget);
+  });
+
+  group('step amounts', () {
+    late ManualPipeline pipeline;
+    final empty = sampleTranscript.copyWith(lines: const []);
+
+    ScriptProgress audioDownload(int done) => ScriptProgress(
+      stage: ScriptStage.downloadingAudio,
+      fraction: 0.2,
+      transcript: empty,
+      step: WorkAmount(done: done, total: 3300000, unit: WorkUnit.bytes),
+    );
+
+    Future<void> openWith(WidgetTester tester) async {
+      pipeline = ManualPipeline();
+      await startProcessing(tester, step: Duration.zero, pipeline: pipeline);
+      await tester.pump(const Duration(seconds: 1));
+    }
+
+    testWidgets('current_step_shows_percent_and_sizes', (tester) async {
+      await openWith(tester);
+
+      pipeline.events.add(audioDownload(1100000));
+      await tester.pump();
+
+      expect(find.textContaining('33 % · 1.1 of 3.3 MB'), findsOneWidget);
+    });
+
+    testWidgets('finished_step_keeps_its_amount', (tester) async {
+      await openWith(tester);
+      pipeline.events.add(audioDownload(3300000));
+      await tester.pump();
+
+      pipeline.events.add(
+        ScriptProgress(
+          stage: ScriptStage.detectingLanguage,
+          fraction: 0.35,
+          transcript: empty,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('100 % · 3.3 of 3.3 MB'), findsOneWidget);
+    });
+
+    testWidgets('writing_shows_audio_done_of_the_length', (tester) async {
+      await openWith(tester);
+
+      pipeline.events.add(
+        ScriptProgress(
+          stage: ScriptStage.transcribing,
+          fraction: 0.5,
+          transcript: empty,
+          step: const WorkAmount(
+            done: 180000,
+            total: 548000,
+            unit: WorkUnit.audioMilliseconds,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('33 % · 3:00 of 9:08'), findsOneWidget);
+    });
   });
 
   testWidgets('cancel_processing_returns_to_source', (tester) async {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 
@@ -38,13 +39,21 @@ class FakeModelManager extends ModelManager {
   }
 
   @override
-  Stream<double> fetch(SpeechModel model) async* {
-    yield 0.5;
+  Stream<WorkAmount> fetch(SpeechModel model) async* {
+    yield const WorkAmount(
+      done: downloadedBytes ~/ 2,
+      total: downloadedBytes,
+      unit: WorkUnit.bytes,
+    );
     await gate?.future;
     if (failure case final failure?) {
       throw failure;
     }
     sizes[model] = downloadedBytes;
-    yield 1;
+    yield const WorkAmount(
+      done: downloadedBytes,
+      total: downloadedBytes,
+      unit: WorkUnit.bytes,
+    );
   }
 }

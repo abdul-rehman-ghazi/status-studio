@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
@@ -20,6 +21,7 @@ class ScriptProgress {
     required this.fraction,
     required this.transcript,
     this.savedAt,
+    this.step,
   });
 
   final ScriptStage stage;
@@ -33,6 +35,10 @@ class ScriptProgress {
   /// When the script was saved, if it was reopened from the saved scripts
   /// instead of written now (FR-14).
   final DateTime? savedAt;
+
+  /// How much of [stage] is done, for the stages that can be measured:
+  /// bytes for the downloads, audio for transcribing.
+  final WorkAmount? step;
 }
 
 /// Turns a video into a transcript.

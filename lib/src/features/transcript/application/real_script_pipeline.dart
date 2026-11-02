@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/settings/application/settings_controller.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -18,7 +21,11 @@ import 'package:status_studio/src/features/transcript/domain/transcript_errors.d
 
 /// Overall progress at the start of each stage (plan M3 Task 7).
 const _modelShare = 0.15;
+const _audioDownloadEnd = 0.3;
 const _languageStage = 0.35;
+
+/// Matches `AudioPreparer.splitIntoChunks`.
+const _chunkLength = Duration(seconds: 90);
 
 /// Everything the pipeline uses, in one value so it stays within three
 /// parameters.
@@ -135,12 +142,9 @@ class RealScriptPipeline implements ScriptPipeline {
     final store = await services.store;
     final requested = key.language.whisperCode;
     yield* _ensureModel(requested);
-    yield ScriptProgress(
-      stage: ScriptStage.downloadingAudio,
-      fraction: _modelShare,
-      transcript: _empty(requested),
-    );
-    final chunks = await _audioChunks(video);
+    final audio = _ScriptAudio();
+    yield* _downloadAudio(video, requested, audio);
+    final chunks = await _chunksOf(audio.file);
     yield ScriptProgress(
       stage: ScriptStage.detectingLanguage,
       fraction: _languageStage,
@@ -171,6 +175,7 @@ class RealScriptPipeline implements ScriptPipeline {
         fraction:
             _languageStage + (1 - _languageStage) * completed / chunks.length,
         transcript: Transcript(languageCode: requested, lines: [...lines]),
+        step: _transcribed(video, completed: completed, of: chunks.length),
       );
     }
     yield await _finishWithWhisper(store, key, lines);
@@ -180,20 +185,45 @@ class RealScriptPipeline implements ScriptPipeline {
     if (await services.models.isDownloaded(model)) {
       return;
     }
-    await for (final fraction in services.models.download(model)) {
+    await for (final amount in services.models.download(model)) {
       yield ScriptProgress(
         stage: ScriptStage.downloadingModel,
-        fraction: fraction * _modelShare,
+        fraction: amount.fraction * _modelShare,
         transcript: _empty(languageCode),
+        step: amount,
       );
     }
   }
 
-  Future<List<File>> _audioChunks(SourceVideo video) async {
-    final audio = await services.videos.downloadScriptAudio(
-      video,
-      onProgress: (_) {},
+  /// Reports the download's bytes as they arrive, then leaves the file in
+  /// [audio]: a generator can't both yield progress and return a value.
+  Stream<ScriptProgress> _downloadAudio(
+    SourceVideo video,
+    String languageCode,
+    _ScriptAudio audio,
+  ) async* {
+    yield ScriptProgress(
+      stage: ScriptStage.downloadingAudio,
+      fraction: _modelShare,
+      transcript: _empty(languageCode),
     );
+    final amounts = StreamController<WorkAmount>();
+    final download = services.videos
+        .downloadScriptAudio(video, onProgress: amounts.add)
+        .whenComplete(amounts.close);
+    await for (final amount in amounts.stream) {
+      yield ScriptProgress(
+        stage: ScriptStage.downloadingAudio,
+        fraction:
+            _modelShare + (_audioDownloadEnd - _modelShare) * amount.fraction,
+        transcript: _empty(languageCode),
+        step: amount,
+      );
+    }
+    audio.file = await download;
+  }
+
+  Future<List<File>> _chunksOf(File audio) async {
     final wav = await services.audio.toWav(audio);
     return services.audio.splitIntoChunks(wav);
   }
@@ -239,6 +269,25 @@ class RealScriptPipeline implements ScriptPipeline {
       transcript: transcript,
     );
   }
+}
+
+/// The script audio once [RealScriptPipeline._downloadAudio] has it.
+class _ScriptAudio {
+  late File file;
+}
+
+/// Audio transcribed after [completed] of [of] chunks, out of the video's
+/// length; the last chunk is usually shorter than the others.
+WorkAmount _transcribed(
+  SourceVideo video, {
+  required int completed,
+  required int of,
+}) {
+  final total = video.duration.inMilliseconds;
+  final done = completed == of
+      ? total
+      : math.min(total, completed * _chunkLength.inMilliseconds);
+  return WorkAmount(done: done, total: total, unit: WorkUnit.audioMilliseconds);
 }
 
 Transcript _empty(String languageCode) =>

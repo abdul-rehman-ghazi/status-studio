@@ -5,6 +5,7 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
@@ -29,6 +30,43 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   /// Once this run has downloaded the model, its row stays, ticked, so the
   /// user sees where the time and data went.
   var _downloadedModel = false;
+
+  /// Measures each step's speed from when this screen first saw it.
+  final _clock = Stopwatch()..start();
+  final _amounts = <ScriptStage, _StepAmounts>{};
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(
+      scriptProgressProvider,
+      (_, next) => _record(next.value),
+      fireImmediately: true,
+    );
+  }
+
+  void _record(ScriptProgress? progress) {
+    final step = progress?.step;
+    if (progress == null || step == null) {
+      return;
+    }
+    final at = _clock.elapsed;
+    final seen = _amounts[progress.stage];
+    _amounts[progress.stage] = (
+      rate: seen?.rate ?? WorkRate.from(step, at),
+      latest: step,
+      latestAt: at,
+    );
+  }
+
+  /// Each measured step's line: percent, done of total and speed.
+  Map<ScriptStage, String> get _amountLines => {
+    for (final MapEntry(key: stage, value: amounts) in _amounts.entries)
+      stage: workLine(
+        amounts.latest,
+        perSecond: amounts.rate.perSecond(amounts.latest, amounts.latestAt),
+      ),
+  };
 
   /// Checked on every build, not only on change: a saved script can be
   /// done before this screen is even built.
@@ -84,6 +122,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
                   ..._scriptSteps(draft.language, run.value),
                 ],
                 progress: run.value,
+                amountLines: _amountLines,
               ),
           ],
         ),
@@ -117,10 +156,17 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
 }
 
 class _RunSteps extends StatelessWidget {
-  const _RunSteps({required this.steps, required this.progress});
+  const _RunSteps({
+    required this.steps,
+    required this.progress,
+    required this.amountLines,
+  });
 
   final List<_Step> steps;
   final ScriptProgress? progress;
+
+  /// Lines for the steps that report how much is done.
+  final Map<ScriptStage, String> amountLines;
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +177,12 @@ class _RunSteps extends StatelessWidget {
       children: [
         LinearProgressIndicator(value: progress?.fraction ?? 0),
         const SizedBox(height: 20),
-        for (final step in steps) _StepRow(step: step, current: stage),
+        for (final step in steps)
+          _StepRow(
+            step: step,
+            current: stage,
+            amountLine: amountLines[step.stage],
+          ),
       ],
     );
   }
@@ -177,6 +228,9 @@ class _RunFailed extends ConsumerWidget {
 }
 
 typedef _Step = ({String label, String detail, ScriptStage stage});
+
+/// A step's first and latest amounts in this run.
+typedef _StepAmounts = ({WorkRate rate, WorkAmount latest, Duration latestAt});
 
 const _Step _modelStep = (
   label: 'Downloading the speech model',
@@ -237,10 +291,17 @@ class _VideoLine extends StatelessWidget {
 }
 
 class _StepRow extends StatelessWidget {
-  const _StepRow({required this.step, required this.current});
+  const _StepRow({
+    required this.step,
+    required this.current,
+    required this.amountLine,
+  });
 
   final _Step step;
   final ScriptStage current;
+
+  /// Percent, done of total and speed, once the step has reported them.
+  final String? amountLine;
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +314,11 @@ class _StepRow extends StatelessWidget {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [Text(step.label), HintText(step.detail)],
+              children: [
+                Text(step.label),
+                HintText(step.detail),
+                if (amountLine case final line?) HintText(line),
+              ],
             ),
           ),
         ],
