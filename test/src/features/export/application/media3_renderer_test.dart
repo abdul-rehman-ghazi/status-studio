@@ -88,7 +88,11 @@ void main() {
     );
   });
 
-  tearDown(() => folder.delete(recursive: true));
+  tearDown(() async {
+    // A render cleans up just after its stream ends; let it finish first.
+    await pumpEventQueue();
+    await folder.delete(recursive: true);
+  });
 
   test('start_sends_render_spec', () async {
     final native = FakeNative(finishWithProgress)..install();
@@ -157,5 +161,55 @@ void main() {
     await run.cancel();
 
     expect((native.calls.last.method, partial.existsSync()), ('cancel', false));
+  });
+
+  List<String> overlays() => folder
+      .listSync()
+      .map((entry) => entry.path)
+      .where((path) => path.endsWith('_overlay.png'))
+      .toList();
+
+  test('overlay_png_is_deleted_once_started', () async {
+    FakeNative(finishWithProgress).install();
+
+    await renderer.render(pickedDraft).drain<void>();
+    await pumpEventQueue();
+
+    expect(overlays(), isEmpty);
+  });
+
+  test('overlay_png_is_deleted_when_start_is_refused', () async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    FakeNative((_) {}).install();
+    messenger.setMockMethodCallHandler(
+      methods,
+      (call) async => throw PlatformException(code: 'busy'),
+    );
+
+    await renderer.render(pickedDraft).drain<void>().catchError((_) {});
+    await pumpEventQueue();
+
+    expect(overlays(), isEmpty);
+  });
+
+  test('cancel_deletes_partial_even_when_native_cancel_fails', () async {
+    final native = FakeNative((_) {})..install();
+    final run = renderer.render(pickedDraft).listen((_) {}, onError: (_) {});
+    await pumpEventQueue();
+    final partial = File(
+      (native.calls.single.arguments as Map<Object?, Object?>)['outputPath']!
+          as String,
+    )..writeAsStringSync('partial');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          methods,
+          (call) async => throw PlatformException(code: 'cancel_failed'),
+        );
+
+    await renderer.cancel().catchError((_) {});
+    await run.cancel();
+
+    expect(partial.existsSync(), isFalse);
   });
 }

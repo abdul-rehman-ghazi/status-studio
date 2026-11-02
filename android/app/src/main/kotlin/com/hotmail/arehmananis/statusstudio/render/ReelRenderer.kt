@@ -48,7 +48,10 @@ class ReelRenderer(private val context: Context) {
     val isBusy: Boolean
         get() = running != null
 
-    /** Throws [IllegalArgumentException] when the overlay can't be read. */
+    /**
+     * Throws [IllegalArgumentException] when the overlay can't be read, or any exception
+     * Media3 raises for a spec it rejects; the renderer stays free either way.
+     */
     fun start(spec: RenderSpec, listener: Listener) {
         check(running == null) { "A render is already running." }
         val overlay = BitmapFactory.decodeFile(spec.overlayPath)
@@ -58,17 +61,22 @@ class ReelRenderer(private val context: Context) {
             .setAudioMimeType(spec.audioMimeType)
             .addListener(completionListener(listener))
             .build()
+        // Busy only once `start` has succeeded: a spec Media3 rejects must not
+        // leave the renderer refusing every later render.
+        transformer.start(editedMediaItem(spec, overlay), spec.outputPath)
         val poll = progressPoll(transformer, listener)
         running = Running(transformer, spec.outputPath, poll)
-        transformer.start(editedMediaItem(spec, overlay), spec.outputPath)
         mainHandler.post(poll)
     }
 
     /** Stops the render and deletes the partial file (FR-9). */
     fun cancel() {
         val current = finish() ?: return
-        current.transformer.cancel()
-        File(current.outputPath).delete()
+        try {
+            current.transformer.cancel()
+        } finally {
+            File(current.outputPath).delete()
+        }
     }
 
     private fun finish(): Running? {
@@ -130,7 +138,16 @@ class ReelRenderer(private val context: Context) {
             Presentation.LAYOUT_SCALE_TO_FIT,
         )
         val framing = when (val fill = spec.fill) {
-            is Fill.Crop -> listOf(Crop(fill.left, fill.right, fill.bottom, fill.top), fitOutput)
+            // Crop sizes are rounded down to even pixels, so their aspect is a hair off the
+            // output's; stretching (under 0.5 %) avoids thin black bars at the edges.
+            is Fill.Crop -> listOf(
+                Crop(fill.left, fill.right, fill.bottom, fill.top),
+                Presentation.createForWidthAndHeight(
+                    spec.outputWidth,
+                    spec.outputHeight,
+                    Presentation.LAYOUT_STRETCH_TO_FIT,
+                ),
+            )
             // The blur runs on the source frame: it draws that whole frame sharp at the given
             // scale, and its output already has the output's aspect.
             is Fill.Blur -> listOf(

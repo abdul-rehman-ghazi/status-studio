@@ -48,6 +48,8 @@ class RenderChannel(context: Context, messenger: BinaryMessenger) :
             result.success(null)
         } catch (error: IllegalArgumentException) {
             result.error("bad_spec", error.message, null)
+        } catch (error: RuntimeException) {
+            result.error("start_failed", error.message, null)
         }
     }
 

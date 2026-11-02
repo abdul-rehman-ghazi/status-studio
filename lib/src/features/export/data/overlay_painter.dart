@@ -45,9 +45,21 @@ Size measureCaptionText(String text, double fontSize, double maxWidth) {
 }
 
 /// The caption's text style for [text]: its script's font and line height.
-TextStyle captionTextStyle(String text, double fontSize) =>
-    scriptTextStyle(text)
-        .copyWith(fontSize: fontSize, color: AppColors.textPrimary);
+/// Not inherited, so the Style preview's `Text` lays out exactly like the
+/// painter here instead of picking up the theme's letter spacing.
+TextStyle captionTextStyle(String text, double fontSize) => scriptTextStyle(
+  text,
+).copyWith(inherit: false, fontSize: fontSize, color: AppColors.textPrimary);
+
+/// "Status Studio" in the branding pill; not inherited, as above.
+TextStyle brandingTextStyle(double logoSize) => TextStyle(
+  inherit: false,
+  color: AppColors.textPrimary,
+  fontFamily: AppFonts.ui,
+  fontWeight: FontWeight.w600,
+  fontSize: logoSize * _brandingFont,
+  height: 1,
+);
 
 TextDirection captionTextDirection(String text) =>
     isArabicScript(text) ? TextDirection.rtl : TextDirection.ltr;
@@ -89,16 +101,7 @@ void _paintBranding(Canvas canvas, OverlayLayout layout) {
   final logo = layout.logoSize;
   final padding = logo * brandingPillPadding;
   final label = TextPainter(
-    text: TextSpan(
-      text: brandingText,
-      style: TextStyle(
-        color: AppColors.textPrimary,
-        fontFamily: AppFonts.ui,
-        fontWeight: FontWeight.w600,
-        fontSize: logo * _brandingFont,
-        height: 1,
-      ),
-    ),
+    text: TextSpan(text: brandingText, style: brandingTextStyle(logo)),
     textDirection: TextDirection.ltr,
   )..layout();
   final pill =

@@ -20,7 +20,6 @@ import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/domain/roman_urdu.dart';
-import 'package:status_studio/src/features/style/domain/translation_errors.dart';
 import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
@@ -39,6 +38,11 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   late final TextEditingController _captionController = TextEditingController(
     text: ref.read(reelDraftProvider).caption.text,
   );
+
+  /// Bumped by every variant tap and edit, so a translation that finishes
+  /// after the user moved on is dropped instead of overwriting their choice.
+  var _variantRequest = 0;
+  var _translating = false;
 
   @override
   void dispose() {
@@ -80,6 +84,7 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
               onSelected: (variant) =>
                   unawaited(_switchVariant(draft, variant)),
             ),
+            if (_translating) const _TranslatingNote(),
             const SizedBox(height: 10),
             TextField(
               controller: _captionController,
@@ -88,8 +93,10 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
               style: scriptTextStyle(_captionController.text),
               textDirection: _captionDirection(_captionController.text),
               decoration: const InputDecoration(border: OutlineInputBorder()),
-              onChanged: (text) =>
-                  controller.updateCaption(caption.copyWith(text: text)),
+              onChanged: (text) {
+                _dropPendingVariant();
+                controller.updateCaption(caption.copyWith(text: text));
+              },
             ),
             const SizedBox(height: 8),
             const HintText(
@@ -142,11 +149,17 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   Future<void> _switchVariant(ReelDraft draft, CaptionVariant variant) async {
     // Re-tapping the current chip is not a switch; keep the user's edits.
     if (variant == draft.caption.variant) {
+      _dropPendingVariant();
       return;
     }
+    if (_translating && variant == CaptionVariant.english) {
+      return;
+    }
+    final request = ++_variantRequest;
+    setState(() => _translating = variant == CaptionVariant.english);
     try {
       final text = await _variantText(draft, variant);
-      if (!mounted) {
+      if (!mounted || request != _variantRequest) {
         return;
       }
       _captionController.text = text;
@@ -157,8 +170,22 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
             .caption
             .copyWith(variant: variant, text: text),
       );
-    } on TranslationPackMissingException catch (error) {
-      _showTranslationFailure(error, () => _switchVariant(draft, variant));
+    } on Object catch (error) {
+      if (request == _variantRequest) {
+        _showTranslationFailure(error, () => _switchVariant(draft, variant));
+      }
+    } finally {
+      if (mounted && request == _variantRequest) {
+        setState(() => _translating = false);
+      }
+    }
+  }
+
+  /// The user chose something else: a translation still running is ignored.
+  void _dropPendingVariant() {
+    _variantRequest++;
+    if (_translating) {
+      setState(() => _translating = false);
     }
   }
 
@@ -174,7 +201,8 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
     };
   }
 
-  /// Spec §8: "English needs a one-time download." with Retry.
+  /// Spec §8: "English needs a one-time download." with Retry, or the
+  /// general message for any other failure.
   void _showTranslationFailure(Object error, VoidCallback retry) {
     if (!mounted) {
       return;
@@ -183,6 +211,27 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
       SnackBar(
         content: Text(errorMessageFor(error)),
         action: SnackBarAction(label: 'Retry', onPressed: retry),
+      ),
+    );
+  }
+}
+
+class _TranslatingNote extends StatelessWidget {
+  const _TranslatingNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          SizedBox.square(
+            dimension: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 8),
+          HintText('Translating…'),
+        ],
       ),
     );
   }

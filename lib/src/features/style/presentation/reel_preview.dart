@@ -115,9 +115,15 @@ class _SourceFrameState extends ConsumerState<_SourceFrame> {
     unawaited(_showFirstFrame());
   }
 
+  /// A clip that won't open keeps the placeholder: the preview is a guide,
+  /// and Fine-tune already told the user about an unplayable video.
   Future<void> _showFirstFrame() async {
-    await _player.initialize();
-    await _player.seekTo(widget.firstFrame);
+    try {
+      await _player.initialize();
+      await _player.seekTo(widget.firstFrame);
+    } on Object {
+      return;
+    }
     if (mounted) {
       setState(() {});
     }
@@ -303,16 +309,7 @@ class _OverlayLayer extends StatelessWidget {
           children: [
             LogoMark(size: logo),
             SizedBox(width: logo * 0.3),
-            Text(
-              brandingText,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontFamily: AppFonts.ui,
-                fontWeight: FontWeight.w600,
-                fontSize: logo * 0.55,
-                height: 1,
-              ),
-            ),
+            Text(brandingText, style: brandingTextStyle(logo)),
           ],
         ),
       ),

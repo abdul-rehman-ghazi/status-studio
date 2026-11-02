@@ -1,18 +1,47 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/roman_urdu.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
+import '../../../../helpers/fake_caption_translator.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
-Future<void> pumpStyle(WidgetTester tester, {ReelDraft? draft}) => pumpRoutes(
+Future<void> pumpStyle(
+  WidgetTester tester, {
+  ReelDraft? draft,
+  CaptionTranslator translator = const FakeCaptionTranslator(),
+}) => pumpRoutes(
   tester,
   [AppRoutes.style],
-  setup: TestSetup(overrides: [draftOverride(draft ?? pickedDraft)]),
+  setup: TestSetup(
+    overrides: [draftOverride(draft ?? pickedDraft)],
+    translator: translator,
+  ),
 );
+
+/// Translates only when [gate] completes; fails with [failure] if set.
+class SlowTranslator extends FakeCaptionTranslator {
+  SlowTranslator({this.failure});
+
+  final gate = Completer<void>();
+  final Exception? failure;
+
+  @override
+  Future<String> toEnglish(String text, String languageCode) async {
+    await gate.future;
+    if (failure case final failure?) {
+      throw failure;
+    }
+    return super.toEnglish(text, languageCode);
+  }
+}
 
 /// The picked draft with its transcript marked as [languageCode].
 ReelDraft pickedIn(String languageCode) => pickedDraft.copyWith(
@@ -151,5 +180,39 @@ void main() {
 
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.controller!.text, startsWith('EN: '));
+  });
+
+  testWidgets('translating_shows_progress', (tester) async {
+    await pumpStyle(tester, translator: SlowTranslator());
+
+    await tapText(tester, 'English');
+
+    expect(find.text('Translating…'), findsOneWidget);
+  });
+
+  testWidgets('late_translation_does_not_replace_later_choice', (tester) async {
+    final translator = SlowTranslator();
+    await pumpStyle(tester, translator: translator);
+    await tapText(tester, 'English');
+
+    await tapText(tester, 'Roman');
+    translator.gate.complete();
+    await tester.pumpAndSettle();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, romanizeUrdu(pickedDraft.caption.text));
+  });
+
+  testWidgets('translation_failure_shows_message', (tester) async {
+    final translator = SlowTranslator(
+      failure: PlatformException(code: 'translate_failed'),
+    );
+    await pumpStyle(tester, translator: translator);
+    await tapText(tester, 'English');
+
+    translator.gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Something went wrong. Try again.'), findsOneWidget);
   });
 }

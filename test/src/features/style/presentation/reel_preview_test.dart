@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
@@ -60,5 +61,17 @@ void main() {
 
     // The fake clip file starts 5 s before the clip.
     expect(players.single.value.position, const Duration(seconds: 5));
+  });
+
+  testWidgets('unplayable_clip_keeps_placeholder', (tester) async {
+    await pumpStyleWithClip(tester, playerFactory: brokenPlayerFactory);
+
+    expect(
+      find.descendant(
+        of: find.byType(ReelPreview),
+        matching: find.byIcon(Icons.movie_outlined),
+      ),
+      findsOneWidget,
+    );
   });
 }
