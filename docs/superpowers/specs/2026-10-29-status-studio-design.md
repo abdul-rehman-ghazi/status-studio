@@ -129,11 +129,11 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 
 | Need | Package | Notes |
 |---|---|---|
-| YouTube metadata, streams, captions | `youtube_explode_dart` | `videos.get`, `videos.streamsClient.getManifest`/`get`, `videos.closedCaptions.getManifest`/`get` |
+| YouTube metadata, stream URLs, caption tracks | yt-dlp via `io.github.junkfood02.youtubedl-android:library` 0.18.1 (Gradle) | Kotlin channel `status_studio/ytdlp`: `quickVideoInfo` (`-J --no-js-runtimes`), `videoInfo` (`-J` with the bundled QuickJS), `update`, `version`. Bundles Python, yt-dlp and QuickJS; updates yt-dlp from GitHub. Replaced `youtube_explode_dart` in M7 (§10 Q4) |
 | Speech to text | `whisper_ggml` | `WhisperController.transcribe(model:, audioPath:, lang:, withSegments: true, keepModelLoaded: true)`; returns `null` on failure. Model file at `getPath(model)`, URL `model.modelUri` |
 | FFmpeg | `ffmpeg_kit_flutter_new_min` ^2.x | The only FFmpeg; `whisper_ggml` depends on it. Built with `--disable-mediacodec --disable-openssl`, no libx264: decode, filter, AAC/PCM, stream copy only. `FFmpegKit.executeWithArgumentsAsync`, `FFmpegKit.cancel` |
 | Final render (Android) | `androidx.media3:media3-transformer`, `media3-effect`, `media3-common` 1.11.1 (Gradle) | `Transformer`, `ClippingConfiguration`, `Crop`, `Presentation`, `GaussianBlurWithFrameOverlaid`, `OverlayEffect` + `BitmapOverlay` |
-| Partial downloads | `dart:io` `HttpClient` | `Range: bytes=a-b` requests against the stream URL |
+| Downloads | `dart:io` `HttpClient` | `Range: bytes=a-b` requests against the stream URL: clip windows (FR-15), and whole streams in 10 MB ranges; caption tracks as `json3` |
 | Translation | `google_mlkit_translation` | `OnDeviceTranslator`, `OnDeviceTranslatorModelManager` |
 | Preview | `video_player` | |
 | Gallery / share | `gal` / `share_plus` | `Gal.putVideo`, `SharePlus.instance.share(ShareParams(files: [XFile(path)]))` |
@@ -242,6 +242,7 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 | Scope | General-purpose: any video, any language. No content-type picker. |
 | Selection | User picks start/end lines from the transcript; no automatic segment detection |
 | Distribution | Sideloaded APK; YouTube access isolated in `YouTubeVideoSource` |
+| YouTube access | yt-dlp on the phone resolves videos; the app downloads in Dart. Android only: iOS would need another resolver behind `VideoSource` |
 | Model | Whisper small default, base optional, downloaded on first use |
 | FFmpeg | `ffmpeg_kit_flutter_new_min` only (LGPL) |
 | Captions/branding rendering | Flutter → PNG → FFmpeg overlay |
@@ -288,3 +289,4 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 | M4 | `plans/2026-10-29-m4-fine-tune.md` | Waveform, clip playback, language re-run |
 | M5 | `plans/2026-10-29-m5-render.md` | Overlay PNG, Roman Urdu, translation, Media3 render |
 | M6 | `plans/2026-10-29-m6-library-settings-polish.md` | Save/share, recent reels, settings, launcher icon, cache cleanup, error states |
+| M7 | `plans/2026-11-02-m7-yt-dlp.md` | yt-dlp video source, kept up to date; percent, sizes and speed per Processing step |

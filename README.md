@@ -24,6 +24,7 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 | [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Done (branch m4-fine-tune) |
 | [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, Media3 export | Done (branch m5-render) |
 | [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Done (branch m6-library-settings-polish) |
+| [M7](docs/superpowers/plans/2026-11-02-m7-yt-dlp.md) | yt-dlp video source (YouTube refused youtube_explode), self-updating; percent, sizes and speed per step | Done, device check pending (branch m7-yt-dlp) |
 
 ## Features (planned)
 
@@ -40,7 +41,8 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 |---|---|
 | State | [flutter_riverpod](https://pub.dev/packages/flutter_riverpod) |
 | Navigation | [go_router](https://pub.dev/packages/go_router) |
-| YouTube download | [youtube_explode_dart](https://pub.dev/packages/youtube_explode_dart) |
+| Reading YouTube videos (Android) | [yt-dlp](https://github.com/yt-dlp/yt-dlp) through [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (Python and QuickJS bundled, updates itself) |
+| Downloads | `dart:io` `HttpClient` byte-range requests |
 | Speech to text (on device) | [whisper_ggml](https://pub.dev/packages/whisper_ggml) (whisper.cpp) |
 | Video and audio processing | [ffmpeg_kit_flutter_new_min](https://pub.dev/packages/ffmpeg_kit_flutter_new_min) (LGPL build) |
 | Translation (on device) | [google_mlkit_translation](https://pub.dev/packages/google_mlkit_translation) |
