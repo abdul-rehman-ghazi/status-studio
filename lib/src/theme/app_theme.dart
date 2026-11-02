@@ -7,6 +7,9 @@ abstract final class AppColors {
   static const onAccent = Color(0xFF06140D);
   static const textPrimary = Color(0xFFEEF3F0);
   static const textMuted = Color(0xFFA3AFA8);
+
+  /// Drawn at partial opacity behind captions and the branding pill.
+  static const overlay = Color(0xFF000000);
 }
 
 /// Font families bundled in `assets/fonts`, registered in `pubspec.yaml`.

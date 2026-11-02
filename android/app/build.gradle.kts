@@ -54,6 +54,16 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    // youtubedl-android ships Python as libpython.zip.so and unpacks it from the installed
+    // native library folder, which only exists when native libraries are extracted.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            // A zip, not an ELF library: stripping it only prints errors.
+            keepDebugSymbols += "**/libpython.zip.so"
+        }
+    }
 }
 
 kotlin {
@@ -64,4 +74,14 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // The final render (spec §5): hardware H.264/AAC, crop, blur and overlay.
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
+    implementation("androidx.media3:media3-common:1.11.1")
+    // yt-dlp with Python and QuickJS (spec §5): resolves YouTube videos, updates itself.
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    testImplementation("junit:junit:4.13.2")
 }

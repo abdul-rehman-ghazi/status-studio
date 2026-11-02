@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The Script screen shows the video's real script with timestamps. It comes from YouTube captions when available, otherwise from Whisper on the phone, and appears progressively. With automatic language, the language is inferred and shown.
+**Goal:** The Script screen shows the video's real script with timestamps. It comes from a saved script, YouTube captions or Whisper on the phone, in that order, and appears progressively. With automatic language, the language is inferred and shown. Finished scripts are saved, and interrupted Whisper runs resume.
 
 **Architecture:**
 - `RealScriptPipeline` implements M1's `ScriptPipeline`, composing `ModelManager`, `VideoSource`, `YouTubeCaptionSource`, `AudioPreparer` and `WhisperTranscriber`.
@@ -11,7 +11,9 @@
 
 **Tech Stack:** whisper_ggml 2.8, youtube_explode_dart 3, ffmpeg_kit_flutter_new_min 2.
 
-**Spec:** FR-2, FR-3, FR-12 (download part), FR-13, §6.4, §8, §10 Q2.
+**Spec:** FR-2, FR-3, FR-12 (download part), FR-13, FR-14, §6.4, §8, §10 Q2.
+
+**Builds on M2b:** script audio comes from `VideoSource.downloadScriptAudio` (lowest bitrate), and no video is downloaded here.
 
 ## Global Constraints
 
@@ -20,14 +22,19 @@
 - `whisper_ggml` returns `null` on failure: wrap it and throw `TranscriptionFailedException`. An empty full transcript throws `NoSpeechFoundException`.
 - Release the parked model (`releaseModel()`) when a run finishes, fails or is cancelled.
 - Only `whisper_transcriber.dart` and `model_manager.dart` import `whisper_ggml`.
+- Saved scripts: app support directory `transcripts/<videoId>/<requested>-<source>.json`, where `requested` is `auto` or a language code and `source` is `captions` | `whisper-small` | `whisper-base`. Kept 90 days after last use, with at most 200 videos (least recently used dropped).
+- Partial Whisper progress: `transcripts/<videoId>/<requested>-whisper-<model>.partial.json`, rewritten after each finished chunk and deleted when the run completes.
 
 ## Review Focus
 
-- **Cancelling during transcription** must stop work and release the model. Test: Task 6 `cancel_releases_model`.
+- **Cancelling during transcription** must stop work and release the model. Test: Task 7 `cancel_releases_model`.
 - **Silence, music-only or bracketed tokens** (`[BLANK_AUDIO]`, `(music)`, `♪`) must not become lines. Test: Task 4 `drops_non_speech_segments`.
 - **A model download interrupted** must not leave a file that `whisper_ggml` loads as a model. Test: Task 2 `interrupted_download_leaves_no_model`.
 - **A video with only auto-generated captions in another language** must fall back to Whisper when the user picked a language. Test: Task 5 `ignores_tracks_in_other_language_when_language_chosen`.
+- **Automatic language uses manual tracks only** (spec FR-3, changed after device testing): YouTube can guess an auto-generated track's language wrong. Test: Task 5 `auto_language_skips_auto_generated_tracks`.
 - **Lines straddling a chunk boundary** keep the correct absolute times. Test: Task 4 `offsets_segment_times_by_chunk_start`.
+- **The same link pasted again** opens the saved script without any download. Test: Task 7 `saved_script_skips_download_and_transcription`.
+- **An app killed mid-transcription** resumes from the next unfinished chunk. Test: Task 7 `resumes_from_partial_progress`.
 
 ---
 
@@ -49,13 +56,13 @@
 - Downloads `model.modelUri` to `pathFor(model) + '.part'` with progress, renames on success, and throws `ModelDownloadException` on any failure.
 - `modelManagerProvider` wires `WhisperController().getPath` and a real `HttpClient`.
 
-- [ ] **Step 1: Failing tests** with a local `HttpServer` and temp dir:
+- [x] **Step 1: Failing tests** with a local `HttpServer` and temp dir:
   - `download_reports_progress_and_creates_model`
   - `interrupted_download_leaves_no_model` (server closes the socket halfway)
   - `delete_removes_model`
   - `is_downloaded_false_for_part_file`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: download and manage whisper models`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: download and manage whisper models`
 
 ### Task 3: Audio preparation
 
@@ -66,9 +73,9 @@
 - `List<String> chunkArguments({required String wavPath, required String outputPattern, required int chunkSeconds})` → `['-y', '-i', wavPath, '-f', 'segment', '-segment_time', '$chunkSeconds', '-c', 'copy', outputPattern]` (pattern `chunk_%03d.wav`)
 - `class AudioPreparer { AudioPreparer(FfmpegRunner runner); Future<File> toWav(File audio); Future<List<File>> splitIntoChunks(File wav, {int chunkSeconds = 90}); }` returns chunks sorted by name. `toWav` output (`audio.wav`) is reused by M4's waveform.
 
-- [ ] **Step 1: Failing tests:** `wav_arguments_make_16khz_mono_pcm`, `chunk_arguments_use_segment_muxer`.
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: prepare 16 kHz WAV chunks for whisper`
+- [x] **Step 1: Failing tests:** `wav_arguments_make_16khz_mono_pcm`, `chunk_arguments_use_segment_muxer`.
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: prepare 16 kHz WAV chunks for whisper`
 
 ### Task 4: Whisper transcriber and language inference
 
@@ -89,7 +96,7 @@
   - Throws `TranscriptionFailedException` on `null`.
   - Calls `releaseModel()` in a `finally`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `offsets_segment_times_by_chunk_start`: offset 90 s, segment 3–7 s → line 1:33–1:37.
   - `numbers_lines_from_first_index`
   - `drops_non_speech_segments`
@@ -101,8 +108,8 @@
     - `devanagari_infers_hi` (`नमस्ते`)
     - `latin_infers_en`
     - `unknown_script_infers_und` (`你好`)
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: transcribe chunks with whisper and infer language`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: transcribe chunks with whisper and infer language`
 
 ### Task 5: YouTube captions
 
@@ -112,22 +119,52 @@
 - `class CaptionTrackChoice { const CaptionTrackChoice({required String languageCode, required bool isAutoGenerated, required int index}); }`
 - `CaptionTrackChoice pickCaptionTrack(List<CaptionTrackChoice> tracks, ScriptLanguage language)`
   - Throws `NoCaptionTrackException`.
-  - With `auto`, any language is allowed; otherwise the code must match `language.whisperCode`.
+  - With `auto`, a manual track in any language is allowed, never an auto-generated one; otherwise the code must match `language.whisperCode`.
   - Manual tracks beat auto-generated ones.
 - `class YouTubeCaptionSource { Future<Transcript> fetch(SourceVideo video, ScriptLanguage language); }`
   - Uses `yt.videos.closedCaptions.getManifest` and `.get`.
   - Each `ClosedCaption` (`text`, `offset`, `end`) becomes a line; empty ones are skipped.
   - `languageCode` comes from the track.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `prefers_manual_track`
-  - `auto_language_accepts_any_track`
+  - `auto_language_accepts_manual_track_in_any_language`
+  - `auto_language_skips_auto_generated_tracks`
   - `ignores_tracks_in_other_language_when_language_chosen`
   - `no_tracks_throws`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: use YouTube captions when available`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: use YouTube captions when available`
 
-### Task 6: Real script pipeline and progressive script
+### Task 6: Saved scripts and partial progress
+
+**Files:** Create `lib/src/features/transcript/data/transcript_store.dart`, `lib/src/features/transcript/domain/saved_transcript.dart`; Test `test/src/features/transcript/data/transcript_store_test.dart`
+
+**Interfaces:**
+- Produces:
+  - `class SavedTranscript { const SavedTranscript({required Transcript transcript, required String source, required DateTime savedAt}); Map<String, Object?> toJson(); factory SavedTranscript.fromJson(Map<String, Object?> json); }`
+  - `class TranscriptKey { const TranscriptKey({required String videoId, required ScriptLanguage language}); }`
+  - `class PartialTranscript { const PartialTranscript({required int completedChunks, required List<TranscriptLine> lines}); }`
+  - `class TranscriptStore { TranscriptStore(Directory root, {required DateTime Function() clock}); ... }` with:
+    - `Future<SavedTranscript> load(TranscriptKey key)`: newest source for that key, touching last-used. Throws `NoSavedTranscriptException`.
+    - `Future<void> save(TranscriptKey key, SavedTranscript saved)`
+    - `Future<PartialTranscript> loadPartial(TranscriptKey key, WhisperModel model)`: throws `NoSavedTranscriptException`.
+    - `Future<void> savePartial(TranscriptKey key, WhisperModel model, PartialTranscript partial)`
+    - `Future<void> clearPartial(TranscriptKey key, WhisperModel model)`
+    - `Future<int> prune()`: removes entries unused for 90 days, then the least recently used beyond 200 videos.
+  - `transcriptStoreProvider` rooted at `getApplicationSupportDirectory()/transcripts`.
+
+- [x] **Step 1: Failing tests** (temp dir, fixed clock):
+  - `save_then_load_round_trips`
+  - `load_missing_throws_no_saved_transcript`
+  - `load_prefers_newest_source`
+  - `partial_round_trips_and_clears`
+  - `prune_removes_entries_unused_for_ninety_days`
+  - `prune_keeps_two_hundred_most_recent_videos`
+  - `corrupt_file_is_treated_as_missing`
+- [x] **Step 2–4:** Run → FAIL, implement (write via `.part` + rename), run → PASS.
+- [x] **Step 5: Commit** `feat: save scripts and partial whisper progress`
+
+### Task 7: Real script pipeline and progressive script
 
 **Files:**
 - Create `lib/src/features/transcript/application/real_script_pipeline.dart`, `lib/src/features/transcript/application/script_progress_controller.dart`
@@ -136,7 +173,17 @@
 
 **Interfaces:**
 - `class ScriptPipelineServices { const ScriptPipelineServices({required ModelManager models, required VideoSource videos, required YouTubeCaptionSource captions, required AudioPreparer audio, required WhisperTranscriber whisper}); }`. It's a value object, which keeps the pipeline within the 3-parameter rule.
-- `RealScriptPipeline(ScriptPipelineServices services, {required WhisperModel model})`
+- `ScriptPipelineServices` also takes `required Future<TranscriptStore> store` (the store's directory comes from an async provider). Captions come from `VideoSource.fetchCaptions`, not a `captions` service (spec §9: YouTube access stays in `YouTubeVideoSource`).
+- Whisper resumes through `WhisperTranscriber.transcribeChunks(ChunkTranscription job)`, a value object carrying the chunks, language, model, completed chunks and first line index.
+- Callers start the run (`scriptProgressProvider.start/writeAgain`) before opening Processing; Processing only shows it, and leaves for Script as soon as it is done, even if it finished before Processing was built (a saved script).
+- `RealScriptPipeline(ScriptPipelineServices services, {required WhisperModel model})` implements `ScriptPipeline` with two entry points (no flag parameter):
+  - `run(video, language)`: saved script → captions → Whisper.
+  - `writeAgain(video, language)`: Whisper only, replacing the saved script. Add `Stream<ScriptProgress> writeAgain(SourceVideo video, ScriptLanguage language)` to the `ScriptPipeline` interface and the M1 fake.
+- `ScriptProgress` gains `DateTime? savedAt`. It's set only when the transcript came from the store, and the Script screen shows "Using the saved script from <d MMM> · Write it again".
+- Whisper runs:
+  - Load the partial progress, skip its completed chunks and start from its lines.
+  - `savePartial` after each chunk; on completion `save` + `clearPartial`.
+  - Captions results are saved with source `captions`.
 - Stage order and overall `fraction` ranges:
 
   | Stage | Fraction | When |
@@ -152,7 +199,7 @@
 - `final scriptProgressProvider = NotifierProvider<ScriptProgressController, AsyncValue<ScriptProgress>>(...)` with `void start(SourceVideo video, ScriptLanguage language)` and `Future<void> cancel()`.
 - Processing shows "Start picking lines" once the transcript has ≥ 1 line. Script appends lines as they arrive and shows "Still writing… NN %" at the bottom until `done`.
 
-- [ ] **Step 1: Failing tests** with fakes for every dependency:
+- [x] **Step 1: Failing tests** with fakes for every dependency:
   - `uses_captions_when_track_exists`
   - `falls_back_to_whisper_without_captions`
   - `downloads_model_first_when_missing`
@@ -160,9 +207,15 @@
   - `auto_language_sets_inferred_code`
   - `empty_transcript_throws_no_speech`
   - `cancel_releases_model`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Error states.** Processing maps exceptions to spec §8 messages using `errorMessageFor` (create `lib/src/core/error_messages.dart` with tests `maps_no_speech`, `maps_offline`, `maps_model_download`).
+  - `saved_script_skips_download_and_transcription`
+  - `write_again_ignores_saved_script_and_replaces_it`
+  - `resumes_from_partial_progress`: 2 of 4 chunks saved, so only chunks 3–4 are transcribed and lines continue the numbering.
+  - `finished_run_saves_script_and_clears_partial`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Error states.** Processing maps exceptions to spec §8 messages using `errorMessageFor` (create `lib/src/core/error_messages.dart` with tests `maps_no_speech`, `maps_offline`, `maps_model_download`).
 - [ ] **Step 6: Manual check** in `--release`:
   - A video with captions: the script appears within seconds.
+  - Paste the same link again: Script opens immediately with the saved-script banner, and Android shows no new data use.
+  - Kill the app mid-transcription, reopen and repeat: it resumes.
   - A video without captions: lines appear chunk by chunk, and the language shows "Urdu (detected)" for Urdu speech.
-- [ ] **Step 7: Commit** `feat: real script pipeline with progressive lines`
+- [x] **Step 7: Commit** `feat: real script pipeline with progressive lines`

@@ -1,0 +1,32 @@
+{
+  // Status Studio is an Android phone app (iOS isn't built yet). The Flutter
+  // SDK comes from FVM through "dart.flutterSdkPath" in settings.json.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Status Studio (debug)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "flutterMode": "debug"
+    },
+    {
+      // Debug builds compile whisper.cpp without optimisations, so Whisper
+      // is many times slower there. Time Whisper and exports in profile or
+      // release.
+      "name": "Status Studio (profile)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "flutterMode": "profile"
+    },
+    {
+      // Signed with the upload keystore, like the APKs shared for testing.
+      "name": "Status Studio (release)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "flutterMode": "release"
+    }
+  ]
+}

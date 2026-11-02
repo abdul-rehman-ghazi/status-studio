@@ -17,12 +17,14 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 | Milestone | Delivers | Status |
 |---|---|---|
 | Setup | Project, dependencies, fonts, signing, docs | Done |
-| [M1](docs/superpowers/plans/2026-10-29-m1-app-shell.md) | Every screen wired with fake services; real domain logic | Next |
-| [M2](docs/superpowers/plans/2026-10-29-m2-video-source.md) | YouTube metadata, downloads, cache, clip preview | Planned |
-| [M3](docs/superpowers/plans/2026-10-29-m3-transcription.md) | On-device script: Whisper, YouTube captions, language detection | Planned |
-| [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Planned |
-| [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, FFmpeg export | Planned |
-| [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Planned |
+| [M1](docs/superpowers/plans/2026-10-29-m1-app-shell.md) | Every screen wired with fake services; real domain logic | Done (branch m1-app-shell) |
+| [M2](docs/superpowers/plans/2026-10-29-m2-video-source.md) | YouTube metadata, downloads, cache, clip preview | Done (branch m2-video-source) |
+| [M2b](docs/superpowers/plans/2026-10-30-m2b-data-saver.md) | Low-bitrate script audio, clip-only download via `sidx` + HTTP ranges | Done (branch m2b-data-saver) |
+| [M3](docs/superpowers/plans/2026-10-29-m3-transcription.md) | On-device script: Whisper, YouTube captions, language detection | Done (branch m3-transcription) |
+| [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Done (branch m4-fine-tune) |
+| [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, Media3 export | Done (branch m5-render) |
+| [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Done (branch m6-library-settings-polish) |
+| [M7](docs/superpowers/plans/2026-11-02-m7-yt-dlp.md) | yt-dlp video source (YouTube refused youtube_explode), self-updating; percent, sizes and speed per step | Done, device check pending (branch m7-yt-dlp) |
 
 ## Features (planned)
 
@@ -39,7 +41,8 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 |---|---|
 | State | [flutter_riverpod](https://pub.dev/packages/flutter_riverpod) |
 | Navigation | [go_router](https://pub.dev/packages/go_router) |
-| YouTube download | [youtube_explode_dart](https://pub.dev/packages/youtube_explode_dart) |
+| Reading YouTube videos (Android) | [yt-dlp](https://github.com/yt-dlp/yt-dlp) through [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (Python and QuickJS bundled, updates itself) |
+| Downloads | `dart:io` `HttpClient` byte-range requests |
 | Speech to text (on device) | [whisper_ggml](https://pub.dev/packages/whisper_ggml) (whisper.cpp) |
 | Video and audio processing | [ffmpeg_kit_flutter_new_min](https://pub.dev/packages/ffmpeg_kit_flutter_new_min) (LGPL build) |
 | Translation (on device) | [google_mlkit_translation](https://pub.dev/packages/google_mlkit_translation) |
@@ -105,3 +108,29 @@ Downloading from YouTube is against YouTube's terms and app store policies, so t
 - [Noto Naskh Arabic](https://fonts.google.com/noto/specimen/Noto+Naskh+Arabic): Arabic captions, and a plainer option for Urdu.
 
 All are licensed under the SIL Open Font License 1.1. The licence files sit next to the fonts in `assets/fonts/`.
+
+## Releasing
+
+```sh
+fvm flutter analyze
+fvm flutter test
+fvm flutter build apk --release --split-per-abi
+```
+
+- The APKs are in `build/app/outputs/flutter-apk/` (`app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, `app-x86_64-release.apk`). Most phones need `arm64-v8a`.
+- Release builds are signed with `android/app/upload-keystore.jks` through `android/key.properties`. Check the signature with `$ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`.
+- To regenerate the launcher icon after a logo change: `fvm flutter test tool/export_logo_test.dart`, then `fvm dart run flutter_launcher_icons`. Afterwards, revert its change to `ios/Runner.xcodeproj/project.pbxproj`: the tool sets the wrong build setting.
+
+Smoke test on a phone with a release build:
+
+1. Paste a link and get the script.
+2. Pick a start and an end line.
+3. Fine-tune the clip and play it.
+4. Try each frame preset (9:16, 4:5, 1:1, 16:9, Free), with crop and blur.
+5. Export the reel.
+6. Save it to the gallery.
+7. Share it.
+8. Reopen the reel from Recent.
+
+The full on-phone checklist is in [docs/device-testing-todo.md](docs/device-testing-todo.md).
+

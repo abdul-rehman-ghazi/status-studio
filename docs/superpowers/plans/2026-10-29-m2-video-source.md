@@ -30,7 +30,7 @@
 
 ### Task 1: Stream choice
 
-**Files:** Create `lib/src/features/source/domain/stream_choice.dart`; Test `test/src/features/source/domain/stream_choice_test.dart`
+**Files:** Create `lib/src/features/source/domain/stream_choice.dart`, `lib/src/features/source/domain/source_errors.dart` (needed here for `VideoUnavailableException`); Test `test/src/features/source/domain/stream_choice_test.dart`
 
 **Interfaces:**
 - Produces: `class StreamChoice { const StreamChoice({required int height, required String container, required int bitrate, required int index}); }`. Height is 0 for audio, and `index` points back into the manifest list.
@@ -38,11 +38,11 @@
 - `StreamChoice pickAudioStream(List<StreamChoice> audioStreams)`
 - Both throw `VideoUnavailableException` on an empty list.
 
-- [ ] **Step 1: Failing tests:** `picks_highest_mp4_at_or_below_cap` (720 mp4 over 1080 mp4 and 720 webm), `prefers_mp4_over_webm_at_same_height`, `falls_back_to_lowest_stream_above_cap` (only 1080 and 1440 → 1080), `picks_highest_bitrate_mp4_audio`, `empty_list_throws_unavailable`.
-- [ ] **Step 2: Run** `fvm flutter test test/src/features/source/domain` → FAIL.
-- [ ] **Step 3: Implement** the two pure functions.
-- [ ] **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `feat: choose YouTube streams within quality caps`
+- [x] **Step 1: Failing tests:** `picks_highest_mp4_at_or_below_cap` (720 mp4 over 1080 mp4 and 720 webm), `prefers_mp4_over_webm_at_same_height`, `falls_back_to_lowest_stream_above_cap` (only 1080 and 1440 → 1080), `picks_highest_bitrate_mp4_audio`, `empty_list_throws_unavailable`.
+- [x] **Step 2: Run** `fvm flutter test test/src/features/source/domain` → FAIL.
+- [x] **Step 3: Implement** the two pure functions.
+- [x] **Step 4: Run** → PASS.
+- [x] **Step 5: Commit** `feat: choose YouTube streams within quality caps`
 
 ### Task 2: Source cache and resumable-safe writes
 
@@ -52,13 +52,13 @@
 - Produces: `class SourceCache { SourceCache(Directory root); File audioFile(String videoId, String extension); File videoFile(String videoId); File sourceFile(String videoId); Future<File> write(File target, Stream<List<int>> bytes, {required int totalBytes, required void Function(double fraction) onProgress}); bool isComplete(File target); }`
 - `final sourceCacheProvider = FutureProvider<SourceCache>(...)` rooted at `getTemporaryDirectory()/sources`.
 
-- [ ] **Step 1: Failing tests** (temp dir):
+- [x] **Step 1: Failing tests** (temp dir):
   - `write_reports_progress_to_one`
   - `write_renames_part_file_on_completion`
   - `partial_download_is_not_reused`: the stream errors halfway → `isComplete` is false and no target file exists.
   - `complete_file_is_reused`
-- [ ] **Step 2–4:** Run → FAIL, implement (`<name>.part` then `rename`), run → PASS.
-- [ ] **Step 5: Commit** `feat: add source cache with atomic writes`
+- [x] **Step 2–4:** Run → FAIL, implement (`<name>.part` then `rename`), run → PASS.
+- [x] **Step 5: Commit** `feat: add source cache with atomic writes`
 
 ### Task 3: YouTube video source
 
@@ -76,8 +76,8 @@
 - `List<String> muxArguments({required String videoPath, required String audioPath, required String outputPath})` → `['-y', '-i', videoPath, '-i', audioPath, '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '-movflags', '+faststart', outputPath]`
 - `class FfmpegRunner { Future<void> run(List<String> arguments, {void Function(Duration processed)? onTime}); Future<void> cancel(); }` throws `FfmpegFailedException(String log)` on a non-success return code. This is the single FFmpeg entry point, also used by M3/M5.
 
-- [ ] **Step 1: Failing tests:** `maps_unavailable_errors`, `maps_socket_errors_to_offline`, `mux_copies_streams_without_reencoding` (exact list above).
-- [ ] **Step 2–4:** Run → FAIL. Implement:
+- [x] **Step 1: Failing tests:** `maps_unavailable_errors`, `maps_socket_errors_to_offline`, `mux_copies_streams_without_reencoding` (exact list above).
+- [x] **Step 2–4:** Run → FAIL. Implement:
   - Metadata via `yt.videos.get(videoId)`.
   - The manifest via `yt.videos.streamsClient.getManifest(videoId)`, mapped to `StreamChoice`s.
   - Bytes via `yt.videos.streamsClient.get(streamInfo)`.
@@ -86,22 +86,22 @@
   
   Run → PASS.
 - [ ] **Step 5: Manual check:** `fvm flutter run --release` on a phone. Paste a public video link; the title, channel and duration match YouTube.
-- [ ] **Step 6: Commit** `feat: fetch YouTube metadata and download sources`
+- [x] **Step 6: Commit** `feat: fetch YouTube metadata and download sources`
 
 ### Task 4: Source preparation in the background
 
 **Files:** Create `lib/src/features/source/application/source_video_controller.dart`; Modify `source_screen.dart`, `processing_screen.dart`; Test `test/src/features/source/application/source_video_controller_test.dart`
 
 **Interfaces:**
-- `final sourceVideoProvider = AsyncNotifierProvider<SourceVideoController, File?>(...)` with `Future<void> prepare(SourceVideo video)`. Its state is an `AsyncValue` carrying progress through a separate `sourceVideoProgressProvider` (`NotifierProvider<…, double>`).
+- `final sourceVideoProvider = AsyncNotifierProvider.family<SourceVideoController, File?, String>(...)`, keyed by video ID, with `Future<void> prepare(SourceVideo video)`. Progress is a separate `sourceVideoProgressProvider` family (`NotifierProvider.family<…, double, String>`). Keying by video ID keeps a second reel from ever seeing the first reel's file or progress; `prepare` shares an in-flight run and retries only after a failure.
 - Processing calls `prepare` once the audio download finishes, so the video downloads while transcription runs.
 
-- [ ] **Step 1: Failing tests** with a fake `VideoSource`:
+- [x] **Step 1: Failing tests** with a fake `VideoSource`:
   - `prepare_exposes_file_when_done`
   - `prepare_twice_for_same_video_downloads_once`
   - `failure_surfaces_as_error_state`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: prepare source video in the background`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: prepare source video in the background`
 
 ### Task 5: Clip player on Fine-tune
 
@@ -115,10 +115,10 @@
   - Disposes in `dispose`.
 - While the source isn't ready, Fine-tune shows the M1 placeholder with "Preparing video… NN %".
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `stops_at_clip_end`
   - `keeps_playing_before_clip_end`
   - `player_disposed_when_screen_closes`: the widget test injects a fake controller factory through a `videoPlayerFactoryProvider` and asserts `dispose` was called after `pop`.
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
 - [ ] **Step 5: Manual check:** play a selected clip; it starts at the start line and stops at the end line.
-- [ ] **Step 6: Commit** `feat: play the selected clip on fine-tune`
+- [x] **Step 6: Commit** `feat: play the selected clip on fine-tune`
