@@ -70,15 +70,23 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     }
   }
 
-  /// Adds the reel to Recent (FR-11), then opens Done for it.
+  /// Adds the reel to Recent (FR-11), then opens Done for it. Done reads
+  /// the reel from Recent, so a reel that couldn't be recorded is a
+  /// failure the user can retry.
   Future<void> _keepAndOpenDone(String videoPath) async {
     final draft = ref.read(reelDraftProvider);
     final size = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
-    final reel = await ref
-        .read(recentReelsProvider.notifier)
-        .keep(videoPath, draft, size);
-    if (mounted) {
-      context.pushReplacement(AppRoutes.doneFor(reel.id));
+    try {
+      final reel = await ref
+          .read(recentReelsProvider.notifier)
+          .keep(videoPath, draft, size);
+      if (mounted) {
+        context.pushReplacement(AppRoutes.doneFor(reel.id));
+      }
+    } on Exception catch (error) {
+      if (mounted) {
+        setState(() => _failure = error);
+      }
     }
   }
 

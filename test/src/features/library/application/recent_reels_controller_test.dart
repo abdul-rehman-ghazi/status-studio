@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -64,7 +65,21 @@ void main() {
   });
 
   test('keep_survives_thumbnail_failure', () async {
-    final container = containerWith(RecordingFfmpegRunner(failing: true));
+    final container = containerWith(
+      RecordingFfmpegRunner(failure: const FfmpegFailedException('no decoder')),
+    );
+
+    await container
+        .read(recentReelsProvider.notifier)
+        .keep(video.path, pickedDraft, story);
+
+    expect(await container.read(recentReelsProvider.future), hasLength(1));
+  });
+
+  test('keep_survives_a_crashed_thumbnail_run', () async {
+    final container = containerWith(
+      RecordingFfmpegRunner(failure: PlatformException(code: 'crashed')),
+    );
 
     await container
         .read(recentReelsProvider.notifier)

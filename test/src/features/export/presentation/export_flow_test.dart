@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
+import 'package:status_studio/src/features/library/data/recent_reels_repository.dart';
+import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
@@ -48,6 +51,15 @@ class FileRenderer implements Renderer {
 
   @override
   Future<void> cancel() async {}
+}
+
+/// Can't record anything, as when preferences can't be written.
+class UnwritableRecentReels extends RecentReelsRepository {
+  UnwritableRecentReels() : super(SharedPreferencesAsync());
+
+  @override
+  Future<void> add(RecentReel reel) async =>
+      throw const FileSystemException('Write failed');
 }
 
 /// Fails every render the way a native Media3 error does.
@@ -161,5 +173,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Export reel'), findsOneWidget);
+  });
+
+  testWidgets('failure_to_record_the_reel_offers_retry', (tester) async {
+    await pumpRoutes(
+      tester,
+      [AppRoutes.style, AppRoutes.export],
+      setup: TestSetup(
+        overrides: [
+          draftOverride(pickedDraft),
+          recentReelsRepositoryProvider.overrideWithValue(
+            UnwritableRecentReels(),
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Retry'), findsOneWidget);
   });
 }

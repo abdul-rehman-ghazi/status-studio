@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 
-/// Records each run and writes an empty output file, or fails every run
-/// when [failing].
+/// Records each run and writes an empty output file, or throws [failure]
+/// from every run when it is set.
 class RecordingFfmpegRunner implements FfmpegRunner {
-  RecordingFfmpegRunner({this.failing = false});
+  RecordingFfmpegRunner({this.failure});
 
-  final bool failing;
+  final Exception? failure;
   final runs = <List<String>>[];
 
   @override
@@ -16,8 +16,8 @@ class RecordingFfmpegRunner implements FfmpegRunner {
     void Function(Duration processed)? onTime,
   }) async {
     runs.add(arguments);
-    if (failing) {
-      throw const FfmpegFailedException('no decoder');
+    if (failure case final failure?) {
+      throw failure;
     }
     await File(arguments.last).writeAsBytes(const []);
   }

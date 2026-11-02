@@ -47,8 +47,9 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
     ref.invalidateSelf();
   }
 
-  /// A missing thumbnail only costs the list its picture, so a failed
-  /// FFmpeg run doesn't stop the reel being kept.
+  /// A missing thumbnail only costs the list its picture, so no failure
+  /// of the FFmpeg run, including a plugin error, stops the reel being
+  /// kept.
   Future<void> _writeThumbnail(RecentReel reel) async {
     try {
       await ref
@@ -59,7 +60,7 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
               outputPath: reel.thumbnailPath,
             ),
           );
-    } on FfmpegFailedException {
+    } on Exception {
       return;
     }
   }
