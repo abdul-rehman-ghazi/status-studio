@@ -73,4 +73,16 @@ void main() {
 
     expect(store.pruned, 1);
   });
+
+  test('failed_source_cleanup_still_prunes_saved_scripts', () async {
+    final store = RecordingTranscriptStore(Directory('${root.path}/scripts'));
+
+    await cleanUpOnStart(
+      sources: Future.error(const FileSystemException('No documents')),
+      scripts: Future.value(store),
+      now: now,
+    ).catchError((Object _) {});
+
+    expect(store.pruned, 1);
+  });
 }
