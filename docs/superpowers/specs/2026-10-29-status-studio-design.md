@@ -259,6 +259,14 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 3. **Status length limit** (M6). Check WhatsApp's current Status video limit. Until confirmed, show a warning (not a block) when the clip is longer than 60 s.
    - **Checked 2026-11-02 (M6 Task 6):** 60 s has been the general limit since 2024. A 90 s limit was reported in beta in 2025, but there's no official confirmation that it rolled out to everyone. The 60 s warning stays. Confirm on a phone by checking the longest trim the Status composer allows (`docs/device-testing-todo.md`).
 4. **YouTube extraction reliability** (M2). If `youtube_explode_dart` breaks, update it. Track failures in the error state rather than crashing.
+   - **Broke 2026-11-02 (device testing):** YouTube answered every `youtube_explode_dart` 3.1.0 stream URL with HTTP 403, and the library re-fetched manifests in a loop (65 MB used, no audio). **Decision (M7):** resolve videos with yt-dlp, bundled through `youtubedl-android` 0.18.1 (Python, yt-dlp, QuickJS), and keep downloading in Dart. yt-dlp's URLs download at about 10 MB/s with plain range requests.
+   - **Measured on a Redmi Note 11 (Snapdragon 680), M7 Task 1**, for a 9-minute video:
+     - Python start alone (`--version`): 2.7 s. First run after install also unpacks Python.
+     - Bundled yt-dlp 2025.11.12 with QuickJS: 16.3 s first run, then 15.1 s and 11.6 s.
+     - After a self-update (6.5 s) to 2026.10.26 with QuickJS: about 30 s.
+     - 2026.10.26 without a JavaScript runtime (`--no-js-runtimes`): 13.4 s first, then 8.4 s, with the same 31 formats. yt-dlp then asks only YouTube clients that need no challenge solving.
+     - The arm64 APK went from 57.4 MB to 45.4 MB: legacy packaging stores native libraries compressed, so the installed size grows instead.
+   - **Decision:** read a video without JavaScript first, and with QuickJS only when that run has no usable formats. Read each video once and keep the result while its URLs are valid.
 
 ## 11. Out of scope for v1
 
