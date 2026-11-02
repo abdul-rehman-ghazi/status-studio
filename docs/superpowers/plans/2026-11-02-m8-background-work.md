@@ -173,14 +173,15 @@
   - Hint "On Xiaomi and some other phones, also set Battery saver to No restrictions in App info." with "Open App info"
 - Status re-reads when the app resumes, after the user returns from a system dialog or App info.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `battery_optimised_offers_allow`
   - `allow_battery_asks_android`
   - `notifications_off_offers_allow`
+  - `allowing_notifications_shows_them_on`
   - `allowed_rows_offer_nothing`
   - `open_app_info_opens_it`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: show background work access in Settings`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: show background work access in Settings`
 
 ### Task 8: Wrap up
 
