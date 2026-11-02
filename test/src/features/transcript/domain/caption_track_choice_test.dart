@@ -17,10 +17,19 @@ void main() {
     expect(pickCaptionTrack(tracks, ScriptLanguage.urdu).index, 1);
   });
 
-  test('auto_language_accepts_any_track', () {
-    final tracks = [track('ar', index: 0, auto: true)];
+  test('auto_language_accepts_manual_track_in_any_language', () {
+    final tracks = [track('ar', index: 0)];
 
     expect(pickCaptionTrack(tracks, ScriptLanguage.auto).index, 0);
+  });
+
+  test('auto_language_skips_auto_generated_tracks', () {
+    final tracks = [track('ro', index: 0, auto: true)];
+
+    expect(
+      () => pickCaptionTrack(tracks, ScriptLanguage.auto),
+      throwsA(isA<NoCaptionTrackException>()),
+    );
   });
 
   test('ignores_tracks_in_other_language_when_language_chosen', () {

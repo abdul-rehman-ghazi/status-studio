@@ -38,7 +38,7 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 
 **FR-3 Script.** Sources, in this order:
 1. A **saved script** for this video and language (FR-14): open Script directly.
-2. A **YouTube caption track** in the chosen language (or any track when automatic): manual tracks over auto-generated. Each caption becomes one line, and no audio is downloaded.
+2. A **YouTube caption track** in the chosen language: manual tracks over auto-generated. When the language is automatic, only manual tracks (in any language) are used: YouTube guesses an auto-generated track's language from the audio, and a wrong guess makes the whole script junk (found on the phone: an Urdu naat's only track was auto-generated Romanian). Each caption becomes one line, and no audio is downloaded.
 3. **Whisper** (`whisper_ggml`, `withSegments: true`) on the **lowest-bitrate MP4 audio-only stream**. Whisper hears 16 kHz mono, so higher quality only wastes data. Each segment becomes one line.
 - Transcribe in **90-second chunks**, keeping the model loaded, so lines appear while the rest is still being processed. Chunk timestamps are offset by the chunk start.
 - With "Detect automatically", infer the language from the transcript text (§6.4) and show it ("Urdu (detected)").
