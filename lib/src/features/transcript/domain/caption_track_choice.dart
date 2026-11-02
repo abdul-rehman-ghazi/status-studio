@@ -80,10 +80,10 @@ CaptionTrackChoice pickCaptionTrack(
 /// `en-GB` → `en`: YouTube tags regional variants, Whisper doesn't.
 String baseLanguageCode(String code) => code.split('-').first.toLowerCase();
 
-/// Each non-empty caption becomes one line, numbered in order.
+/// Each caption with words in it becomes one line, numbered in order.
 List<TranscriptLine> linesFromCaptions(List<CaptionCue> cues) {
   final spoken = cues
-      .map((cue) => (cue: cue, text: cue.text.trim()))
+      .map((cue) => (cue: cue, text: _spokenText(cue.text)))
       .where((entry) => entry.text.isNotEmpty)
       .toList();
   return [
@@ -95,4 +95,14 @@ List<TranscriptLine> linesFromCaptions(List<CaptionCue> cues) {
         end: entry.cue.end,
       ),
   ];
+}
+
+final _musicSymbols = RegExp('[♪♫♬♩]');
+final _soundTag = RegExp(r'^(\[[^\]]*\]|\([^)]*\))$');
+
+/// [caption] without music symbols; empty when it only names a sound
+/// ("[Music]", "(applause)", "[♪♪♪]"), which would end up in a clip caption.
+String _spokenText(String caption) {
+  final text = caption.replaceAll(_musicSymbols, '').trim();
+  return _soundTag.hasMatch(text) ? '' : text;
 }

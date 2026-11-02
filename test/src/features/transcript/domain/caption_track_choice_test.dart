@@ -79,6 +79,30 @@ void main() {
     ]);
   });
 
+  List<String> textsOf(List<String> captions) => [
+    for (final line in linesFromCaptions([
+      for (final (index, text) in captions.indexed)
+        CaptionCue(
+          text: text,
+          start: Duration(seconds: index),
+          end: Duration(seconds: index + 1),
+        ),
+    ]))
+      line.text,
+  ];
+
+  test('music_symbols_are_removed_from_lines', () {
+    expect(textsOf(["♪ We're no strangers to love ♪"]), [
+      "We're no strangers to love",
+    ]);
+  });
+
+  test('sound_tags_are_not_lines', () {
+    expect(textsOf(['[♪♪♪]', '[Music]', '(applause)', 'sung words']), [
+      'sung words',
+    ]);
+  });
+
   test('base_language_code_drops_region', () {
     expect(baseLanguageCode('en-GB'), 'en');
   });
