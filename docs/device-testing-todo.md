@@ -43,7 +43,8 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 
 ### M6: library, settings, polish
 - [ ] WhatsApp's Status limit: check the longest trim the Status composer allows. If it's 90 s, raise the long-clip warning threshold (spec §10 Q3).
-- [ ] Save asks for Photos access once; a refusal shows the message and "Open settings" opens the app's Settings page.
+- [ ] Android 10 and newer: Save works without a permission prompt.
+- [ ] Android 7–9 (API 24–28): Save asks for storage access once; a refusal shows the message and "Open settings" opens the app's Settings page, where storage can be allowed.
 - [ ] Launcher icon looks right as an adaptive icon (round, squircle and square masks) and on the home screen.
 - [ ] Trigger each spec §8 condition (airplane mode, invalid link, private video, silent video) and confirm the message and actions match the table.
 - [ ] Release smoke test: link → script → pick → fine-tune → each frame preset → export → save → share.
