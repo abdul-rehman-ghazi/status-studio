@@ -230,8 +230,8 @@ typedef _StepAmounts = ({WorkRate rate, WorkAmount latest, Duration latestAt});
 /// How much of a step is done, and how fast, as last measured.
 typedef _StepReading = ({WorkAmount amount, double? perSecond});
 
-const _Step _modelStep = (
-  label: 'Downloading the speech model',
+final _Step _modelStep = (
+  label: ScriptStage.downloadingModel.label,
   detail: 'Needed once, then it works offline',
   stage: ScriptStage.downloadingModel,
 );
@@ -239,22 +239,22 @@ const _Step _modelStep = (
 List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
   return [
     (
-      label: 'Downloading audio',
+      label: ScriptStage.downloadingAudio.label,
       detail: 'From YouTube, audio only',
       stage: ScriptStage.downloadingAudio,
     ),
     (
-      label: 'Detecting the language',
+      label: ScriptStage.detectingLanguage.label,
       detail: _languageDetail(language, progress),
       stage: ScriptStage.detectingLanguage,
     ),
     (
-      label: 'Writing the script',
+      label: ScriptStage.transcribing.label,
       detail: 'Whisper, on your phone',
       stage: ScriptStage.transcribing,
     ),
     (
-      label: 'Lining up timestamps',
+      label: ScriptStage.done.label,
       detail: 'So every line knows when it is said',
       stage: ScriptStage.done,
     ),

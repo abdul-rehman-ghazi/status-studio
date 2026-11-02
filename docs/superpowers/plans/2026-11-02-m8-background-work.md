@@ -131,14 +131,14 @@
   - failed: "Script stopped" · §8 message
 - `ScriptProgressController` follows `keepRunning(pipeline.run(…), ScriptNotices(video))`, and the same for `writeAgain`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `script_progress_notice_names_the_step_and_video`
   - `script_done_notice_says_ready`
   - `script_failed_notice_shows_the_error_message`
   - `running_script_keeps_the_app_in_the_background`
   - `cancelled_script_stops_the_background_service`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: keep writing the script in the background`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: keep writing the script in the background`
 
 ### Task 6: Export in the background
 
