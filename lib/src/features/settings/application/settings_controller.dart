@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:status_studio/src/core/preferences.dart';
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 
@@ -14,17 +14,19 @@ final whisperModelSettingProvider =
 class SettingsController extends AsyncNotifier<SpeechModel> {
   @override
   Future<SpeechModel> build() async {
-    final stored = await SharedPreferencesAsync().getString(_modelKey);
+    final stored = await ref.read(preferencesProvider).getString(_modelKey);
     return SpeechModel.values
             .where((model) => model.name == stored)
             .firstOrNull ??
         SpeechModel.small;
   }
 
-  /// Only the choice changes; downloaded models stay until deleted.
+  /// Only the choice changes; downloaded models stay until deleted. The
+  /// choice is stored first, so a failed write doesn't show a choice that
+  /// is lost on restart.
   Future<void> select(SpeechModel model) async {
+    await ref.read(preferencesProvider).setString(_modelKey, model.name);
     state = AsyncData(model);
-    await SharedPreferencesAsync().setString(_modelKey, model.name);
   }
 }
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:status_studio/src/core/preferences.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 
 const _key = 'recentReels';
@@ -102,5 +103,5 @@ void _deleteFiles(RecentReel reel) {
 }
 
 final recentReelsRepositoryProvider = Provider<RecentReelsRepository>(
-  (ref) => RecentReelsRepository(SharedPreferencesAsync()),
+  (ref) => RecentReelsRepository(ref.watch(preferencesProvider)),
 );
