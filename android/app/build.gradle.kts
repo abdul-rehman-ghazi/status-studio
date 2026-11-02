@@ -22,6 +22,8 @@ android {
     ndkVersion = "29.0.13113456"
 
     compileOptions {
+        // flutter_local_notifications needs java.time on older Android.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -83,5 +85,6 @@ dependencies {
     implementation("androidx.media3:media3-common:1.11.1")
     // yt-dlp with Python and QuickJS (spec §5): resolves YouTube videos, updates itself.
     implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     testImplementation("junit:junit:4.13.2")
 }

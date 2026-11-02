@@ -15,7 +15,7 @@
 - Two jobs can run at once (Whisper keeps writing while the user exports). The service runs while either does, and the notification shows the one that started last.
 - The first job ever asks for notifications (Android 13+) and for exemption from battery optimisation. Settings shows both states with "Allow", plus a hint for Xiaomi's own battery saver.
 
-**Tech Stack:** Android `Service` (`foregroundServiceType="dataSync"`), `PowerManager` partial wake lock, `androidx.core` `NotificationCompat`, `MethodChannel` `status_studio/background_work`.
+**Tech Stack:** `flutter_foreground_task` 11 (foreground service of type `dataSync`, wake lock, Wi-Fi lock, permission requests), `flutter_local_notifications` 22 (result notifications). No hand-written Kotlin: the user chose packages over a native service to keep Android code small, so the ongoing notification shows the percent as text instead of a bar.
 
 **Spec:** FR-16, §5 Package map, §9.
 
@@ -25,7 +25,7 @@
 - Android only; iOS isn't built.
 - No platform call in Dart tests: tests override `backgroundWorkPlatformProvider` with `FakeBackgroundWorkPlatform`.
 - A failing platform call (no permission, service refused) is reported with `FlutterError.reportError` and never stops the work.
-- The Kotlin side is framework code (Service, notifications, permissions) with no logic worth a JVM test; it's checked by `fvm flutter build apk --debug` and by the device checks.
+- The plugins are reached only through `BackgroundWorkPlatform`, so a store or iOS build could swap them.
 
 ## Review Focus
 
@@ -36,48 +36,39 @@
 
 ---
 
-### Task 1: Android foreground service and channel
+### Task 1: Packages and Android setup
 
-**Files:** Create `android/app/src/main/kotlin/.../background/WorkService.kt`, `WorkNotifications.kt`, `BackgroundWorkChannel.kt`, `android/app/src/main/res/drawable/ic_notification.xml`; Modify `AndroidManifest.xml`, `MainActivity.kt`, `android/app/build.gradle.kts`.
+**Files:** Modify `pubspec.yaml`, `AndroidManifest.xml`, `android/app/build.gradle.kts`; Create `android/app/src/main/res/drawable/ic_notification.xml`.
 
 **Interfaces:**
-- Manifest permissions: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `POST_NOTIFICATIONS`, `WAKE_LOCK`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Service `.background.WorkService`, not exported, `foregroundServiceType="dataSync"`.
-- `WorkNotifications`:
-  - channels: `work` ("Work in progress", low importance, silent) and `results` ("Finished work", default importance)
-  - `progress(title, text, percent)`: ongoing notification with a determinate bar
-  - `result(title, text)`: auto-cancelling notification
-  - Both open the app's launch intent, which brings the running task to the front.
-  - Icon: the Trim logo's brackets and bars as a vector.
-- `WorkService`: `ACTION_SHOW` (extras `title`, `text`, `percent`) calls `startForeground` with type `dataSync` on API 29+ and holds the wake lock (6 h timeout). `ACTION_STOP` releases it, removes the notification and stops. On Android 15+, `onTimeout` stops the service.
-- Channel `status_studio/background_work`:
-  - `show {title, text, percent}`: starts the service if it isn't running, else updates its notification
-  - `stop`
-  - `postResult {job, title, text}`: notification id per job; skipped when notifications are off
-  - `requestNotifications` → bool: true below Android 13
-  - `notificationsEnabled` → bool
-  - `runsUnrestricted` → bool (`isIgnoringBatteryOptimizations`)
-  - `askToRunUnrestricted`: `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`
-  - `openAppInfo`
-- `MainActivity` forwards `onRequestPermissionsResult` to the channel.
+- `flutter_foreground_task` ^11.0.3 (service, wake lock, notification permission, battery exemption) and `flutter_local_notifications` ^22.3.3 (result notifications). No Kotlin.
+- Manifest:
+  - `FOREGROUND_SERVICE_DATA_SYNC` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`; the plugins declare the rest.
+  - The plugin's `ForegroundService` with `foregroundServiceType="dataSync"` and `stopWithTask="true"`.
+  - Meta-data `com.hotmail.arehmananis.statusstudio.notification_icon` → `@drawable/ic_notification`, the Trim logo's brackets and bars.
+- Gradle: core library desugaring (`desugar_jdk_libs` 2.1.4), which `flutter_local_notifications` needs.
 
-- [ ] **Step 1:** Write the service, notifications, channel, icon and manifest entries.
-- [ ] **Step 2:** `fvm flutter build apk --debug` → builds.
-- [ ] **Step 3: Commit** `feat: keep the app alive with a foreground service on Android`
+- [x] **Step 1:** Add the packages, manifest entries, icon and desugaring.
+- [x] **Step 2:** `fvm flutter build apk --debug` → builds.
+- [x] **Step 3: Commit** `build: add background service and notification packages`
 
 ### Task 2: Dart platform client
 
-**Files:** Create `lib/src/features/background/domain/work_notice.dart`, `lib/src/features/background/data/background_work_platform.dart`, `test/helpers/fake_background_work_platform.dart`; Test `test/src/features/background/data/background_work_platform_test.dart`
+**Files:** Create `lib/src/features/background/domain/work_notice.dart`, `lib/src/features/background/data/background_work_platform.dart`, `test/helpers/fake_background_work_platform.dart`; Test `test/src/features/background/domain/work_notice_test.dart`
 
 **Interfaces:**
-- `enum BackgroundJob { script, export }`
-- `ProgressNotice {title, text, percent}` and `ResultNotice {title, text}`: immutable, with value equality.
-- `abstract interface class BackgroundWorkPlatform`, with one method per channel call: `show(ProgressNotice)`, `stop()`, `postResult(BackgroundJob, ResultNotice)`, `requestNotifications()`, `notificationsEnabled()`, `runsUnrestricted()`, `askToRunUnrestricted()`, `openAppInfo()`.
-- `ChannelBackgroundWorkPlatform`; `backgroundWorkPlatformProvider`.
+- `enum BackgroundJob { script, export }`, with a result notification id per job.
+- `ProgressNotice {title, text, percent}`: immutable, value equality, `body` → `45 % · text`. `ResultNotice {title, text}`.
+- `abstract interface class BackgroundWorkPlatform`:
+  - `show(ProgressNotice)`, `stop()`, `postResult(BackgroundJob, ResultNotice)`
+  - `requestNotifications()`, `notificationsEnabled()`, `runsUnrestricted()`, `askToRunUnrestricted()`, `openAppInfo()`
+- `PluginBackgroundWorkPlatform` over the two packages. It initialises both lazily on first use, and `show` starts the service or updates it. `openAppInfo` uses the existing `status_studio/system` channel. A `ServiceRequestFailure` is thrown as its error. `backgroundWorkPlatformProvider`.
 - `FakeBackgroundWorkPlatform` records calls; `TestSetup` overrides the provider with one.
+- The plugin wrapper is thin glue over static plugin APIs and isn't unit-tested; it's covered by the device checks.
 
-- [ ] **Step 1: Failing tests** `show_sends_title_text_and_percent`, `post_result_names_the_job`, `runs_unrestricted_reads_the_answer` (mock channel).
+- [ ] **Step 1: Failing tests** `progress_body_puts_the_percent_first`, `notices_with_the_same_words_and_percent_are_equal`.
 - [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: call the background work channel from Dart`
+- [ ] **Step 5: Commit** `feat: background work platform over the plugins`
 
 ### Task 3: BackgroundWork and BackgroundAccess
 

@@ -100,8 +100,8 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 - **Expired links:** an expired stream URL (HTTP 403) refreshes the manifest and retries once.
 
 **FR-16 Background work.** Writing a script (Processing) and exporting a reel keep running when the user leaves the app or locks the phone.
-- **How:** while either runs, an Android foreground service (type `dataSync`) holds a partial wake lock and shows an ongoing notification. Android's battery saving and Doze leave a foreground service running, network included. The work itself stays in the app; the service only keeps the process alive.
-- **Ongoing notification:** the running step and the overall percent with a bar. Script: the step name ("Downloading audio", "Writing the script", …) with the video title. Export: "Rendering your reel" with the video title. With both running, it shows the one that started last.
+- **How:** while either runs, an Android foreground service (type `dataSync`, from `flutter_foreground_task`) holds a partial wake lock and a Wi-Fi lock and shows an ongoing notification. Android's battery saving and Doze leave a foreground service running, network included. The work itself stays in the app; the service only keeps the process alive.
+- **Ongoing notification:** the running step as the title and `45 % · <video title>` as the text. Script steps: "Downloading the speech model", "Downloading audio", "Detecting the language", "Writing the script", "Lining up timestamps". Export: "Rendering your reel". With both running, it shows the one that started last.
 - **Result notification:** posted only when the app isn't on screen; tapping it opens the app where the work left off.
   - Script done: "Script ready" · video title. Failed: "Script stopped" · the §8 message.
   - Export done: "Reel ready" · "Tap to save or share it." Failed: "Export stopped" · the §8 message.
@@ -149,7 +149,7 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 | Preview | `video_player` | |
 | Gallery / share | `gal` / `share_plus` | `Gal.putVideo`, `SharePlus.instance.share(ShareParams(files: [XFile(path)]))` |
 | Key-value storage | `shared_preferences` | Added in M6 for recent reels and settings |
-| Background work (Android) | Platform `Service` + `androidx.core` notifications (Gradle) | Kotlin channel `status_studio/background_work`: `show`, `stop`, `postResult`, `requestNotifications`, `notificationsEnabled`, `runsUnrestricted`, `askToRunUnrestricted` (FR-16) |
+| Background work | `flutter_foreground_task`, `flutter_local_notifications` | Foreground service with wake lock, notification permission and battery exemption (`startService`, `updateService`, `stopService`, `requestNotificationPermission`, `requestIgnoreBatteryOptimization`); result notifications (`show`). No TaskHandler: the work stays in the app's isolate (FR-16). `flutter_local_notifications` needs core library desugaring |
 
 ## 6. Domain model and rules
 
@@ -265,7 +265,7 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 | Data saving | Script audio at lowest bitrate (none with captions); video and clip audio downloaded only for the clip window (FR-15) |
 | Reuse | Scripts saved per video/language/source for 90 days; Whisper resumes per 90-second piece (FR-14) |
 | Renderer | Media3 Transformer on Android (hardware H.264), because the bundled FFmpeg can't encode H.264 |
-| Background work | One foreground service kept by Dart while a script or export runs, rather than moving the work into the service: the work already runs in the app process, so keeping the process alive is enough (FR-16) |
+| Background work | One foreground service kept by Dart while a script or export runs, rather than moving the work into the service: the work already runs in the app process, so keeping the process alive is enough. Packages rather than a hand-written Kotlin service, to keep native code small; the ongoing notification shows the percent as text, not a bar (FR-16) |
 
 ## 10. Open questions (resolved by spikes in the milestones)
 
