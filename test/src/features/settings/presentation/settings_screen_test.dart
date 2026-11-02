@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:status_studio/src/features/settings/presentation/speech_model_guide.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -198,5 +199,93 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(ytDlp.updates, 1);
+  });
+
+  group('pause and cancel', () {
+    /// Starts downloading Base and holds it at 50 %.
+    Future<FakeModelManager> downloadingBase(WidgetTester tester) async {
+      final models = FakeModelManager()..gate = Completer<void>();
+      await pumpSettings(tester, models);
+      await tester.tap(
+        find.descendant(of: rowOf('Base'), matching: find.text('Download')),
+      );
+      await tester.pump();
+      return models;
+    }
+
+    Finder inBase(Finder finder) =>
+        find.descendant(of: rowOf('Base'), matching: finder);
+
+    testWidgets('running_download_offers_pause', (tester) async {
+      await downloadingBase(tester);
+
+      expect(inBase(find.byTooltip('Pause')), findsOneWidget);
+    });
+
+    testWidgets('running_download_offers_cancel', (tester) async {
+      await downloadingBase(tester);
+
+      expect(inBase(find.byTooltip('Cancel download')), findsOneWidget);
+    });
+
+    testWidgets('pause_shows_how_far_it_got', (tester) async {
+      await downloadingBase(tester);
+
+      await tester.tap(inBase(find.byTooltip('Pause')));
+      await tester.pumpAndSettle();
+
+      expect(inBase(find.text('Paused · 50 %')), findsOneWidget);
+    });
+
+    testWidgets('pause_shows_no_error', (tester) async {
+      await downloadingBase(tester);
+
+      await tester.tap(inBase(find.byTooltip('Pause')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('resume_continues_the_download', (tester) async {
+      await downloadingBase(tester);
+      await tester.tap(inBase(find.byTooltip('Pause')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(inBase(find.byTooltip('Resume')));
+      await tester.pump();
+
+      expect(inBase(find.text('Downloading… 50 %')), findsOneWidget);
+    });
+
+    testWidgets('cancel_offers_the_download_again', (tester) async {
+      await downloadingBase(tester);
+
+      await tester.tap(inBase(find.byTooltip('Cancel download')));
+      await tester.pumpAndSettle();
+
+      expect(inBase(find.text('Download')), findsOneWidget);
+    });
+
+    testWidgets('paused_download_shows_after_reopening', (tester) async {
+      final models = FakeModelManager()
+        ..partial[SpeechModel.base] =
+            guideFor(SpeechModel.base).downloadBytes ~/ 4;
+
+      await pumpSettings(tester, models);
+
+      expect(inBase(find.text('Paused · 25 %')), findsOneWidget);
+    });
+
+    testWidgets('cancelling_a_paused_download_deletes_it', (tester) async {
+      final models = FakeModelManager()
+        ..partial[SpeechModel.base] =
+            guideFor(SpeechModel.base).downloadBytes ~/ 4;
+      await pumpSettings(tester, models);
+
+      await tester.tap(inBase(find.byTooltip('Cancel download')));
+      await tester.pumpAndSettle();
+
+      expect(models.partial, isEmpty);
+    });
   });
 }

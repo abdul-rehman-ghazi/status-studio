@@ -27,6 +27,13 @@ void main() {
     );
   });
 
+  test('maps_stopped_model_download', () {
+    expect(
+      errorMessageFor(const ModelDownloadStoppedException()),
+      'The speech model download was stopped.',
+    );
+  });
+
   test('maps_model_download', () {
     expect(
       errorMessageFor(const ModelDownloadException('x')),

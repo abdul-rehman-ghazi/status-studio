@@ -83,6 +83,14 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 - [ ] Tap the script row: Script opens straight away with every line and the "Using the saved script" banner, with no download.
 - [ ] Long-press the script row, Delete: the row goes, and pasting the link again writes the script again.
 
+### Model downloads: pause and cancel
+- [ ] Settings → download Small, tap Pause at about 30 %: the row shows "Paused · 30 %" at once, even with a slow connection.
+- [ ] Resume: it carries on from about 30 %, not 0; the finished model writes a script.
+- [ ] Pause, close the app from Recents, reopen Settings: still "Paused · 30 %"; Resume continues.
+- [ ] Cancel while downloading and while paused: the row offers Download again, and no `.part` file is left.
+- [ ] Airplane mode mid-download: "Couldn't download the speech model." with Retry; Retry continues from where it stopped.
+- [ ] Start a script that needs a model, then pause that download in Settings: Processing shows "The speech model download was stopped." with Retry, which resumes it.
+
 ## Fixes found on the phone (not yet made)
 
 - [x] YouTube caption lines keep `♪` symbols and `[♪♪♪]` placeholder lines; they would end up in the clip caption. *Fixed: music symbols and sound tags are dropped.*

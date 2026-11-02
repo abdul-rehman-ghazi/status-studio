@@ -12,6 +12,7 @@ String errorMessageFor(Object error) {
       "Couldn't read this video from YouTube. Try again later.",
     InsufficientStorageException() => 'Not enough space on your phone.',
     ModelDownloadException() => "Couldn't download the speech model.",
+    ModelDownloadStoppedException() => 'The speech model download was stopped.',
     NoSpeechFoundException() => 'No speech found in this video.',
     RenderFailedException() => "Couldn't make the reel.",
     TranslationPackMissingException() => 'English needs a one-time download.',

@@ -34,3 +34,10 @@ class SettingsController extends AsyncNotifier<SpeechModel> {
 final modelSizeProvider = FutureProvider.autoDispose.family<int, SpeechModel>(
   (ref, model) => ref.watch(modelManagerProvider).sizeOnDisk(model),
 );
+
+/// Bytes kept from a paused download of [SpeechModel]; 0 when there are
+/// none.
+final modelPartialSizeProvider = FutureProvider.autoDispose
+    .family<int, SpeechModel>(
+      (ref, model) => ref.watch(modelManagerProvider).partialSize(model),
+    );

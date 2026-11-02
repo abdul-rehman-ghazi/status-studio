@@ -8,6 +8,12 @@ class ModelDownloadException implements Exception {
   String toString() => 'ModelDownloadException: $reason';
 }
 
+/// The speech model download was paused or cancelled while something
+/// waited for it (spec §8).
+class ModelDownloadStoppedException implements Exception {
+  const ModelDownloadStoppedException();
+}
+
 /// Whisper failed on a chunk of audio.
 class TranscriptionFailedException implements Exception {
   const TranscriptionFailedException(this.reason);

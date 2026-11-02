@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import 'package:status_studio/src/features/source/application/yt_dlp_updater.dar
 import 'package:status_studio/src/features/source/data/yt_dlp.dart';
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 /// The speech model: which one Whisper uses, and which are on the phone
 /// (spec FR-12).
@@ -71,6 +73,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       select: () => unawaited(settings.select(model)),
                       download: () => unawaited(_download(model)),
                       delete: () => unawaited(_delete(model)),
+                      pause: () => unawaited(_pause(model)),
+                      cancel: () => unawaited(_cancel(model)),
                     ),
                   ),
               ],
@@ -103,12 +107,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           setState(() => _downloading[model] = amount.fraction);
         }
       }
+    } on ModelDownloadStoppedException {
+      // Paused or cancelled by the user; the row shows which.
     } on Exception catch (error) {
       _showFailure(error, retry: () => unawaited(_download(model)));
     } finally {
       if (mounted) {
         setState(() => _downloading.remove(model));
-        ref.invalidate(modelSizeProvider(model));
+        _refreshSizes(model);
       }
     }
   }
@@ -116,6 +122,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _delete(SpeechModel model) async {
     await ref.read(modelManagerProvider).delete(model);
     ref.invalidate(modelSizeProvider(model));
+  }
+
+  /// Sizes are read again once the transfer has closed its file, so the
+  /// paused percent counts every byte written.
+  Future<void> _pause(SpeechModel model) async {
+    await ref.read(modelManagerProvider).pause(model);
+    if (mounted) {
+      _refreshSizes(model);
+    }
+  }
+
+  Future<void> _cancel(SpeechModel model) async {
+    await ref.read(modelManagerProvider).cancel(model);
+    if (mounted) {
+      _refreshSizes(model);
+    }
+  }
+
+  void _refreshSizes(SpeechModel model) {
+    ref
+      ..invalidate(modelSizeProvider(model))
+      ..invalidate(modelPartialSizeProvider(model));
   }
 
   /// Spec §8: "Couldn't download the speech model." with Retry.
@@ -136,7 +164,13 @@ typedef _ModelActions = ({
   VoidCallback select,
   VoidCallback download,
   VoidCallback delete,
+  VoidCallback pause,
+  VoidCallback cancel,
 });
+
+/// How much of a model is on the phone: the whole file, or the bytes a
+/// paused download kept.
+typedef _ModelBytes = ({int downloaded, int partial});
 
 class _ModelRow extends ConsumerWidget {
   const _ModelRow({
@@ -153,7 +187,10 @@ class _ModelRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bytes = ref.watch(modelSizeProvider(model)).value ?? 0;
+    final bytes = (
+      downloaded: ref.watch(modelSizeProvider(model)).value ?? 0,
+      partial: ref.watch(modelPartialSizeProvider(model)).value ?? 0,
+    );
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Radio<SpeechModel>(value: model),
@@ -174,26 +211,78 @@ class _ModelRow extends ConsumerWidget {
     );
   }
 
-  String _status(int bytes) {
+  String _status(_ModelBytes bytes) {
     if (downloadFraction case final fraction?) {
-      return 'Downloading… ${(fraction * 100).round()} %';
+      return 'Downloading… ${_percent(fraction)} %';
     }
-    if (bytes > 0) {
-      return '${sizeText(bytes)} on your phone';
+    if (bytes.downloaded > 0) {
+      return '${sizeText(bytes.downloaded)} on your phone';
+    }
+    if (bytes.partial > 0) {
+      return 'Paused · ${_percent(_pausedFraction(bytes.partial))} %';
     }
     return '${sizeText(guideFor(model).downloadBytes)} download';
   }
 
-  Widget? _action(int bytes) {
+  Widget _action(_ModelBytes bytes) {
     if (downloadFraction != null) {
-      return null;
+      return _IconActions([
+        (icon: Icons.pause, tooltip: 'Pause', onPressed: actions.pause),
+        _cancelAction,
+      ]);
     }
-    if (bytes > 0) {
+    if (bytes.downloaded > 0) {
       return TextButton(onPressed: actions.delete, child: const Text('Delete'));
+    }
+    if (bytes.partial > 0) {
+      return _IconActions([
+        (
+          icon: Icons.play_arrow,
+          tooltip: 'Resume',
+          onPressed: actions.download,
+        ),
+        _cancelAction,
+      ]);
     }
     return TextButton(
       onPressed: actions.download,
       child: const Text('Download'),
+    );
+  }
+
+  _IconAction get _cancelAction => (
+    icon: Icons.close,
+    tooltip: 'Cancel download',
+    onPressed: actions.cancel,
+  );
+
+  /// The kept bytes don't say how big the file is; the guide does.
+  double _pausedFraction(int partialBytes) =>
+      math.min(1, partialBytes / guideFor(model).downloadBytes);
+}
+
+int _percent(double fraction) => (fraction * 100).round();
+
+typedef _IconAction = ({IconData icon, String tooltip, VoidCallback onPressed});
+
+class _IconActions extends StatelessWidget {
+  const _IconActions(this.actions);
+
+  final List<_IconAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final action in actions)
+          IconButton(
+            icon: Icon(action.icon),
+            tooltip: action.tooltip,
+            visualDensity: VisualDensity.compact,
+            onPressed: action.onPressed,
+          ),
+      ],
     );
   }
 }

@@ -80,7 +80,14 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 - **Saved scripts in Recent:** every saved script (FR-14) also has a row, as soon as the video is processed and before any lines are picked. Reels and scripts share one list, newest first; with neither, it reads "Your reels and scripts will appear here." A script row shows a script icon, the video title and `Script · <language> · <video length> · <d MMM>`, where an automatic script names its detected language ("Urdu (detected)"). Tap opens Script with the whole script, without Processing work or downloads (the same path as pasting the link again). Long-press offers Delete, which removes that video's script in that language and any unfinished Whisper progress for it.
 - One row per video and requested language. Scripts saved before video details were kept have no title, so they appear once their link is opened again.
 
-**FR-12 Settings.** Model: any multilingual Whisper model (tiny, base, small, medium, large-v3, each as its 5-bit quantised file, §10 Q2; default small, marked "recommended"), each with its download size or size on disk and Download / Delete. An info button opens a sheet with the model's pros and cons (speed relative to small, accuracy, memory it needs). English-only models aren't offered: they can't write other languages. Downloads show progress. If transcription starts without the model, the model downloads first as a step on the Processing screen.
+**FR-12 Settings.** Model: any multilingual Whisper model (tiny, base, small, medium, large-v3, each as its 5-bit quantised file, §10 Q2; default small, marked "recommended"), each with its download size or size on disk and Download / Delete. An info button opens a sheet with the model's pros and cons (speed relative to small, accuracy, memory it needs). English-only models aren't offered: they can't write other languages. Downloads show progress.
+- **Pause and cancel:** a running download has Pause and Cancel.
+  - Pause keeps the bytes received; the row shows "Paused · 45 %" with Resume and Cancel, also after the app restarts.
+  - Resume continues from those bytes with an HTTP range request, and starts over if the server sends the whole file.
+  - Cancel deletes them.
+  - A download that fails also keeps its bytes, so Retry continues it. A full phone deletes them.
+  - Transcription that needs a paused model resumes its download.
+  - A script waiting for a download that is paused or cancelled stops with the §8 message. If transcription starts without the model, the model downloads first as a step on the Processing screen.
 
 **FR-13 Offline.** With the model downloaded and the source cached, transcription, translation (once its ML Kit language pack is downloaded) and export work without a network.
 
@@ -244,6 +251,7 @@ It is drawn by one `LogoPainter`. The same painter serves the app UI, the export
 | No network during download | Processing | You're offline. Connect and try again. | Retry, Back |
 | YouTube changed and yt-dlp can't read the video, even after updating itself | Source / Processing | Couldn't read this video from YouTube. Try again later. | Retry, Back |
 | Model download failed | Processing / Settings | Couldn't download the speech model. | Retry |
+| Model download paused or cancelled while a script waits for it | Processing | The speech model download was stopped. | Retry, Back |
 | No speech found | Processing | No speech found in this video. | Try another language, Back |
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
