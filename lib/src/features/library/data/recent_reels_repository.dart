@@ -16,53 +16,79 @@ class RecentReelsRepository {
 
   final SharedPreferencesAsync preferences;
 
-  /// Reels whose MP4 still exists. A corrupt list reads as empty rather
-  /// than stopping the app from opening.
+  /// Reels whose MP4 still exists. Entries this version can't read are
+  /// left out but kept in storage, so a corrupt or newer entry never
+  /// stops the app from opening and is never written over.
   Future<List<RecentReel>> load() async {
-    final reels = await _stored();
-    return reels.where((reel) => File(reel.videoPath).existsSync()).toList();
+    final stored = await _stored();
+    return stored.reels
+        .where((reel) => File(reel.videoPath).existsSync())
+        .toList();
   }
 
   /// Adds [reel] as the newest; the oldest beyond [maximum] go, files too.
   Future<void> add(RecentReel reel) async {
-    final reels = [reel, ...await _stored()];
-    final kept = reels.take(maximum).toList();
+    final stored = await _stored();
+    final reels = [reel, ...stored.reels];
     for (final dropped in reels.skip(maximum)) {
       _deleteFiles(dropped);
     }
-    await _save(kept);
+    await _save((
+      reels: reels.take(maximum).toList(),
+      unreadable: stored.unreadable,
+    ));
   }
 
   Future<void> delete(String id) async {
-    final reels = await _stored();
-    for (final doomed in reels.where((reel) => reel.id == id)) {
+    final stored = await _stored();
+    for (final doomed in stored.reels.where((reel) => reel.id == id)) {
       _deleteFiles(doomed);
     }
-    await _save(reels.where((reel) => reel.id != id).toList());
+    await _save((
+      reels: stored.reels.where((reel) => reel.id != id).toList(),
+      unreadable: stored.unreadable,
+    ));
   }
 
-  Future<List<RecentReel>> _stored() async {
+  Future<_StoredReels> _stored() async {
     final json = await preferences.getString(_key);
     if (json == null) {
-      return [];
+      return (reels: <RecentReel>[], unreadable: <Object?>[]);
     }
     try {
-      final entries = jsonDecode(json) as List<Object?>;
-      return [
-        for (final entry in entries)
-          RecentReel.fromJson(entry! as Map<String, Object?>),
-      ];
+      return _parseEntries(jsonDecode(json) as List<Object?>);
     } on FormatException {
-      return [];
+      return (reels: <RecentReel>[], unreadable: <Object?>[json]);
     } on TypeError {
-      return [];
+      return (reels: <RecentReel>[], unreadable: <Object?>[json]);
     }
   }
 
-  Future<void> _save(List<RecentReel> reels) => preferences.setString(
+  Future<void> _save(_StoredReels stored) => preferences.setString(
     _key,
-    jsonEncode([for (final reel in reels) reel.toJson()]),
+    jsonEncode([
+      for (final reel in stored.reels) reel.toJson(),
+      ...stored.unreadable,
+    ]),
   );
+}
+
+/// Readable reels, and the raw entries that weren't, kept to write back.
+typedef _StoredReels = ({List<RecentReel> reels, List<Object?> unreadable});
+
+_StoredReels _parseEntries(List<Object?> entries) {
+  final reels = <RecentReel>[];
+  final unreadable = <Object?>[];
+  for (final entry in entries) {
+    try {
+      reels.add(RecentReel.fromJson(entry! as Map<String, Object?>));
+    } on FormatException {
+      unreadable.add(entry);
+    } on TypeError {
+      unreadable.add(entry);
+    }
+  }
+  return (reels: reels, unreadable: unreadable);
 }
 
 /// Unlinking is quick even for a large MP4, so this needn't be async.

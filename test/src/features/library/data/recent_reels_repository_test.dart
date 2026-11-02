@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -99,6 +100,50 @@ void main() {
     final ids = (await repository.load()).map((reel) => reel.id);
 
     expect(ids, ['2']);
+  });
+
+  test('unreadable_entry_hides_only_itself', () async {
+    await repository.add(reel(1));
+    final stored = jsonDecode(
+      (await SharedPreferencesAsync().getString('recentReels'))!,
+    ) as List<Object?>;
+    await SharedPreferencesAsync().setString(
+      'recentReels',
+      jsonEncode([
+        ...stored,
+        {'id': 'from a later version'},
+      ]),
+    );
+
+    final ids = (await repository.load()).map((reel) => reel.id);
+
+    expect(ids, ['1']);
+  });
+
+  test('add_keeps_unreadable_entries', () async {
+    const unreadable = {'id': 'from a later version'};
+    await SharedPreferencesAsync().setString(
+      'recentReels',
+      jsonEncode([unreadable]),
+    );
+
+    await repository.add(reel(1));
+
+    final stored = jsonDecode(
+      (await SharedPreferencesAsync().getString('recentReels'))!,
+    ) as List<Object?>;
+    expect(stored, contains(equals(unreadable)));
+  });
+
+  test('add_keeps_an_unreadable_list', () async {
+    await SharedPreferencesAsync().setString('recentReels', '{not json');
+
+    await repository.add(reel(1));
+
+    final stored = jsonDecode(
+      (await SharedPreferencesAsync().getString('recentReels'))!,
+    ) as List<Object?>;
+    expect(stored, contains('{not json'));
   });
 
   test('corrupt_json_yields_empty_list', () async {
