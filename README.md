@@ -23,7 +23,7 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 | [M3](docs/superpowers/plans/2026-10-29-m3-transcription.md) | On-device script: Whisper, YouTube captions, language detection | Done (branch m3-transcription) |
 | [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Done (branch m4-fine-tune) |
 | [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, Media3 export | Done (branch m5-render) |
-| [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Next |
+| [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Done (branch m6-library-settings-polish) |
 
 ## Features (planned)
 
