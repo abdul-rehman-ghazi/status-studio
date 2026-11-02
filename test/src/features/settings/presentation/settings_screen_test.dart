@@ -8,6 +8,7 @@ import 'package:status_studio/src/features/transcript/domain/transcript_errors.d
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_model_manager.dart';
+import '../../../../helpers/fake_yt_dlp.dart';
 import '../../../../helpers/pump_app.dart';
 
 Future<void> pumpSettings(WidgetTester tester, FakeModelManager models) =>
@@ -149,5 +150,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('148 MB on your phone'), findsOneWidget);
+  });
+
+  testWidgets('settings_shows_yt_dlp_version', (tester) async {
+    await pumpSettings(tester, FakeModelManager());
+
+    expect(find.text('yt-dlp 2026.10.26'), findsOneWidget);
+  });
+
+  testWidgets('update_button_updates_yt_dlp', (tester) async {
+    final ytDlp = FakeYtDlp();
+    await pumpRoutes(tester, [
+      AppRoutes.settings,
+    ], setup: TestSetup(modelManager: FakeModelManager(), ytDlp: ytDlp));
+
+    await tester.tap(find.text('Update'));
+    await tester.pumpAndSettle();
+
+    expect(ytDlp.updates, 1);
   });
 }

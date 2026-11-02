@@ -14,6 +14,7 @@ import 'package:status_studio/src/features/source/data/yt_dlp.dart';
 import 'package:status_studio/src/features/source/data/yt_dlp_info.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/segment_index.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/source/domain/stream_choice.dart';
 import 'package:status_studio/src/features/transcript/domain/caption_track_choice.dart';
@@ -260,14 +261,32 @@ class YouTubeVideoSource implements VideoSource {
   /// Without JavaScript first, which is about twice as fast; with QuickJS
   /// only when YouTube gave no streams that way (spec §10 Q4).
   Future<YtDlpInfo> _read(String videoId) async {
-    final quick = YtDlpInfo.fromJson(
-      await services.ytDlp.quickVideoInfo(videoId),
-    );
-    if (quick.videoFormats.isNotEmpty && quick.audioFormats.isNotEmpty) {
-      return quick;
+    try {
+      final quick = YtDlpInfo.fromJson(
+        await services.ytDlp.quickVideoInfo(videoId),
+      );
+      if (quick.videoFormats.isNotEmpty && quick.audioFormats.isNotEmpty) {
+        return quick;
+      }
+    } on YouTubeChangedException {
+      // Some videos only answer the clients that need challenge solving.
     }
-    return YtDlpInfo.fromJson(await services.ytDlp.videoInfo(videoId));
+    return _fullReadUpdatingOnce(videoId);
   }
+
+  /// A YouTube change usually needs a newer yt-dlp, so one failed read
+  /// updates it and tries once more before giving up (spec §8).
+  Future<YtDlpInfo> _fullReadUpdatingOnce(String videoId) async {
+    try {
+      return await _fullRead(videoId);
+    } on YouTubeChangedException {
+      await services.ytDlp.update();
+      return _fullRead(videoId);
+    }
+  }
+
+  Future<YtDlpInfo> _fullRead(String videoId) async =>
+      YtDlpInfo.fromJson(await services.ytDlp.videoInfo(videoId));
 
   Future<Map<String, Object?>> _json(Uri url) => guardIo(() async {
     final request = await services.captionClient.getUrl(url);

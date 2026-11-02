@@ -188,6 +188,40 @@ void main() {
     expect(transcript.lines.single.text, 'from json3');
   });
 
+  test('quick_run_failure_falls_back_to_solving_challenges', () async {
+    ytDlp
+      ..quick = null
+      ..failure = const YouTubeChangedException('no player response')
+      ..full = naatJson();
+
+    final video = await source().fetchVideo('s6kE_uP3xH4');
+
+    expect(video.title, 'Main Madine Chala');
+  });
+
+  test('extraction_failure_retries_after_update', () async {
+    ytDlp
+      ..quick = null
+      ..failure = const YouTubeChangedException('no player response')
+      ..fullAfterUpdate = naatJson();
+
+    final video = await source().fetchVideo('s6kE_uP3xH4');
+
+    expect([video.title, ytDlp.updates], ['Main Madine Chala', 1]);
+  });
+
+  test('extraction_failure_updates_once_then_reports', () async {
+    ytDlp
+      ..quick = null
+      ..failure = const YouTubeChangedException('no player response');
+
+    await expectLater(
+      source().fetchVideo('s6kE_uP3xH4'),
+      throwsA(isA<YouTubeChangedException>()),
+    );
+    expect(ytDlp.updates, 1);
+  });
+
   test('unreadable_video_keeps_its_error', () async {
     ytDlp
       ..quick = null

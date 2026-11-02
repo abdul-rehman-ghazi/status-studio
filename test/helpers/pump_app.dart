@@ -22,6 +22,7 @@ import 'package:status_studio/src/features/source/data/clip_source_preparer.dart
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
+import 'package:status_studio/src/features/source/data/yt_dlp.dart';
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
 import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
@@ -35,6 +36,7 @@ import 'fake_clip_preparer.dart';
 import 'fake_model_manager.dart';
 import 'fake_reel_actions.dart';
 import 'fake_video_player.dart';
+import 'fake_yt_dlp.dart';
 import 'recording_ffmpeg.dart';
 
 /// What a widget test runs the app with. Services that would touch the
@@ -52,6 +54,7 @@ class TestSetup {
     this.reelActions,
     this.recentReels = const [],
     this.modelManager,
+    this.ytDlp,
   });
 
   final List<Override> overrides;
@@ -77,6 +80,9 @@ class TestSetup {
   /// Defaults to a [FakeModelManager] with nothing downloaded.
   final ModelManager? modelManager;
 
+  /// Defaults to a fresh [FakeYtDlp]; the video source is faked anyway.
+  final YtDlp? ytDlp;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
@@ -84,6 +90,7 @@ class TestSetup {
     reelActionsProvider.overrideWithValue(reelActions ?? FakeReelActions()),
     ffmpegRunnerProvider.overrideWithValue(const SilentFfmpegRunner()),
     modelManagerProvider.overrideWithValue(modelManager ?? FakeModelManager()),
+    ytDlpProvider.overrideWithValue(ytDlp ?? FakeYtDlp()),
     // The probe needs FFprobe; every test clip is 1920 × 1080.
     clipFrameSizeProvider.overrideWith(
       (ref, source) async => const OutputSize(1920, 1080),

@@ -8,6 +8,8 @@ String errorMessageFor(Object error) {
   return switch (error) {
     VideoUnavailableException() => "This video can't be downloaded.",
     OfflineException() => "You're offline. Connect and try again.",
+    YouTubeChangedException() =>
+      "Couldn't read this video from YouTube. Try again later.",
     InsufficientStorageException() => 'Not enough space on your phone.',
     ModelDownloadException() => "Couldn't download the speech model.",
     NoSpeechFoundException() => 'No speech found in this video.',

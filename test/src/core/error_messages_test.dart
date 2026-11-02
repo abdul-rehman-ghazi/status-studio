@@ -13,6 +13,13 @@ void main() {
     );
   });
 
+  test('maps_youtube_changed', () {
+    expect(
+      errorMessageFor(const YouTubeChangedException('x')),
+      "Couldn't read this video from YouTube. Try again later.",
+    );
+  });
+
   test('maps_offline', () {
     expect(
       errorMessageFor(const OfflineException('x')),

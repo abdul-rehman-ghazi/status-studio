@@ -226,6 +226,7 @@ It is drawn by one `LogoPainter`. The same painter serves the app UI, the export
 | Invalid link | Source | That doesn't look like a YouTube link. | Edit |
 | Video unavailable, private or age-restricted | Processing | This video can't be downloaded. | Back |
 | No network during download | Processing | You're offline. Connect and try again. | Retry, Back |
+| YouTube changed and yt-dlp can't read the video, even after updating itself | Source / Processing | Couldn't read this video from YouTube. Try again later. | Retry, Back |
 | Model download failed | Processing / Settings | Couldn't download the speech model. | Retry |
 | No speech found | Processing | No speech found in this video. | Try another language, Back |
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |

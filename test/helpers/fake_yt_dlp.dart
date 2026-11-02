@@ -8,6 +8,9 @@ class FakeYtDlp implements YtDlp {
   Map<String, Object?>? quick;
   Map<String, Object?>? full;
   Exception? failure;
+
+  /// What the full run answers once yt-dlp has been updated, when set.
+  Map<String, Object?>? fullAfterUpdate;
   var quickRuns = 0;
   var fullRuns = 0;
   var updates = 0;
@@ -21,6 +24,9 @@ class FakeYtDlp implements YtDlp {
   @override
   Future<Map<String, Object?>> videoInfo(String videoId) async {
     fullRuns++;
+    if (updates > 0 && fullAfterUpdate != null) {
+      return fullAfterUpdate!;
+    }
     return full ?? (throw failure!);
   }
 
