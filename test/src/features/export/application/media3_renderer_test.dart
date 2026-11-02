@@ -57,6 +57,15 @@ class FakeNative {
   }
 }
 
+/// Waits until the renderer has called `start`: it writes files first, which
+/// takes real time, so a fixed number of event-loop turns isn't enough.
+Future<void> untilStarted(FakeNative native) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (native.calls.isEmpty && DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
 void finishWithProgress(MockStreamHandlerEventSink sink) {
   sink
     ..success({'type': 'progress', 'value': 0.5})
@@ -151,7 +160,7 @@ void main() {
   test('cancel_invokes_native_cancel_and_deletes_partial', () async {
     final native = FakeNative((_) {})..install();
     final run = renderer.render(pickedDraft).listen((_) {});
-    await pumpEventQueue();
+    await untilStarted(native);
     final partial = File(
       (native.calls.single.arguments as Map<Object?, Object?>)['outputPath']!
           as String,
@@ -196,7 +205,7 @@ void main() {
   test('cancel_deletes_partial_even_when_native_cancel_fails', () async {
     final native = FakeNative((_) {})..install();
     final run = renderer.render(pickedDraft).listen((_) {}, onError: (_) {});
-    await pumpEventQueue();
+    await untilStarted(native);
     final partial = File(
       (native.calls.single.arguments as Map<Object?, Object?>)['outputPath']!
           as String,

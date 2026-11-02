@@ -40,14 +40,15 @@
 - `abstract interface class ReelActions { Future<void> saveToGallery(String videoPath); Future<void> share(String videoPath); }`
   - `GalReelActions`: `Gal.hasAccess()`/`requestAccess()`, then `Gal.putVideo`; throws `GalleryAccessDeniedException`.
   - Share uses `SharePlus.instance.share(ShareParams(files: [XFile(videoPath)]))`.
-- `reelActionsProvider`.
+- `reelActionsProvider`. `ReelActions` also has `openAppSettings()`, which goes through a `status_studio/system` channel in `MainActivity`, since neither `gal` nor `share_plus` can open the app's Settings page.
+- Until Task 3, Done takes the reel's file as `/done?path=…` (`AppRoutes.doneFor`).
 
-- [ ] **Step 1: Failing tests** (fake actions):
+- [x] **Step 1: Failing tests** (fake actions):
   - `save_shows_saved_state`
   - `save_without_access_shows_permission_message`: "Allow Photos access in Settings to save reels." with an "Open settings" action.
   - `share_calls_share_with_video_path`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: save reels to gallery and share`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: save reels to gallery and share`
 
 ### Task 2: Recent reels repository
 
