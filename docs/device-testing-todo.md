@@ -65,6 +65,8 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 
 ### M8: background work
 - [ ] First "Get the script" asks for notifications (Android 13+), then "Let app always run in background?". Neither is asked again.
+- [ ] Tap "Get the script" and lock the phone within 2 seconds: the run still finishes (the service starts before the first progress).
+- [ ] The ongoing notification stays through Home, the lock screen and the permission dialogs; it goes when the task is swiped away from Recents.
 - [ ] Writing a script, press Home: an ongoing notification shows the step, e.g. "Writing the script", and `45 % · <video title>`, and it moves.
 - [ ] Lock the phone for the whole of a Whisper run (at least 5 minutes, long enough for Doze): it finishes, and "Script ready" arrives. Tapping it opens the Script screen with every line.
 - [ ] Export, then lock the phone: the render finishes, and "Reel ready" arrives. Tapping it opens Done.
@@ -73,6 +75,7 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 - [ ] Whisper still writing while exporting: the notification shows the export, then the script again once the export ends; the service stops only when both are done.
 - [ ] Redmi Note 11 (MIUI/HyperOS): with Battery saver at its default, does a locked run survive? If not, set "No restrictions" through "Open App info" and check again; note which was needed.
 - [ ] Settings → Background work: both rows read correctly. "Allow" opens the system dialog, and the row updates when you come back.
+- [ ] Whisper `small` on a 4 GB phone with the service running (the plugin starts a second, idle Flutter engine): no out-of-memory crash.
 - [ ] Notification icon shows the Trim brackets and waveform, not a white square.
 
 ## Fixes found on the phone (not yet made)

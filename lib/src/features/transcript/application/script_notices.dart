@@ -14,6 +14,13 @@ class ScriptNotices implements JobNotices<ScriptProgress> {
   BackgroundJob get job => BackgroundJob.script;
 
   @override
+  ProgressNotice get starting => ProgressNotice(
+    title: 'Getting the script',
+    text: video.title,
+    percent: 0,
+  );
+
+  @override
   ProgressNotice progress(ScriptProgress event) => ProgressNotice(
     title: event.stage.label,
     text: video.title,

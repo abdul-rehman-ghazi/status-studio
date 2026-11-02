@@ -16,6 +16,10 @@ typedef BackgroundWorkServices = ({
 abstract interface class JobNotices<T> {
   BackgroundJob get job;
 
+  /// Shown as soon as the work starts: its first event can take a while
+  /// (yt-dlp, a clip download), and the user may leave before it comes.
+  ProgressNotice get starting;
+
   ProgressNotice progress(T event);
 
   ResultNotice get done;
@@ -41,38 +45,11 @@ class BackgroundWork {
   /// the show before it.
   Future<void> _platformCalls = Future.value();
 
-  /// [work] unchanged, kept running in the background while it's listened
-  /// to. Cancelling the result cancels [work] and ends the job quietly.
-  Stream<T> keepRunning<T>(Stream<T> work, JobNotices<T> notices) {
-    final job = notices.job;
-    late final StreamSubscription<T> source;
-    final kept = StreamController<T>();
-    kept
-      ..onListen = () {
-        source = work.listen(
-          (event) {
-            showProgress(job, notices.progress(event));
-            kept.add(event);
-          },
-          onError: (Object error, StackTrace stackTrace) {
-            finish(job, notices.failed(error));
-            kept.addError(error, stackTrace);
-            unawaited(kept.close());
-          },
-          onDone: () {
-            finish(job, notices.done);
-            unawaited(kept.close());
-          },
-          cancelOnError: true,
-        );
-      }
-      // Also runs after done or an error, when the job has already ended.
-      ..onCancel = () {
-        cancel(job);
-        return source.cancel();
-      };
-    return kept.stream;
-  }
+  /// [work] unchanged, kept running in the background from the moment
+  /// it's listened to. Cancelling the result cancels [work] and ends the
+  /// job quietly.
+  Stream<T> keepRunning<T>(Stream<T> work, JobNotices<T> notices) =>
+      _KeptRun(this, work, notices).stream;
 
   void showProgress(BackgroundJob job, ProgressNotice notice) {
     if (_running.isEmpty) {
@@ -111,11 +88,79 @@ class BackgroundWork {
       return;
     }
     _shown = latest;
-    _queue(() => _services.platform.show(latest));
+    _queue(() => _showOrForget(latest));
+  }
+
+  /// A notice that never reached the phone is forgotten, so the next
+  /// update sends it again even when it hasn't changed.
+  Future<void> _showOrForget(ProgressNotice notice) async {
+    try {
+      await _services.platform.show(notice);
+    } on Object {
+      if (_shown == notice) {
+        _shown = null;
+      }
+      rethrow;
+    }
   }
 
   void _queue(Future<void> Function() call) {
     _platformCalls = _platformCalls.then((_) => _reportingErrors(call));
+  }
+}
+
+/// One kept stream: passes [_work] through and tells [BackgroundWork]
+/// where it has got to.
+class _KeptRun<T> {
+  _KeptRun(this._background, this._work, this._notices) {
+    _kept = StreamController<T>(
+      onListen: _start,
+      onPause: () => _source.pause(),
+      onResume: () => _source.resume(),
+      onCancel: _cancel,
+    );
+  }
+
+  final BackgroundWork _background;
+  final Stream<T> _work;
+  final JobNotices<T> _notices;
+  late final StreamController<T> _kept;
+  late final StreamSubscription<T> _source;
+
+  Stream<T> get stream => _kept.stream;
+
+  BackgroundJob get _job => _notices.job;
+
+  void _start() {
+    _background.showProgress(_job, _notices.starting);
+    _source = _work.listen(
+      _onData,
+      onError: _onError,
+      onDone: _onDone,
+      cancelOnError: true,
+    );
+  }
+
+  void _onData(T event) {
+    _background.showProgress(_job, _notices.progress(event));
+    _kept.add(event);
+  }
+
+  void _onError(Object error, StackTrace stackTrace) {
+    _background.finish(_job, _notices.failed(error));
+    _kept.addError(error, stackTrace);
+    unawaited(_kept.close());
+  }
+
+  void _onDone() {
+    _background.finish(_job, _notices.done);
+    unawaited(_kept.close());
+  }
+
+  /// Also runs after done or an error, when the job has already ended.
+  Future<void> _cancel() {
+    _background.cancel(_job);
+    return _source.cancel();
   }
 }
 

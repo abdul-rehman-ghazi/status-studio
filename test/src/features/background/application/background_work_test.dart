@@ -28,6 +28,9 @@ class PercentNotices implements JobNotices<int> {
   BackgroundJob get job => BackgroundJob.script;
 
   @override
+  ProgressNotice get starting => progress(0);
+
+  @override
   ProgressNotice progress(int event) =>
       ProgressNotice(title: 'Writing', text: 'Video', percent: event);
 
@@ -92,13 +95,32 @@ void main() {
     expect(platform.isRunning, isTrue);
   });
 
-  test('stop_follows_the_last_show', () async {
+  test('stop_waits_for_the_show_before_it', () async {
+    platform.showGate = Completer<void>();
     work
       ..showProgress(BackgroundJob.script, writing)
       ..cancel(BackgroundJob.script);
     await pumpEventQueue();
 
+    platform.showGate!.complete();
+    await pumpEventQueue();
+
     expect(platform.serviceCalls, ['show', 'stop']);
+  });
+
+  test('failed_show_is_retried_with_the_same_notice', () async {
+    final previousOnError = FlutterError.onError;
+    FlutterError.onError = (_) {};
+    addTearDown(() => FlutterError.onError = previousOnError);
+    platform.showFailure = Exception('Service refused');
+    work.showProgress(BackgroundJob.script, writing);
+    await pumpEventQueue();
+
+    platform.showFailure = null;
+    work.showProgress(BackgroundJob.script, writing);
+    await pumpEventQueue();
+
+    expect(platform.shown, [writing]);
   });
 
   test('cancel_stops_without_a_result', () async {
@@ -169,7 +191,30 @@ void main() {
           .drain<void>();
       await pumpEventQueue();
 
-      expect(platform.shown.map((notice) => notice.percent), [10, 20]);
+      expect(platform.shown.map((notice) => notice.percent), [0, 10, 20]);
+    });
+
+    test('listening_starts_the_service_before_the_first_event', () async {
+      final source = StreamController<int>();
+      final subscription = work
+          .keepRunning(source.stream, notices)
+          .listen(null);
+      await pumpEventQueue();
+
+      expect(platform.isRunning, isTrue);
+      await subscription.cancel();
+    });
+
+    test('pausing_the_kept_stream_pauses_the_source', () async {
+      final source = StreamController<int>();
+      final subscription = work
+          .keepRunning(source.stream, notices)
+          .listen(null);
+
+      subscription.pause();
+
+      expect(source.isPaused, isTrue);
+      await subscription.cancel();
     });
 
     test('finished_work_posts_done', () async {

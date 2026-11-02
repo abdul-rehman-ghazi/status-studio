@@ -18,6 +18,10 @@ void main() {
     );
   });
 
+  test('export_starting_notice_is_at_zero', () {
+    expect(notices.starting.percent, 0);
+  });
+
   test('finished_render_is_at_one_hundred_percent', () {
     expect(notices.progress(const RenderFinished('reel.mp4')).percent, 100);
   });

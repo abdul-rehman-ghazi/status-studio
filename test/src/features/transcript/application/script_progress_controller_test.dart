@@ -160,7 +160,7 @@ void main() {
       controller().cancel();
       await pumpEventQueue();
 
-      expect(background.serviceCalls, ['show', 'stop']);
+      expect(background.serviceCalls.last, 'stop');
     });
   });
 }

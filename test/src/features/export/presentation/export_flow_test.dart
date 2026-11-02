@@ -222,6 +222,6 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    expect(background.serviceCalls, ['show', 'stop']);
+    expect(background.serviceCalls.last, 'stop');
   });
 }

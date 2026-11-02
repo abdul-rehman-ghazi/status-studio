@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:status_studio/src/features/background/data/background_work_platform.dart';
 import 'package:status_studio/src/features/background/domain/work_notice.dart';
 
@@ -16,6 +18,9 @@ class FakeBackgroundWorkPlatform implements BackgroundWorkPlatform {
   /// Makes [show] throw, as when Android refuses to start the service.
   Object? showFailure;
 
+  /// Holds [show] open until completed, as a slow service start does.
+  Completer<void>? showGate;
+
   bool get isRunning => calls.lastIndexOf('show') > calls.lastIndexOf('stop');
 
   /// Only the calls that start, update or stop the service, in order.
@@ -26,6 +31,7 @@ class FakeBackgroundWorkPlatform implements BackgroundWorkPlatform {
 
   @override
   Future<void> show(ProgressNotice notice) async {
+    await showGate?.future;
     calls.add('show');
     if (showFailure case final failure?) {
       throw failure;

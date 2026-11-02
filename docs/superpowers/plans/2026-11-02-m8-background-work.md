@@ -188,5 +188,14 @@
 - [ ] Device checks in `docs/device-testing-todo.md` (M8 section).
 - [ ] README Roadmap: M8.
 - [ ] `fvm flutter analyze`, `fvm flutter test`, `fvm flutter build apk --debug` clean.
-- [ ] Review by a fresh subagent; fix findings test-first.
+- [x] Review by a fresh subagent; fix findings test-first:
+  - **Fixed:** the plugin's `stopWithTask` option stopped the service whenever the app left the screen; it's removed, and the manifest flag stays.
+  - **Fixed:** the service started only with the first event, which can come seconds later; `JobNotices.starting` now starts it on listen (`listening_starts_the_service_before_the_first_event`).
+  - **Fixed:** the ordering test couldn't fail; the fake's show is now gated (`stop_waits_for_the_show_before_it`).
+  - **Fixed:** a failed show is retried with the same notice (`failed_show_is_retried_with_the_same_notice`), and stopping an already stopped service isn't an error.
+  - **Fixed:** pause and resume reach the source (`pausing_the_kept_stream_pauses_the_source`), and the wrapper is now a small class.
+  - **Accepted:** instant runs (saved scripts) start and stop the service; Android 12+ delays showing its notification, so nothing flashes.
+  - **Accepted:** jobs are keyed by type, not run; no reachable path removes a newer run.
+  - **Accepted:** "Reel ready" is posted before the reel is added to Recent, which fails only on a storage error.
+  - **Device checks added:** the plugin's idle second engine (memory), and locking the phone right after starting.
 - [ ] Commit, push the branch.

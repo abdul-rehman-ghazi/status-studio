@@ -3,6 +3,8 @@ import 'package:status_studio/src/features/background/application/background_wor
 import 'package:status_studio/src/features/background/domain/work_notice.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 
+const _title = 'Rendering your reel';
+
 /// The notifications for an export (spec FR-16).
 class ExportNotices implements JobNotices<RenderProgress> {
   const ExportNotices(this.videoTitle);
@@ -13,8 +15,12 @@ class ExportNotices implements JobNotices<RenderProgress> {
   BackgroundJob get job => BackgroundJob.export;
 
   @override
+  ProgressNotice get starting =>
+      ProgressNotice(title: _title, text: videoTitle, percent: 0);
+
+  @override
   ProgressNotice progress(RenderProgress event) => ProgressNotice(
-    title: 'Rendering your reel',
+    title: _title,
     text: videoTitle,
     percent: switch (event) {
       RenderRunning(:final fraction) => (fraction * 100).round(),

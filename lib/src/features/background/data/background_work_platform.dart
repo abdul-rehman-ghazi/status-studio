@@ -64,11 +64,16 @@ class PluginBackgroundWorkPlatform implements BackgroundWorkPlatform {
     _throwIfFailed(await request);
   }
 
+  /// Android may have stopped it already, e.g. at the dataSync time limit.
   @override
   Future<void> stop() async {
-    if (await FlutterForegroundTask.isRunningService) {
-      _throwIfFailed(await FlutterForegroundTask.stopService());
+    final request = await FlutterForegroundTask.stopService();
+    if (request case ServiceRequestFailure(
+      error: ServiceNotStartedException(),
+    )) {
+      return;
     }
+    _throwIfFailed(request);
   }
 
   @override
@@ -127,7 +132,9 @@ class PluginBackgroundWorkPlatform implements BackgroundWorkPlatform {
         allowWifiLock: true,
         // A restarted service would have no work to keep alive.
         allowAutoRestart: false,
-        stopWithTask: true,
+        // Not stopWithTask here: the plugin's option stops the service as
+        // soon as the app leaves the screen. The manifest's
+        // android:stopWithTask stops it only when the task is swiped away.
       ),
     );
   }

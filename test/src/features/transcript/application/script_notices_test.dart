@@ -28,6 +28,17 @@ void main() {
     );
   });
 
+  test('script_starting_notice_names_the_video_at_zero', () {
+    expect(
+      notices.starting,
+      const ProgressNotice(
+        title: 'Getting the script',
+        text: 'Sample video',
+        percent: 0,
+      ),
+    );
+  });
+
   test('script_done_notice_says_ready', () {
     expect(
       notices.done,

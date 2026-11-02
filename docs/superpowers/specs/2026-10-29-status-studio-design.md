@@ -101,13 +101,14 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 
 **FR-16 Background work.** Writing a script (Processing) and exporting a reel keep running when the user leaves the app or locks the phone.
 - **How:** while either runs, an Android foreground service (type `dataSync`, from `flutter_foreground_task`) holds a partial wake lock and a Wi-Fi lock and shows an ongoing notification. Android's battery saving and Doze leave a foreground service running, network included. The work itself stays in the app; the service only keeps the process alive.
-- **Ongoing notification:** the running step as the title and `45 % · <video title>` as the text. Script steps: "Downloading the speech model", "Downloading audio", "Detecting the language", "Writing the script", "Lining up timestamps". Export: "Rendering your reel". With both running, it shows the one that started last.
+- **Ongoing notification:** from the moment the work starts, before its first progress (reading the video or downloading the clip can take a while), so the user can leave at once. It starts as "Getting the script" or "Rendering your reel" at 0 %, then shows the running step as the title and `45 % · <video title>` as the text. Script steps: "Downloading the speech model", "Downloading audio", "Detecting the language", "Writing the script", "Lining up timestamps". Export: "Rendering your reel". With both running, it shows the one that started last.
 - **Result notification:** posted only when the app isn't on screen; tapping it opens the app where the work left off.
   - Script done: "Script ready" · video title. Failed: "Script stopped" · the §8 message.
   - Export done: "Reel ready" · "Tap to save or share it." Failed: "Export stopped" · the §8 message.
   - Cancel posts nothing.
 - **Asking once:** the first time work starts, the app asks for notifications (Android 13+), then asks to be exempt from battery optimisation. It doesn't ask again on its own.
 - **Settings, "Background work":** shows whether notifications are on and whether battery optimisation is off, each with "Allow" when it isn't. A refused notification permission opens App info instead. A hint covers phones with their own battery saver: "On Xiaomi and some other phones, also set Battery saver to No restrictions in App info." with "Open App info".
+- **Service lifetime:** the service survives Home and screen lock, and stops when the task is swiped away (manifest `android:stopWithTask`), because the work runs in the app's Flutter engine, which ends with the task. The plugin's own `stopWithTask` option isn't used: it stops the service whenever the app leaves the screen.
 - **Limits:** Android 15+ allows a `dataSync` service 6 hours a day; when that runs out the service stops and the work continues only while the app is open.
 
 ## 4. Non-functional requirements
