@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/background/application/background_work.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/application/script_notices.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 
 /// The script run in progress, shared by Processing and Script so the
@@ -36,18 +38,30 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
   }
 
   /// Saved script, captions or Whisper, whichever comes first (FR-3).
-  void start(SourceVideo video, ScriptLanguage language) =>
-      _follow(ref.read(scriptPipelineProvider).run(video, language));
+  void start(SourceVideo video, ScriptLanguage language) => _follow(
+    _keptRunning(ref.read(scriptPipelineProvider).run(video, language), video),
+  );
 
   /// Whisper again, replacing the saved script (FR-14).
-  void writeAgain(SourceVideo video, ScriptLanguage language) =>
-      _follow(ref.read(scriptPipelineProvider).writeAgain(video, language));
+  void writeAgain(SourceVideo video, ScriptLanguage language) => _follow(
+    _keptRunning(
+      ref.read(scriptPipelineProvider).writeAgain(video, language),
+      video,
+    ),
+  );
 
   /// Stops the run; Whisper releases its model as the stream closes.
   void cancel() {
     _generation++;
     _stopListening();
   }
+
+  /// Keeps writing when the user leaves the app or locks the phone
+  /// (FR-16).
+  Stream<ScriptProgress> _keptRunning(
+    Stream<ScriptProgress> run,
+    SourceVideo video,
+  ) => ref.read(backgroundWorkProvider).keepRunning(run, ScriptNotices(video));
 
   void _follow(Stream<ScriptProgress> run) {
     cancel();

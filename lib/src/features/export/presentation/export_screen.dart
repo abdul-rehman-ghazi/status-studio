@@ -7,6 +7,8 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/features/background/application/background_work.dart';
+import 'package:status_studio/src/features/export/application/export_notices.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
@@ -37,10 +39,16 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     _startRender();
   }
 
+  /// Keeps rendering when the user leaves the app or locks the phone
+  /// (FR-16).
   void _startRender() {
+    final draft = ref.read(reelDraftProvider);
     _subscription = ref
-        .read(rendererProvider)
-        .render(ref.read(reelDraftProvider))
+        .read(backgroundWorkProvider)
+        .keepRunning(
+          ref.read(rendererProvider).render(draft),
+          ExportNotices(draft.video?.title ?? ''),
+        )
         .listen(
           _onProgress,
           onError: (Object error) => setState(() => _failure = error),

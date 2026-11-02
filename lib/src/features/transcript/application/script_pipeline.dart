@@ -8,11 +8,17 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// In run order, so screens can compare stages with `index`.
 enum ScriptStage {
-  downloadingModel,
-  downloadingAudio,
-  detectingLanguage,
-  transcribing,
-  done,
+  downloadingModel('Downloading the speech model'),
+  downloadingAudio('Downloading audio'),
+  detectingLanguage('Detecting the language'),
+  transcribing('Writing the script'),
+  // The last step Processing shows; once it's reached the script is done.
+  done('Lining up timestamps');
+
+  const ScriptStage(this.label);
+
+  /// The step's name on Processing and in the background notification.
+  final String label;
 }
 
 class ScriptProgress {

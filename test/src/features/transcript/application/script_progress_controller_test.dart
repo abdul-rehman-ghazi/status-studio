@@ -2,12 +2,17 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:status_studio/src/features/background/application/background_work.dart';
+import 'package:status_studio/src/features/background/data/background_work_platform.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 
+import '../../../../helpers/fake_background_work_platform.dart';
 import '../../../../helpers/fixtures.dart';
 
 /// Each run starts, then waits at its gate the way a pipeline waits on a
@@ -37,15 +42,41 @@ class GatedPipeline implements ScriptPipeline {
   ) => run(video, language);
 }
 
+/// Sends whatever the test adds to [events].
+class ControlledPipeline implements ScriptPipeline {
+  final events = StreamController<ScriptProgress>();
+
+  @override
+  Stream<ScriptProgress> run(SourceVideo video, ScriptLanguage language) =>
+      events.stream;
+
+  @override
+  Stream<ScriptProgress> writeAgain(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) => events.stream;
+}
+
 void main() {
   late GatedPipeline pipeline;
+  late FakeBackgroundWorkPlatform background;
   late ProviderContainer container;
 
+  ProviderContainer containerWith(ScriptPipeline pipeline) =>
+      ProviderContainer.test(
+        overrides: [
+          scriptPipelineProvider.overrideWithValue(pipeline),
+          backgroundWorkPlatformProvider.overrideWithValue(background),
+          appIsVisibleProvider.overrideWithValue(() => true),
+        ],
+      );
+
   setUp(() {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+    background = FakeBackgroundWorkPlatform();
     pipeline = GatedPipeline();
-    container = ProviderContainer.test(
-      overrides: [scriptPipelineProvider.overrideWithValue(pipeline)],
-    );
+    container = containerWith(pipeline);
   });
 
   ScriptProgressController controller() =>
@@ -95,5 +126,41 @@ void main() {
     await pumpEventQueue();
 
     expect(container.read(reelDraftProvider).transcript, isNull);
+  });
+
+  group('in the background', () {
+    late ControlledPipeline controlled;
+    final writing = ScriptProgress(
+      stage: ScriptStage.transcribing,
+      fraction: 0.5,
+      transcript: fixture,
+    );
+
+    setUp(() {
+      controlled = ControlledPipeline();
+      container = containerWith(controlled);
+    });
+
+    test('running_script_keeps_the_app_in_the_background', () async {
+      controller().start(sampleVideo, ScriptLanguage.urdu);
+      await pumpEventQueue();
+
+      controlled.events.add(writing);
+      await pumpEventQueue();
+
+      expect(background.isRunning, isTrue);
+    });
+
+    test('cancelled_script_stops_the_background_service', () async {
+      controller().start(sampleVideo, ScriptLanguage.urdu);
+      await pumpEventQueue();
+      controlled.events.add(writing);
+      await pumpEventQueue();
+
+      controller().cancel();
+      await pumpEventQueue();
+
+      expect(background.serviceCalls.last, 'stop');
+    });
   });
 }

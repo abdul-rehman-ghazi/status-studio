@@ -25,6 +25,7 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 | [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, Media3 export | Done (branch m5-render) |
 | [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Done (branch m6-library-settings-polish) |
 | [M7](docs/superpowers/plans/2026-11-02-m7-yt-dlp.md) | yt-dlp video source (YouTube refused youtube_explode), self-updating; percent, sizes and speed per step | Done, device check pending (branch m7-yt-dlp) |
+| [M8](docs/superpowers/plans/2026-11-02-m8-background-work.md) | Scripts and exports keep running in the background or with the phone locked; result notifications; battery access in Settings | Done, device check pending (branch m8-background-work) |
 
 ## Features (planned)
 

@@ -6,6 +6,7 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/settings/application/settings_controller.dart';
+import 'package:status_studio/src/features/settings/presentation/background_work_section.dart';
 import 'package:status_studio/src/features/settings/presentation/speech_model_guide.dart';
 import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
 import 'package:status_studio/src/features/source/data/yt_dlp.dart';
@@ -82,6 +83,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             'videos stop opening.',
           ),
           const _YtDlpRow(),
+          const SizedBox(height: 24),
+          const BackgroundWorkSection(),
         ],
       ),
     );

@@ -10,19 +10,24 @@ import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
+import '../../../../helpers/fake_background_work_platform.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
 /// Opens Export on top of Style, as the flow does.
-Future<void> pumpExport(WidgetTester tester, {required Renderer renderer}) =>
-    pumpRoutes(
-      tester,
-      [AppRoutes.style, AppRoutes.export],
-      setup: TestSetup(
-        overrides: [draftOverride(pickedDraft)],
-        renderer: renderer,
-      ),
-    );
+Future<void> pumpExport(
+  WidgetTester tester, {
+  required Renderer renderer,
+  FakeBackgroundWorkPlatform? background,
+}) => pumpRoutes(
+  tester,
+  [AppRoutes.style, AppRoutes.export],
+  setup: TestSetup(
+    overrides: [draftOverride(pickedDraft)],
+    renderer: renderer,
+    backgroundWork: background,
+  ),
+);
 
 /// Renders like a slow fake and counts how often it is cancelled.
 class SpyRenderer implements Renderer {
@@ -190,5 +195,33 @@ void main() {
     );
 
     expect(find.text('Retry'), findsOneWidget);
+  });
+
+  testWidgets('rendering_keeps_the_app_in_the_background', (tester) async {
+    final background = FakeBackgroundWorkPlatform();
+    await pumpExport(
+      tester,
+      renderer: const FakeRenderer(step: Duration(seconds: 1)),
+      background: background,
+    );
+
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(background.isRunning, isTrue);
+  });
+
+  testWidgets('cancelled_export_stops_the_background_service', (tester) async {
+    final background = FakeBackgroundWorkPlatform();
+    await pumpExport(
+      tester,
+      renderer: const FakeRenderer(step: Duration(seconds: 1)),
+      background: background,
+    );
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(background.serviceCalls.last, 'stop');
   });
 }

@@ -10,6 +10,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
+import 'package:status_studio/src/features/background/data/background_work_platform.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
@@ -31,6 +32,7 @@ import 'package:status_studio/src/features/transcript/application/script_pipelin
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
+import 'fake_background_work_platform.dart';
 import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
 import 'fake_model_manager.dart';
@@ -55,6 +57,7 @@ class TestSetup {
     this.recentReels = const [],
     this.modelManager,
     this.ytDlp,
+    this.backgroundWork,
   });
 
   final List<Override> overrides;
@@ -83,6 +86,9 @@ class TestSetup {
   /// Defaults to a fresh [FakeYtDlp]; the video source is faked anyway.
   final YtDlp? ytDlp;
 
+  /// Defaults to a fresh [FakeBackgroundWorkPlatform].
+  final BackgroundWorkPlatform? backgroundWork;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
@@ -91,6 +97,9 @@ class TestSetup {
     ffmpegRunnerProvider.overrideWithValue(const SilentFfmpegRunner()),
     modelManagerProvider.overrideWithValue(modelManager ?? FakeModelManager()),
     ytDlpProvider.overrideWithValue(ytDlp ?? FakeYtDlp()),
+    backgroundWorkPlatformProvider.overrideWithValue(
+      backgroundWork ?? FakeBackgroundWorkPlatform(),
+    ),
     // The probe needs FFprobe; every test clip is 1920 × 1080.
     clipFrameSizeProvider.overrideWith(
       (ref, source) async => const OutputSize(1920, 1080),
