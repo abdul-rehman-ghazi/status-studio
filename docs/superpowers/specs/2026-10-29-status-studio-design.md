@@ -99,6 +99,17 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 - **Fallback:** if a stream isn't MP4 or has no segment index, download the whole stream.
 - **Expired links:** an expired stream URL (HTTP 403) refreshes the manifest and retries once.
 
+**FR-16 Background work.** Writing a script (Processing) and exporting a reel keep running when the user leaves the app or locks the phone.
+- **How:** while either runs, an Android foreground service (type `dataSync`) holds a partial wake lock and shows an ongoing notification. Android's battery saving and Doze leave a foreground service running, network included. The work itself stays in the app; the service only keeps the process alive.
+- **Ongoing notification:** the running step and the overall percent with a bar. Script: the step name ("Downloading audio", "Writing the script", …) with the video title. Export: "Rendering your reel" with the video title. With both running, it shows the one that started last.
+- **Result notification:** posted only when the app isn't on screen; tapping it opens the app where the work left off.
+  - Script done: "Script ready" · video title. Failed: "Script stopped" · the §8 message.
+  - Export done: "Reel ready" · "Tap to save or share it." Failed: "Export stopped" · the §8 message.
+  - Cancel posts nothing.
+- **Asking once:** the first time work starts, the app asks for notifications (Android 13+), then asks to be exempt from battery optimisation. It doesn't ask again on its own.
+- **Settings, "Background work":** shows whether notifications are on and whether battery optimisation is off, each with "Allow" when it isn't. A refused notification permission opens App info instead. A hint covers phones with their own battery saver: "On Xiaomi and some other phones, also set Battery saver to No restrictions in App info." with "Open App info".
+- **Limits:** Android 15+ allows a `dataSync` service 6 hours a day; when that runs out the service stops and the work continues only while the app is open.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android first (minSdk 24, sideloaded APK). iOS later (deployment target 15.6, required by `whisper_ggml`).
@@ -138,6 +149,7 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 | Preview | `video_player` | |
 | Gallery / share | `gal` / `share_plus` | `Gal.putVideo`, `SharePlus.instance.share(ShareParams(files: [XFile(path)]))` |
 | Key-value storage | `shared_preferences` | Added in M6 for recent reels and settings |
+| Background work (Android) | Platform `Service` + `androidx.core` notifications (Gradle) | Kotlin channel `status_studio/background_work`: `show`, `stop`, `postResult`, `requestNotifications`, `notificationsEnabled`, `runsUnrestricted`, `askToRunUnrestricted` (FR-16) |
 
 ## 6. Domain model and rules
 
@@ -253,6 +265,7 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 | Data saving | Script audio at lowest bitrate (none with captions); video and clip audio downloaded only for the clip window (FR-15) |
 | Reuse | Scripts saved per video/language/source for 90 days; Whisper resumes per 90-second piece (FR-14) |
 | Renderer | Media3 Transformer on Android (hardware H.264), because the bundled FFmpeg can't encode H.264 |
+| Background work | One foreground service kept by Dart while a script or export runs, rather than moving the work into the service: the work already runs in the app process, so keeping the process alive is enough (FR-16) |
 
 ## 10. Open questions (resolved by spikes in the milestones)
 
@@ -296,3 +309,4 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 | M5 | `plans/2026-10-29-m5-render.md` | Overlay PNG, Roman Urdu, translation, Media3 render |
 | M6 | `plans/2026-10-29-m6-library-settings-polish.md` | Save/share, recent reels, settings, launcher icon, cache cleanup, error states |
 | M7 | `plans/2026-11-02-m7-yt-dlp.md` | yt-dlp video source, kept up to date; percent, sizes and speed per Processing step |
+| M8 | `plans/2026-11-02-m8-background-work.md` | Scripts and exports keep running in the background; result notifications; battery access (FR-16) |
