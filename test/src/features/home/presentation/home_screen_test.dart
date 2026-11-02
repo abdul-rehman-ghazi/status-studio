@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 
@@ -81,6 +82,21 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Older reel'), findsNothing);
+    });
+
+    testWidgets('urdu_recent_title_reads_right_to_left', (tester) async {
+      const title = 'علم دولت ہے';
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          recentReels: [recentReel(folder, title: title, minutesOld: 1)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final shown = tester.widget<Text>(find.text(title));
+
+      expect(shown.textDirection, TextDirection.rtl);
     });
 
     testWidgets('empty_state_text_when_no_reels', (tester) async {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
@@ -202,7 +203,7 @@ class _RecentReelRow extends ConsumerWidget {
           ),
         ),
       ),
-      title: Text(reel.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: ScriptText(reel.title, maxLines: 1),
       subtitle: Text(
         '${formatSeconds(reel.duration)} · ${formatDayMonth(reel.createdAt)}',
       ),
