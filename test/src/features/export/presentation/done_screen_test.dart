@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_reel_actions.dart';
@@ -37,6 +40,41 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Saved'), findsOneWidget);
+  });
+
+  testWidgets('double_tap_on_save_saves_once', (tester) async {
+    final actions = FakeReelActions()..saveGate = Completer<void>();
+    await pumpDone(tester, actions);
+
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    actions.saveGate!.complete();
+    await tester.pumpAndSettle();
+
+    expect(actions.saved, hasLength(1));
+  });
+
+  testWidgets('save_on_a_full_phone_says_not_enough_space', (tester) async {
+    final actions = FakeReelActions()
+      ..saveFailure = const InsufficientStorageException('No space');
+    await pumpDone(tester, actions);
+
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    expect(find.text('Not enough space on your phone.'), findsOneWidget);
+  });
+
+  testWidgets('failed_share_says_so', (tester) async {
+    final actions = FakeReelActions()
+      ..shareFailure = PlatformException(code: 'Share failed');
+    await pumpDone(tester, actions);
+
+    await tester.tap(find.text('Share'));
+    await tester.pump();
+
+    expect(find.text('Something went wrong. Try again.'), findsOneWidget);
   });
 
   testWidgets('save_without_access_shows_permission_message', (tester) async {

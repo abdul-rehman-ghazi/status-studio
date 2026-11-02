@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gal/gal.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
 const _system = MethodChannel('status_studio/system');
 
@@ -12,7 +13,8 @@ class GalleryAccessDeniedException implements Exception {
 
 /// What the Done screen does with a finished reel (spec FR-10).
 abstract interface class ReelActions {
-  /// Throws [GalleryAccessDeniedException] when access is refused.
+  /// Throws [GalleryAccessDeniedException] when access is refused, and
+  /// [InsufficientStorageException] when the phone is full.
   Future<void> saveToGallery(String videoPath);
 
   Future<void> share(String videoPath);
@@ -32,10 +34,13 @@ class DeviceReelActions implements ReelActions {
     try {
       await Gal.putVideo(videoPath);
     } on GalException catch (error) {
-      if (error.type == GalExceptionType.accessDenied) {
-        throw const GalleryAccessDeniedException();
-      }
-      rethrow;
+      throw switch (error.type) {
+        GalExceptionType.accessDenied => const GalleryAccessDeniedException(),
+        GalExceptionType.notEnoughSpace => InsufficientStorageException(
+          '$error',
+        ),
+        _ => error,
+      };
     }
   }
 

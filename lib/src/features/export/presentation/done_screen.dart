@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/export/data/reel_actions.dart';
@@ -128,13 +129,16 @@ class _ReelActions extends ConsumerStatefulWidget {
 class _ReelActionsState extends ConsumerState<_ReelActions> {
   var _saved = false;
 
+  /// A second tap while saving would add a second copy to the gallery.
+  var _saving = false;
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Expanded(
           child: FilledButton.icon(
-            onPressed: _saved ? null : _save,
+            onPressed: _saved || _saving ? null : _save,
             icon: Icon(_saved ? Icons.check : Icons.download),
             label: Text(_saved ? 'Saved' : 'Save'),
           ),
@@ -142,9 +146,7 @@ class _ReelActionsState extends ConsumerState<_ReelActions> {
         const SizedBox(width: 12),
         Expanded(
           child: FilledButton.tonalIcon(
-            onPressed: () => unawaited(
-              ref.read(reelActionsProvider).share(widget.reel.videoPath),
-            ),
+            onPressed: () => unawaited(_share()),
             icon: const Icon(Icons.share),
             label: const Text('Share'),
           ),
@@ -154,25 +156,52 @@ class _ReelActionsState extends ConsumerState<_ReelActions> {
   }
 
   Future<void> _save() async {
-    final actions = ref.read(reelActionsProvider);
+    setState(() => _saving = true);
     try {
-      await actions.saveToGallery(widget.reel.videoPath);
+      await ref.read(reelActionsProvider).saveToGallery(widget.reel.videoPath);
       if (mounted) {
         setState(() => _saved = true);
       }
     } on GalleryAccessDeniedException {
-      if (!mounted) {
-        return;
+      _showAccessNeeded();
+    } on Exception catch (error) {
+      _showFailure(error);
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Allow Photos access in Settings to save reels.'),
-          action: SnackBarAction(
-            label: 'Open settings',
-            onPressed: () => unawaited(actions.openAppSettings()),
-          ),
-        ),
-      );
     }
+  }
+
+  Future<void> _share() async {
+    try {
+      await ref.read(reelActionsProvider).share(widget.reel.videoPath);
+    } on Exception catch (error) {
+      _showFailure(error);
+    }
+  }
+
+  void _showAccessNeeded() {
+    if (!mounted) {
+      return;
+    }
+    final actions = ref.read(reelActionsProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Allow Photos access in Settings to save reels.'),
+        action: SnackBarAction(
+          label: 'Open settings',
+          onPressed: () => unawaited(actions.openAppSettings()),
+        ),
+      ),
+    );
+  }
+
+  void _showFailure(Object error) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
   }
 }
