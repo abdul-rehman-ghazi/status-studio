@@ -38,7 +38,7 @@ class FakeModelManager extends ModelManager {
   }
 
   @override
-  Stream<double> download(SpeechModel model) async* {
+  Stream<double> fetch(SpeechModel model) async* {
     yield 0.5;
     await gate?.future;
     if (failure case final failure?) {

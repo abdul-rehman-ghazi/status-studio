@@ -8,6 +8,17 @@ import 'package:status_studio/src/features/transcript/domain/transcript_errors.d
 
 const modelBytes = 4096;
 
+/// Polls for up to two seconds; true once [model] is on disk.
+Future<bool> untilDownloaded(ModelManager manager, SpeechModel model) async {
+  for (var attempt = 0; attempt < 100; attempt++) {
+    if (await manager.isDownloaded(model)) {
+      return true;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+  return false;
+}
+
 void main() {
   late Directory folder;
   late HttpClient client;
@@ -78,6 +89,36 @@ void main() {
     );
 
     expect(await manager.isDownloaded(SpeechModel.small), isFalse);
+  });
+
+  test('concurrent_downloads_share_one_transfer', () async {
+    var requests = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((request) async {
+      requests++;
+      request.response
+        ..contentLength = modelBytes
+        ..add(List.filled(modelBytes, 7));
+      await request.response.close();
+    });
+    addTearDown(server.close);
+    final manager = managerFor(uriOf(server.port));
+
+    await Future.wait([
+      manager.download(SpeechModel.small).drain<void>(),
+      manager.download(SpeechModel.small).drain<void>(),
+    ]);
+
+    expect(requests, 1);
+  });
+
+  test('download_finishes_after_its_listener_leaves', () async {
+    final server = await serveWholeModel();
+    final manager = managerFor(uriOf(server.port));
+
+    await manager.download(SpeechModel.small).first;
+
+    expect(await untilDownloaded(manager, SpeechModel.small), isTrue);
   });
 
   test('delete_removes_model', () async {

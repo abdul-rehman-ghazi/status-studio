@@ -24,6 +24,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Models downloading now, with how far each has got.
   final _downloading = <SpeechModel, double>{};
 
+  /// A download started earlier keeps running after Settings closes;
+  /// reopening shows it rather than offering a second one.
+  @override
+  void initState() {
+    super.initState();
+    final manager = ref.read(modelManagerProvider);
+    for (final model in SpeechModel.values.where(manager.isDownloading)) {
+      _downloading[model] = 0;
+      unawaited(_follow(model));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected =
@@ -69,6 +81,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _download(SpeechModel model) async {
     setState(() => _downloading[model] = 0);
+    await _follow(model);
+  }
+
+  Future<void> _follow(SpeechModel model) async {
     try {
       await for (final fraction
           in ref.read(modelManagerProvider).download(model)) {

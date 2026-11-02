@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
@@ -36,10 +39,36 @@ class ModelManager {
     }
   }
 
+  final _running = <SpeechModel, _Download>{};
+
   /// Emits progress from 0 to 1; throws [ModelDownloadException], or
-  /// [InsufficientStorageException] for a full disk, on any
-  /// failure and leaves no file behind.
-  Stream<double> download(SpeechModel model) async* {
+  /// [InsufficientStorageException] for a full disk, on any failure.
+  ///
+  /// One transfer per model: a second caller joins the running one rather
+  /// than writing into the same `.part` file, and the transfer finishes
+  /// even if every listener leaves (Settings closed mid-download).
+  Stream<double> download(SpeechModel model) =>
+      (_running[model] ?? _start(model)).join();
+
+  bool isDownloading(SpeechModel model) => _running.containsKey(model);
+
+  _Download _start(SpeechModel model) {
+    final running = _Download();
+    _running[model] = running;
+    fetch(model).listen(
+      running.report,
+      onError: running.fail,
+      onDone: () {
+        _running.remove(model);
+        running.finish();
+      },
+    );
+    return running;
+  }
+
+  /// One transfer, leaving no file behind on failure.
+  @protected
+  Stream<double> fetch(SpeechModel model) async* {
     final path = await pathFor(model);
     final part = File('$path.part');
     try {
@@ -66,6 +95,41 @@ class ModelManager {
       throw ModelDownloadException('HTTP ${response.statusCode} for $uri');
     }
     return response;
+  }
+}
+
+/// A running transfer, shared by everyone following it. Each follower
+/// gets its own controller, which buffers while its listener is paused.
+class _Download {
+  final _followers = <StreamController<double>>[];
+  double _latest = 0;
+
+  void report(double fraction) {
+    _latest = fraction;
+    for (final follower in [..._followers]) {
+      follower.add(fraction);
+    }
+  }
+
+  void fail(Object error) {
+    for (final follower in [..._followers]) {
+      follower.addError(error);
+    }
+  }
+
+  void finish() {
+    for (final follower in [..._followers]) {
+      unawaited(follower.close());
+    }
+  }
+
+  /// Starts with how far the transfer has got, so a late joiner shows it
+  /// at once.
+  Stream<double> join() {
+    final follower = StreamController<double>()..add(_latest);
+    follower.onCancel = () => _followers.remove(follower);
+    _followers.add(follower);
+    return follower.stream;
   }
 }
 

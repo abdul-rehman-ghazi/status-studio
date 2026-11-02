@@ -53,6 +53,25 @@ void main() {
     );
   });
 
+  testWidgets('reopened_settings_shows_running_download', (tester) async {
+    final models = FakeModelManager()..gate = Completer<void>();
+    await pumpSettings(tester, models);
+    await tester.tap(
+      find.descendant(
+        of: rowOf('Base (faster)'),
+        matching: find.text('Download'),
+      ),
+    );
+    await tester.pump();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Downloading… 50 %'), findsOneWidget);
+  });
+
   testWidgets('delete_returns_to_not_downloaded', (tester) async {
     final models = FakeModelManager(
       sizes: {SpeechModel.small: FakeModelManager.downloadedBytes},
