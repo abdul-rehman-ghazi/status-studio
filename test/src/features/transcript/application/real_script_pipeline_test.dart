@@ -369,4 +369,27 @@ void main() {
       throwsA(isA<NoSavedTranscriptException>()),
     );
   });
+
+  test('captions_run_keeps_the_video_for_the_recent_list', () async {
+    videos = ScriptVideoSource(hasCaptions: true);
+
+    await run();
+
+    final listed = [for (final script in await store.list()) script.video];
+    expect(listed, [sampleVideo]);
+  });
+
+  test('whisper_run_keeps_the_video_for_the_recent_list', () async {
+    await run();
+
+    final listed = [for (final script in await store.list()) script.video];
+    expect(listed, [sampleVideo]);
+  });
+
+  test('write_again_keeps_the_video_for_the_recent_list', () async {
+    await pipeline().writeAgain(sampleVideo, ScriptLanguage.auto).drain<void>();
+
+    final listed = [for (final script in await store.list()) script.video];
+    expect(listed, [sampleVideo]);
+  });
 }

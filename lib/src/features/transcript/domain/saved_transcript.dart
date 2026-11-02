@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -80,6 +81,37 @@ class SavedTranscript {
   @override
   int get hashCode =>
       Object.hash(transcript, source, savedAt.microsecondsSinceEpoch);
+}
+
+/// A video's finished script in one language, as the Recent list on Home
+/// shows it (FR-11).
+@immutable
+class SavedScript {
+  const SavedScript({
+    required this.video,
+    required this.language,
+    required this.saved,
+  });
+
+  final SourceVideo video;
+
+  /// The language that was asked for; `auto` scripts carry the detected
+  /// one in [saved].
+  final ScriptLanguage language;
+  final SavedTranscript saved;
+
+  TranscriptKey get key =>
+      TranscriptKey(videoId: video.videoId, language: language);
+
+  @override
+  bool operator ==(Object other) =>
+      other is SavedScript &&
+      other.video == video &&
+      other.language == language &&
+      other.saved == saved;
+
+  @override
+  int get hashCode => Object.hash(video, language, saved);
 }
 
 /// Whisper's progress through an unfinished run: the lines of the first

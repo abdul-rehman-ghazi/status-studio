@@ -9,10 +9,35 @@ class SourceVideo {
     required this.duration,
   });
 
+  /// Throws [FormatException] when [json] isn't a saved video.
+  factory SourceVideo.fromJson(Map<String, Object?> json) {
+    if (json case {
+      'videoId': final String videoId,
+      'title': final String title,
+      'channel': final String channel,
+      'durationMs': final int durationMs,
+    }) {
+      return SourceVideo(
+        videoId: videoId,
+        title: title,
+        channel: channel,
+        duration: Duration(milliseconds: durationMs),
+      );
+    }
+    throw const FormatException('Not a saved video.');
+  }
+
   final String videoId;
   final String title;
   final String channel;
   final Duration duration;
+
+  Map<String, Object?> toJson() => {
+    'videoId': videoId,
+    'title': title,
+    'channel': channel,
+    'durationMs': duration.inMilliseconds,
+  };
 
   SourceVideo copyWith({
     String? videoId,

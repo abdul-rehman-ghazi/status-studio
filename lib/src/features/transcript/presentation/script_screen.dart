@@ -147,18 +147,8 @@ class _LanguagePicker extends StatelessWidget {
     );
   }
 
-  String _labelFor(ScriptLanguage language) {
-    if (language != ScriptLanguage.auto) {
-      return language.label;
-    }
-    final detectedCode = draft.transcript?.languageCode;
-    final detected = ScriptLanguage.values
-        .where((candidate) => candidate.whisperCode == detectedCode)
-        .firstOrNull;
-    return detected == null
-        ? 'Detected language'
-        : '${detected.label} (detected)';
-  }
+  String _labelFor(ScriptLanguage language) =>
+      scriptLanguageLabel(language, draft.transcript?.languageCode);
 }
 
 /// FR-14: the script came from the saved scripts, not written just now.

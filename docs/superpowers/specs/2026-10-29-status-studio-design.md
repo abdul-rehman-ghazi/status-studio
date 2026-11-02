@@ -18,7 +18,7 @@ Scripts are saved, so the same video opens straight to its script next time.
 
 | # | Screen | Route | Job |
 |---|---|---|---|
-| 1 | Home | `/` | Start a reel; list recent reels; open Settings |
+| 1 | Home | `/` | Start a reel; list recent reels and saved scripts; open Settings |
 | 2 | Source | `/source` | Paste a YouTube link; choose language (default automatic) |
 | 3 | Processing | `/processing` | Download audio → detect language → transcribe → line up timestamps (skipped when a saved script exists, FR-14). Each download and transcribing step shows its own bar with the percent beside it (`45 %`), then amount done of total and speed (`220 of 487 MB · 3.2 MB/s`) with the time left on the right (`1:24 left`) |
 | 4 | Script | `/script` | Show the full script; tap the start line, then the end line |
@@ -77,6 +77,8 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 **FR-10 Save and share.** Save to gallery (`gal`). Share opens the system share sheet with the MP4 (`share_plus`).
 
 **FR-11 Recent reels.** Newest first, at most 50 (oldest dropped and its file deleted). Each row shows a thumbnail, the first caption line, duration and date. Tap opens Done for that reel. Long-press offers Delete.
+- **Saved scripts in Recent:** every saved script (FR-14) also has a row, as soon as the video is processed and before any lines are picked. Reels and scripts share one list, newest first; with neither, it reads "Your reels and scripts will appear here." A script row shows a script icon, the video title and `Script · <language> · <video length> · <d MMM>`, where an automatic script names its detected language ("Urdu (detected)"). Tap opens Script with the whole script, without Processing work or downloads (the same path as pasting the link again). Long-press offers Delete, which removes that video's script in that language and any unfinished Whisper progress for it.
+- One row per video and requested language. Scripts saved before video details were kept have no title, so they appear once their link is opened again.
 
 **FR-12 Settings.** Model: any multilingual Whisper model (tiny, base, small, medium, large-v3, each as its 5-bit quantised file, §10 Q2; default small, marked "recommended"), each with its download size or size on disk and Download / Delete. An info button opens a sheet with the model's pros and cons (speed relative to small, accuracy, memory it needs). English-only models aren't offered: they can't write other languages. Downloads show progress. If transcription starts without the model, the model downloads first as a step on the Processing screen.
 
@@ -87,7 +89,7 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 - **Same link again:** pasting a link whose script is saved for the chosen language skips Processing. Script opens with the banner "Using the saved script from <d MMM> · Write it again".
 - **Write it again:** runs Whisper with the current model and replaces the saved script.
 - **Resume:** Whisper progress is saved after each 90-second piece, so an interrupted run resumes from the next piece.
-- **Storage:** scripts live in the app support directory under `transcripts/`. Each is kept 90 days after last use, with at most 200 videos (least recently used dropped).
+- **Storage:** scripts live in the app support directory under `transcripts/`. Each is kept 90 days after last use, with at most 200 videos (least recently used dropped). Each video's folder also keeps its title, channel and length (`video.json`) for the Recent list.
 
 **FR-15 Clip-only download.**
 - **When:** nothing of the video is downloaded before Fine-tune.
@@ -173,6 +175,7 @@ class CaptionSettings { CaptionVariant variant; String text; CaptionPosition pos
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: the caption's first line; size: shown on Done
 class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // source: captions | whisper-<model>
+class SavedScript { SourceVideo video; ScriptLanguage language; SavedTranscript saved; } // a Recent row (FR-11)
 class ClipWindow { Duration start; Duration end; }        // FR-15 window in video time
 class ClipSource { File file; Duration offset; ClipWindow window; } // offset = video time of the file's zero
 ```

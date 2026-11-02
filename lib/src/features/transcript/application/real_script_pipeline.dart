@@ -59,6 +59,9 @@ class RealScriptPipeline implements ScriptPipeline {
     ScriptLanguage language,
   ) async* {
     final store = await services.store;
+    // Before the saved-script check too, so a script saved before videos
+    // were kept joins the Recent list once its link is opened again.
+    await store.saveVideo(video);
     final key = TranscriptKey(videoId: video.videoId, language: language);
     final saved = await _savedScript(store, key);
     if (saved != null) {
@@ -82,10 +85,14 @@ class RealScriptPipeline implements ScriptPipeline {
   Stream<ScriptProgress> writeAgain(
     SourceVideo video,
     ScriptLanguage language,
-  ) => _whisper(
-    video,
-    TranscriptKey(videoId: video.videoId, language: language),
-  );
+  ) async* {
+    final store = await services.store;
+    await store.saveVideo(video);
+    yield* _whisper(
+      video,
+      TranscriptKey(videoId: video.videoId, language: language),
+    );
+  }
 
   /// The saved script for [key], if any.
   Future<SavedTranscript?> _savedScript(

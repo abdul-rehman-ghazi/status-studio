@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
@@ -24,6 +25,13 @@ const transcript = Transcript(
 
 TranscriptKey keyFor(String videoId) =>
     TranscriptKey(videoId: videoId, language: ScriptLanguage.auto);
+
+SourceVideo videoWithId(String videoId) => SourceVideo(
+  videoId: videoId,
+  title: 'Video $videoId',
+  channel: 'Channel',
+  duration: const Duration(minutes: 3),
+);
 
 void main() {
   late Directory root;
@@ -163,5 +171,111 @@ void main() {
       store.load(keyFor('a')),
       throwsA(isA<NoSavedTranscriptException>()),
     );
+  });
+
+  group('list', () {
+    Future<void> saveWithVideo(TranscriptKey key, SavedTranscript saved) async {
+      await store.saveVideo(videoWithId(key.videoId));
+      await store.save(key, saved);
+    }
+
+    test('list_returns_finished_script_with_its_video', () async {
+      await saveWithVideo(keyFor('a'), savedAt(start));
+
+      expect(await store.list(), [
+        SavedScript(
+          video: videoWithId('a'),
+          language: ScriptLanguage.auto,
+          saved: savedAt(start),
+        ),
+      ]);
+    });
+
+    test('list_leaves_out_scripts_without_video_details', () async {
+      await store.save(keyFor('a'), savedAt(start));
+
+      expect(await store.list(), isEmpty);
+    });
+
+    test('list_has_one_entry_per_language', () async {
+      await saveWithVideo(keyFor('a'), savedAt(start));
+      await store.save(
+        const TranscriptKey(videoId: 'a', language: ScriptLanguage.english),
+        savedAt(start),
+      );
+
+      final languages = [
+        for (final script in await store.list()) script.language,
+      ];
+
+      expect(
+        languages,
+        unorderedEquals([ScriptLanguage.auto, ScriptLanguage.english]),
+      );
+    });
+
+    test('list_shows_newest_source_of_a_language', () async {
+      await saveWithVideo(keyFor('a'), savedAt(start));
+      await store.save(
+        keyFor('a'),
+        savedAt(start.add(const Duration(hours: 1)), source: 'whisper-small'),
+      );
+
+      final sources = [
+        for (final script in await store.list()) script.saved.source,
+      ];
+
+      expect(sources, ['whisper-small']);
+    });
+
+    test('list_is_newest_first', () async {
+      await saveWithVideo(keyFor('old'), savedAt(start));
+      await saveWithVideo(
+        keyFor('new'),
+        savedAt(start.add(const Duration(hours: 1))),
+      );
+
+      final videoIds = [
+        for (final script in await store.list()) script.video.videoId,
+      ];
+
+      expect(videoIds, ['new', 'old']);
+    });
+
+    test('list_leaves_out_unfinished_scripts', () async {
+      await store.saveVideo(videoWithId('a'));
+      await store.savePartial(
+        keyFor('a'),
+        SpeechModel.small,
+        PartialTranscript(completedChunks: 1, lines: transcript.lines),
+      );
+
+      expect(await store.list(), isEmpty);
+    });
+
+    test('delete_removes_the_languages_script', () async {
+      await saveWithVideo(keyFor('a'), savedAt(start));
+      await store.save(keyFor('a'), savedAt(start, source: 'whisper-small'));
+
+      await store.delete(keyFor('a'));
+
+      await expectLater(
+        store.load(keyFor('a')),
+        throwsA(isA<NoSavedTranscriptException>()),
+      );
+    });
+
+    test('delete_keeps_other_languages', () async {
+      const english = TranscriptKey(
+        videoId: 'a',
+        language: ScriptLanguage.english,
+      );
+      await saveWithVideo(keyFor('a'), savedAt(start));
+      await store.save(english, savedAt(start));
+
+      await store.delete(keyFor('a'));
+
+      expect((await store.load(english)).source, 'captions');
+    });
   });
 }

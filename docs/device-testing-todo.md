@@ -78,6 +78,11 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 - [ ] Whisper `small` on a 4 GB phone with the service running (the plugin starts a second, idle Flutter engine): no out-of-memory crash.
 - [ ] Notification icon shows the Trim brackets and waveform, not a white square.
 
+### Saved scripts in Recent
+- [ ] Process a video, go back to Home without picking lines: its script is in Recent, above older reels.
+- [ ] Tap the script row: Script opens straight away with every line and the "Using the saved script" banner, with no download.
+- [ ] Long-press the script row, Delete: the row goes, and pasting the link again writes the script again.
+
 ## Fixes found on the phone (not yet made)
 
 - [x] YouTube caption lines keep `♪` symbols and `[♪♪♪]` placeholder lines; they would end up in the clip caption. *Fixed: music symbols and sound tags are dropped.*

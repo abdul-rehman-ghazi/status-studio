@@ -6,6 +6,7 @@ import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 
 import '../../../../helpers/pump_app.dart';
 import '../../../../helpers/recent_reels.dart';
+import '../../../../helpers/saved_scripts.dart';
 
 void main() {
   testWidgets('home_shows_new_reel_button', (tester) async {
@@ -26,7 +27,10 @@ void main() {
   testWidgets('home_shows_empty_recent_section', (tester) async {
     await pumpApp(tester);
 
-    expect(find.text('Your reels will appear here.'), findsOneWidget);
+    expect(
+      find.text('Your reels and scripts will appear here.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('settings_button_opens_settings', (tester) async {
@@ -102,7 +106,99 @@ void main() {
     testWidgets('empty_state_text_when_no_reels', (tester) async {
       await pumpApp(tester);
 
-      expect(find.text('Your reels will appear here.'), findsOneWidget);
+      expect(
+        find.text('Your reels and scripts will appear here.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('saved scripts', () {
+    late Directory folder;
+
+    setUp(() async {
+      folder = await Directory.systemTemp.createTemp('home_screen_test');
+    });
+
+    tearDown(() => folder.delete(recursive: true));
+
+    testWidgets('home_lists_saved_scripts', (tester) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          savedScripts: [savedScript(title: 'Processed video', minutesOld: 1)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Processed video'), findsOneWidget);
+    });
+
+    testWidgets('saved_script_row_shows_language_length_and_date', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          savedScripts: [savedScript(title: 'Processed video', minutesOld: 1)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Script · Urdu (detected) · 6:48 · 2 Nov'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('recent_mixes_reels_and_scripts_newest_first', (tester) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          recentReels: [
+            recentReel(folder, title: 'Older reel', minutesOld: 60),
+          ],
+          savedScripts: [savedScript(title: 'Newer script', minutesOld: 1)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.text('Newer script')).dy,
+        lessThan(tester.getTopLeft(find.text('Older reel')).dy),
+      );
+    });
+
+    testWidgets('tapping_saved_script_opens_script', (tester) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          savedScripts: [savedScript(title: 'Processed video', minutesOld: 1)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Processed video'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tap the line where your clip starts'), findsOneWidget);
+    });
+
+    testWidgets('long_press_deletes_saved_script', (tester) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          savedScripts: [savedScript(title: 'Processed video', minutesOld: 1)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('Processed video'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Processed video'), findsNothing);
     });
   });
 }

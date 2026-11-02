@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
@@ -10,6 +12,7 @@ import 'package:status_studio/src/features/transcript/domain/transcript_errors.d
 const _keepUnused = Duration(days: 90);
 const _maximumVideos = 200;
 const _lastUsedFile = 'last_used';
+const _videoFile = 'video.json';
 const _partialSuffix = '.partial.json';
 
 /// Saved scripts and Whisper progress under `transcripts/<videoId>/`
@@ -23,20 +26,47 @@ class TranscriptStore {
 
   /// The newest script saved for [key], from any source. Counts as a use.
   Future<SavedTranscript> load(TranscriptKey key) async {
-    final saved = <SavedTranscript>[];
-    for (final file in await _scriptFiles(key)) {
-      saved.addAll(await _readScript(file));
-    }
+    final saved = await _savedScripts(key);
     if (saved.isEmpty) {
       throw const NoSavedTranscriptException();
     }
     await _touch(key.videoId);
-    return saved.reduce((a, b) => b.savedAt.isAfter(a.savedAt) ? b : a);
+    return _newest(saved);
   }
 
   Future<void> save(TranscriptKey key, SavedTranscript saved) async {
     await _write(_scriptFile(key, saved.source), saved.toJson());
     await _touch(key.videoId);
+  }
+
+  /// Keeps [video]'s title, channel and length beside its scripts, so the
+  /// Recent list can show and reopen them (FR-11).
+  Future<void> saveVideo(SourceVideo video) => _write(
+    File('${_folder(video.videoId).path}/$_videoFile'),
+    video.toJson(),
+  );
+
+  /// Every finished script whose video was saved, newest first: one per
+  /// video and requested language, from its newest source. Doesn't count
+  /// as a use.
+  Future<List<SavedScript>> list() async {
+    if (!await root.exists()) {
+      return const [];
+    }
+    final scripts = <SavedScript>[];
+    await for (final folder in root.list().where((e) => e is Directory)) {
+      scripts.addAll(await _scriptsIn(folder as Directory));
+    }
+    scripts.sort((a, b) => b.saved.savedAt.compareTo(a.saved.savedAt));
+    return scripts;
+  }
+
+  /// Removes [key]'s scripts and unfinished progress; the video's other
+  /// languages stay.
+  Future<void> delete(TranscriptKey key) async {
+    for (final file in await _languageFiles(key)) {
+      await file.delete();
+    }
   }
 
   Future<PartialTranscript> loadPartial(
@@ -92,6 +122,9 @@ class TranscriptStore {
     return removed.length;
   }
 
+  SavedTranscript _newest(List<SavedTranscript> saved) =>
+      saved.reduce((a, b) => b.savedAt.isAfter(a.savedAt) ? b : a);
+
   Directory _folder(String videoId) => Directory('${root.path}/$videoId');
 
   File _scriptFile(TranscriptKey key, String source) => File(
@@ -103,7 +136,53 @@ class TranscriptStore {
     '${key.language.whisperCode}-${whisperSource(model)}$_partialSuffix',
   );
 
+  /// [folder]'s scripts, or none when its video can't be read: scripts
+  /// saved before videos were kept have no title to show.
+  Future<List<SavedScript>> _scriptsIn(Directory folder) async {
+    final SourceVideo video;
+    try {
+      video = SourceVideo.fromJson(
+        await _readJson(File('${folder.path}/$_videoFile')),
+      );
+    } on Exception {
+      return const [];
+    }
+    final scripts = <SavedScript>[];
+    for (final language in ScriptLanguage.values) {
+      final key = TranscriptKey(videoId: video.videoId, language: language);
+      final saved = await _savedScripts(key);
+      if (saved.isNotEmpty) {
+        scripts.add(
+          SavedScript(video: video, language: language, saved: _newest(saved)),
+        );
+      }
+    }
+    return scripts;
+  }
+
+  /// [key]'s readable scripts, one per source.
+  Future<List<SavedTranscript>> _savedScripts(TranscriptKey key) async {
+    final saved = <SavedTranscript>[];
+    for (final file in await _scriptFiles(key)) {
+      saved.addAll(await _readScript(file));
+    }
+    return saved;
+  }
+
   Future<List<File>> _scriptFiles(TranscriptKey key) async {
+    final files = await _languageFiles(key);
+    return files
+        .where(
+          (file) =>
+              file.path.endsWith('.json') &&
+              !file.path.endsWith(_partialSuffix),
+        )
+        .toList();
+  }
+
+  /// Everything saved for [key]'s language: scripts, progress and any
+  /// half-written `.part` file.
+  Future<List<File>> _languageFiles(TranscriptKey key) async {
     final folder = _folder(key.videoId);
     if (!await folder.exists()) {
       return const [];
@@ -112,12 +191,7 @@ class TranscriptStore {
     final entries = await folder.list().toList();
     return entries
         .whereType<File>()
-        .where(
-          (file) =>
-              file.path.startsWith(prefix) &&
-              file.path.endsWith('.json') &&
-              !file.path.endsWith(_partialSuffix),
-        )
+        .where((file) => file.path.startsWith(prefix))
         .toList();
   }
 
