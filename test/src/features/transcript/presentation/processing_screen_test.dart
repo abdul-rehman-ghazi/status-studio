@@ -121,13 +121,59 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
 
-    testWidgets('current_step_shows_percent_and_sizes', (tester) async {
+    testWidgets('current_step_shows_its_sizes', (tester) async {
       await openWith(tester);
 
       pipeline.events.add(audioDownload(1100000));
       await tester.pump();
 
-      expect(find.textContaining('33 % · 1.1 of 3.3 MB'), findsOneWidget);
+      expect(find.textContaining('1.1 of 3.3 MB'), findsOneWidget);
+    });
+
+    testWidgets('current_step_shows_its_percent', (tester) async {
+      await openWith(tester);
+
+      pipeline.events.add(audioDownload(1100000));
+      await tester.pump();
+
+      expect(find.text('33 %'), findsOneWidget);
+    });
+
+    testWidgets('current_step_fills_its_own_bar', (tester) async {
+      await openWith(tester);
+
+      pipeline.events.add(audioDownload(1100000));
+      await tester.pump();
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is LinearProgressIndicator && widget.value == 1 / 3,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('step_underway_shows_time_left', (tester) async {
+      await openWith(tester);
+      pipeline.events.add(audioDownload(1100000));
+      await tester.pump();
+
+      pipeline.events.add(audioDownload(2200000));
+      await tester.pump();
+
+      expect(find.textContaining(' left'), findsOneWidget);
+    });
+
+    testWidgets('finished_step_shows_no_time_left', (tester) async {
+      await openWith(tester);
+      pipeline.events.add(audioDownload(1100000));
+      await tester.pump();
+
+      pipeline.events.add(audioDownload(3300000));
+      await tester.pump();
+
+      expect(find.textContaining(' left'), findsNothing);
     });
 
     testWidgets('finished_step_keeps_its_amount', (tester) async {
@@ -144,7 +190,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('100 % · 3.3 of 3.3 MB'), findsOneWidget);
+      expect(find.textContaining('3.3 of 3.3 MB'), findsOneWidget);
     });
 
     testWidgets('writing_shows_audio_done_of_the_length', (tester) async {
@@ -164,7 +210,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('33 % · 3:00 of 9:08'), findsOneWidget);
+      expect(find.textContaining('3:00 of 9:08'), findsOneWidget);
     });
   });
 

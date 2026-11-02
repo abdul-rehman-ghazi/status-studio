@@ -26,7 +26,9 @@ class WorkAmount {
   final int total;
   final WorkUnit unit;
 
-  double get fraction => total <= 0 ? 0 : math.min(1, done / total);
+  bool get knowsTotal => total > 0;
+
+  double get fraction => knowsTotal ? math.min(1, done / total) : 0;
 
   @override
   bool operator ==(Object other) =>
@@ -62,17 +64,28 @@ class WorkRate {
   }
 }
 
-/// `45 % · 220 of 487 MB · 3.2 MB/s`, or `33 % · 3:00 of 9:08 · 1.3× real
-/// time`; the speed is left out until it is known, and the percent and
-/// total while the total is.
-String workLine(WorkAmount amount, {double? perSecond}) {
-  final knowsTotal = amount.total > 0;
+/// `45 %`.
+String workPercent(WorkAmount amount) => '${(amount.fraction * 100).round()} %';
+
+/// `220 of 487 MB · 3.2 MB/s`, or `3:00 of 9:08 · 1.3× real time`; the
+/// speed is left out until it is known, and the total while it isn't.
+String workDoneLine(WorkAmount amount, {double? perSecond}) {
   final parts = [
-    if (knowsTotal) '${(amount.fraction * 100).round()} %',
-    if (knowsTotal) _doneOfTotal(amount) else _doneOnly(amount),
+    if (amount.knowsTotal) _doneOfTotal(amount) else _doneOnly(amount),
     if (perSecond != null) _speed(amount.unit, perSecond),
   ];
   return parts.join(' · ');
+}
+
+/// Whether [workTimeLeft] means anything: work remains, its total is
+/// known and it is moving.
+bool canEstimateTimeLeft(WorkAmount amount, {required double perSecond}) =>
+    perSecond > 0 && amount.knowsTotal && amount.done < amount.total;
+
+/// `1:24 left`, rounded up so it never reads `0:00 left` while work remains.
+String workTimeLeft(WorkAmount amount, {required double perSecond}) {
+  final secondsLeft = ((amount.total - amount.done) / perSecond).ceil();
+  return '${formatTimestamp(Duration(seconds: secondsLeft))} left';
 }
 
 String _doneOnly(WorkAmount amount) => switch (amount.unit) {

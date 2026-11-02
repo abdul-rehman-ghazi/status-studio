@@ -20,7 +20,7 @@ Scripts are saved, so the same video opens straight to its script next time.
 |---|---|---|---|
 | 1 | Home | `/` | Start a reel; list recent reels; open Settings |
 | 2 | Source | `/source` | Paste a YouTube link; choose language (default automatic) |
-| 3 | Processing | `/processing` | Download audio → detect language → transcribe → line up timestamps (skipped when a saved script exists, FR-14) |
+| 3 | Processing | `/processing` | Download audio → detect language → transcribe → line up timestamps (skipped when a saved script exists, FR-14). Each download and transcribing step shows its own bar with the percent beside it (`45 %`), then amount done of total and speed (`220 of 487 MB · 3.2 MB/s`) with the time left on the right (`1:24 left`) |
 | 4 | Script | `/script` | Show the full script; tap the start line, then the end line |
 | 5 | Fine-tune | `/fine-tune` | Download only the clip (FR-15); preview it; nudge start and end by ±0.5 s |
 | 6 | Style | `/style` | Size, fill, crop, caption text/variant/position/size; live preview with branding |

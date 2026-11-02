@@ -53,6 +53,7 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 - [ ] A private video shows "This video can't be downloaded."; airplane mode shows the offline message.
 - [ ] Release build: Python unpacks on first use (first read about 13 s), later reads about 8 s.
 - [ ] Working screen: every download and the script step show percent, done of total and speed.
+- [ ] Working screen: each of those steps shows its own bar with the percent beside it, and the time left on the right under the bar; time left counts down steadily and disappears once the step finishes.
 
 ### M6: library, settings, polish
 - [ ] WhatsApp's Status limit: check the longest trim the Status composer allows. If it's 90 s, raise the long-clip warning threshold (spec §10 Q3).

@@ -59,11 +59,10 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     );
   }
 
-  /// Each measured step's line: percent, done of total and speed.
-  Map<ScriptStage, String> get _amountLines => {
+  Map<ScriptStage, _StepReading> get _readings => {
     for (final MapEntry(key: stage, value: amounts) in _amounts.entries)
-      stage: workLine(
-        amounts.latest,
+      stage: (
+        amount: amounts.latest,
         perSecond: amounts.rate.perSecond(amounts.latest, amounts.latestAt),
       ),
   };
@@ -122,7 +121,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
                   ..._scriptSteps(draft.language, run.value),
                 ],
                 progress: run.value,
-                amountLines: _amountLines,
+                readings: _readings,
               ),
           ],
         ),
@@ -159,14 +158,14 @@ class _RunSteps extends StatelessWidget {
   const _RunSteps({
     required this.steps,
     required this.progress,
-    required this.amountLines,
+    required this.readings,
   });
 
   final List<_Step> steps;
   final ScriptProgress? progress;
 
-  /// Lines for the steps that report how much is done.
-  final Map<ScriptStage, String> amountLines;
+  /// Only the steps that report how much is done have one.
+  final Map<ScriptStage, _StepReading> readings;
 
   @override
   Widget build(BuildContext context) {
@@ -178,11 +177,7 @@ class _RunSteps extends StatelessWidget {
         LinearProgressIndicator(value: progress?.fraction ?? 0),
         const SizedBox(height: 20),
         for (final step in steps)
-          _StepRow(
-            step: step,
-            current: stage,
-            amountLine: amountLines[step.stage],
-          ),
+          _StepRow(step: step, current: stage, reading: readings[step.stage]),
       ],
     );
   }
@@ -231,6 +226,9 @@ typedef _Step = ({String label, String detail, ScriptStage stage});
 
 /// A step's first and latest amounts in this run.
 typedef _StepAmounts = ({WorkRate rate, WorkAmount latest, Duration latestAt});
+
+/// How much of a step is done, and how fast, as last measured.
+typedef _StepReading = ({WorkAmount amount, double? perSecond});
 
 const _Step _modelStep = (
   label: 'Downloading the speech model',
@@ -294,14 +292,14 @@ class _StepRow extends StatelessWidget {
   const _StepRow({
     required this.step,
     required this.current,
-    required this.amountLine,
+    required this.reading,
   });
 
   final _Step step;
   final ScriptStage current;
 
-  /// Percent, done of total and speed, once the step has reported them.
-  final String? amountLine;
+  /// Once the step has reported how much is done.
+  final _StepReading? reading;
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +315,7 @@ class _StepRow extends StatelessWidget {
               children: [
                 Text(step.label),
                 HintText(step.detail),
-                if (amountLine case final line?) HintText(line),
+                if (reading case final reading?) _StepAmount(reading: reading),
               ],
             ),
           ),
@@ -337,5 +335,63 @@ class _StepRow extends StatelessWidget {
       );
     }
     return const Icon(Icons.radio_button_unchecked, color: AppColors.textMuted);
+  }
+}
+
+/// The step's bar and percent, then done of total and speed with the time
+/// left beside them.
+class _StepAmount extends StatelessWidget {
+  const _StepAmount({required this.reading});
+
+  final _StepReading reading;
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = reading.amount;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (amount.knowsTotal) _PercentBar(amount: amount),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: HintText(
+                  workDoneLine(amount, perSecond: reading.perSecond),
+                ),
+              ),
+              if (reading.perSecond case final perSecond?
+                  when canEstimateTimeLeft(amount, perSecond: perSecond))
+                HintText(workTimeLeft(amount, perSecond: perSecond)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PercentBar extends StatelessWidget {
+  const _PercentBar({required this.amount});
+
+  final WorkAmount amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: LinearProgressIndicator(
+            value: amount.fraction,
+            minHeight: 4,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 10),
+        HintText(workPercent(amount)),
+      ],
+    );
   }
 }

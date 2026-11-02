@@ -38,35 +38,77 @@ void main() {
     expect(rate.perSecond(bytes(10, 100), const Duration(seconds: 3)), isNull);
   });
 
-  test('bytes_line_shows_percent_sizes_and_speed', () {
-    final line = workLine(
+  test('percent_is_the_fraction_rounded', () {
+    expect(workPercent(bytes(220 * megabyte, 487 * megabyte)), '45 %');
+  });
+
+  test('bytes_done_line_shows_sizes_and_speed', () {
+    final line = workDoneLine(
       bytes(220 * megabyte, 487 * megabyte),
       perSecond: 3.2 * megabyte,
     );
 
-    expect(line, '45 % · 220 of 487 MB · 3.2 MB/s');
+    expect(line, '220 of 487 MB · 3.2 MB/s');
   });
 
   test('small_sizes_and_slow_speeds_keep_a_decimal_and_use_kb', () {
-    final line = workLine(bytes(1100000, 3300000), perSecond: 200000);
+    final line = workDoneLine(bytes(1100000, 3300000), perSecond: 200000);
 
-    expect(line, '33 % · 1.1 of 3.3 MB · 200 KB/s');
+    expect(line, '1.1 of 3.3 MB · 200 KB/s');
   });
 
-  test('audio_line_shows_percent_lengths_and_speed', () {
-    final line = workLine(
+  test('audio_done_line_shows_lengths_and_speed', () {
+    final line = workDoneLine(
       audio(const Duration(minutes: 3), const Duration(minutes: 9, seconds: 8)),
       perSecond: 1300,
     );
 
-    expect(line, '33 % · 3:00 of 9:08 · 1.3× real time');
+    expect(line, '3:00 of 9:08 · 1.3× real time');
   });
 
-  test('line_without_a_speed_yet_leaves_it_out', () {
-    expect(workLine(bytes(0, 487 * megabyte)), '0 % · 0 of 487 MB');
+  test('done_line_without_a_speed_yet_leaves_it_out', () {
+    expect(workDoneLine(bytes(0, 487 * megabyte)), '0 of 487 MB');
   });
 
   test('unknown_total_shows_only_what_is_done', () {
-    expect(workLine(bytes(12 * megabyte, 0)), '12 MB');
+    expect(workDoneLine(bytes(12 * megabyte, 0)), '12 MB');
+  });
+
+  test('time_left_is_the_remaining_work_at_the_current_speed', () {
+    final timeLeft = workTimeLeft(
+      bytes(220 * megabyte, 487 * megabyte),
+      perSecond: 3.2 * megabyte,
+    );
+
+    expect(timeLeft, '1:24 left');
+  });
+
+  test('audio_time_left_uses_the_real_time_speed', () {
+    final timeLeft = workTimeLeft(
+      audio(const Duration(minutes: 3), const Duration(minutes: 9, seconds: 8)),
+      perSecond: 1300,
+    );
+
+    expect(timeLeft, '4:44 left');
+  });
+
+  test('time_left_rounds_up_so_it_never_reads_zero_too_early', () {
+    expect(workTimeLeft(bytes(990, 1000), perSecond: 100), '0:01 left');
+  });
+
+  test('time_left_can_be_estimated_while_work_remains_at_a_speed', () {
+    expect(canEstimateTimeLeft(bytes(220, 487), perSecond: 1), isTrue);
+  });
+
+  test('finished_step_has_no_time_left', () {
+    expect(canEstimateTimeLeft(bytes(487, 487), perSecond: 1), isFalse);
+  });
+
+  test('stalled_step_has_no_time_left', () {
+    expect(canEstimateTimeLeft(bytes(220, 487), perSecond: 0), isFalse);
+  });
+
+  test('unknown_total_has_no_time_left', () {
+    expect(canEstimateTimeLeft(bytes(12, 0), perSecond: 1), isFalse);
   });
 }
