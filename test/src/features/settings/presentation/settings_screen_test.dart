@@ -131,4 +131,23 @@ void main() {
       (1, 1),
     );
   });
+
+  testWidgets('retry_after_failed_download_downloads_again', (tester) async {
+    final models = FakeModelManager()
+      ..failure = const ModelDownloadException('HTTP 503');
+    await pumpSettings(tester, models);
+    await tester.tap(
+      find.descendant(
+        of: rowOf('Base (faster)'),
+        matching: find.text('Download'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    models.failure = null;
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('148 MB on your phone'), findsOneWidget);
+  });
 }
