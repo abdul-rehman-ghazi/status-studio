@@ -151,14 +151,15 @@
   - failed: "Export stopped" · §8 message
 - `ExportScreen` renders through `keepRunning(renderer.render(draft), ExportNotices(...))`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `export_progress_notice_shows_the_percent`
+  - `finished_render_is_at_one_hundred_percent`
   - `export_done_notice_says_ready`
   - `export_failed_notice_shows_the_error_message`
   - `rendering_keeps_the_app_in_the_background`
   - `cancelled_export_stops_the_background_service`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: keep exporting in the background`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: keep exporting in the background`
 
 ### Task 7: Settings, "Background work"
 

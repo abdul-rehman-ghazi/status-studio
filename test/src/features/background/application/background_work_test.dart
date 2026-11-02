@@ -56,11 +56,6 @@ void main() {
     ));
   });
 
-  List<String> serviceCalls() => [
-    for (final call in platform.calls)
-      if (call == 'show' || call == 'stop') call,
-  ];
-
   test('first_progress_shows_the_notice', () async {
     work.showProgress(BackgroundJob.script, writing);
     await pumpEventQueue();
@@ -103,7 +98,7 @@ void main() {
       ..cancel(BackgroundJob.script);
     await pumpEventQueue();
 
-    expect(serviceCalls(), ['show', 'stop']);
+    expect(platform.serviceCalls, ['show', 'stop']);
   });
 
   test('cancel_stops_without_a_result', () async {
@@ -149,7 +144,7 @@ void main() {
       ..cancel(BackgroundJob.script);
     await pumpEventQueue();
 
-    expect(serviceCalls(), ['show', 'stop']);
+    expect(platform.serviceCalls, ['show', 'stop']);
   });
 
   test('first_job_asks_for_access', () async {

@@ -18,6 +18,12 @@ class FakeBackgroundWorkPlatform implements BackgroundWorkPlatform {
 
   bool get isRunning => calls.lastIndexOf('show') > calls.lastIndexOf('stop');
 
+  /// Only the calls that start, update or stop the service, in order.
+  List<String> get serviceCalls => [
+    for (final call in calls)
+      if (call == 'show' || call == 'stop') call,
+  ];
+
   @override
   Future<void> show(ProgressNotice notice) async {
     calls.add('show');
