@@ -257,6 +257,7 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 1. ~~H.264 encoder in the min FFmpeg build~~ **Resolved 2026-10-30.** The bundled `libavutil` build flags include `--disable-mediacodec` and `--disable-openssl`, with no `libx264` or `libopenh264`, so there is no H.264 encoder and no https input. **Decision:** render with Media3 Transformer (Android), and do partial downloads in Dart.
 2. **Whisper speed and quality** (M3 Task 1). Measure small and base on a mid-range Android phone with a 5-minute Urdu speech clip and a 5-minute sung clip. Confirm that 90-second chunking doesn't damage lines at chunk boundaries.
 3. **Status length limit** (M6). Check WhatsApp's current Status video limit. Until confirmed, show a warning (not a block) when the clip is longer than 60 s.
+   - **Checked 2026-11-02 (M6 Task 6):** 60 s has been the general limit since 2024. A 90 s limit was reported in beta in 2025, but there's no official confirmation that it rolled out to everyone. The 60 s warning stays. Confirm on a phone by checking the longest trim the Status composer allows (`docs/device-testing-todo.md`).
 4. **YouTube extraction reliability** (M2). If `youtube_explode_dart` breaks, update it. Track failures in the error state rather than crashing.
 
 ## 11. Out of scope for v1

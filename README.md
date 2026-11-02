@@ -106,3 +106,29 @@ Downloading from YouTube is against YouTube's terms and app store policies, so t
 - [Noto Naskh Arabic](https://fonts.google.com/noto/specimen/Noto+Naskh+Arabic): Arabic captions, and a plainer option for Urdu.
 
 All are licensed under the SIL Open Font License 1.1. The licence files sit next to the fonts in `assets/fonts/`.
+
+## Releasing
+
+```sh
+fvm flutter analyze
+fvm flutter test
+fvm flutter build apk --release --split-per-abi
+```
+
+- The APKs are in `build/app/outputs/flutter-apk/` (`app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, `app-x86_64-release.apk`). Most phones need `arm64-v8a`.
+- Release builds are signed with `android/app/upload-keystore.jks` through `android/key.properties`. Check the signature with `$ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`.
+- To regenerate the launcher icon after a logo change: `fvm flutter test tool/export_logo_test.dart`, then `fvm dart run flutter_launcher_icons`. Afterwards, revert its change to `ios/Runner.xcodeproj/project.pbxproj`: the tool sets the wrong build setting.
+
+Smoke test on a phone with a release build:
+
+1. Paste a link and get the script.
+2. Pick a start and an end line.
+3. Fine-tune the clip and play it.
+4. Try each frame preset (9:16, 4:5, 1:1, 16:9, Free), with crop and blur.
+5. Export the reel.
+6. Save it to the gallery.
+7. Share it.
+8. Reopen the reel from Recent.
+
+The full on-phone checklist is in [docs/device-testing-todo.md](docs/device-testing-todo.md).
+

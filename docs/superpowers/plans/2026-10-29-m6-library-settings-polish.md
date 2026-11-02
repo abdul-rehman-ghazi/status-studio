@@ -129,9 +129,9 @@
 - Create `flutter_launcher_icons.yaml`
 - Modify `README.md` (release section)
 
-- [ ] **Step 1:** Run `fvm flutter test tool/export_logo_test.dart`. Expected: both PNGs exist at 1024×1024.
-- [ ] **Step 2:** Configure `flutter_launcher_icons` (adaptive background `#3DD68C`, foreground PNG, iOS from the full PNG). Run `fvm dart run flutter_launcher_icons`; expected: Android mipmaps and the iOS AppIcon set are updated.
-- [ ] **Step 3:** Check WhatsApp's current Status video limit. Update spec §10 Q3 and, if it differs from 60 s, the M4 warning threshold and its tests.
-- [ ] **Step 4:** Add a "Releasing" section to README: `fvm flutter build apk --release --split-per-abi`, where outputs go, how to verify the signature with `apksigner verify --print-certs`, and a manual smoke-test list (link → script → pick → fine-tune → each frame preset → export → save → share).
-- [ ] **Step 5: Run everything:** `fvm flutter analyze && fvm flutter test && fvm flutter build apk --release --split-per-abi`. Expected: no issues, all tests pass, three signed APKs.
-- [ ] **Step 6: Commit** `feat: add launcher icon and release checklist`
+- [x] **Step 1:** Run `fvm flutter test tool/export_logo_test.dart`. Expected: both PNGs exist at 1024×1024.
+- [x] **Step 2:** Configure `flutter_launcher_icons` (adaptive background `#3DD68C`, foreground PNG, iOS from the full PNG). Run `fvm dart run flutter_launcher_icons`; expected: Android mipmaps and the iOS AppIcon set are updated. The tool also rewrites `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` in `project.pbxproj` to `AppIcon` (a known bug); revert that file. The full icon is full-bleed, because iOS rejects transparency. The adaptive foreground is drawn at 85 %, so the bracket corners stay inside the 66 % safe circle.
+- [x] **Step 3:** (Checked 2026-11-02: 60 s is general; 90 s was only reported in beta, so the threshold stays; the phone check is in the device TODO.) Check WhatsApp's current Status video limit. Update spec §10 Q3 and, if it differs from 60 s, the M4 warning threshold and its tests.
+- [x] **Step 4:** Add a "Releasing" section to README: `fvm flutter build apk --release --split-per-abi`, where outputs go, how to verify the signature with `apksigner verify --print-certs`, and a manual smoke-test list (link → script → pick → fine-tune → each frame preset → export → save → share).
+- [x] **Step 5: Run everything:** `fvm flutter analyze && fvm flutter test && fvm flutter build apk --release --split-per-abi`. Expected: no issues, all tests pass, three signed APKs.
+- [x] **Step 6: Commit** `feat: add launcher icon and release checklist`
