@@ -110,14 +110,14 @@
 - `abstract interface class JobNotices<T> { BackgroundJob get job; ProgressNotice progress(T event); ResultNotice get done; ResultNotice failed(Object error); }`
 - `Stream<T> BackgroundWork.keepRunning<T>(Stream<T> work, JobNotices<T> notices)`: passes events and the error through unchanged; cancelling it cancels `work` and returns that cancel's future.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `kept_stream_passes_events_through`
   - `each_event_updates_the_notice`
   - `finished_work_posts_done`
-  - `failed_work_posts_failed_and_passes_the_error`
-  - `cancelled_work_cancels_the_source_and_posts_nothing`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: keep a work stream running in the background`
+  - `failed_work_posts_failed`, `failed_work_passes_the_error_on`, `failed_work_stops_the_service`
+  - `cancelled_work_cancels_the_source`, `cancelled_work_posts_nothing`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: keep a work stream running in the background`
 
 ### Task 5: Script in the background
 

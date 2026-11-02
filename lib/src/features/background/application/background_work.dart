@@ -12,6 +12,17 @@ typedef BackgroundWorkServices = ({
   bool Function() isAppVisible,
 });
 
+/// What a job's notifications say at each point of its run.
+abstract interface class JobNotices<T> {
+  BackgroundJob get job;
+
+  ProgressNotice progress(T event);
+
+  ResultNotice get done;
+
+  ResultNotice failed(Object error);
+}
+
 /// Keeps the app alive while scripts and exports run, and tells the user
 /// how they ended if they've left the app (spec FR-16).
 class BackgroundWork {
@@ -29,6 +40,39 @@ class BackgroundWork {
   /// Platform calls run one after another, so a stop can never overtake
   /// the show before it.
   Future<void> _platformCalls = Future.value();
+
+  /// [work] unchanged, kept running in the background while it's listened
+  /// to. Cancelling the result cancels [work] and ends the job quietly.
+  Stream<T> keepRunning<T>(Stream<T> work, JobNotices<T> notices) {
+    final job = notices.job;
+    late final StreamSubscription<T> source;
+    final kept = StreamController<T>();
+    kept
+      ..onListen = () {
+        source = work.listen(
+          (event) {
+            showProgress(job, notices.progress(event));
+            kept.add(event);
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            finish(job, notices.failed(error));
+            kept.addError(error, stackTrace);
+            unawaited(kept.close());
+          },
+          onDone: () {
+            finish(job, notices.done);
+            unawaited(kept.close());
+          },
+          cancelOnError: true,
+        );
+      }
+      // Also runs after done or an error, when the job has already ended.
+      ..onCancel = () {
+        cancel(job);
+        return source.cancel();
+      };
+    return kept.stream;
+  }
 
   void showProgress(BackgroundJob job, ProgressNotice notice) {
     if (_running.isEmpty) {

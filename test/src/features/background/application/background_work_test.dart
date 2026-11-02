@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +19,25 @@ const writingMore = ProgressNotice(
 );
 const rendering = ProgressNotice(title: 'Rendering', text: 'Video', percent: 5);
 const ready = ResultNotice(title: 'Script ready', text: 'Video');
+
+/// Each event is the percent done.
+class PercentNotices implements JobNotices<int> {
+  const PercentNotices();
+
+  @override
+  BackgroundJob get job => BackgroundJob.script;
+
+  @override
+  ProgressNotice progress(int event) =>
+      ProgressNotice(title: 'Writing', text: 'Video', percent: event);
+
+  @override
+  ResultNotice get done => ready;
+
+  @override
+  ResultNotice failed(Object error) =>
+      ResultNotice(title: 'Script stopped', text: '$error');
+}
 
 void main() {
   late FakeBackgroundWorkPlatform platform;
@@ -136,5 +157,90 @@ void main() {
     await pumpEventQueue();
 
     expect(platform.calls, contains('requestNotifications'));
+  });
+
+  group('keepRunning', () {
+    const notices = PercentNotices();
+
+    test('kept_stream_passes_events_through', () async {
+      final kept = work.keepRunning(Stream.fromIterable([10, 20]), notices);
+
+      expect(await kept.toList(), [10, 20]);
+    });
+
+    test('each_event_updates_the_notice', () async {
+      await work
+          .keepRunning(Stream.fromIterable([10, 20]), notices)
+          .drain<void>();
+      await pumpEventQueue();
+
+      expect(platform.shown.map((notice) => notice.percent), [10, 20]);
+    });
+
+    test('finished_work_posts_done', () async {
+      await work.keepRunning(Stream.fromIterable([10]), notices).drain<void>();
+      await pumpEventQueue();
+
+      expect(platform.results, [(BackgroundJob.script, ready)]);
+    });
+
+    test('failed_work_posts_failed', () async {
+      final failing = Stream<int>.error(Exception('offline'));
+
+      await work.keepRunning(failing, notices).drain<void>().catchError((_) {});
+      await pumpEventQueue();
+
+      expect(platform.results.single.$2.title, 'Script stopped');
+    });
+
+    test('failed_work_passes_the_error_on', () {
+      final failing = Stream<int>.error(Exception('offline'));
+
+      expect(work.keepRunning(failing, notices), emitsError(isException));
+    });
+
+    test('failed_work_stops_the_service', () async {
+      final source = StreamController<int>();
+      final kept = work.keepRunning(source.stream, notices);
+      final subscription = kept.listen(null, onError: (Object _) {});
+      source.add(10);
+      await pumpEventQueue();
+
+      source.addError(Exception('offline'));
+      await pumpEventQueue();
+
+      expect(platform.isRunning, isFalse);
+      await subscription.cancel();
+    });
+
+    test('cancelled_work_cancels_the_source', () async {
+      var sourceCancelled = false;
+      final source = StreamController<int>(
+        onCancel: () => sourceCancelled = true,
+      );
+      final subscription = work
+          .keepRunning(source.stream, notices)
+          .listen(null);
+      source.add(10);
+      await pumpEventQueue();
+
+      await subscription.cancel();
+
+      expect(sourceCancelled, isTrue);
+    });
+
+    test('cancelled_work_posts_nothing', () async {
+      final source = StreamController<int>();
+      final subscription = work
+          .keepRunning(source.stream, notices)
+          .listen(null);
+      source.add(10);
+      await pumpEventQueue();
+
+      await subscription.cancel();
+      await pumpEventQueue();
+
+      expect(platform.results, isEmpty);
+    });
   });
 }
