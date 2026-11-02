@@ -8,6 +8,7 @@ import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
+import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -65,7 +66,17 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       case RenderRunning(:final fraction):
         setState(() => _fraction = fraction);
       case RenderFinished(:final videoPath):
-        context.pushReplacement(AppRoutes.doneFor(videoPath));
+        unawaited(_keepAndOpenDone(videoPath));
+    }
+  }
+
+  /// Adds the reel to Recent (FR-11), then opens Done for it.
+  Future<void> _keepAndOpenDone(String videoPath) async {
+    final reel = await ref
+        .read(recentReelsProvider.notifier)
+        .keep(videoPath, ref.read(reelDraftProvider));
+    if (mounted) {
+      context.pushReplacement(AppRoutes.doneFor(reel.videoPath));
     }
   }
 

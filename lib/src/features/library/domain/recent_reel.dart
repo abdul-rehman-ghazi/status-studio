@@ -1,0 +1,56 @@
+import 'package:flutter/foundation.dart';
+
+/// A finished reel in the Recent list (spec §6.1, FR-11).
+@immutable
+class RecentReel {
+  const RecentReel({
+    required this.id,
+    required this.title,
+    required this.videoPath,
+    required this.thumbnailPath,
+    required this.duration,
+    required this.createdAt,
+  });
+
+  /// Throws [FormatException] or [TypeError] for a malformed entry.
+  factory RecentReel.fromJson(Map<String, Object?> json) => RecentReel(
+    id: json['id']! as String,
+    title: json['title']! as String,
+    videoPath: json['videoPath']! as String,
+    thumbnailPath: json['thumbnailPath']! as String,
+    duration: Duration(milliseconds: json['durationMs']! as int),
+    createdAt: DateTime.parse(json['createdAt']! as String),
+  );
+
+  final String id;
+
+  /// The caption's first line, shown in the list.
+  final String title;
+  final String videoPath;
+  final String thumbnailPath;
+  final Duration duration;
+  final DateTime createdAt;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'title': title,
+    'videoPath': videoPath,
+    'thumbnailPath': thumbnailPath,
+    'durationMs': duration.inMilliseconds,
+    'createdAt': createdAt.toIso8601String(),
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecentReel &&
+      other.id == id &&
+      other.title == title &&
+      other.videoPath == videoPath &&
+      other.thumbnailPath == thumbnailPath &&
+      other.duration == duration &&
+      other.createdAt == createdAt;
+
+  @override
+  int get hashCode =>
+      Object.hash(id, title, videoPath, thumbnailPath, duration, createdAt);
+}

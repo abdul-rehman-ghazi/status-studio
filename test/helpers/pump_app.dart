@@ -5,7 +5,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:status_studio/src/app.dart';
+import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
@@ -28,6 +31,7 @@ import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
 import 'fake_reel_actions.dart';
 import 'fake_video_player.dart';
+import 'recording_ffmpeg.dart';
 
 /// What a widget test runs the app with. Services that would touch the
 /// network or a platform plugin default to fakes.
@@ -66,6 +70,7 @@ class TestSetup {
     rendererProvider.overrideWithValue(renderer),
     captionTranslatorProvider.overrideWithValue(translator),
     reelActionsProvider.overrideWithValue(reelActions ?? FakeReelActions()),
+    ffmpegRunnerProvider.overrideWithValue(const SilentFfmpegRunner()),
     // The probe needs FFprobe; every test clip is 1920 × 1080.
     clipFrameSizeProvider.overrideWith(
       (ref, source) async => const OutputSize(1920, 1080),
@@ -97,6 +102,9 @@ Future<void> pumpApp(
     ..physicalSize = const Size(1080, 2340)
     ..devicePixelRatio = 3;
   addTearDown(tester.view.reset);
+  // Preferences live in memory, fresh for every test.
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
   await tester.pumpWidget(
     ProviderScope(
       overrides: setup.allOverrides,

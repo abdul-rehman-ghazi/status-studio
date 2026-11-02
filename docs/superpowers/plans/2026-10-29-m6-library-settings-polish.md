@@ -58,17 +58,17 @@
 - `RecentReel` per spec §6.1, with `toJson`/`fromJson`.
 - `class RecentReelsRepository { RecentReelsRepository(SharedPreferencesAsync prefs); Future<List<RecentReel>> load(); Future<void> add(RecentReel reel); Future<void> delete(String id); static const maximum = 50; }`
 - `List<String> thumbnailArguments({required String videoPath, required String outputPath})` → `['-y', '-ss', '0', '-i', videoPath, '-frames:v', '1', '-vf', 'scale=270:-2', outputPath]`
-- After `RenderFinished`, the Export screen moves the output to `documents/reels/<id>.mp4`, writes `<id>.jpg` with `thumbnailArguments` via `FfmpegRunner`, and calls `add`. (The M5 renderer is `Media3Renderer`; FFmpeg can still decode H.264 for thumbnails.)
+- After `RenderFinished`, the Export screen calls `RecentReelsController.keep(videoPath, draft)`. The renderer already writes into `documents/reels/` as `reel_<ms>.mp4`, so nothing moves and the id is that name. `keep` writes `<id>.jpg` with `thumbnailArguments` via `FfmpegRunner` (a failure only loses the picture) and calls `add`. `RecentReelsController` (`recentReelsProvider`, an `AsyncNotifier`) is created here rather than in Task 3, because Export needs it. `RecentReel.title` is the caption's first line. (The M5 renderer is `Media3Renderer`; FFmpeg can still decode H.264 for thumbnails.)
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `add_puts_newest_first`
   - `adding_beyond_fifty_drops_oldest_and_its_files`
   - `delete_removes_entry_and_files`
   - `load_skips_reels_with_missing_files`
   - `corrupt_json_yields_empty_list`
   - `thumbnail_takes_first_frame_at_270_wide`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: store recent reels`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: store recent reels`
 
 ### Task 3: Home list and reopening a reel
 
