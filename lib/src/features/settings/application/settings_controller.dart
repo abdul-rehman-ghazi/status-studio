@@ -18,7 +18,7 @@ class SettingsController extends AsyncNotifier<SpeechModel> {
     return SpeechModel.values
             .where((model) => model.name == stored)
             .firstOrNull ??
-        SpeechModel.small;
+        defaultSpeechModel;
   }
 
   /// Only the choice changes; downloaded models stay until deleted. The

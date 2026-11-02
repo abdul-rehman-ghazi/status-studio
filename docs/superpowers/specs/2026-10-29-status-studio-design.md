@@ -78,12 +78,12 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 
 **FR-11 Recent reels.** Newest first, at most 50 (oldest dropped and its file deleted). Each row shows a thumbnail, the first caption line, duration and date. Tap opens Done for that reel. Long-press offers Delete.
 
-**FR-12 Settings.** Model: base or small (default small), with size on disk and Download / Delete. Downloads show progress. If transcription starts without the model, the model downloads first as a step on the Processing screen.
+**FR-12 Settings.** Model: any multilingual Whisper model (tiny, base, small, medium, large-v3; default small, marked "recommended"), each with its download size or size on disk and Download / Delete. An info button opens a sheet with the model's pros and cons (speed relative to small, accuracy, memory it needs). English-only models aren't offered: they can't write other languages. Downloads show progress. If transcription starts without the model, the model downloads first as a step on the Processing screen.
 
 **FR-13 Offline.** With the model downloaded and the source cached, transcription, translation (once its ML Kit language pack is downloaded) and export work without a network.
 
 **FR-14 Saved scripts.**
-- **What's saved:** every finished script, keyed by video ID, requested language (`auto` or a code) and source (`captions`, `whisper-small`, `whisper-base`). The entry holds the transcript (with the inferred language), the source and the save date.
+- **What's saved:** every finished script, keyed by video ID, requested language (`auto` or a code) and source (`captions` or `whisper-<model>`, e.g. `whisper-small`). The entry holds the transcript (with the inferred language), the source and the save date.
 - **Same link again:** pasting a link whose script is saved for the chosen language skips Processing. Script opens with the banner "Using the saved script from <d MMM> · Write it again".
 - **Write it again:** runs Whisper with the current model and replaces the saved script.
 - **Resume:** Whisper progress is saved after each 90-second piece, so an interrupted run resumes from the next piece.

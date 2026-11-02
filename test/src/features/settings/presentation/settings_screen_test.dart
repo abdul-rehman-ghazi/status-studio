@@ -24,7 +24,7 @@ void main() {
   testWidgets('selecting_base_persists_setting', (tester) async {
     await pumpSettings(tester, FakeModelManager());
 
-    await tester.tap(find.text('Base (faster)'));
+    await tester.tap(find.text('Base'));
     await tester.pumpAndSettle();
 
     final stored = await tester.runAsync(
@@ -38,10 +38,7 @@ void main() {
     await pumpSettings(tester, models);
 
     await tester.tap(
-      find.descendant(
-        of: rowOf('Base (faster)'),
-        matching: find.text('Download'),
-      ),
+      find.descendant(of: rowOf('Base'), matching: find.text('Download')),
     );
     await tester.pump();
     final whileDownloading = find.text('Downloading… 50 %').evaluate().length;
@@ -58,10 +55,7 @@ void main() {
     final models = FakeModelManager()..gate = Completer<void>();
     await pumpSettings(tester, models);
     await tester.tap(
-      find.descendant(
-        of: rowOf('Base (faster)'),
-        matching: find.text('Download'),
-      ),
+      find.descendant(of: rowOf('Base'), matching: find.text('Download')),
     );
     await tester.pump();
 
@@ -81,13 +75,13 @@ void main() {
 
     await tester.tap(
       find.descendant(
-        of: rowOf('Small (better, slower)'),
+        of: rowOf('Small (recommended)'),
         matching: find.text('Delete'),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Not downloaded'), findsNWidgets(2));
+    expect(find.text('488 MB download'), findsOneWidget);
   });
 
   testWidgets('switching_model_keeps_downloaded_files', (tester) async {
@@ -99,7 +93,7 @@ void main() {
     );
     await pumpSettings(tester, models);
 
-    await tester.tap(find.text('Base (faster)'));
+    await tester.tap(find.text('Base'));
     await tester.pumpAndSettle();
 
     expect(
@@ -117,10 +111,7 @@ void main() {
     await pumpSettings(tester, models);
 
     await tester.tap(
-      find.descendant(
-        of: rowOf('Base (faster)'),
-        matching: find.text('Download'),
-      ),
+      find.descendant(of: rowOf('Base'), matching: find.text('Download')),
     );
     await tester.pumpAndSettle();
 
@@ -138,10 +129,7 @@ void main() {
       ..failure = const ModelDownloadException('HTTP 503');
     await pumpSettings(tester, models);
     await tester.tap(
-      find.descendant(
-        of: rowOf('Base (faster)'),
-        matching: find.text('Download'),
-      ),
+      find.descendant(of: rowOf('Base'), matching: find.text('Download')),
     );
     await tester.pumpAndSettle();
     models.failure = null;
@@ -152,8 +140,49 @@ void main() {
     expect(find.text('148 MB on your phone'), findsOneWidget);
   });
 
+  testWidgets('settings_lists_every_speech_model', (tester) async {
+    await pumpSettings(tester, FakeModelManager());
+
+    expect(
+      [
+        for (final title in [
+          'Tiny',
+          'Base',
+          'Small (recommended)',
+          'Medium',
+          'Large',
+        ])
+          find.text(title).evaluate().length,
+      ],
+      [1, 1, 1, 1, 1],
+    );
+  });
+
+  testWidgets('model_not_downloaded_shows_its_download_size', (tester) async {
+    await pumpSettings(tester, FakeModelManager());
+
+    expect(find.text('3.1 GB download'), findsOneWidget);
+  });
+
+  testWidgets('info_button_shows_pros_and_cons', (tester) async {
+    await pumpSettings(tester, FakeModelManager());
+
+    await tester.tap(find.byTooltip('About Medium'));
+    await tester.pumpAndSettle();
+
+    expect(
+      (
+        find.text('Pros').evaluate().length,
+        find.text('Cons').evaluate().length,
+        find.textContaining('slower than Small').evaluate().length,
+      ),
+      (1, 1, 1),
+    );
+  });
+
   testWidgets('settings_shows_yt_dlp_version', (tester) async {
     await pumpSettings(tester, FakeModelManager());
+    await tester.scrollUntilVisible(find.text('yt-dlp 2026.10.26'), 200);
 
     expect(find.text('yt-dlp 2026.10.26'), findsOneWidget);
   });
@@ -163,6 +192,7 @@ void main() {
     await pumpRoutes(tester, [
       AppRoutes.settings,
     ], setup: TestSetup(modelManager: FakeModelManager(), ytDlp: ytDlp));
+    await tester.scrollUntilVisible(find.text('Update'), 200);
 
     await tester.tap(find.text('Update'));
     await tester.pumpAndSettle();

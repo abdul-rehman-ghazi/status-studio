@@ -327,7 +327,7 @@ Transcript _empty(String languageCode) =>
 /// The model chosen in Settings (spec FR-12), small until it has loaded.
 /// Home watches the setting, so it has loaded before a script starts.
 final whisperModelProvider = Provider<SpeechModel>(
-  (ref) => ref.watch(whisperModelSettingProvider).value ?? SpeechModel.small,
+  (ref) => ref.watch(whisperModelSettingProvider).value ?? defaultSpeechModel,
 );
 
 final realScriptPipelineProvider = Provider<ScriptPipeline>(

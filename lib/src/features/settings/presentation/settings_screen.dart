@@ -6,12 +6,11 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/settings/application/settings_controller.dart';
+import 'package:status_studio/src/features/settings/presentation/speech_model_guide.dart';
 import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
 import 'package:status_studio/src/features/source/data/yt_dlp.dart';
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
-
-const _bytesPerMegabyte = 1000000;
 
 /// The speech model: which one Whisper uses, and which are on the phone
 /// (spec FR-12).
@@ -41,7 +40,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final selected =
-        ref.watch(whisperModelSettingProvider).value ?? SpeechModel.small;
+        ref.watch(whisperModelSettingProvider).value ?? defaultSpeechModel;
     final settings = ref.read(whisperModelSettingProvider.notifier);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -63,7 +62,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
             child: Column(
               children: [
-                for (final model in const [SpeechModel.small, SpeechModel.base])
+                for (final model in SpeechModel.values)
                   _ModelRow(
                     model: model,
                     downloadFraction: _downloading[model],
@@ -155,7 +154,17 @@ class _ModelRow extends ConsumerWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Radio<SpeechModel>(value: model),
-      title: Text(_labelOf(model)),
+      title: Row(
+        children: [
+          Flexible(child: Text(titleOf(model))),
+          IconButton(
+            icon: const Icon(Icons.info_outline, size: 20),
+            visualDensity: VisualDensity.compact,
+            tooltip: 'About ${guideFor(model).name}',
+            onPressed: () => unawaited(showSpeechModelGuide(context, model)),
+          ),
+        ],
+      ),
       subtitle: Text(_status(bytes)),
       trailing: _action(bytes),
       onTap: actions.select,
@@ -167,9 +176,9 @@ class _ModelRow extends ConsumerWidget {
       return 'Downloading… ${(fraction * 100).round()} %';
     }
     if (bytes > 0) {
-      return '${(bytes / _bytesPerMegabyte).round()} MB on your phone';
+      return '${sizeText(bytes)} on your phone';
     }
-    return 'Not downloaded';
+    return '${sizeText(guideFor(model).downloadBytes)} download';
   }
 
   Widget? _action(int bytes) {
@@ -185,11 +194,6 @@ class _ModelRow extends ConsumerWidget {
     );
   }
 }
-
-String _labelOf(SpeechModel model) => switch (model) {
-  SpeechModel.small => 'Small (better, slower)',
-  SpeechModel.base => 'Base (faster)',
-};
 
 /// yt-dlp's version, fetched by running it (about 3 s on a mid-range
 /// phone).

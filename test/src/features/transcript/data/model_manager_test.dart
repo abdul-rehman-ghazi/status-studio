@@ -187,4 +187,12 @@ void main() {
 
     expect(modelDownloadError(full), isA<InsufficientStorageException>());
   });
+
+  test('every_speech_model_is_multilingual', () {
+    final names = [
+      for (final model in SpeechModel.values) whisperModelFor(model).modelName,
+    ];
+
+    expect(names, ['tiny', 'base', 'small', 'medium', 'large-v3']);
+  });
 }

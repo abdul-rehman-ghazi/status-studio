@@ -173,9 +173,14 @@ Stream<WorkAmount> _receive(HttpClientResponse response, File part) async* {
 }
 
 /// whisper_ggml's name for [model].
+/// Only multilingual models: the English-only ones can't write any other
+/// language.
 WhisperModel whisperModelFor(SpeechModel model) => switch (model) {
+  SpeechModel.tiny => WhisperModel.tiny,
   SpeechModel.base => WhisperModel.base,
   SpeechModel.small => WhisperModel.small,
+  SpeechModel.medium => WhisperModel.medium,
+  SpeechModel.large => WhisperModel.large,
 };
 
 final modelManagerProvider = Provider<ModelManager>((ref) {
