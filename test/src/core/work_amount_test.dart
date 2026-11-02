@@ -65,4 +65,8 @@ void main() {
   test('line_without_a_speed_yet_leaves_it_out', () {
     expect(workLine(bytes(0, 487 * megabyte)), '0 % · 0 of 487 MB');
   });
+
+  test('unknown_total_shows_only_what_is_done', () {
+    expect(workLine(bytes(12 * megabyte, 0)), '12 MB');
+  });
 }

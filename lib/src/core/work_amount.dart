@@ -63,16 +63,24 @@ class WorkRate {
 }
 
 /// `45 % · 220 of 487 MB · 3.2 MB/s`, or `33 % · 3:00 of 9:08 · 1.3× real
-/// time`; the speed is left out until it is known.
+/// time`; the speed is left out until it is known, and the percent and
+/// total while the total is.
 String workLine(WorkAmount amount, {double? perSecond}) {
-  final percent = '${(amount.fraction * 100).round()} %';
+  final knowsTotal = amount.total > 0;
   final parts = [
-    percent,
-    _doneOfTotal(amount),
+    if (knowsTotal) '${(amount.fraction * 100).round()} %',
+    if (knowsTotal) _doneOfTotal(amount) else _doneOnly(amount),
     if (perSecond != null) _speed(amount.unit, perSecond),
   ];
   return parts.join(' · ');
 }
+
+String _doneOnly(WorkAmount amount) => switch (amount.unit) {
+  WorkUnit.bytes => '${_megabytes(amount.done, scale: amount.done)} MB',
+  WorkUnit.audioMilliseconds => formatTimestamp(
+    Duration(milliseconds: amount.done),
+  ),
+};
 
 String _doneOfTotal(WorkAmount amount) => switch (amount.unit) {
   WorkUnit.bytes => _megabytesOfTotal(amount),
@@ -81,13 +89,14 @@ String _doneOfTotal(WorkAmount amount) => switch (amount.unit) {
         '${formatTimestamp(Duration(milliseconds: amount.total))}',
 };
 
-String _megabytesOfTotal(WorkAmount amount) {
-  final decimals = amount.total < _wholeMegabytesFrom * _bytesPerMegabyte
-      ? 1
-      : 0;
-  String megabytes(int bytes) =>
-      (bytes / _bytesPerMegabyte).toStringAsFixed(decimals);
-  return '${megabytes(amount.done)} of ${megabytes(amount.total)} MB';
+String _megabytesOfTotal(WorkAmount amount) =>
+    '${_megabytes(amount.done, scale: amount.total)} of '
+    '${_megabytes(amount.total, scale: amount.total)} MB';
+
+/// One decimal while [scale] is under [_wholeMegabytesFrom] megabytes.
+String _megabytes(int bytes, {required int scale}) {
+  final decimals = scale < _wholeMegabytesFrom * _bytesPerMegabyte ? 1 : 0;
+  return (bytes / _bytesPerMegabyte).toStringAsFixed(decimals);
 }
 
 String _speed(WorkUnit unit, double perSecond) => switch (unit) {

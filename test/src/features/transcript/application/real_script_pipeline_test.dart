@@ -184,13 +184,27 @@ void main() {
     );
   });
 
-  test('transcribing_reports_audio_done_of_the_video_length', () async {
+  test('transcribing_starts_at_zero_before_the_first_chunk', () async {
     final events = await run();
 
-    final total = sampleVideo.duration.inMilliseconds;
+    expect(stepsOf(events, ScriptStage.transcribing).first!.done, 0);
+  });
+
+  test('transcribing_reports_progress_inside_a_chunk', () async {
+    final events = await run();
+
     expect(
       stepsOf(events, ScriptStage.transcribing).map((step) => step!.done),
-      [90000, 180000, total],
+      contains(45000),
+    );
+  });
+
+  test('transcribing_ends_at_the_video_length', () async {
+    final events = await run();
+
+    expect(
+      stepsOf(events, ScriptStage.transcribing).last!.done,
+      sampleVideo.duration.inMilliseconds,
     );
   });
 

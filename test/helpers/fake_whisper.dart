@@ -4,8 +4,9 @@
 import 'package:whisper_ggml/src/models/whisper_result.dart';
 import 'package:whisper_ggml/whisper_ggml.dart';
 
-/// Answers each chunk with one 2–4 s segment saying [text] (empty text
-/// means silence), or null when [failing]. Never loads native code.
+/// Reports 50 % of each chunk, then answers with one 2–4 s segment saying
+/// [text] (empty text means silence), or null when [failing]. Never loads
+/// native code.
 class FakeWhisperController extends WhisperController {
   FakeWhisperController({this.failing = false, this.text = 'words'});
 
@@ -34,6 +35,7 @@ class FakeWhisperController extends WhisperController {
   }) async {
     languages.add(lang);
     transcribedPaths.add(audioPath);
+    onProgress?.call(50);
     if (failing) {
       return null;
     }

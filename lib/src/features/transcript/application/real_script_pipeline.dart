@@ -153,7 +153,16 @@ class RealScriptPipeline implements ScriptPipeline {
     final partial = await _partial(store, key);
     final lines = [...partial.lines];
     var completed = partial.completedChunks;
-    final batches = services.whisper.transcribeChunks(
+    // Whisper detects the language inside the first chunk, so writing
+    // starts now rather than after a chunk's worth of silence.
+    Transcript written() =>
+        Transcript(languageCode: requested, lines: [...lines]);
+    yield _writing(
+      video,
+      written(),
+      chunks: (done: completed.toDouble(), of: chunks.length),
+    );
+    final events = services.whisper.transcribeChunks(
       ChunkTranscription(
         chunks: chunks,
         language: key.language,
@@ -162,23 +171,45 @@ class RealScriptPipeline implements ScriptPipeline {
         firstIndex: lines.length,
       ),
     );
-    await for (final batch in batches) {
-      lines.addAll(batch);
-      completed++;
-      await store.savePartial(
-        key,
-        model,
-        PartialTranscript(completedChunks: completed, lines: lines),
-      );
-      yield ScriptProgress(
-        stage: ScriptStage.transcribing,
-        fraction:
-            _languageStage + (1 - _languageStage) * completed / chunks.length,
-        transcript: Transcript(languageCode: requested, lines: [...lines]),
-        step: _transcribed(video, completed: completed, of: chunks.length),
-      );
+    await for (final event in events) {
+      switch (event) {
+        case ChunkProgress(:final position, :final fraction):
+          yield _writing(
+            video,
+            written(),
+            chunks: (done: position + fraction, of: chunks.length),
+          );
+        case ChunkWritten(lines: final batch):
+          lines.addAll(batch);
+          completed++;
+          await store.savePartial(
+            key,
+            model,
+            PartialTranscript(completedChunks: completed, lines: lines),
+          );
+          yield _writing(
+            video,
+            written(),
+            chunks: (done: completed.toDouble(), of: chunks.length),
+          );
+      }
     }
     yield await _finishWithWhisper(store, key, lines);
+  }
+
+  /// The [transcript] so far, [chunks.done] of [chunks.of] chunks in; a
+  /// fraction while Whisper is inside a chunk.
+  ScriptProgress _writing(
+    SourceVideo video,
+    Transcript transcript, {
+    required ({double done, int of}) chunks,
+  }) {
+    return ScriptProgress(
+      stage: ScriptStage.transcribing,
+      fraction: _languageStage + (1 - _languageStage) * chunks.done / chunks.of,
+      transcript: transcript,
+      step: _transcribed(video, chunksDone: chunks.done, of: chunks.of),
+    );
   }
 
   Stream<ScriptProgress> _ensureModel(String languageCode) async* {
@@ -276,17 +307,17 @@ class _ScriptAudio {
   late File file;
 }
 
-/// Audio transcribed after [completed] of [of] chunks, out of the video's
+/// Audio transcribed after [chunksDone] of [of] chunks, out of the video's
 /// length; the last chunk is usually shorter than the others.
 WorkAmount _transcribed(
   SourceVideo video, {
-  required int completed,
+  required double chunksDone,
   required int of,
 }) {
   final total = video.duration.inMilliseconds;
-  final done = completed == of
+  final done = chunksDone >= of
       ? total
-      : math.min(total, completed * _chunkLength.inMilliseconds);
+      : math.min(total, (chunksDone * _chunkLength.inMilliseconds).round());
   return WorkAmount(done: done, total: total, unit: WorkUnit.audioMilliseconds);
 }
 

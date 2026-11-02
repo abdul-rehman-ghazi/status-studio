@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -28,6 +31,37 @@ class ChunkTranscription {
   final int firstIndex;
 }
 
+/// What a Whisper run reports: progress inside a chunk, or a finished
+/// chunk's lines.
+sealed class ChunkEvent {
+  const ChunkEvent();
+}
+
+/// Whisper is [fraction] of the way through the chunk at [position].
+@immutable
+class ChunkProgress extends ChunkEvent {
+  const ChunkProgress({required this.position, required this.fraction});
+
+  final int position;
+  final double fraction;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChunkProgress &&
+      other.position == position &&
+      other.fraction == fraction;
+
+  @override
+  int get hashCode => Object.hash(position, fraction);
+}
+
+/// A chunk's lines, timed from the start of the video.
+class ChunkWritten extends ChunkEvent {
+  const ChunkWritten(this.lines);
+
+  final List<TranscriptLine> lines;
+}
+
 /// Runs Whisper over audio chunks one by one, keeping the model loaded
 /// between them, and releases it when the run ends however it ends.
 class WhisperTranscriber {
@@ -36,9 +70,9 @@ class WhisperTranscriber {
   final WhisperController _whisper;
   var _cancelled = false;
 
-  /// Emits each remaining chunk's lines as soon as that chunk is written,
-  /// timed from the start of the video.
-  Stream<List<TranscriptLine>> transcribeChunks(ChunkTranscription job) async* {
+  /// Emits Whisper's progress through each remaining chunk, and each
+  /// chunk's lines as soon as that chunk is written.
+  Stream<ChunkEvent> transcribeChunks(ChunkTranscription job) async* {
     _cancelled = false;
     var nextIndex = job.firstIndex;
     try {
@@ -50,14 +84,22 @@ class WhisperTranscriber {
         if (_cancelled) {
           return;
         }
-        final segments = await _transcribe(job.chunks[position], job);
+        final percents = StreamController<int>();
+        final segments = _transcribe(
+          job.chunks[position],
+          job,
+          percents.add,
+        ).whenComplete(percents.close);
+        await for (final percent in percents.stream) {
+          yield ChunkProgress(position: position, fraction: percent / 100);
+        }
         final lines = linesFromSegments(
-          segments,
+          await segments,
           offset: transcriptionChunk * position,
           firstIndex: nextIndex,
         );
         nextIndex += lines.length;
-        yield lines;
+        yield ChunkWritten(lines);
       }
     } finally {
       await _whisper.releaseModel();
@@ -70,6 +112,7 @@ class WhisperTranscriber {
   Future<List<SpeechSegment>> _transcribe(
     File chunk,
     ChunkTranscription job,
+    void Function(int percent) onProgress,
   ) async {
     final result = await _whisper.transcribe(
       model: whisperModelFor(job.model),
@@ -78,6 +121,7 @@ class WhisperTranscriber {
       withSegments: true,
       keepModelLoaded: true,
       suppressNonSpeechTokens: true,
+      onProgress: onProgress,
     );
     if (result == null) {
       throw TranscriptionFailedException('Whisper failed on ${chunk.path}.');

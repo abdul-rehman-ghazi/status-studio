@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/data/whisper_transcriber.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 import '../../../../helpers/fake_whisper.dart';
@@ -26,11 +27,30 @@ ChunkTranscription job({
   firstIndex: firstIndex,
 );
 
+/// Each written chunk's lines, without the progress events.
+Future<List<List<TranscriptLine>>> writtenBatches(
+  Stream<ChunkEvent> events,
+) async => [
+  for (final event in await events.toList())
+    if (event is ChunkWritten) event.lines,
+];
+
 void main() {
+  test('reports_whisper_progress_inside_a_chunk', () async {
+    final transcriber = WhisperTranscriber(FakeWhisperController());
+
+    final events = await transcriber.transcribeChunks(job()).toList();
+
+    expect(
+      events.whereType<ChunkProgress>().first,
+      const ChunkProgress(position: 0, fraction: 0.5),
+    );
+  });
+
   test('second_chunk_is_offset_by_90_seconds', () async {
     final transcriber = WhisperTranscriber(FakeWhisperController());
 
-    final batches = await transcriber.transcribeChunks(job()).toList();
+    final batches = await writtenBatches(transcriber.transcribeChunks(job()));
 
     expect(batches[1].single.start, const Duration(seconds: 92));
   });
@@ -38,7 +58,7 @@ void main() {
   test('lines_are_numbered_across_chunks', () async {
     final transcriber = WhisperTranscriber(FakeWhisperController());
 
-    final batches = await transcriber.transcribeChunks(job()).toList();
+    final batches = await writtenBatches(transcriber.transcribeChunks(job()));
 
     expect(batches[2].single.index, 2);
   });
@@ -64,9 +84,9 @@ void main() {
   test('resumed_run_keeps_absolute_times_and_numbering', () async {
     final transcriber = WhisperTranscriber(FakeWhisperController());
 
-    final batches = await transcriber
-        .transcribeChunks(job(completedChunks: 2, firstIndex: 5))
-        .toList();
+    final batches = await writtenBatches(
+      transcriber.transcribeChunks(job(completedChunks: 2, firstIndex: 5)),
+    );
 
     expect(
       (batches.single.single.index, batches.single.single.start),
