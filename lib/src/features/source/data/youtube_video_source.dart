@@ -1,102 +1,104 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/mux_arguments.dart';
 import 'package:status_studio/src/core/single_flight.dart';
 import 'package:status_studio/src/core/work_amount.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
+import 'package:status_studio/src/features/source/data/ranged_downloader.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
+import 'package:status_studio/src/features/source/data/yt_dlp.dart';
+import 'package:status_studio/src/features/source/data/yt_dlp_info.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
-import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/source/domain/segment_index.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/source/domain/stream_choice.dart';
 import 'package:status_studio/src/features/transcript/domain/caption_track_choice.dart';
+import 'package:status_studio/src/features/transcript/domain/json3_captions.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
 const _audioExtensions = {'mp4': 'm4a', 'webm': 'webm'};
 const _downloadShare = 0.9;
 
-/// The only class that talks to YouTube (spec §9 Distribution).
-class YouTubeVideoSource implements VideoSource {
-  YouTubeVideoSource(
-    this._youtube, {
+/// yt-dlp's default chunk size for YouTube: larger single requests get
+/// throttled.
+const _rangeBytes = 10 * 1000 * 1000;
+
+/// Stream URLs last hours; a video read this recently is reused instead of
+/// running yt-dlp (about 8 s on a mid-range phone) again.
+const _infoLifetime = Duration(minutes: 30);
+
+/// Everything the source uses, in one value so it stays within three
+/// parameters.
+class YouTubeVideoSourceServices {
+  const YouTubeVideoSourceServices({
+    required this.ytDlp,
+    required this.downloader,
+    required this.captionClient,
     required this.cache,
     required this.ffmpeg,
   });
 
-  factory YouTubeVideoSource.open({
-    required Future<SourceCache> cache,
-    required FfmpegRunner ffmpeg,
-  }) => YouTubeVideoSource(yt.YoutubeExplode(), cache: cache, ffmpeg: ffmpeg);
-
-  final yt.YoutubeExplode _youtube;
+  final YtDlp ytDlp;
+  final RangedDownloader downloader;
+  final HttpClient captionClient;
   final Future<SourceCache> cache;
   final FfmpegRunner ffmpeg;
+}
+
+/// The only class that talks to YouTube (spec §9 Distribution): yt-dlp
+/// reads the video, and the app downloads its streams in byte ranges.
+class YouTubeVideoSource implements VideoSource {
+  YouTubeVideoSource(this.services);
+
+  final YouTubeVideoSourceServices services;
 
   /// Keyed by target path, so one file is never written by two downloads.
   final _downloads = SingleFlight<File>();
-
-  void close() => _youtube.close();
+  final _infos = <String, ({DateTime readAt, Future<YtDlpInfo> info})>{};
 
   @override
-  Future<SourceVideo> fetchVideo(String videoId) => _guard(() async {
-    final video = await _youtube.videos.get(videoId);
-    final duration = video.duration;
-    if (duration == null) {
-      // A live stream in progress has no length and can't be downloaded.
-      throw const VideoUnavailableException('The video has no duration.');
-    }
-    return SourceVideo(
-      videoId: videoId,
-      title: video.title,
-      channel: video.author,
-      duration: duration,
-    );
-  });
+  Future<SourceVideo> fetchVideo(String videoId) async =>
+      (await _info(videoId)).video;
 
   @override
   Future<File> downloadScriptAudio(
     SourceVideo video, {
     required void Function(WorkAmount amount) onProgress,
-  }) => _guard(() => _downloadAudio(video, _AudioUse.script, onProgress));
+  }) => _downloadAudio(video, _AudioUse.script, onProgress);
 
   Future<File> _downloadAudio(
     SourceVideo video,
     _AudioUse use,
     void Function(WorkAmount amount) onProgress,
   ) async {
-    final sources = await cache;
+    final sources = await services.cache;
     final cached = _cachedAudio(sources, video.videoId, use);
     if (cached != null) {
       final size = cached.lengthSync();
       onProgress(WorkAmount(done: size, total: size, unit: WorkUnit.bytes));
       return cached;
     }
-    final streams = (await _manifest(video.videoId)).audioOnly;
-    final choice = use.pick([
-      for (final (index, stream) in streams.indexed)
-        _audioChoice(stream, index),
-    ]);
-    final stream = streams[choice.index];
+    final formats = (await _info(video.videoId)).audioFormats;
+    final format = formats[use.pick(_choicesOf(formats)).index];
     final target = use.fileIn(
       sources,
       video.videoId,
-      _audioExtensions[choice.container]!,
+      _audioExtensions[format.choice.container] ?? format.choice.container,
     );
-    final totalBytes = stream.size.totalBytes;
     return _downloads.run(
       target.path,
-      () => sources.write(
+      () => _downloadWhole(
+        format,
         target,
-        _youtube.videos.streamsClient.get(stream),
-        totalBytes: totalBytes,
-        onProgress: (fraction) => onProgress(
+        (fraction) => onProgress(
           WorkAmount(
-            done: (fraction * totalBytes).round(),
-            total: totalBytes,
+            done: (fraction * format.totalBytes).round(),
+            total: format.totalBytes,
             unit: WorkUnit.bytes,
           ),
         ),
@@ -108,25 +110,13 @@ class YouTubeVideoSource implements VideoSource {
   Future<Transcript> fetchCaptions(
     SourceVideo video,
     ScriptLanguage language,
-  ) => _guard(() async {
-    final captions = _youtube.videos.closedCaptions;
-    final tracks = (await captions.getManifest(
-      video.videoId,
-      formats: const [yt.ClosedCaptionFormat.srv3],
-    )).tracks;
+  ) async {
+    final tracks = (await _info(video.videoId)).captionTracks;
     final choice = pickCaptionTrack([
-      for (final (index, track) in tracks.indexed)
-        CaptionTrackChoice(
-          languageCode: track.language.code,
-          isAutoGenerated: track.isAutoGenerated,
-          index: index,
-        ),
+      for (final track in tracks) track.choice,
     ], language);
-    final track = await captions.get(tracks[choice.index]);
-    final lines = linesFromCaptions([
-      for (final caption in track.captions)
-        CaptionCue(text: caption.text, start: caption.offset, end: caption.end),
-    ]);
+    final cues = captionsFromJson3(await _json(tracks[choice.index].json3Url));
+    final lines = linesFromCaptions(cues);
     if (lines.isEmpty) {
       throw const NoCaptionTrackException();
     }
@@ -134,35 +124,35 @@ class YouTubeVideoSource implements VideoSource {
       languageCode: baseLanguageCode(choice.languageCode),
       lines: lines,
     );
-  });
+  }
 
   @override
-  Future<StreamUrls> streamUrls(SourceVideo video) => _guard(() async {
-    final manifest = await _manifest(video.videoId);
-    final videoStreams = manifest.videoOnly;
-    final audioStreams = manifest.audioOnly;
-    final videoChoice = pickVideoStream([
-      for (final (index, stream) in videoStreams.indexed)
-        _videoChoice(stream, index),
-    ]);
-    final audioChoice = pickAudioStream([
-      for (final (index, stream) in audioStreams.indexed)
-        _audioChoice(stream, index),
-    ]);
+  Future<StreamUrls> streamUrls(SourceVideo video) async =>
+      _streamUrlsOf(await _info(video.videoId));
+
+  @override
+  Future<StreamUrls> freshStreamUrls(SourceVideo video) {
+    _infos.remove(video.videoId);
+    return streamUrls(video);
+  }
+
+  StreamUrls _streamUrlsOf(YtDlpInfo info) {
+    final videoChoice = pickVideoStream(_choicesOf(info.videoFormats));
+    final audioChoice = pickAudioStream(_choicesOf(info.audioFormats));
     return StreamUrls(
-      video: videoStreams[videoChoice.index].url,
-      audio: audioStreams[audioChoice.index].url,
+      video: info.videoFormats[videoChoice.index].url,
+      audio: info.audioFormats[audioChoice.index].url,
       videoIsMp4: videoChoice.isPreferredContainer,
       audioIsMp4: audioChoice.isPreferredContainer,
     );
-  });
+  }
 
   @override
   Future<File> prepareSourceVideo(
     SourceVideo video, {
     required void Function(double fraction) onProgress,
-  }) => _guard(() async {
-    final sources = await cache;
+  }) async {
+    final sources = await services.cache;
     final source = sources.sourceFile(video.videoId);
     if (sources.isComplete(source)) {
       onProgress(1);
@@ -172,7 +162,7 @@ class YouTubeVideoSource implements VideoSource {
       source.path,
       () => _buildSource(sources, video, onProgress: onProgress),
     );
-  });
+  }
 
   Future<File> _buildSource(
     SourceCache sources,
@@ -200,22 +190,30 @@ class YouTubeVideoSource implements VideoSource {
     if (cache.isComplete(target)) {
       return target;
     }
-    final streams = (await _manifest(video.videoId)).videoOnly;
-    final choice = pickVideoStream([
-      for (final (index, stream) in streams.indexed)
-        _videoChoice(stream, index),
-    ]);
-    final stream = streams[choice.index];
+    final formats = (await _info(video.videoId)).videoFormats;
+    final format = formats[pickVideoStream(_choicesOf(formats)).index];
     return _downloads.run(
       target.path,
-      () => cache.write(
-        target,
-        _youtube.videos.streamsClient.get(stream),
-        totalBytes: stream.size.totalBytes,
-        onProgress: onProgress,
-      ),
+      () => _downloadWhole(format, target, onProgress),
     );
   }
+
+  /// The whole stream in [_rangeBytes] pieces, written as `.part` and
+  /// renamed once complete.
+  Future<File> _downloadWhole(
+    YtDlpFormat format,
+    File target,
+    void Function(double fraction) onProgress,
+  ) => guardIo(
+    () => services.downloader.downloadRanges(
+      RangedDownload(
+        url: format.url,
+        ranges: _rangesOf(format.totalBytes),
+        target: target,
+      ),
+      onProgress: onProgress,
+    ),
+  );
 
   /// Muxes to a temporary name first so a half-written source never looks
   /// complete.
@@ -226,7 +224,7 @@ class YouTubeVideoSource implements VideoSource {
   }) async {
     final muxing = File('${target.path}.muxing.mp4');
     try {
-      await ffmpeg.run(
+      await services.ffmpeg.run(
         muxArguments(
           videoPath: videoOnly.path,
           audioPath: audio.path,
@@ -242,8 +240,45 @@ class YouTubeVideoSource implements VideoSource {
     }
   }
 
-  Future<yt.StreamManifest> _manifest(String videoId) =>
-      _youtube.videos.streamsClient.getManifest(videoId);
+  /// The video as yt-dlp reads it, reused while its URLs are fresh. A
+  /// failed read is forgotten so the next attempt runs yt-dlp again.
+  Future<YtDlpInfo> _info(String videoId) {
+    final known = _infos[videoId];
+    if (known != null &&
+        DateTime.now().difference(known.readAt) < _infoLifetime) {
+      return known.info;
+    }
+    final info = _read(videoId);
+    _infos[videoId] = (readAt: DateTime.now(), info: info);
+    info.ignore();
+    return info.catchError((Object error, StackTrace stackTrace) {
+      _infos.remove(videoId);
+      Error.throwWithStackTrace(error, stackTrace);
+    });
+  }
+
+  /// Without JavaScript first, which is about twice as fast; with QuickJS
+  /// only when YouTube gave no streams that way (spec §10 Q4).
+  Future<YtDlpInfo> _read(String videoId) async {
+    final quick = YtDlpInfo.fromJson(
+      await services.ytDlp.quickVideoInfo(videoId),
+    );
+    if (quick.videoFormats.isNotEmpty && quick.audioFormats.isNotEmpty) {
+      return quick;
+    }
+    return YtDlpInfo.fromJson(await services.ytDlp.videoInfo(videoId));
+  }
+
+  Future<Map<String, Object?>> _json(Uri url) => guardIo(() async {
+    final request = await services.captionClient.getUrl(url);
+    final response = await request.close();
+    if (response.statusCode != HttpStatus.ok) {
+      await response.drain<void>();
+      throw const NoCaptionTrackException();
+    }
+    final body = await response.transform(utf8.decoder).join();
+    return jsonDecode(body) as Map<String, Object?>;
+  });
 }
 
 /// Script audio is the cheapest stream (FR-3); full audio goes with the
@@ -272,40 +307,11 @@ File? _cachedAudio(SourceCache cache, String videoId, _AudioUse use) {
       .firstOrNull;
 }
 
-StreamChoice _videoChoice(yt.VideoOnlyStreamInfo stream, int index) {
-  final resolution = stream.videoResolution;
-  return StreamChoice(
-    height: qualityHeight(width: resolution.width, height: resolution.height),
-    container: stream.container.name,
-    bitrate: stream.bitrate.bitsPerSecond,
-    index: index,
-    codec: stream.videoCodec,
-  );
-}
+List<StreamChoice> _choicesOf(List<YtDlpFormat> formats) => [
+  for (final format in formats) format.choice,
+];
 
-StreamChoice _audioChoice(yt.AudioOnlyStreamInfo stream, int index) {
-  return StreamChoice(
-    height: 0,
-    container: stream.container.name,
-    bitrate: stream.bitrate.bitsPerSecond,
-    index: index,
-    isDefaultTrack: stream.audioTrack?.audioIsDefault ?? true,
-  );
-}
-
-Future<T> _guard<T>(Future<T> Function() action) async {
-  try {
-    return await action();
-  } catch (error, stackTrace) {
-    Error.throwWithStackTrace(mapYouTubeError(error), stackTrace);
-  }
-}
-
-/// Turns library and platform failures into the app's typed errors
-/// (spec §8); anything else is returned unchanged to be rethrown.
-Object mapYouTubeError(Object error) {
-  if (error is yt.VideoUnplayableException) {
-    return VideoUnavailableException('$error');
-  }
-  return mapIoError(error);
-}
+List<ByteRange> _rangesOf(int totalBytes) => [
+  for (var first = 0; first < totalBytes; first += _rangeBytes)
+    ByteRange(first, math.min(first + _rangeBytes, totalBytes) - 1),
+];

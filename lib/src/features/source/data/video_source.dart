@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/work_amount.dart';
+import 'package:status_studio/src/features/source/data/ranged_downloader.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/youtube_video_source.dart';
+import 'package:status_studio/src/features/source/data/yt_dlp.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
@@ -57,9 +59,14 @@ abstract interface class VideoSource {
   /// `NoCaptionTrackException` when there is none to use.
   Future<Transcript> fetchCaptions(SourceVideo video, ScriptLanguage language);
 
-  /// Fresh URLs for the clip's video (≤ 720p) and best audio stream. They
-  /// expire, so ask again after an [ExpiredStreamUrlException].
+  /// URLs for the clip's video (≤ 720p) and best audio stream. They may
+  /// come from an earlier read of the video.
   Future<StreamUrls> streamUrls(SourceVideo video);
+
+  /// As [streamUrls], but read from YouTube again: for after an
+  /// [ExpiredStreamUrlException], since URLs expire and are tied to the
+  /// network the phone was on.
+  Future<StreamUrls> freshStreamUrls(SourceVideo video);
 
   /// The whole video (≤ 720p) and audio muxed into one MP4, cached and
   /// reused; the fallback when a stream can't be fetched in parts.
@@ -70,10 +77,15 @@ abstract interface class VideoSource {
 }
 
 final videoSourceProvider = Provider<VideoSource>((ref) {
-  final source = YouTubeVideoSource.open(
-    cache: ref.watch(sourceCacheProvider.future),
-    ffmpeg: ref.watch(ffmpegRunnerProvider),
+  final captionClient = HttpClient();
+  ref.onDispose(captionClient.close);
+  return YouTubeVideoSource(
+    YouTubeVideoSourceServices(
+      ytDlp: ref.watch(ytDlpProvider),
+      downloader: ref.watch(rangedDownloaderProvider),
+      captionClient: captionClient,
+      cache: ref.watch(sourceCacheProvider.future),
+      ffmpeg: ref.watch(ffmpegRunnerProvider),
+    ),
   );
-  ref.onDispose(source.close);
-  return source;
 });

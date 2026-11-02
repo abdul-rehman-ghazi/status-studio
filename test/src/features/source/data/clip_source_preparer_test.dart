@@ -35,7 +35,14 @@ class UrlVideoSource extends FakeVideoSource {
 
   final bool mp4;
   var urlCalls = 0;
+  var freshUrlCalls = 0;
   var fullDownloads = 0;
+
+  @override
+  Future<StreamUrls> freshStreamUrls(SourceVideo video) {
+    freshUrlCalls++;
+    return streamUrls(video);
+  }
 
   @override
   Future<StreamUrls> streamUrls(SourceVideo video) async {
@@ -202,7 +209,7 @@ void main() {
 
     await prepare(clipAt(60, 100));
 
-    expect(videos.urlCalls, 2);
+    expect(videos.freshUrlCalls, 1);
   });
 
   test('second_expired_url_surfaces_unavailable', () async {

@@ -56,6 +56,9 @@ class FakeVideoSource implements VideoSource {
   }
 
   @override
+  Future<StreamUrls> freshStreamUrls(SourceVideo video) => streamUrls(video);
+
+  @override
   Future<File> prepareSourceVideo(
     SourceVideo video, {
     required void Function(double fraction) onProgress,

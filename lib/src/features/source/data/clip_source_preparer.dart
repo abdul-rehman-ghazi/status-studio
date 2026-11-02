@@ -81,11 +81,14 @@ class ClipSourcePreparer {
     ClipPrepareRequest request,
     void Function(double fraction) onProgress,
   ) async {
+    final video = request.video;
     try {
-      return await _downloadWindow(request, onProgress);
+      final urls = await videos.streamUrls(video);
+      return await _downloadWindow(request, urls, onProgress);
     } on ExpiredStreamUrlException {
       try {
-        return await _downloadWindow(request, onProgress);
+        final urls = await videos.freshStreamUrls(video);
+        return await _downloadWindow(request, urls, onProgress);
       } on ExpiredStreamUrlException {
         throw const VideoUnavailableException('Stream links keep expiring.');
       }
@@ -94,9 +97,9 @@ class ClipSourcePreparer {
 
   Future<ClipSource> _downloadWindow(
     ClipPrepareRequest request,
+    StreamUrls urls,
     void Function(double fraction) onProgress,
   ) async {
-    final urls = await videos.streamUrls(request.video);
     if (!urls.videoIsMp4 || !urls.audioIsMp4) {
       throw const NoSegmentIndexException();
     }

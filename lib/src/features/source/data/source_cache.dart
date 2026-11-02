@@ -101,8 +101,8 @@ class SourceCache {
   String _folder(String videoId) => '${root.path}/$videoId';
 }
 
-/// youtube_explode can end a stream quietly when its client closes, so the
-/// byte count is the only proof the download finished.
+/// A stream can end quietly when its connection closes, so the byte count
+/// is the only proof the download finished.
 void _checkComplete(int received, int totalBytes) {
   if (totalBytes > 0 && received != totalBytes) {
     throw IncompleteDownloadException(
