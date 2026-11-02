@@ -9,6 +9,7 @@ import 'package:status_studio/src/features/branding/presentation/logo_mark.dart'
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/settings/application/settings_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -17,6 +18,9 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Loads the Settings model choice early, so the first script after
+    // launch uses it rather than the default.
+    ref.watch(whisperModelSettingProvider);
     return Scaffold(
       body: SafeArea(
         child: ListView(

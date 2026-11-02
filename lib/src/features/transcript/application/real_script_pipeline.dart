@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/settings/application/settings_controller.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
@@ -243,8 +244,11 @@ class RealScriptPipeline implements ScriptPipeline {
 Transcript _empty(String languageCode) =>
     Transcript(languageCode: languageCode, lines: const []);
 
-/// Whisper model used until M6 adds the setting (spec FR-12: small).
-final whisperModelProvider = Provider<SpeechModel>((ref) => SpeechModel.small);
+/// The model chosen in Settings (spec FR-12), small until it has loaded.
+/// Home watches the setting, so it has loaded before a script starts.
+final whisperModelProvider = Provider<SpeechModel>(
+  (ref) => ref.watch(whisperModelSettingProvider).value ?? SpeechModel.small,
+);
 
 final realScriptPipelineProvider = Provider<ScriptPipeline>(
   (ref) => RealScriptPipeline(

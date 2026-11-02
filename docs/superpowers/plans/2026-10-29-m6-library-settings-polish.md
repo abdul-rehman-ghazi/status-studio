@@ -87,18 +87,18 @@
 **Files:** Create `lib/src/features/settings/application/settings_controller.dart`, `lib/src/features/settings/presentation/settings_screen.dart`; Modify the M3 `whisperModelProvider` to read settings; Test `test/src/features/settings/presentation/settings_screen_test.dart`
 
 **Interfaces:**
-- `final whisperModelSettingProvider = AsyncNotifierProvider<SettingsController, WhisperModel>(...)` with `Future<void> select(WhisperModel model)`.
+- `final whisperModelSettingProvider = AsyncNotifierProvider<SettingsController, SpeechModel>(...)` with `Future<void> select(SpeechModel model)`. The model type is M3's `SpeechModel`, kept apart from whisper_ggml's enum. `whisperModelProvider` reads the setting (small until loaded), and Home watches the setting so it has loaded before the first script. `modelSizeProvider` gives the bytes on disk per model.
 - Settings screen:
   - Two radio rows, "Small (better, slower)" and "Base (faster)", each showing size on disk or "Not downloaded" with Download/Delete.
   - Download progress comes from `ModelManager.download`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `selecting_base_persists_setting`
   - `download_shows_progress_then_size`
   - `delete_returns_to_not_downloaded`
   - `switching_model_keeps_downloaded_files`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: add settings for the speech model`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: add settings for the speech model`
 
 ### Task 5: Cache cleanup and error-state audit
 

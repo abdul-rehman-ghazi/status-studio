@@ -27,10 +27,12 @@ import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
+import 'fake_model_manager.dart';
 import 'fake_reel_actions.dart';
 import 'fake_video_player.dart';
 import 'recording_ffmpeg.dart';
@@ -49,6 +51,7 @@ class TestSetup {
     this.translator = const FakeCaptionTranslator(),
     this.reelActions,
     this.recentReels = const [],
+    this.modelManager,
   });
 
   final List<Override> overrides;
@@ -71,12 +74,16 @@ class TestSetup {
   /// Stored in preferences, newest first, before the app starts.
   final List<RecentReel> recentReels;
 
+  /// Defaults to a [FakeModelManager] with nothing downloaded.
+  final ModelManager? modelManager;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
     captionTranslatorProvider.overrideWithValue(translator),
     reelActionsProvider.overrideWithValue(reelActions ?? FakeReelActions()),
     ffmpegRunnerProvider.overrideWithValue(const SilentFfmpegRunner()),
+    modelManagerProvider.overrideWithValue(modelManager ?? FakeModelManager()),
     // The probe needs FFprobe; every test clip is 1920 × 1080.
     clipFrameSizeProvider.overrideWith(
       (ref, source) async => const OutputSize(1920, 1080),
