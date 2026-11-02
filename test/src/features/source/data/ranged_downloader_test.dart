@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -89,6 +90,22 @@ void main() {
     await downloader.downloadRanges(rangesOf(server), onProgress: reported.add);
 
     expect(reported.last, 1.0);
+  });
+
+  test('reports_zero_before_the_first_byte', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((_) {});
+    final reported = <double>[];
+
+    unawaited(
+      downloader
+          .downloadRanges(rangesOf(server), onProgress: reported.add)
+          .catchError((Object _) => File('')),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(reported, [0.0]);
   });
 
   test('rejects_response_without_partial_content', () async {

@@ -76,6 +76,9 @@ class SourceCache {
     await target.parent.create(recursive: true);
     final part = File('${target.path}.part');
     final sink = part.openWrite();
+    // Reported before the first byte, so a download that never starts
+    // shows as stuck at 0 instead of showing nothing.
+    onProgress(0);
     try {
       var received = 0;
       await for (final chunk in bytes) {

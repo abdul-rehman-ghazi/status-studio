@@ -66,6 +66,9 @@ class RangedDownloader {
     void Function(double fraction) onProgress,
   ) async {
     final total = download.ranges.fold(0, (sum, range) => sum + range.length);
+    // Reported before the first request, so a download that never starts
+    // shows as stuck at 0 instead of showing nothing.
+    onProgress(0);
     var received = 0;
     for (final range in download.ranges) {
       final response = await _requestRange(download.url, range);

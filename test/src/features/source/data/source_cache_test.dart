@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -37,6 +38,24 @@ void main() {
     );
 
     expect(reported.last, 1.0);
+  });
+
+  test('write_reports_zero_before_the_first_byte', () async {
+    final reported = <double>[];
+
+    unawaited(
+      cache
+          .write(
+            cache.scriptAudioFile(videoId, 'm4a'),
+            StreamController<List<int>>().stream,
+            totalBytes: 16,
+            onProgress: reported.add,
+          )
+          .catchError((Object _) => File('')),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(reported, [0.0]);
   });
 
   test('write_renames_part_file_on_completion', () async {
