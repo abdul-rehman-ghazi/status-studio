@@ -77,7 +77,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       }
     } on Exception catch (error) {
-      _showFailure(error);
+      _showFailure(error, retry: () => unawaited(_download(model)));
     } finally {
       if (mounted) {
         setState(() => _downloading.remove(model));
@@ -91,12 +91,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ref.invalidate(modelSizeProvider(model));
   }
 
-  void _showFailure(Object error) {
+  /// Spec §8: "Couldn't download the speech model." with Retry.
+  void _showFailure(Object error, {required VoidCallback retry}) {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(errorMessageFor(error)),
+        action: SnackBarAction(label: 'Retry', onPressed: retry),
+      ),
+    );
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_model_manager.dart';
@@ -87,6 +88,28 @@ void main() {
         find.text('148 MB on your phone').evaluate().length,
       ),
       (0, 2),
+    );
+  });
+
+  testWidgets('failed_download_offers_retry', (tester) async {
+    final models = FakeModelManager()
+      ..failure = const ModelDownloadException('HTTP 503');
+    await pumpSettings(tester, models);
+
+    await tester.tap(
+      find.descendant(
+        of: rowOf('Base (faster)'),
+        matching: find.text('Download'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      (
+        find.text("Couldn't download the speech model.").evaluate().length,
+        find.text('Retry').evaluate().length,
+      ),
+      (1, 1),
     );
   });
 }

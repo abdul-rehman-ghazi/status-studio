@@ -17,6 +17,9 @@ class FakeModelManager extends ModelManager {
 
   final Map<SpeechModel, int> sizes;
   Completer<void>? gate;
+
+  /// When set, downloads fail with this after reporting half.
+  Exception? failure;
   final deleted = <SpeechModel>[];
 
   static const downloadedBytes = 147964211;
@@ -38,6 +41,9 @@ class FakeModelManager extends ModelManager {
   Stream<double> download(SpeechModel model) async* {
     yield 0.5;
     await gate?.future;
+    if (failure case final failure?) {
+      throw failure;
+    }
     sizes[model] = downloadedBytes;
     yield 1;
   }

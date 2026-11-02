@@ -107,8 +107,10 @@
 **Interfaces:**
 - `Future<int> deleteStaleSources(Directory root, {required DateTime now, Duration maxAge = const Duration(days: 7)})` returns the number of folders deleted.
 - On start, also call `TranscriptStore.prune()` (M3), which keeps saved scripts 90 days and at most 200 videos.
+- `cleanUpOnStart({sources, scripts, now})` runs both after the first frame. `main.dart` uses an `UncontrolledProviderScope` so it can reach the providers. A folder's age is its newest file's time, because adding files moves the folder's own time.
+- Audit result: every §8 row was already covered except a Retry for a failed model download in Settings, which was added.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `deletes_folders_older_than_seven_days`
   - `keeps_recent_folders`
   - `missing_root_deletes_nothing`
@@ -116,9 +118,9 @@
   - `maps_insufficient_storage`
   - `maps_render_failed`
   - `maps_translation_pack_missing`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Manual audit:** trigger each spec §8 condition on a phone (airplane mode, invalid link, private video, silent video) and confirm message and actions match the table.
-- [ ] **Step 6: Commit** `feat: clean stale caches and complete error states`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [ ] **Step 5: Manual audit** (deferred to `docs/device-testing-todo.md`): trigger each spec §8 condition on a phone (airplane mode, invalid link, private video, silent video) and confirm message and actions match the table.
+- [x] **Step 6: Commit** `feat: clean stale caches and complete error states`
 
 ### Task 6: Launcher icon and release checklist
 
