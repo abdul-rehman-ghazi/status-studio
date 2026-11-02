@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -14,6 +15,7 @@ import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/export/data/reel_actions.dart';
+import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
@@ -46,6 +48,7 @@ class TestSetup {
     this.renderer = const FakeRenderer(step: Duration.zero),
     this.translator = const FakeCaptionTranslator(),
     this.reelActions,
+    this.recentReels = const [],
   });
 
   final List<Override> overrides;
@@ -64,6 +67,9 @@ class TestSetup {
 
   /// Defaults to a fresh [FakeReelActions].
   final ReelActions? reelActions;
+
+  /// Stored in preferences, newest first, before the app starts.
+  final List<RecentReel> recentReels;
 
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
@@ -104,7 +110,12 @@ Future<void> pumpApp(
   addTearDown(tester.view.reset);
   // Preferences live in memory, fresh for every test.
   SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
+      InMemorySharedPreferencesAsync.withData({
+        if (setup.recentReels.isNotEmpty)
+          'recentReels': jsonEncode([
+            for (final reel in setup.recentReels) reel.toJson(),
+          ]),
+      });
   await tester.pumpWidget(
     ProviderScope(
       overrides: setup.allOverrides,

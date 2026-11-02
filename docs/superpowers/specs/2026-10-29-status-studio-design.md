@@ -158,7 +158,7 @@ class OutputSize { int width; int height; }
 enum CaptionVariant { original, roman, english }  enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large }
 class CaptionSettings { CaptionVariant variant; String text; CaptionPosition position; CaptionSize size; }
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
-class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; DateTime createdAt; }
+class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: the caption's first line; size: shown on Done
 class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // source: captions | whisper-small | whisper-base
 class ClipWindow { Duration start; Duration end; }        // FR-15 window in video time
 class ClipSource { File file; Duration offset; ClipWindow window; } // offset = video time of the file's zero

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
@@ -31,6 +33,23 @@ class SpyRenderer implements Renderer {
   Future<void> cancel() async => cancelCount++;
 }
 
+/// Finishes at once with a real MP4 file, as Media3 would leave one.
+class FileRenderer implements Renderer {
+  FileRenderer(this.folder);
+
+  final Directory folder;
+
+  @override
+  Stream<RenderProgress> render(ReelDraft draft) async* {
+    // Synchronous: real file I/O doesn't complete inside widget tests.
+    final video = File('${folder.path}/reel_1.mp4')..writeAsStringSync('mp4');
+    yield RenderFinished(video.path);
+  }
+
+  @override
+  Future<void> cancel() async {}
+}
+
 /// Fails every render the way a native Media3 error does.
 class FailingRenderer implements Renderer {
   var renders = 0;
@@ -47,7 +66,9 @@ class FailingRenderer implements Renderer {
 
 void main() {
   testWidgets('export_finishes_on_done_screen', (tester) async {
-    await pumpExport(tester, renderer: const FakeRenderer(step: Duration.zero));
+    final folder = Directory.systemTemp.createTempSync('export_flow_test');
+    addTearDown(() => folder.deleteSync(recursive: true));
+    await pumpExport(tester, renderer: FileRenderer(folder));
 
     await tester.pumpAndSettle();
 
@@ -86,16 +107,10 @@ void main() {
     expect(find.text('Cropped at 1080 × 1920'), findsOneWidget);
   });
 
-  testWidgets('done_shows_size_length_and_format', (tester) async {
-    await pumpExport(tester, renderer: const FakeRenderer(step: Duration.zero));
-
-    await tester.pumpAndSettle();
-
-    expect(find.text('1080 × 1920 · 27.4 s · MP4'), findsOneWidget);
-  });
-
   testWidgets('make_another_returns_home', (tester) async {
-    await pumpExport(tester, renderer: const FakeRenderer(step: Duration.zero));
+    final folder = Directory.systemTemp.createTempSync('export_flow_test');
+    addTearDown(() => folder.deleteSync(recursive: true));
+    await pumpExport(tester, renderer: FileRenderer(folder));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Make another'));

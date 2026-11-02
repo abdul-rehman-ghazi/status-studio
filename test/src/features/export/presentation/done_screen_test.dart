@@ -1,26 +1,37 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_reel_actions.dart';
-import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
-
-const videoPath = '/files/reels/reel.mp4';
-
-Future<void> pumpDone(WidgetTester tester, FakeReelActions actions) =>
-    pumpRoutes(
-      tester,
-      [AppRoutes.doneFor(videoPath)],
-      setup: TestSetup(
-        overrides: [draftOverride(pickedDraft)],
-        reelActions: actions,
-      ),
-    );
+import '../../../../helpers/recent_reels.dart';
 
 void main() {
+  late Directory folder;
+  late RecentReel reel;
+
+  setUp(() async {
+    folder = await Directory.systemTemp.createTemp('done_screen_test');
+    reel = recentReel(folder, title: 'Knowledge is wealth', minutesOld: 1);
+  });
+
+  tearDown(() => folder.delete(recursive: true));
+
+  Future<void> pumpDone(WidgetTester tester, FakeReelActions actions) =>
+      pumpRoutes(tester, [
+        AppRoutes.doneFor(reel.id),
+      ], setup: TestSetup(reelActions: actions, recentReels: [reel]));
+
+  testWidgets('done_shows_size_length_and_format', (tester) async {
+    await pumpDone(tester, FakeReelActions());
+
+    expect(find.text('1080 × 1920 · 27.4 s · MP4'), findsOneWidget);
+  });
+
   testWidgets('save_shows_saved_state', (tester) async {
-    final actions = FakeReelActions();
-    await pumpDone(tester, actions);
+    await pumpDone(tester, FakeReelActions());
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -59,6 +70,12 @@ void main() {
     await tester.tap(find.text('Share'));
     await tester.pump();
 
-    expect(actions.shared, [videoPath]);
+    expect(actions.shared, [reel.videoPath]);
+  });
+
+  testWidgets('missing_reel_says_so', (tester) async {
+    await pumpRoutes(tester, [AppRoutes.doneFor('gone')]);
+
+    expect(find.text('This reel is no longer on your phone.'), findsOneWidget);
   });
 }

@@ -6,6 +6,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:status_studio/src/features/library/data/recent_reels_repository.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 void main() {
   late Directory folder;
@@ -32,6 +33,7 @@ void main() {
       videoPath: video.path,
       thumbnailPath: thumbnail.path,
       duration: const Duration(seconds: 27),
+      size: const OutputSize(1080, 1920),
       createdAt: created.add(Duration(minutes: number)),
     );
   }

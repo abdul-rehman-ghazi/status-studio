@@ -28,7 +28,7 @@ class RecentReelsRepository {
     final reels = [reel, ...await _stored()];
     final kept = reels.take(maximum).toList();
     for (final dropped in reels.skip(maximum)) {
-      await _deleteFiles(dropped);
+      _deleteFiles(dropped);
     }
     await _save(kept);
   }
@@ -36,7 +36,7 @@ class RecentReelsRepository {
   Future<void> delete(String id) async {
     final reels = await _stored();
     for (final doomed in reels.where((reel) => reel.id == id)) {
-      await _deleteFiles(doomed);
+      _deleteFiles(doomed);
     }
     await _save(reels.where((reel) => reel.id != id).toList());
   }
@@ -65,11 +65,12 @@ class RecentReelsRepository {
   );
 }
 
-Future<void> _deleteFiles(RecentReel reel) async {
+/// Unlinking is quick even for a large MP4, so this needn't be async.
+void _deleteFiles(RecentReel reel) {
   for (final path in [reel.videoPath, reel.thumbnailPath]) {
     final file = File(path);
-    if (await file.exists()) {
-      await file.delete();
+    if (file.existsSync()) {
+      file.deleteSync();
     }
   }
 }

@@ -72,11 +72,13 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
   /// Adds the reel to Recent (FR-11), then opens Done for it.
   Future<void> _keepAndOpenDone(String videoPath) async {
+    final draft = ref.read(reelDraftProvider);
+    final size = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
     final reel = await ref
         .read(recentReelsProvider.notifier)
-        .keep(videoPath, ref.read(reelDraftProvider));
+        .keep(videoPath, draft, size);
     if (mounted) {
-      context.pushReplacement(AppRoutes.doneFor(reel.videoPath));
+      context.pushReplacement(AppRoutes.doneFor(reel.id));
     }
   }
 

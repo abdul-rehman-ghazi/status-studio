@@ -6,9 +6,12 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/recording_ffmpeg.dart';
+
+const story = OutputSize(1080, 1920);
 
 void main() {
   late Directory folder;
@@ -34,7 +37,7 @@ void main() {
 
     final reel = await container
         .read(recentReelsProvider.notifier)
-        .keep(video.path, pickedDraft);
+        .keep(video.path, pickedDraft, story);
 
     expect(
       (ffmpeg.runs.single.last, reel.thumbnailPath),
@@ -47,7 +50,7 @@ void main() {
 
     await container
         .read(recentReelsProvider.notifier)
-        .keep(video.path, pickedDraft);
+        .keep(video.path, pickedDraft, story);
 
     final reels = await container.read(recentReelsProvider.future);
     expect(
@@ -65,7 +68,7 @@ void main() {
 
     await container
         .read(recentReelsProvider.notifier)
-        .keep(video.path, pickedDraft);
+        .keep(video.path, pickedDraft, story);
 
     expect(await container.read(recentReelsProvider.future), hasLength(1));
   });

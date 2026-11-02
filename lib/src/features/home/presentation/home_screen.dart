@@ -1,7 +1,13 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
+import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
+import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -121,12 +127,13 @@ class _NewReelCard extends StatelessWidget {
   }
 }
 
-class _RecentSection extends StatelessWidget {
+class _RecentSection extends ConsumerWidget {
   const _RecentSection();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
+    final reels = ref.watch(recentReelsProvider).value ?? const [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -135,19 +142,84 @@ class _RecentSection extends StatelessWidget {
           style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            'Your reels will appear here.',
-            style: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
-          ),
-        ),
+        if (reels.isEmpty)
+          const _EmptyRecent()
+        else
+          for (final reel in reels) _RecentReelRow(reel: reel),
       ],
     );
+  }
+}
+
+class _EmptyRecent extends StatelessWidget {
+  const _EmptyRecent();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        'Your reels will appear here.',
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: AppColors.textMuted),
+      ),
+    );
+  }
+}
+
+/// Thumbnail, first caption line, duration and date (FR-11). Tap opens
+/// Done; long-press offers Delete.
+class _RecentReelRow extends ConsumerWidget {
+  const _RecentReelRow({required this.reel});
+
+  final RecentReel reel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 48,
+          height: 64,
+          child: Image.file(
+            File(reel.thumbnailPath),
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => const ColoredBox(
+              color: AppColors.surface,
+              child: Icon(Icons.movie_outlined, color: AppColors.textMuted),
+            ),
+          ),
+        ),
+      ),
+      title: Text(reel.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        '${formatSeconds(reel.duration)} · ${formatDayMonth(reel.createdAt)}',
+      ),
+      onTap: () => context.push(AppRoutes.doneFor(reel.id)),
+      onLongPress: () => unawaited(_offerDelete(context, ref)),
+    );
+  }
+
+  Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
+    final delete = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.delete_outline),
+          title: const Text('Delete'),
+          onTap: () => Navigator.of(context).pop(true),
+        ),
+      ),
+    );
+    if (delete ?? false) {
+      await ref.read(recentReelsProvider.notifier).delete(reel.id);
+    }
   }
 }

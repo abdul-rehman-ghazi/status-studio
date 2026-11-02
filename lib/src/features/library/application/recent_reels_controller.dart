@@ -6,6 +6,7 @@ import 'package:status_studio/src/core/ffmpeg/thumbnail_arguments.dart';
 import 'package:status_studio/src/features/library/data/recent_reels_repository.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 /// The Recent list on Home (spec FR-11), newest first.
 final recentReelsProvider =
@@ -18,9 +19,13 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
   Future<List<RecentReel>> build() =>
       ref.watch(recentReelsRepositoryProvider).load();
 
-  /// Records the reel rendered to [videoPath] from [draft], with a
-  /// thumbnail of its first frame beside it.
-  Future<RecentReel> keep(String videoPath, ReelDraft draft) async {
+  /// Records the reel rendered to [videoPath] from [draft] at [size], with
+  /// a thumbnail of its first frame beside it.
+  Future<RecentReel> keep(
+    String videoPath,
+    ReelDraft draft,
+    OutputSize size,
+  ) async {
     final id = _idOf(videoPath);
     final reel = RecentReel(
       id: id,
@@ -28,6 +33,7 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
       videoPath: videoPath,
       thumbnailPath: '${File(videoPath).parent.path}/$id.jpg',
       duration: draft.clip?.length ?? Duration.zero,
+      size: size,
       createdAt: DateTime.now(),
     );
     await _writeThumbnail(reel);

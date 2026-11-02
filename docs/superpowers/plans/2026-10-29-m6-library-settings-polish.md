@@ -72,15 +72,15 @@
 
 ### Task 3: Home list and reopening a reel
 
-**Files:** Modify `home_screen.dart`, `done_screen.dart`, `app_router.dart` (`/done?id=<reelId>`); Test `test/src/features/home/presentation/home_screen_test.dart`
+**Files:** Modify `home_screen.dart`, `done_screen.dart`, `app_router.dart` (`/done?id=<reelId>`, via `AppRoutes.doneFor`). Done reads everything from the stored `RecentReel` (thumbnail, size, length, file), so it works for reopened reels without a draft; `RecentReel` gained `size` (spec §6.1 updated) because Done shows it. A reel whose file is gone shows "This reel is no longer on your phone." Test `test/src/features/home/presentation/home_screen_test.dart`
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `home_lists_recent_reels_newest_first`
   - `tapping_recent_reel_opens_done`
   - `long_press_offers_delete`
   - `empty_state_text_when_no_reels`
-- [ ] **Step 2–4:** Run → FAIL, implement (`recentReelsProvider` as `AsyncNotifier`), run → PASS.
-- [ ] **Step 5: Commit** `feat: list and reopen recent reels`
+- [x] **Step 2–4:** Run → FAIL, implement (`recentReelsProvider` as `AsyncNotifier`), run → PASS.
+- [x] **Step 5: Commit** `feat: list and reopen recent reels`
 
 ### Task 4: Settings
 

@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 
 import '../../../../helpers/pump_app.dart';
+import '../../../../helpers/recent_reels.dart';
 
 void main() {
   testWidgets('home_shows_new_reel_button', (tester) async {
@@ -31,5 +35,58 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Settings'), findsOneWidget);
+  });
+
+  group('recent reels', () {
+    late Directory folder;
+
+    setUp(() async {
+      folder = await Directory.systemTemp.createTemp('home_screen_test');
+    });
+
+    tearDown(() => folder.delete(recursive: true));
+
+    List<RecentReel> twoReels() => [
+      recentReel(folder, title: 'Newest reel', minutesOld: 1),
+      recentReel(folder, title: 'Older reel', minutesOld: 60),
+    ];
+
+    testWidgets('home_lists_recent_reels_newest_first', (tester) async {
+      await pumpApp(tester, setup: TestSetup(recentReels: twoReels()));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.text('Newest reel')).dy,
+        lessThan(tester.getTopLeft(find.text('Older reel')).dy),
+      );
+    });
+
+    testWidgets('tapping_recent_reel_opens_done', (tester) async {
+      await pumpApp(tester, setup: TestSetup(recentReels: twoReels()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Newest reel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reel ready'), findsOneWidget);
+    });
+
+    testWidgets('long_press_offers_delete', (tester) async {
+      await pumpApp(tester, setup: TestSetup(recentReels: twoReels()));
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('Older reel'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Older reel'), findsNothing);
+    });
+
+    testWidgets('empty_state_text_when_no_reels', (tester) async {
+      await pumpApp(tester);
+
+      expect(find.text('Your reels will appear here.'), findsOneWidget);
+    });
   });
 }
