@@ -66,9 +66,9 @@
 - `FakeBackgroundWorkPlatform` records calls; `TestSetup` overrides the provider with one.
 - The plugin wrapper is thin glue over static plugin APIs and isn't unit-tested; it's covered by the device checks.
 
-- [ ] **Step 1: Failing tests** `progress_body_puts_the_percent_first`, `notices_with_the_same_words_and_percent_are_equal`.
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: background work platform over the plugins`
+- [x] **Step 1: Failing tests** `progress_body_puts_the_percent_first`, `notices_with_the_same_words_and_percent_are_equal`.
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: background work platform over the plugins`
 
 ### Task 3: BackgroundWork and BackgroundAccess
 
