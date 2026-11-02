@@ -26,7 +26,7 @@ Scripts are saved, so the same video opens straight to its script next time.
 | 6 | Style | `/style` | Size, fill, crop, caption text/variant/position/size; live preview with branding |
 | 7 | Export | `/export` | Render with progress; cancel returns to Style |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
-| 9 | Settings | `/settings` | Whisper model (base or small), download or delete it |
+| 9 | Settings | `/settings` | Whisper model (tiny to large, with pros and cons), download or delete it |
 
 The prototype on the design canvas is the visual reference for screens 1–8. Settings follows the same visual language.
 
@@ -78,7 +78,7 @@ The prototype on the design canvas is the visual reference for screens 1–8. Se
 
 **FR-11 Recent reels.** Newest first, at most 50 (oldest dropped and its file deleted). Each row shows a thumbnail, the first caption line, duration and date. Tap opens Done for that reel. Long-press offers Delete.
 
-**FR-12 Settings.** Model: any multilingual Whisper model (tiny, base, small, medium, large-v3; default small, marked "recommended"), each with its download size or size on disk and Download / Delete. An info button opens a sheet with the model's pros and cons (speed relative to small, accuracy, memory it needs). English-only models aren't offered: they can't write other languages. Downloads show progress. If transcription starts without the model, the model downloads first as a step on the Processing screen.
+**FR-12 Settings.** Model: any multilingual Whisper model (tiny, base, small, medium, large-v3, each as its 5-bit quantised file, §10 Q2; default small, marked "recommended"), each with its download size or size on disk and Download / Delete. An info button opens a sheet with the model's pros and cons (speed relative to small, accuracy, memory it needs). English-only models aren't offered: they can't write other languages. Downloads show progress. If transcription starts without the model, the model downloads first as a step on the Processing screen.
 
 **FR-13 Offline.** With the model downloaded and the source cached, transcription, translation (once its ML Kit language pack is downloaded) and export work without a network.
 
@@ -159,7 +159,7 @@ enum CaptionVariant { original, roman, english }  enum CaptionPosition { top, bo
 class CaptionSettings { CaptionVariant variant; String text; CaptionPosition position; CaptionSize size; }
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: the caption's first line; size: shown on Done
-class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // source: captions | whisper-small | whisper-base
+class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // source: captions | whisper-<model>
 class ClipWindow { Duration start; Duration end; }        // FR-15 window in video time
 class ClipSource { File file; Duration offset; ClipWindow window; } // offset = video time of the file's zero
 ```
@@ -243,7 +243,7 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 | Selection | User picks start/end lines from the transcript; no automatic segment detection |
 | Distribution | Sideloaded APK; YouTube access isolated in `YouTubeVideoSource` |
 | YouTube access | yt-dlp on the phone resolves videos; the app downloads in Dart. Android only: iOS would need another resolver behind `VideoSource` |
-| Model | Whisper small default, base optional, downloaded on first use |
+| Model | Whisper small default; tiny, base, medium and large optional. 5-bit quantised files, downloaded on first use |
 | FFmpeg | `ffmpeg_kit_flutter_new_min` only (LGPL) |
 | Captions/branding rendering | Flutter → PNG → FFmpeg overlay |
 | Name / logo | Status Studio / Trim |
@@ -258,6 +258,12 @@ Each error is a typed exception from the data layer; screens map exceptions to t
 
 1. ~~H.264 encoder in the min FFmpeg build~~ **Resolved 2026-10-30.** The bundled `libavutil` build flags include `--disable-mediacodec` and `--disable-openssl`, with no `libx264` or `libopenh264`, so there is no H.264 encoder and no https input. **Decision:** render with Media3 Transformer (Android), and do partial downloads in Dart.
 2. **Whisper speed and quality** (M3 Task 1). Measure small and base on a mid-range Android phone with a 5-minute Urdu speech clip and a 5-minute sung clip. Confirm that 90-second chunking doesn't damage lines at chunk boundaries.
+   - **Measured 2026-11-02 on a Pixel 6a (profile build)**, one 90 s chunk of a sung Urdu clip (`s6kE_uP3xH4`), whisper_ggml 2.8.1 (6 threads, not configurable):
+     - small (f16, 488 MB): 123.7 s = 0.73× real time. Best text.
+     - small-q5_1 (190 MB): 60.7 s = 1.48× real time. Nearly the same text: one phrase misheard ("میں مدینے" as "محمدینے"), the rest matched.
+     - base (f16, 148 MB): 29.1 s = 3.09× real time. Loops: one line repeated over and over.
+     - base-q5_1 (60 MB): 22.8 s = 3.94× real time. Loops, more errors.
+   - **Decision:** every model downloads its 5-bit quantised file (q5_1 for tiny, base and small; q5_0 for medium and large-v3), saved where whisper_ggml expects the full model. Small stays the default: base is faster but its text isn't usable on this clip. Tiny, medium and large are offered with pros and cons; their speeds and memory are estimated from model size, not measured. Still to measure: a 5-minute speech clip, and a mid-range phone (Redmi Note 11).
 3. **Status length limit** (M6). Check WhatsApp's current Status video limit. Until confirmed, show a warning (not a block) when the clip is longer than 60 s.
    - **Checked 2026-11-02 (M6 Task 6):** 60 s has been the general limit since 2024. A 90 s limit was reported in beta in 2025, but there's no official confirmation that it rolled out to everyone. The 60 s warning stays. Confirm on a phone by checking the longest trim the Status composer allows (`docs/device-testing-todo.md`).
 4. **YouTube extraction reliability** (M2). If `youtube_explode_dart` breaks, update it. Track failures in the error state rather than crashing.

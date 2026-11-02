@@ -183,13 +183,30 @@ WhisperModel whisperModelFor(SpeechModel model) => switch (model) {
   SpeechModel.large => WhisperModel.large,
 };
 
+/// The 5-bit quantised file: on a Pixel 6a small-q5_1 wrote a 90 s chunk
+/// twice as fast as the full small model with nearly the same text, at 40 %
+/// of the download (spec §10 Q2). It's saved where whisper_ggml looks for
+/// the full model; whisper.cpp reads the quantisation from the file.
+Uri modelDownloadUri(SpeechModel model) {
+  final file = switch (model) {
+    SpeechModel.tiny => 'tiny-q5_1',
+    SpeechModel.base => 'base-q5_1',
+    SpeechModel.small => 'small-q5_1',
+    SpeechModel.medium => 'medium-q5_0',
+    SpeechModel.large => 'large-v3-q5_0',
+  };
+  return Uri.parse(
+    'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-$file.bin',
+  );
+}
+
 final modelManagerProvider = Provider<ModelManager>((ref) {
   final client = HttpClient();
   ref.onDispose(client.close);
   final whisper = WhisperController();
   return ModelManager(
     pathFor: (model) => whisper.getPath(whisperModelFor(model)),
-    uriFor: (model) => whisperModelFor(model).modelUri,
+    uriFor: modelDownloadUri,
     httpClient: client,
   );
 });

@@ -81,7 +81,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('488 MB download'), findsOneWidget);
+    expect(find.text('190 MB download'), findsOneWidget);
   });
 
   testWidgets('switching_model_keeps_downloaded_files', (tester) async {
@@ -161,7 +161,7 @@ void main() {
   testWidgets('model_not_downloaded_shows_its_download_size', (tester) async {
     await pumpSettings(tester, FakeModelManager());
 
-    expect(find.text('3.1 GB download'), findsOneWidget);
+    expect(find.text('1.1 GB download'), findsOneWidget);
   });
 
   testWidgets('info_button_shows_pros_and_cons', (tester) async {

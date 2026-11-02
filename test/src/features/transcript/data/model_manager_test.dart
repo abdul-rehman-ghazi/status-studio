@@ -195,4 +195,19 @@ void main() {
 
     expect(names, ['tiny', 'base', 'small', 'medium', 'large-v3']);
   });
+
+  test('models_download_their_quantised_files', () {
+    final files = [
+      for (final model in SpeechModel.values)
+        modelDownloadUri(model).pathSegments.last,
+    ];
+
+    expect(files, [
+      'ggml-tiny-q5_1.bin',
+      'ggml-base-q5_1.bin',
+      'ggml-small-q5_1.bin',
+      'ggml-medium-q5_0.bin',
+      'ggml-large-v3-q5_0.bin',
+    ]);
+  });
 }

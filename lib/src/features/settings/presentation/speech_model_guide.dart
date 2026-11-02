@@ -7,8 +7,9 @@ const _bytesPerMegabyte = 1000000;
 const _bytesPerGigabyte = 1000000000;
 
 /// What Settings tells the user about a speech model before they spend
-/// data on it. Speeds are relative to Small, measured at 0.7× real time on
-/// a Pixel 6a (spec §10 Q2).
+/// data on it. Speeds are relative to Small, measured at 1.5× real time on
+/// a Pixel 6a (spec §10 Q2). Sizes are the quantised files the app
+/// downloads.
 class SpeechModelGuide {
   const SpeechModelGuide({
     required this.name,
@@ -35,65 +36,63 @@ SpeechModelGuide guideFor(SpeechModel model) => switch (model) {
 
 const _tiny = SpeechModelGuide(
   name: 'Tiny',
-  downloadBytes: 77691713,
+  downloadBytes: 32152673,
   pros: [
-    'The fastest: about five times faster than Small.',
+    'The fastest: about four times faster than Small.',
     'The smallest download.',
   ],
   cons: [
     'Makes the most mistakes, especially in languages other than English.',
-    'Often mishears names and fast speech.',
+    'Often repeats a line over and over.',
   ],
 );
 
 const _base = SpeechModelGuide(
   name: 'Base',
-  downloadBytes: 147951465,
+  downloadBytes: 59707625,
   pros: [
-    'About three times faster than Small.',
+    'About two and a half times faster than Small.',
     'A small download that runs well on older phones.',
   ],
   cons: [
     'More mistakes than Small, especially in languages other than English.',
+    'Can repeat a line over and over.',
   ],
 );
 
 const _small = SpeechModelGuide(
   name: 'Small',
-  downloadBytes: 487601967,
+  downloadBytes: 190085487,
   pros: [
     'Good accuracy in most languages.',
-    'The best balance of quality and speed on a phone.',
+    'Faster than the video itself: a 5-minute video takes about 3½ '
+        'minutes on a mid-range phone.',
   ],
-  cons: [
-    'Slower than the video itself: a 5-minute video takes about 7 minutes '
-        'on a mid-range phone.',
-  ],
+  cons: ['Slower than Tiny and Base, and a bigger download.'],
 );
 
 const _medium = SpeechModelGuide(
   name: 'Medium',
-  downloadBytes: 1533763059,
+  downloadBytes: 539212467,
   pros: [
     'Fewer mistakes than Small.',
     'Better with accents and less common languages.',
   ],
   cons: [
     'About three times slower than Small.',
-    'Needs about 2 GB of free memory; on phones with less, the app may '
-        'close.',
+    'Needs about 1 GB of free memory.',
   ],
 );
 
 const _large = SpeechModelGuide(
   name: 'Large',
-  downloadBytes: 3095033483,
+  downloadBytes: 1081140203,
   pros: ['The most accurate model.'],
   cons: [
-    'About six times slower than Small: a 5-minute video can take 40 '
+    'About six times slower than Small: a 5-minute video can take 20 '
         'minutes or more.',
-    'Needs about 4 GB of free memory, so only phones with 8 GB or more '
-        'can run it.',
+    'Needs about 2 GB of free memory; on phones with 6 GB or less, the app '
+        'may close.',
   ],
 );
 

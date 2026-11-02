@@ -24,6 +24,8 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 
 ### M3: script
 - [ ] **Whisper speed spike (spec §10 Q2).** In a release build, time `small` and `base` on a 5-minute Urdu speech clip and a 5-minute sung clip. Switch the default to `base` if `small` is much slower than real time. Debug-build reference: 344 s for one 90 s chunk on the Pixel 6a.
+  - *Pixel 6a, sung clip, done:* quantised small runs at 1.5× real time; the app now downloads quantised models (spec §10 Q2). Still to do: a speech clip, and the Redmi.
+- [ ] Settings: each model's ⓘ sheet reads well; Medium and Large download and write a script (Large may close the app on a 6 GB phone).
 - [ ] 90-second chunking doesn't damage lines at chunk boundaries.
 - [ ] Whisper quality on real Urdu speech and on singing.
 - [ ] Kill the app mid-transcription, reopen and restart: Whisper resumes from the saved chunk.
