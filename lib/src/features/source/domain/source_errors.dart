@@ -67,3 +67,14 @@ class StreamRequestFailedException extends OfflineException {
   @override
   String toString() => 'StreamRequestFailedException: $reason';
 }
+
+/// YouTube answered in a way yt-dlp couldn't read, even after updating:
+/// usually a YouTube change that a later yt-dlp will handle (spec §8).
+class YouTubeChangedException implements Exception {
+  const YouTubeChangedException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'YouTubeChangedException: $reason';
+}
