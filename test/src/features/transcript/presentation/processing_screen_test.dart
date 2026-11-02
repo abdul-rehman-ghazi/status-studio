@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -46,6 +48,18 @@ class FailingPipeline extends FakeScriptPipeline {
       Stream.error(error);
 }
 
+/// Sends whatever the test adds to [events], so the screen is up before
+/// the run reports anything, as it is while a model downloads on a phone.
+class ManualPipeline extends FakeScriptPipeline {
+  ManualPipeline();
+
+  final events = StreamController<ScriptProgress>();
+
+  @override
+  Stream<ScriptProgress> run(SourceVideo video, ScriptLanguage language) =>
+      events.stream;
+}
+
 void main() {
   testWidgets('processing_opens_script_when_done', (tester) async {
     await startProcessing(tester, step: Duration.zero);
@@ -61,6 +75,32 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Lining up timestamps'), findsOneWidget);
+  });
+
+  testWidgets('downloaded_model_step_stays_listed', (tester) async {
+    final pipeline = ManualPipeline();
+    final empty = sampleTranscript.copyWith(lines: const []);
+    await startProcessing(tester, step: Duration.zero, pipeline: pipeline);
+    await tester.pump(const Duration(seconds: 1));
+    pipeline.events.add(
+      ScriptProgress(
+        stage: ScriptStage.downloadingModel,
+        fraction: 0.1,
+        transcript: empty,
+      ),
+    );
+    await tester.pump();
+
+    pipeline.events.add(
+      ScriptProgress(
+        stage: ScriptStage.downloadingAudio,
+        fraction: 0.15,
+        transcript: empty,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Downloading the speech model'), findsOneWidget);
   });
 
   testWidgets('cancel_processing_returns_to_source', (tester) async {

@@ -26,6 +26,10 @@ class ProcessingScreen extends ConsumerStatefulWidget {
 class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   var _leaving = false;
 
+  /// Once this run has downloaded the model, its row stays, ticked, so the
+  /// user sees where the time and data went.
+  var _downloadedModel = false;
+
   /// Checked on every build, not only on change: a saved script can be
   /// done before this screen is even built.
   void _openScriptIfDone(AsyncValue<ScriptProgress> run) {
@@ -47,6 +51,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     final draft = ref.watch(reelDraftProvider);
     final run = ref.watch(scriptProgressProvider);
     _openScriptIfDone(run);
+    _downloadedModel |= run.value?.stage == ScriptStage.downloadingModel;
     return PopScope(
       // System back leaves the run as surely as Cancel does.
       onPopInvokedWithResult: (didPop, _) {
@@ -73,7 +78,13 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
             if (run.error case final error?)
               _RunFailed(error: error)
             else
-              _RunSteps(language: draft.language, progress: run.value),
+              _RunSteps(
+                steps: [
+                  if (_downloadedModel) _modelStep,
+                  ..._scriptSteps(draft.language, run.value),
+                ],
+                progress: run.value,
+              ),
           ],
         ),
         bottomNavigationBar: BottomAction(
@@ -106,19 +117,15 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
 }
 
 class _RunSteps extends StatelessWidget {
-  const _RunSteps({required this.language, required this.progress});
+  const _RunSteps({required this.steps, required this.progress});
 
-  final ScriptLanguage language;
+  final List<_Step> steps;
   final ScriptProgress? progress;
 
   @override
   Widget build(BuildContext context) {
     final progress = this.progress;
     final stage = progress?.stage ?? ScriptStage.downloadingAudio;
-    final steps = [
-      if (stage == ScriptStage.downloadingModel) _modelStep,
-      ..._scriptSteps(language, progress),
-    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
