@@ -1,6 +1,6 @@
 name: status_studio
 description: "Turn any video into a status clip, picked line by line from its script."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0+1
 
 environment:
