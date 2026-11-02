@@ -63,6 +63,18 @@ Test phone so far: Pixel 6a (Tensor, 6 GB, Android 17). The spec's speed target 
 - [ ] Trigger each spec §8 condition (airplane mode, invalid link, private video, silent video) and confirm the message and actions match the table.
 - [ ] Release smoke test: link → script → pick → fine-tune → each frame preset → export → save → share.
 
+### M8: background work
+- [ ] First "Get the script" asks for notifications (Android 13+), then "Let app always run in background?". Neither is asked again.
+- [ ] Writing a script, press Home: an ongoing notification shows the step, e.g. "Writing the script", and `45 % · <video title>`, and it moves.
+- [ ] Lock the phone for the whole of a Whisper run (at least 5 minutes, long enough for Doze): it finishes, and "Script ready" arrives. Tapping it opens the Script screen with every line.
+- [ ] Export, then lock the phone: the render finishes, and "Reel ready" arrives. Tapping it opens Done.
+- [ ] Turn on airplane mode during the audio download with the app hidden: "Script stopped" shows the offline message.
+- [ ] With the app on screen, no result notification appears; Cancel removes the ongoing notification and posts nothing.
+- [ ] Whisper still writing while exporting: the notification shows the export, then the script again once the export ends; the service stops only when both are done.
+- [ ] Redmi Note 11 (MIUI/HyperOS): with Battery saver at its default, does a locked run survive? If not, set "No restrictions" through "Open App info" and check again; note which was needed.
+- [ ] Settings → Background work: both rows read correctly. "Allow" opens the system dialog, and the row updates when you come back.
+- [ ] Notification icon shows the Trim brackets and waveform, not a white square.
+
 ## Fixes found on the phone (not yet made)
 
 - [x] YouTube caption lines keep `♪` symbols and `[♪♪♪]` placeholder lines; they would end up in the clip caption. *Fixed: music symbols and sound tags are dropped.*
