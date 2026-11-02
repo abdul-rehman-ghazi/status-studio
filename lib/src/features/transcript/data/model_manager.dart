@@ -47,8 +47,9 @@ class ModelManager {
 
   final _running = <SpeechModel, _Download>{};
 
-  /// Completes once a paused transfer has let go of its `.part` file.
-  final _stopping = <SpeechModel, Future<void>>{};
+  /// The last work on each model's `.part` file: a transfer or a delete.
+  /// The next waits for it, because two at once corrupt the file.
+  final _partWork = <SpeechModel, Future<void>>{};
 
   /// Emits the bytes received so far; throws [ModelDownloadException], or
   /// [InsufficientStorageException] for a full disk, on any failure, and
@@ -63,20 +64,19 @@ class ModelManager {
   bool isDownloading(SpeechModel model) => _running.containsKey(model);
 
   /// Stops the transfer at once and keeps what arrived for [download] to
-  /// continue.
+  /// continue. Completes once the transfer has let go of the file.
   Future<void> pause(SpeechModel model) {
     final running = _running.remove(model);
-    if (running == null) {
-      return _stopping[model] ?? Future.value();
+    if (running != null) {
+      unawaited(running.stop());
     }
-    return _stopping[model] = running.stop();
+    return _partWork[model] ?? Future.value();
   }
 
-  /// Stops the transfer and deletes what arrived.
-  Future<void> cancel(SpeechModel model) async {
-    await pause(model);
-    await deletePart(model);
-  }
+  /// Stops the transfer and deletes what arrived. The delete is queued
+  /// before this returns, so a download started meanwhile waits for it.
+  Future<void> cancel(SpeechModel model) =>
+      _queuePartWork(model, pause(model).then((_) => deletePart(model)));
 
   @protected
   Future<void> deletePart(SpeechModel model) async {
@@ -100,14 +100,24 @@ class ModelManager {
     return running;
   }
 
-  /// One transfer of [model] into its `.part` file.
+  /// One transfer of [model] into its `.part` file, started once the work
+  /// before it on that file is done.
   @protected
   Stream<WorkAmount> fetch(SpeechModel model) {
-    // A resumed transfer appends to the paused one's file, so it starts
-    // once that one has closed it.
-    final previousStopped = _stopping.remove(model) ?? Future<void>.value();
-    final path = previousStopped.then((_) => pathFor(model));
-    return _PartDownload(httpClient, uriFor(model), path).progress;
+    final previous = _partWork[model] ?? Future<void>.value();
+    final transfer = _PartDownload(
+      httpClient,
+      uriFor(model),
+      previous.then((_) => pathFor(model)),
+    );
+    unawaited(_queuePartWork(model, transfer.settled));
+    return transfer.progress;
+  }
+
+  /// The queue keeps going after a failed step; the caller still sees it.
+  Future<void> _queuePartWork(SpeechModel model, Future<void> work) {
+    _partWork[model] = work.catchError((Object _) {});
+    return work;
   }
 
   Future<File> _partOf(SpeechModel model) async =>
@@ -181,24 +191,47 @@ Exception modelDownloadError(Object error) {
   };
 }
 
-/// The server says the kept bytes don't fit the model (HTTP 416).
+/// The kept bytes don't belong to the file the server has.
 class _PartMismatchException implements Exception {
   const _PartMismatchException(this.uri);
 
   final Uri uri;
 
   @override
-  String toString() => 'Kept bytes are longer than the model at $uri';
+  String toString() => 'Kept bytes do not match the model at $uri';
 }
 
-typedef _OpenedTransfer = ({HttpClientResponse response, int startAt});
+/// What the server answered for the bytes the `.part` file lacks.
+sealed class _ServerAnswer {
+  const _ServerAnswer();
+}
+
+/// Bytes to write from [startAt] on; [total] is 0 when unknown.
+final class _Body extends _ServerAnswer {
+  const _Body(this.response, {required this.startAt, required this.total});
+
+  final HttpClientResponse response;
+  final int startAt;
+  final int total;
+}
+
+/// The `.part` file is already the whole model: the app stopped between
+/// the last byte and the rename.
+final class _AlreadyWhole extends _ServerAnswer {
+  const _AlreadyWhole(this.bytes);
+
+  final int bytes;
+}
+
+/// `bytes 1000-4095/4096`, or `bytes */4096` on a 416.
+final _contentRangePattern = RegExp(r'^bytes (?:(\d+)-\d+|\*)/(\d+|\*)$');
 
 /// One HTTP transfer into `<path>.part`, renamed to `<path>` only once every
 /// byte has arrived, so whisper never loads a truncated file.
 ///
 /// It continues a `.part` left by a pause or a failure. Cancelling its
-/// stream stops at once, even on a stalled connection, and keeps the bytes
-/// written; `async*` can't, because its cancel waits for the next chunk.
+/// stream stops at once, even on a stalled connection (`async*` can't: its
+/// cancel waits for the next chunk), and keeps the bytes written.
 class _PartDownload {
   _PartDownload(this._client, this._uri, this._destination);
 
@@ -207,126 +240,233 @@ class _PartDownload {
 
   /// Where the model goes, once the transfer may start.
   final Future<String> _destination;
-  late final String _path;
-  File? _part;
   late final _progress = StreamController<WorkAmount>(
-    onListen: () => unawaited(_start()),
+    onListen: () => unawaited(_run().whenComplete(_settled.complete)),
     onCancel: _stop,
   );
+  final _settled = Completer<void>();
   StreamSubscription<List<int>>? _body;
-  IOSink? _sink;
+  Completer<void>? _copied;
+  var _received = 0;
   var _stopped = false;
 
   Stream<WorkAmount> get progress => _progress.stream;
 
-  Future<void> _start() async {
+  /// Completes once the transfer no longer touches its files, however it
+  /// ended; it never fails.
+  Future<void> get settled => _settled.future;
+
+  Future<void> _run() async {
+    final String path;
     try {
-      _path = await _destination;
-      final part = _part = File('$_path.part');
-      await part.parent.create(recursive: true);
-      final opened = await _open(part);
-      if (_stopped) {
-        await opened.response.listen(null).cancel();
-        return;
-      }
-      _receive(opened, part);
+      path = await _destination;
     } on Object catch (error) {
-      await _fail(error);
+      return _report(error);
+    }
+    final part = File('$path.part');
+    try {
+      await _transfer(part, path);
+    } on Object catch (error) {
+      await _fail(error, part);
+    }
+  }
+
+  Future<void> _transfer(File part, String path) async {
+    await part.parent.create(recursive: true);
+    final answer = await _ask(part);
+    if (_stopped) {
+      if (answer case _Body(:final response)) {
+        await response.listen(null).cancel();
+      }
+      return;
+    }
+    switch (answer) {
+      case _AlreadyWhole(:final bytes):
+        await _install(part, path, bytes);
+      case final _Body body:
+        await _write(body, part, path);
     }
   }
 
   /// Asks only for the bytes the `.part` file lacks. A server that sends
   /// the whole file anyway (200) starts it over.
-  Future<_OpenedTransfer> _open(File part) async {
+  Future<_ServerAnswer> _ask(File part) async {
     final keptBytes = await part.exists() ? await part.length() : 0;
     final request = await _client.getUrl(_uri);
     if (keptBytes > 0) {
       request.headers.set(HttpHeaders.rangeHeader, 'bytes=$keptBytes-');
     }
     final response = await request.close();
-    return switch (response.statusCode) {
-      HttpStatus.partialContent => (response: response, startAt: keptBytes),
-      HttpStatus.ok => (response: response, startAt: 0),
-      HttpStatus.requestedRangeNotSatisfiable => throw _PartMismatchException(
-        _uri,
-      ),
-      final status => throw ModelDownloadException('HTTP $status for $_uri'),
-    };
+    switch (response.statusCode) {
+      case HttpStatus.ok:
+        final length = response.contentLength;
+        // contentLength is -1 when the server doesn't say.
+        return _Body(response, startAt: 0, total: length < 0 ? 0 : length);
+      case HttpStatus.partialContent:
+        return _resumed(response, keptBytes);
+      case HttpStatus.requestedRangeNotSatisfiable:
+        return _nothingLeft(response, keptBytes);
+      default:
+        await response.drain<void>();
+        throw ModelDownloadException('HTTP ${response.statusCode} for $_uri');
+    }
   }
 
-  void _receive(_OpenedTransfer opened, File part) {
-    final length = opened.response.contentLength;
-    // contentLength is -1 when the server doesn't say; WorkAmount wants 0.
-    final total = length < 0 ? 0 : opened.startAt + length;
-    var received = opened.startAt;
-    final sink = _sink = part.openWrite(
-      mode: opened.startAt > 0 ? FileMode.append : FileMode.write,
+  /// The range must start where the kept bytes end; anything else, from a
+  /// proxy say, would be stitched on at the wrong place.
+  Future<_ServerAnswer> _resumed(
+    HttpClientResponse response,
+    int keptBytes,
+  ) async {
+    final range = _contentRangeOf(response);
+    if (range?.start != keptBytes) {
+      await response.drain<void>();
+      throw _PartMismatchException(_uri);
+    }
+    return _Body(response, startAt: keptBytes, total: range?.size ?? 0);
+  }
+
+  /// A 416 means the kept bytes are already the whole file when they match
+  /// its size, and don't belong to it otherwise.
+  Future<_ServerAnswer> _nothingLeft(
+    HttpClientResponse response,
+    int keptBytes,
+  ) async {
+    final size = _contentRangeOf(response)?.size;
+    await response.drain<void>();
+    if (keptBytes > 0 && size == keptBytes) {
+      return _AlreadyWhole(keptBytes);
+    }
+    throw _PartMismatchException(_uri);
+  }
+
+  ({int? start, int? size})? _contentRangeOf(HttpClientResponse response) {
+    final header = response.headers.value(HttpHeaders.contentRangeHeader);
+    final match = _contentRangePattern.firstMatch(header ?? '');
+    if (match == null) {
+      return null;
+    }
+    return (
+      start: int.tryParse(match.group(1) ?? ''),
+      size: int.tryParse(match.group(2) ?? ''),
     );
-    _body = opened.response.listen(
-      (chunk) {
-        sink.add(chunk);
-        received += chunk.length;
-        _progress.add(
-          WorkAmount(done: received, total: total, unit: WorkUnit.bytes),
-        );
+  }
+
+  Future<void> _write(_Body body, File part, String path) async {
+    final file = await part.open(mode: FileMode.append);
+    try {
+      await _alignTo(file, body.startAt);
+      await _copy(body, file);
+    } finally {
+      await file.close();
+    }
+    if (_stopped) {
+      return;
+    }
+    if (body.total > 0 && _received != body.total) {
+      throw ModelDownloadException(
+        'Received $_received of ${body.total} bytes.',
+      );
+    }
+    await _install(part, path, _received);
+  }
+
+  /// A resume appends exactly where the kept bytes end; anywhere else
+  /// would corrupt the model.
+  Future<void> _alignTo(RandomAccessFile file, int startAt) async {
+    if (startAt == 0) {
+      await file.truncate(0);
+      await file.setPosition(0);
+      return;
+    }
+    if (await file.length() != startAt) {
+      throw _PartMismatchException(_uri);
+    }
+  }
+
+  /// Writes each chunk before taking the next, so a write error (a full
+  /// disk) stops the download at once rather than after the last byte.
+  Future<void> _copy(_Body body, RandomAccessFile file) {
+    final copied = _copied = Completer<void>();
+    _received = body.startAt;
+    _reportReceived(body.total);
+    late final StreamSubscription<List<int>> subscription;
+    subscription = _body = body.response.listen(
+      (chunk) async {
+        subscription.pause();
+        try {
+          await file.writeFrom(chunk);
+        } on Object catch (error) {
+          await subscription.cancel();
+          _completeCopy(copied, error);
+          return;
+        }
+        _received += chunk.length;
+        _reportReceived(body.total);
+        subscription.resume();
       },
-      onError: (Object error) => unawaited(_fail(error)),
-      onDone: () => unawaited(_finish(received, total)),
+      onError: (Object error) => _completeCopy(copied, error),
+      onDone: () => _completeCopy(copied, null),
       cancelOnError: true,
     );
+    return copied.future;
   }
 
-  Future<void> _finish(int received, int total) async {
-    try {
-      await _sink?.close();
-      if (total > 0 && received != total) {
-        throw ModelDownloadException('Received $received of $total bytes.');
-      }
-      await _part!.rename(_path);
-      _progress.add(
-        WorkAmount(done: received, total: received, unit: WorkUnit.bytes),
-      );
-      await _progress.close();
-    } on Object catch (error) {
-      await _fail(error);
+  void _completeCopy(Completer<void> copied, Object? error) {
+    if (copied.isCompleted) {
+      return;
     }
+    if (error == null) {
+      copied.complete();
+      return;
+    }
+    copied.completeError(error);
+  }
+
+  void _reportReceived(int total) => _progress.add(
+    WorkAmount(done: _received, total: total, unit: WorkUnit.bytes),
+  );
+
+  Future<void> _install(File part, String path, int bytes) async {
+    await part.rename(path);
+    _progress.add(WorkAmount(done: bytes, total: bytes, unit: WorkUnit.bytes));
+    await _progress.close();
   }
 
   /// Keeps the bytes for the next download to continue, unless they can't
   /// be used: a full disk needs the space, and a mismatch would corrupt
   /// the model.
-  Future<void> _fail(Object error) async {
-    await _closeSink();
+  Future<void> _fail(Object error, File part) async {
+    if (_stopped) {
+      return;
+    }
     final failure = modelDownloadError(error);
     if (failure is InsufficientStorageException ||
         error is _PartMismatchException) {
-      await _deletePart();
+      await _deleteIfPresent(part);
     }
-    _progress.addError(failure);
+    await _report(failure);
+  }
+
+  Future<void> _report(Object error) async {
+    _progress.addError(modelDownloadError(error));
     await _progress.close();
   }
 
+  /// The copy is told it's over too, so [_run] closes the file and settles.
   Future<void> _stop() async {
     _stopped = true;
     await _body?.cancel();
-    await _closeSink();
-  }
-
-  /// A write error has already been reported by the transfer it broke.
-  Future<void> _closeSink() async {
-    try {
-      await _sink?.close();
-    } on FileSystemException {
-      return;
+    final copied = _copied;
+    if (copied != null) {
+      _completeCopy(copied, null);
     }
   }
+}
 
-  /// Nothing to delete when it failed before the file was named.
-  Future<void> _deletePart() async {
-    final part = _part;
-    if (part != null && await part.exists()) {
-      await part.delete();
-    }
+Future<void> _deleteIfPresent(File file) async {
+  if (await file.exists()) {
+    await file.delete();
   }
 }
 

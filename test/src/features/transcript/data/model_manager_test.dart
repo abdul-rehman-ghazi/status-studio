@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,33 @@ Future<bool> untilDownloaded(ModelManager manager, SpeechModel model) async {
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
   return false;
+}
+
+/// The stalling first answer, or [modelContent] from the requested byte.
+Future<void> answerRequest(
+  Socket socket,
+  String head, {
+  required bool isFirst,
+}) async {
+  if (isFirst) {
+    socket
+      ..write('HTTP/1.1 200 OK\r\nContent-Length: $modelBytes\r\n\r\n')
+      ..add(modelContent.sublist(0, modelBytes ~/ 4));
+    await socket.flush();
+    return;
+  }
+  final from = int.parse(
+    RegExp(r'[Rr]ange: bytes=(\d+)-').firstMatch(head)?.group(1) ?? '0',
+  );
+  socket
+    ..write(
+      'HTTP/1.1 206 Partial Content\r\n'
+      'Content-Range: bytes $from-${modelBytes - 1}/$modelBytes\r\n'
+      'Content-Length: ${modelBytes - from}\r\n\r\n',
+    )
+    ..add(modelContent.sublist(from));
+  await socket.flush();
+  await socket.close();
 }
 
 void main() {
@@ -119,6 +147,35 @@ void main() {
         ..write('HTTP/1.1 200 OK\r\nContent-Length: $modelBytes\r\n\r\n')
         ..add(modelContent.sublist(0, modelBytes ~/ 4));
       await socket.flush();
+    });
+    addTearDown(() async {
+      for (final socket in sockets) {
+        socket.destroy();
+      }
+      await server.close();
+    });
+    return server;
+  }
+
+  /// The first answer sends a quarter and goes quiet without hanging up;
+  /// later ones honour `Range: bytes=N-`. Raw sockets: HttpServer holds
+  /// back a body it hasn't finished.
+  Future<ServerSocket> serveStallThenRanges() async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final sockets = <Socket>[];
+    server.listen((socket) {
+      sockets.add(socket);
+      final isFirst = sockets.length == 1;
+      final head = StringBuffer();
+      var answered = false;
+      socket.listen((bytes) {
+        head.write(latin1.decode(bytes));
+        if (answered || !head.toString().contains('\r\n\r\n')) {
+          return;
+        }
+        answered = true;
+        unawaited(answerRequest(socket, head.toString(), isFirst: isFirst));
+      });
     });
     addTearDown(() async {
       for (final socket in sockets) {
@@ -304,6 +361,95 @@ void main() {
           .catchError((Object _) {});
 
       expect(await manager.partialSize(SpeechModel.small), 0);
+    });
+
+    test('download_right_after_pause_installs_the_whole_model', () async {
+      final server = await serveStallThenRanges();
+      final manager = managerFor(uriOf(server.port));
+      await manager
+          .download(SpeechModel.small)
+          .firstWhere((amount) => amount.done > 0);
+
+      unawaited(manager.pause(SpeechModel.small));
+      await manager.download(SpeechModel.small).drain<void>();
+
+      expect(await modelFileOf(SpeechModel.small).readAsBytes(), modelContent);
+    });
+
+    test('download_right_after_cancel_installs_the_whole_model', () async {
+      final server = await serveStallThenRanges();
+      final manager = managerFor(uriOf(server.port));
+      await manager
+          .download(SpeechModel.small)
+          .firstWhere((amount) => amount.done > 0);
+
+      unawaited(manager.cancel(SpeechModel.small));
+      await manager.download(SpeechModel.small).drain<void>();
+
+      expect(await modelFileOf(SpeechModel.small).readAsBytes(), modelContent);
+    });
+
+    test('resume_reports_the_kept_bytes_before_new_ones', () async {
+      final (server, _) = await serveWithRanges();
+      await partOf(SpeechModel.small)
+          .writeAsBytes(modelContent.sublist(0, 1000));
+      final manager = managerFor(uriOf(server.port));
+
+      final progress = await manager.download(SpeechModel.small).toList();
+
+      expect(progress[1].done, 1000);
+    });
+
+    test('range_starting_elsewhere_is_rejected', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        request.response
+          ..statusCode = HttpStatus.partialContent
+          ..headers.set(
+            HttpHeaders.contentRangeHeader,
+            'bytes 0-${modelBytes - 1}/$modelBytes',
+          )
+          ..contentLength = modelBytes
+          ..add(modelContent);
+        await request.response.close();
+      });
+      addTearDown(server.close);
+      await partOf(SpeechModel.small)
+          .writeAsBytes(modelContent.sublist(0, 1000));
+      final manager = managerFor(uriOf(server.port));
+
+      await expectLater(
+        manager.download(SpeechModel.small).drain<void>(),
+        throwsA(isA<ModelDownloadException>()),
+      );
+    });
+
+    test('whole_part_is_installed_when_nothing_is_left', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        request.response
+          ..statusCode = HttpStatus.requestedRangeNotSatisfiable
+          ..headers.set(HttpHeaders.contentRangeHeader, 'bytes */$modelBytes');
+        await request.response.close();
+      });
+      addTearDown(server.close);
+      await partOf(SpeechModel.small).writeAsBytes(modelContent);
+      final manager = managerFor(uriOf(server.port));
+
+      await manager.download(SpeechModel.small).drain<void>();
+
+      expect(await modelFileOf(SpeechModel.small).readAsBytes(), modelContent);
+    });
+
+    test('unwritable_part_fails_the_download', () async {
+      final server = await serveWholeModel();
+      await Directory(partOf(SpeechModel.small).path).create();
+      final manager = managerFor(uriOf(server.port));
+
+      await expectLater(
+        manager.download(SpeechModel.small).drain<void>(),
+        throwsA(isA<ModelDownloadException>()),
+      );
     });
 
     test('failed_download_keeps_its_bytes_for_retry', () async {
