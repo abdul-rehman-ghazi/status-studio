@@ -87,7 +87,7 @@
 - The platform sees only changes: the latest-started job's notice, deduplicated, and `stop` once the last job ends. Calls go through one queue so they keep their order. The first job of a run calls `access.askOnce()`.
 - `appIsVisibleProvider`: `WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed`.
 
-- [ ] **Step 1: Failing tests:**
+- [x] **Step 1: Failing tests:**
   - `first_progress_shows_the_notice`
   - `unchanged_notice_is_not_sent_again`
   - `notice_shows_the_job_that_started_last`
@@ -96,11 +96,11 @@
   - `cancel_stops_without_a_result`
   - `result_is_posted_only_when_the_app_is_hidden`
   - `result_is_not_posted_while_the_app_is_on_screen`
-  - `failed_platform_call_does_not_stop_the_work`
+  - `failed_platform_call_does_not_stop_later_calls`
   - `first_job_asks_for_access`
-  - access: `asks_for_notifications_then_battery_once`, `skips_battery_request_when_already_exempt`, `refused_notifications_open_app_info`
-- [ ] **Step 2–4:** Run → FAIL, implement, run → PASS.
-- [ ] **Step 5: Commit** `feat: track background jobs and post their results`
+  - access: `asks_for_notifications_then_battery`, `asks_only_the_first_time`, `skips_battery_request_when_already_exempt`, `status_reports_notifications_and_battery`, `refused_notifications_open_app_info`, `granted_notifications_stay_in_the_app`
+- [x] **Step 2–4:** Run → FAIL, implement, run → PASS.
+- [x] **Step 5: Commit** `feat: track background jobs and post their results`
 
 ### Task 4: keepRunning stream wrapper
 
