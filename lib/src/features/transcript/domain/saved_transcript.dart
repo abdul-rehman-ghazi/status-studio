@@ -10,6 +10,9 @@ const captionsSource = 'captions';
 /// Source name of a script Whisper wrote with [model] (FR-14).
 String whisperSource(SpeechModel model) => 'whisper-${model.name}';
 
+/// Source name of a script Groq wrote (FR-14).
+const groqSource = 'groq-whisper-large-v3-turbo';
+
 /// Which saved scripts belong together: one video, one requested language
 /// (`auto` counts as its own language).
 @immutable

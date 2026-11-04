@@ -8,8 +8,12 @@ import 'package:status_studio/src/features/settings/application/settings_control
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/application/script_engine.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/data/audio_preparer.dart';
+import 'package:status_studio/src/features/transcript/data/groq_client.dart';
+import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
+import 'package:status_studio/src/features/transcript/data/groq_transcriber.dart';
 import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/data/whisper_transcriber.dart';
@@ -20,7 +24,6 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 /// Overall progress at the start of each stage (plan M3 Task 7).
-const _modelShare = 0.15;
 const _audioDownloadEnd = 0.3;
 const _languageStage = 0.35;
 
@@ -36,6 +39,7 @@ class ScriptPipelineServices {
     required this.audio,
     required this.whisper,
     required this.store,
+    this.groq = _noGroq,
   });
 
   final ModelManager models;
@@ -43,7 +47,13 @@ class ScriptPipelineServices {
   final AudioPreparer audio;
   final WhisperTranscriber whisper;
   final Future<TranscriptStore> store;
+
+  /// Groq's transcriber when the switch is on and a key is saved, else
+  /// `null` (FR-12a).
+  final Future<GroqTranscriber?> Function() groq;
 }
+
+Future<GroqTranscriber?> _noGroq() async => null;
 
 /// Writes a video's script from, in order: a saved script, YouTube
 /// captions, or Whisper on the phone (FR-3), saving what it writes (FR-14).
@@ -78,7 +88,7 @@ class RealScriptPipeline implements ScriptPipeline {
       yield* _finishWithCaptions(store, key, captions);
       return;
     }
-    yield* _whisper(video, key);
+    yield* _write(video, key);
   }
 
   @override
@@ -88,7 +98,7 @@ class RealScriptPipeline implements ScriptPipeline {
   ) async* {
     final store = await services.store;
     await store.saveVideo(video);
-    yield* _whisper(
+    yield* _write(
       video,
       TranscriptKey(videoId: video.videoId, language: language),
     );
@@ -145,36 +155,36 @@ class RealScriptPipeline implements ScriptPipeline {
     );
   }
 
-  Stream<ScriptProgress> _whisper(SourceVideo video, TranscriptKey key) async* {
+  Stream<ScriptProgress> _write(SourceVideo video, TranscriptKey key) async* {
     final store = await services.store;
     final requested = key.language.whisperCode;
-    yield* _ensureModel(requested);
+    final engine = await _engine();
+    yield* engine.prepare(requested);
     final audio = _ScriptAudio();
     yield* _downloadAudio(video, requested, audio);
-    final chunks = await _chunksOf(audio.file);
+    final pieces = await engine.piecesOf(audio.file);
     yield ScriptProgress(
       stage: ScriptStage.detectingLanguage,
       fraction: _languageStage,
       transcript: _empty(requested),
     );
-    final partial = await _partial(store, key);
+    final partial = await _partial(store, key, engine);
     final lines = [...partial.lines];
     var completed = partial.completedChunks;
-    // Whisper detects the language inside the first chunk, so writing
-    // starts now rather than after a chunk's worth of silence.
+    // The language is detected inside the first piece, so writing starts
+    // now rather than after a piece's worth of silence.
     Transcript written() =>
         Transcript(languageCode: requested, lines: [...lines]);
     yield _writing(
       video,
       written(),
-      chunks: (done: completed.toDouble(), of: chunks.length),
+      chunks: (done: completed.toDouble(), of: pieces.length),
     );
-    final events = services.whisper.transcribeChunks(
-      ChunkTranscription(
-        chunks: chunks,
+    final events = engine.write(
+      PieceRun(
+        pieces: pieces,
         language: key.language,
-        model: model,
-        completedChunks: completed,
+        completedPieces: completed,
         firstIndex: lines.length,
       ),
     );
@@ -184,24 +194,37 @@ class RealScriptPipeline implements ScriptPipeline {
           yield _writing(
             video,
             written(),
-            chunks: (done: position + fraction, of: chunks.length),
+            chunks: (done: position + fraction, of: pieces.length),
           );
         case ChunkWritten(lines: final batch):
           lines.addAll(batch);
           completed++;
           await store.savePartial(
             key,
-            model,
+            engine.source,
             PartialTranscript(completedChunks: completed, lines: lines),
           );
           yield _writing(
             video,
             written(),
-            chunks: (done: completed.toDouble(), of: chunks.length),
+            chunks: (done: completed.toDouble(), of: pieces.length),
           );
       }
     }
-    yield await _finishWithWhisper(store, key, lines);
+    yield await _finish(store, key, engine, lines);
+  }
+
+  Future<ScriptEngine> _engine() async {
+    final groq = await services.groq();
+    if (groq != null) {
+      return GroqEngine(audio: services.audio, groq: groq);
+    }
+    return WhisperEngine(
+      models: services.models,
+      audio: services.audio,
+      whisper: services.whisper,
+      model: model,
+    );
   }
 
   /// The [transcript] so far, [chunks.done] of [chunks.of] chunks in; a
@@ -219,20 +242,6 @@ class RealScriptPipeline implements ScriptPipeline {
     );
   }
 
-  Stream<ScriptProgress> _ensureModel(String languageCode) async* {
-    if (await services.models.isDownloaded(model)) {
-      return;
-    }
-    await for (final amount in services.models.download(model)) {
-      yield ScriptProgress(
-        stage: ScriptStage.downloadingModel,
-        fraction: amount.fraction * _modelShare,
-        transcript: _empty(languageCode),
-        step: amount,
-      );
-    }
-  }
-
   /// Reports the download's bytes as they arrive, then leaves the file in
   /// [audio]: a generator can't both yield progress and return a value.
   Stream<ScriptProgress> _downloadAudio(
@@ -242,7 +251,7 @@ class RealScriptPipeline implements ScriptPipeline {
   ) async* {
     yield ScriptProgress(
       stage: ScriptStage.downloadingAudio,
-      fraction: _modelShare,
+      fraction: modelDownloadShare,
       transcript: _empty(languageCode),
     );
     final amounts = StreamController<WorkAmount>();
@@ -253,7 +262,8 @@ class RealScriptPipeline implements ScriptPipeline {
       yield ScriptProgress(
         stage: ScriptStage.downloadingAudio,
         fraction:
-            _modelShare + (_audioDownloadEnd - _modelShare) * amount.fraction,
+            modelDownloadShare +
+            (_audioDownloadEnd - modelDownloadShare) * amount.fraction,
         transcript: _empty(languageCode),
         step: amount,
       );
@@ -261,29 +271,26 @@ class RealScriptPipeline implements ScriptPipeline {
     audio.file = await download;
   }
 
-  Future<List<File>> _chunksOf(File audio) async {
-    final wav = await services.audio.toWav(audio);
-    return services.audio.splitIntoChunks(wav);
-  }
-
   Future<PartialTranscript> _partial(
     TranscriptStore store,
     TranscriptKey key,
+    ScriptEngine engine,
   ) async {
     try {
-      return await store.loadPartial(key, model);
+      return await store.loadPartial(key, engine.source);
     } on NoSavedTranscriptException {
       return const PartialTranscript(completedChunks: 0, lines: []);
     }
   }
 
-  Future<ScriptProgress> _finishWithWhisper(
+  Future<ScriptProgress> _finish(
     TranscriptStore store,
     TranscriptKey key,
+    ScriptEngine engine,
     List<TranscriptLine> lines,
   ) async {
     if (lines.isEmpty) {
-      await store.clearPartial(key, model);
+      await store.clearPartial(key, engine.source);
       throw const NoSpeechFoundException();
     }
     final transcript = Transcript(
@@ -296,11 +303,11 @@ class RealScriptPipeline implements ScriptPipeline {
       key,
       SavedTranscript(
         transcript: transcript,
-        source: whisperSource(model),
+        source: engine.source,
         savedAt: store.clock(),
       ),
     );
-    await store.clearPartial(key, model);
+    await store.clearPartial(key, engine.source);
     return ScriptProgress(
       stage: ScriptStage.done,
       fraction: 1,
@@ -345,7 +352,15 @@ final realScriptPipelineProvider = Provider<ScriptPipeline>(
       audio: ref.watch(audioPreparerProvider),
       whisper: ref.watch(whisperTranscriberProvider),
       store: ref.watch(transcriptStoreProvider.future),
+      groq: () => _groqIfOn(ref.read(groqKeyStoreProvider)),
     ),
     model: ref.watch(whisperModelProvider),
   ),
 );
+
+Future<GroqTranscriber?> _groqIfOn(GroqKeyStore keys) async {
+  if (!await keys.isEnabled()) {
+    return null;
+  }
+  return GroqTranscriber(GroqClient(apiKey: await keys.savedKey()));
+}

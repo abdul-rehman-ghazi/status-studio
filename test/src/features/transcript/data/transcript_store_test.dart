@@ -89,14 +89,21 @@ void main() {
       completedChunks: 2,
       lines: transcript.lines,
     );
-    await store.savePartial(keyFor('a'), SpeechModel.small, partial);
-    final loaded = await store.loadPartial(keyFor('a'), SpeechModel.small);
+    await store.savePartial(
+      keyFor('a'),
+      whisperSource(SpeechModel.small),
+      partial,
+    );
+    final loaded = await store.loadPartial(
+      keyFor('a'),
+      whisperSource(SpeechModel.small),
+    );
 
-    await store.clearPartial(keyFor('a'), SpeechModel.small);
+    await store.clearPartial(keyFor('a'), whisperSource(SpeechModel.small));
 
     expect(loaded, partial);
     await expectLater(
-      store.loadPartial(keyFor('a'), SpeechModel.small),
+      store.loadPartial(keyFor('a'), whisperSource(SpeechModel.small)),
       throwsA(isA<NoSavedTranscriptException>()),
     );
   });
@@ -130,7 +137,7 @@ void main() {
   test('prune_keeps_video_with_only_partial_progress', () async {
     await store.savePartial(
       keyFor('resuming'),
-      SpeechModel.small,
+      whisperSource(SpeechModel.small),
       const PartialTranscript(completedChunks: 1, lines: []),
     );
     now = start.add(const Duration(days: 1));
@@ -139,7 +146,7 @@ void main() {
 
     final partial = await store.loadPartial(
       keyFor('resuming'),
-      SpeechModel.small,
+      whisperSource(SpeechModel.small),
     );
     expect(partial.completedChunks, 1);
   });
@@ -246,7 +253,7 @@ void main() {
       await store.saveVideo(videoWithId('a'));
       await store.savePartial(
         keyFor('a'),
-        SpeechModel.small,
+        whisperSource(SpeechModel.small),
         PartialTranscript(completedChunks: 1, lines: transcript.lines),
       );
 

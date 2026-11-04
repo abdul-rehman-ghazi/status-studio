@@ -6,7 +6,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
-import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 const _keepUnused = Duration(days: 90);
@@ -71,10 +70,10 @@ class TranscriptStore {
 
   Future<PartialTranscript> loadPartial(
     TranscriptKey key,
-    SpeechModel model,
+    String source,
   ) async {
     try {
-      final json = await _readJson(_partialFile(key, model));
+      final json = await _readJson(_partialFile(key, source));
       return PartialTranscript.fromJson(json);
     } on Exception {
       throw const NoSavedTranscriptException();
@@ -83,16 +82,16 @@ class TranscriptStore {
 
   Future<void> savePartial(
     TranscriptKey key,
-    SpeechModel model,
+    String source,
     PartialTranscript partial,
   ) async {
-    await _write(_partialFile(key, model), partial.toJson());
+    await _write(_partialFile(key, source), partial.toJson());
     // Counts as a use, or pruning would drop progress the user can resume.
     await _touch(key.videoId);
   }
 
-  Future<void> clearPartial(TranscriptKey key, SpeechModel model) async {
-    final file = _partialFile(key, model);
+  Future<void> clearPartial(TranscriptKey key, String source) async {
+    final file = _partialFile(key, source);
     if (await file.exists()) {
       await file.delete();
     }
@@ -131,9 +130,9 @@ class TranscriptStore {
     '${_folder(key.videoId).path}/${key.language.whisperCode}-$source.json',
   );
 
-  File _partialFile(TranscriptKey key, SpeechModel model) => File(
+  File _partialFile(TranscriptKey key, String source) => File(
     '${_folder(key.videoId).path}/'
-    '${key.language.whisperCode}-${whisperSource(model)}$_partialSuffix',
+    '${key.language.whisperCode}-$source$_partialSuffix',
   );
 
   /// [folder]'s scripts, or none when its video can't be read: scripts
