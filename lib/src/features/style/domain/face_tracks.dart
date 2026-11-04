@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
 const _leastShareOfLongest = 0.9;
+const _leastSightings = 3;
+const _leastShareOfScene = 0.2;
 
 /// How long a person can be unseen (a missed detection, a turned head) and
 /// still be picked up again as the same person.
@@ -16,6 +18,8 @@ class FaceTrack {
       _areaSeen = face.area,
       _faces = {sampleIndex: face};
 
+  FaceTrack._joined(this._faces, this._last, this._lastTime, this._areaSeen);
+
   final Map<int, SubjectBox> _faces;
   SubjectBox _last;
   Duration _lastTime;
@@ -25,6 +29,24 @@ class FaceTrack {
 
   /// The sum of the face's areas, to tell apart people seen about as long.
   double get areaSeen => _areaSeen;
+
+  int get firstIndex => _faces.keys.reduce(math.min);
+
+  /// True when both are seen in some same sample, so they are two people.
+  bool sharesASampleWith(FaceTrack other) =>
+      _faces.keys.any(other._faces.containsKey);
+
+  /// This person and [other] as one, for a person who was missed for long
+  /// and picked up as a new track.
+  FaceTrack joinedWith(FaceTrack other) {
+    final later = other._lastTime > _lastTime ? other : this;
+    return FaceTrack._joined(
+      {..._faces, ...other._faces},
+      later._last,
+      later._lastTime,
+      _areaSeen + other._areaSeen,
+    );
+  }
 
   /// The face at [sampleIndex]; null when the person is not seen there.
   SubjectBox? faceAt(int sampleIndex) => _faces[sampleIndex];
@@ -102,4 +124,16 @@ FaceTrack? mostProminent(List<FaceTrack> tracks) {
   return lastingMost.reduce(
     (best, next) => next.areaSeen > best.areaSeen ? next : best,
   );
+}
+
+/// The tracks seen often enough in a scene of [sceneLength] samples to be
+/// someone, not a false face.
+List<FaceTrack> lastingPeople(List<FaceTrack> tracks, int sceneLength) {
+  return tracks
+      .where(
+        (track) =>
+            track.sightings >= _leastSightings &&
+            track.sightings >= sceneLength * _leastShareOfScene,
+      )
+      .toList();
 }

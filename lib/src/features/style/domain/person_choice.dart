@@ -2,8 +2,6 @@ import 'package:status_studio/src/features/style/domain/face_tracks.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 import 'package:status_studio/src/features/style/domain/subject_path.dart';
 
-const _leastSightings = 3;
-const _leastShareOfScene = 0.2;
 const _mostPeopleOffered = 6;
 const _fewestToAsk = 2;
 
@@ -35,7 +33,7 @@ List<PersonChoice> choosablePeople(
 
 /// The people of a scene in each of its frames.
 List<List<PersonChoice>> _framesOf(SubjectScene scene) {
-  final people = _peopleOf(scene);
+  final people = lastingPeople(trackFaces(scene.samples), scene.samples.length);
   return [
     for (var i = 0; i < scene.samples.length; i++)
       [
@@ -44,17 +42,6 @@ List<List<PersonChoice>> _framesOf(SubjectScene scene) {
             PersonChoice(sampleIndex: scene.firstIndex + i, face: face),
       ],
   ];
-}
-
-/// The tracks seen often enough to be someone, not a false face.
-List<FaceTrack> _peopleOf(SubjectScene scene) {
-  return trackFaces(scene.samples)
-      .where(
-        (track) =>
-            track.sightings >= _leastSightings &&
-            track.sightings >= scene.samples.length * _leastShareOfScene,
-      )
-      .toList();
 }
 
 /// The frame with more people, else the one with the bigger faces; on a tie

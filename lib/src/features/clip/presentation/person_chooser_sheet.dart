@@ -8,6 +8,9 @@ import 'package:status_studio/src/theme/app_theme.dart';
 
 const _tallest = 360.0;
 
+/// The picture's share of the screen's height, so the buttons stay in view.
+const _mostOfTheScreen = 0.45;
+
 /// A tap this close to a face (in dp) still chooses it, so a small face in a
 /// wide shot has a target of at least 48 dp.
 const _reach = 24.0;
@@ -33,8 +36,12 @@ class PersonChooserSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tallest = math.min(
+      _tallest,
+      MediaQuery.sizeOf(context).height * _mostOfTheScreen,
+    );
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -51,7 +58,7 @@ class PersonChooserSheet extends StatelessWidget {
             const SizedBox(height: 12),
             Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: _tallest),
+                constraints: BoxConstraints(maxHeight: tallest),
                 child: AspectRatio(
                   aspectRatio:
                       choosing.pictureSize.width / choosing.pictureSize.height,
@@ -140,7 +147,10 @@ class _Picture extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Excluded from semantics: a screen reader would tap it at (0, 0). The
+    // numbered markers are its buttons.
     return GestureDetector(
+      excludeFromSemantics: true,
       behavior: HitTestBehavior.opaque,
       onTapUp: (details) => _tapAt(details.localPosition),
       child: Stack(

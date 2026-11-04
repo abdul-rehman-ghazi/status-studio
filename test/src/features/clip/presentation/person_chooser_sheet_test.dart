@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/presentation/person_chooser_sheet.dart';
 import 'package:status_studio/src/features/style/application/follow_subject_controller.dart';
@@ -23,7 +24,16 @@ class Taps {
   var cancelled = 0;
 }
 
-Future<Taps> pumpSheet(WidgetTester tester, FollowChoosing choosing) async {
+/// A tall screen, so the picture is as big as the sheet lets it be and the
+/// distances in dp the tests tap at stay the same.
+Future<Taps> pumpSheet(
+  WidgetTester tester,
+  FollowChoosing choosing, {
+  Size screen = const Size(800, 1200),
+}) async {
+  tester.view.physicalSize = screen;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   final taps = Taps();
   await tester.pumpWidget(
     MaterialApp(
@@ -131,6 +141,45 @@ void main() {
     await tester.tap(find.text('Cancel'));
 
     expect(taps.cancelled, 1);
+  });
+
+  testWidgets('on_a_short_screen_the_buttons_stay_on_screen', (tester) async {
+    await pumpSheet(tester, twoPeople, screen: const Size(640, 320));
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getRect(find.text('Cancel')).bottom, lessThanOrEqualTo(320));
+  });
+
+  testWidgets('the_picture_itself_is_not_a_screen_reader_button', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await pumpSheet(tester, twoPeople);
+
+    final unlabelledTaps = <SemanticsNode>[];
+    void visit(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      if (data.hasAction(SemanticsAction.tap) && data.label.isEmpty) {
+        unlabelledTaps.add(node);
+      }
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(
+      tester
+          .binding
+          .renderViews
+          .first
+          .owner!
+          .semanticsOwner!
+          .rootSemanticsNode!,
+    );
+
+    expect(unlabelledTaps, isEmpty);
+    handle.dispose();
   });
 
   testWidgets('the_picture_keeps_the_clips_aspect', (tester) async {

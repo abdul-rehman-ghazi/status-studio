@@ -440,6 +440,52 @@ void main() {
       expect(path.keyframes.last.anchor.x, closeTo(bigOnesAnchor, 0.001));
     });
 
+    test('a_one_frame_false_face_does_not_stand_for_the_person', () {
+      // The decoy sits exactly where the chosen person was, nearer than the
+      // real person of the second scene.
+      final real = faceAt(0.65, size: 0.08);
+      final decoy = faceAt(0.76, size: 0.075);
+      final track = together(
+        sceneCuts: [const Duration(seconds: 25)],
+        facesAt: (frame) => switch (frame) {
+          < 20 => [bigOne, smallOne],
+          30 => [bigOne, real, decoy],
+          _ => [bigOne, real],
+        },
+      );
+
+      final path = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 0),
+      );
+
+      // Window centred on 0.65: (0.65 − 0.158) / 0.684.
+      expect(path.keyframes.last.anchor.x, closeTo(0.7193, 0.02));
+    });
+
+    test('a_person_who_looks_away_for_long_is_followed_after_returning', () {
+      // Away for 3 s, longer than a face may be missed, and back well to the
+      // right; far enough to move the crop past its dead zone.
+      final before = faceAt(0.55, size: 0.09);
+      final after = faceAt(0.72, size: 0.09);
+      final track = together(
+        facesAt: (frame) => frame >= 11 && frame <= 22
+            ? [bigOne]
+            : [bigOne, frame < 11 ? before : after],
+      );
+
+      final path = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 0),
+      );
+
+      // Window centred on 0.72 is (0.72 − 0.158) / 0.684 = 0.8216, less the
+      // dead zone of 0.08.
+      expect(path.keyframes.last.anchor.x, closeTo(0.7416, 0.03));
+    });
+
     test('choosing_keeps_the_same_cuts', () {
       final track = together(sceneCuts: [const Duration(seconds: 25)]);
       List<Duration> cutsOf(CropPath path) => [

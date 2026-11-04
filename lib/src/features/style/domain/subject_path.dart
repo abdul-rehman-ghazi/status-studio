@@ -44,6 +44,10 @@ CropPath followPerson(
   requireEnoughFaces(track.samples);
   final scenes = scenesOf(track, geometry);
   final people = [for (final scene in scenes) trackFaces(scene.samples)];
+  final lasting = [
+    for (final (index, scene) in scenes.indexed)
+      lastingPeople(people[index], scene.samples.length),
+  ];
   final chosenScene = scenes.indexWhere(
     (scene) =>
         choice.sampleIndex >= scene.firstIndex &&
@@ -52,17 +56,51 @@ CropPath followPerson(
   if (chosenScene < 0) {
     throw ArgumentError.value(choice.sampleIndex, 'choice', 'is not a sample');
   }
-  final chosen = _thePersonIn(
-    people[chosenScene],
-    choice.face,
-    choice.sampleIndex - scenes[chosenScene].firstIndex,
+  final chosen = _withTheirOtherSightings(
+    _thePersonIn(
+      people[chosenScene],
+      choice.face,
+      choice.sampleIndex - scenes[chosenScene].firstIndex,
+    ),
+    lasting[chosenScene],
   );
   return _pathOfScenes(scenes, geometry, [
     for (final (index, scenePeople) in people.indexed)
       index == chosenScene
           ? chosen
-          : _likeThe(chosen, scenePeople) ?? mostProminent(scenePeople),
+          : _followedInAnotherScene(chosen, scenePeople, lasting[index]),
   ]);
+}
+
+/// Faces can't be recognised across cuts, so the person is the one of
+/// [lasting] who looks like [chosen]; when no one does, the one seen longest.
+FaceTrack? _followedInAnotherScene(
+  FaceTrack chosen,
+  List<FaceTrack> scenePeople,
+  List<FaceTrack> lasting,
+) {
+  final alike = _likeThe(chosen, lasting);
+  if (alike == null) {
+    return mostProminent(scenePeople);
+  }
+  return _withTheirOtherSightings(alike, lasting);
+}
+
+/// [person] with the later or earlier stretches in which the same person was
+/// picked up again as a new track after being missed for long: not seen in the
+/// same frame as them, and in about the same place and size.
+FaceTrack _withTheirOtherSightings(FaceTrack person, List<FaceTrack> lasting) {
+  final usual = person.typicalFace;
+  final others = lasting.where((track) => !identical(track, person)).toList()
+    ..sort((a, b) => a.firstIndex.compareTo(b.firstIndex));
+  var joined = person;
+  for (final other in others) {
+    if (!joined.sharesASampleWith(other) &&
+        usual.couldBeSameFaceAs(other.typicalFace)) {
+      joined = joined.joinedWith(other);
+    }
+  }
+  return joined;
 }
 
 FaceTrack _thePersonIn(
@@ -458,15 +496,20 @@ List<CropKeyframe> _keyframesFrom(
         anchor: point.anchor,
         arrival: startsScene ? CropArrival.cut : CropArrival.glide,
       );
-      _addWithSpacing(keyframes, keyframe);
+      _addWithSpacing(keyframes, keyframe, latest);
     }
   }
   return keyframes;
 }
 
 /// Keyframes closer than half a second to the one before are dropped, unless
-/// the new one is a cut, which replaces the one before it instead.
-void _addWithSpacing(List<CropKeyframe> keyframes, CropKeyframe next) {
+/// the new one is a cut, which replaces the one before it instead, or a move
+/// the dead zone would not hide (see [_addAfterThePause]).
+void _addWithSpacing(
+  List<CropKeyframe> keyframes,
+  CropKeyframe next,
+  Duration latest,
+) {
   if (keyframes.isEmpty) {
     keyframes.add(next);
     return;
@@ -476,6 +519,7 @@ void _addWithSpacing(List<CropKeyframe> keyframes, CropKeyframe next) {
     return;
   }
   if (next.arrival != CropArrival.cut) {
+    _addAfterThePause(keyframes, next, latest);
     return;
   }
   if (keyframes.length > 1) {
@@ -487,6 +531,23 @@ void _addWithSpacing(List<CropKeyframe> keyframes, CropKeyframe next) {
   // The only keyframe so far is the clip's start: the cut came right after
   // it, so the start takes the new shot's anchor and keeps its time.
   keyframes[0] = keyframes[0].copyWith(anchor: next.anchor);
+}
+
+/// A big move right after a hold (the person was missed for a while and is
+/// back elsewhere) is the one thing that must not be dropped, or the crop
+/// would never leave the old place. It starts the hold's half second later.
+void _addAfterThePause(
+  List<CropKeyframe> keyframes,
+  CropKeyframe next,
+  Duration latest,
+) {
+  final previous = keyframes.last;
+  final moved = _distanceBetween(previous.anchor, next.anchor);
+  final arrives = previous.time + _keyframeSpacing;
+  if (moved <= _deadZone || arrives > latest) {
+    return;
+  }
+  keyframes.add(next.copyWith(time: arrives));
 }
 
 Duration _snapped(Duration time) =>
