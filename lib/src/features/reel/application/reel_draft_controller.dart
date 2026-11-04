@@ -4,6 +4,7 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
@@ -53,6 +54,19 @@ class ReelDraftController extends Notifier<ReelDraft> {
       clip: clip.nudgeEnd(delta, videoDuration: _requireVideo().duration),
     );
   }
+
+  void startMovingCrop() => state = state.withMovingCropStarted();
+
+  void stopMovingCrop() => state = state.withMovingCropStopped();
+
+  void moveCropTo(Duration videoTime, CropAnchor anchor) =>
+      state = state.withCropAnchorAt(videoTime, anchor);
+
+  void setCropArrival(int index, CropArrival arrival) =>
+      state = state.withCropArrival(index, arrival);
+
+  void removeCropKeyframe(int index) =>
+      state = state.withoutCropKeyframe(index);
 
   void updateFrame(FrameSettings frame) => state = state.copyWith(frame: frame);
 

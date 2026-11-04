@@ -108,14 +108,7 @@ CropAnchor baseAnchorFor(FrameSettings frame) {
       y: _placeInRoom(crop.top, crop.height),
     );
   }
-  return CropAnchor(
-    x: switch (frame.focus) {
-      CropFocus.left => 0,
-      CropFocus.center => 0.5,
-      CropFocus.right => 1,
-    },
-    y: 0.5,
-  );
+  return frame.anchor;
 }
 
 double _placeInRoom(double start, double size) =>
@@ -131,7 +124,7 @@ PixelRect _freeCrop(FreeCropRect crop, OutputSize source) {
 }
 
 /// The largest rectangle of the preset's aspect inside the source, placed
-/// by the focus and centred vertically.
+/// by the frame's anchor in the room around it.
 PixelRect _fillCrop(FrameSettings frame, OutputSize source) {
   final target = outputSizeFor(frame, source);
   final targetAspect = target.width / target.height;
@@ -143,18 +136,12 @@ PixelRect _fillCrop(FrameSettings frame, OutputSize source) {
       ? _floorToEven(source.height.toDouble())
       : _floorToEven(source.width / targetAspect);
   return PixelRect(
-    x: _focusX(frame.focus, source.width - width),
-    y: (source.height - height) ~/ 2,
+    x: _floor(frame.anchor.x * (source.width - width)),
+    y: _floor(frame.anchor.y * (source.height - height)),
     width: width,
     height: height,
   );
 }
-
-int _focusX(CropFocus focus, int spareWidth) => switch (focus) {
-  CropFocus.left => 0,
-  CropFocus.center => spareWidth ~/ 2,
-  CropFocus.right => spareWidth,
-};
 
 /// [rect] in Media3's normalised device coordinates (spec §6.3.1).
 NdcRect toNdc(PixelRect rect, OutputSize source) {

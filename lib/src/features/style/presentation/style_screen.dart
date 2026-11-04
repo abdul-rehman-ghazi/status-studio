@@ -326,7 +326,7 @@ class _FrameControls extends StatelessWidget {
               (value: CropFocus.right, label: 'Right'),
             ],
             selected: frame.focus,
-            onSelected: (focus) => onChanged(frame.copyWith(focus: focus)),
+            onSelected: (focus) => onChanged(frame.withFocus(focus)),
           ),
         ],
       ],

@@ -133,8 +133,17 @@ void main() {
       expect(leftThenRightAtTen().withoutKeyframe(1).keyframes.length, 1);
     });
 
-    test('refuses_to_remove_the_first_keyframe', () {
-      expect(() => leftThenRightAtTen().withoutKeyframe(0), throwsStateError);
+    test('removes_the_first_keyframe_and_the_next_becomes_first', () {
+      expect(
+        leftThenRightAtTen().withoutKeyframe(0).keyframes.single.anchor,
+        right,
+      );
+    });
+
+    test('refuses_to_remove_the_only_keyframe', () {
+      final single = CropPath.startingAt(seconds(2), center);
+
+      expect(() => single.withoutKeyframe(0), throwsStateError);
     });
   });
 

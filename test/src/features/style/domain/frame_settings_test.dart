@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 const source = OutputSize(1920, 1080);
@@ -90,5 +91,27 @@ void main() {
     const blurred = FrameSettings(fill: FillMode.blur);
 
     expect(blurred.offersFocus, isFalse);
+  });
+
+  group('focus and anchor', () {
+    test('the_default_focus_is_the_centre', () {
+      expect(const FrameSettings().focus, CropFocus.center);
+    });
+
+    test('with_focus_sets_the_anchor_x', () {
+      expect(const FrameSettings().withFocus(CropFocus.right).anchor.x, 1);
+    });
+
+    test('with_focus_keeps_the_anchor_y', () {
+      const frame = FrameSettings(anchor: CropAnchor(x: 0.5, y: 0.2));
+
+      expect(frame.withFocus(CropFocus.left).anchor.y, 0.2);
+    });
+
+    test('an_anchor_between_the_three_places_has_no_focus', () {
+      const frame = FrameSettings(anchor: CropAnchor(x: 0.3, y: 0.5));
+
+      expect(frame.focus, isNull);
+    });
   });
 }

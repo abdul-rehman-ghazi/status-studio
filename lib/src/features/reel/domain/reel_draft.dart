@@ -4,6 +4,8 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_cues.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
@@ -113,6 +115,51 @@ class ReelDraft {
     );
   }
 
+  /// Starts a moving crop (spec FR-22): one keyframe at the clip start, where
+  /// the fixed crop is.
+  ReelDraft withMovingCropStarted() {
+    final start = _requireClip().start;
+    return _withCropPath(CropPath.startingAt(start, baseAnchorFor(frame)));
+  }
+
+  /// Ends the moving crop and keeps the crop where it was at the clip start.
+  ReelDraft withMovingCropStopped() {
+    final atStart = frame.cropPath.anchorAt(
+      _requireClip().start,
+      base: baseAnchorFor(frame),
+    );
+    final fixed = frame.preset == AspectPreset.free
+        ? frame.copyWith(freeCrop: _freeCropAt(frame.freeCrop, atStart))
+        : frame.copyWith(anchor: atStart);
+    return copyWith(frame: fixed.copyWith(cropPath: const CropPath()));
+  }
+
+  /// Sets the crop's anchor at [videoTime], moved into the clip.
+  ReelDraft withCropAnchorAt(Duration videoTime, CropAnchor anchor) {
+    final clip = _requireClip();
+    final inClip = videoTime < clip.start
+        ? clip.start
+        : (videoTime > clip.end ? clip.end : videoTime);
+    return _withCropPath(frame.cropPath.withAnchorAt(inClip, anchor));
+  }
+
+  ReelDraft withCropArrival(int index, CropArrival arrival) =>
+      _withCropPath(frame.cropPath.withArrival(index, arrival));
+
+  ReelDraft withoutCropKeyframe(int index) =>
+      _withCropPath(frame.cropPath.withoutKeyframe(index));
+
+  ReelDraft _withCropPath(CropPath path) =>
+      copyWith(frame: frame.copyWith(cropPath: path));
+
+  ClipRange _requireClip() {
+    final clip = this.clip;
+    if (clip == null) {
+      throw StateError('The crop was moved before a clip was set.');
+    }
+    return clip;
+  }
+
   /// Applies [selection]; a full range also sets the clip and fills the
   /// caption with the selected lines.
   ReelDraft withSelection(LineSelection selection) {
@@ -207,6 +254,13 @@ class ReelDraft {
     frame,
     caption,
     linesEdited,
+  );
+}
+
+FreeCropRect _freeCropAt(FreeCropRect crop, CropAnchor anchor) {
+  return crop.copyWith(
+    left: anchor.x * (1 - crop.width),
+    top: anchor.y * (1 - crop.height),
   );
 }
 

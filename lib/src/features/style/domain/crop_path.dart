@@ -130,10 +130,11 @@ class CropPath {
   CropPath withArrival(int index, CropArrival arrival) =>
       _replacing(index, keyframes[index].copyWith(arrival: arrival));
 
-  /// Throws for the first keyframe, which gives the crop its starting place.
+  /// Throws for the only keyframe, which gives the crop its place; turning
+  /// the movement off removes them all.
   CropPath withoutKeyframe(int index) {
-    if (index == 0) {
-      throw StateError('The first crop keyframe cannot be removed.');
+    if (keyframes.length == 1) {
+      throw StateError('The only crop keyframe cannot be removed.');
     }
     return CropPath([...keyframes]..removeAt(index));
   }

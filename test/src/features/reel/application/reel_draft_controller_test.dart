@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 
@@ -175,6 +177,107 @@ void main() {
         ..setTranscript(fixture);
 
       expect(() => controller.editScript((script) => script), throwsStateError);
+    });
+  });
+
+  group('moving crop', () {
+    const centre = CropAnchor(x: 0.5, y: 0.5);
+    const farRight = CropAnchor(x: 1, y: 0.5);
+
+    void pickLinesOneToThree() {
+      controller
+        ..setVideo(sampleVideo)
+        ..setTranscript(fixture)
+        ..tapLine(1)
+        ..tapLine(3);
+    }
+
+    Duration clipStart() => draft().clip!.start;
+
+    test('starting_makes_a_keyframe_at_the_clip_start_from_the_crop', () {
+      pickLinesOneToThree();
+
+      controller.startMovingCrop();
+
+      expect(draft().frame.cropPath.keyframes.single.time, clipStart());
+    });
+
+    test('the_first_keyframe_has_the_fixed_crops_anchor', () {
+      pickLinesOneToThree();
+      controller.updateFrame(draft().frame.withFocus(CropFocus.right));
+
+      controller.startMovingCrop();
+
+      expect(draft().frame.cropPath.keyframes.single.anchor.x, 1);
+    });
+
+    test('a_keyframe_before_the_clip_is_set_at_the_clip_start', () {
+      pickLinesOneToThree();
+      controller.startMovingCrop();
+
+      controller.moveCropTo(clipStart() - const Duration(seconds: 3), farRight);
+
+      expect(draft().frame.cropPath.keyframes.single.anchor, farRight);
+    });
+
+    test('a_keyframe_after_the_clip_is_set_at_the_clip_end', () {
+      pickLinesOneToThree();
+      controller.startMovingCrop();
+
+      controller.moveCropTo(
+        draft().clip!.end + const Duration(seconds: 3),
+        farRight,
+      );
+
+      expect(draft().frame.cropPath.keyframes.last.time, draft().clip!.end);
+    });
+
+    test('stopping_keeps_the_crop_as_it_was_at_the_clip_start_for_fill', () {
+      pickLinesOneToThree();
+      controller
+        ..startMovingCrop()
+        ..moveCropTo(clipStart(), farRight)
+        ..stopMovingCrop();
+
+      expect(
+        (draft().frame.cropPath.isEmpty, draft().frame.anchor),
+        (true, farRight),
+      );
+    });
+
+    test('stopping_writes_the_start_position_into_a_free_crop', () {
+      pickLinesOneToThree();
+      controller
+        ..updateFrame(const FrameSettings(preset: AspectPreset.free))
+        ..startMovingCrop()
+        ..moveCropTo(clipStart(), farRight)
+        ..stopMovingCrop();
+
+      expect(draft().frame.freeCrop.left, closeTo(0.6, 1e-9));
+    });
+
+    test('an_arrival_can_be_changed_and_a_keyframe_removed', () {
+      pickLinesOneToThree();
+      controller
+        ..startMovingCrop()
+        ..moveCropTo(clipStart() + const Duration(seconds: 5), centre)
+        ..setCropArrival(1, CropArrival.cut);
+
+      expect(draft().frame.cropPath.keyframes[1].arrival, CropArrival.cut);
+    });
+
+    test('removing_a_keyframe_drops_it', () {
+      pickLinesOneToThree();
+      controller
+        ..startMovingCrop()
+        ..moveCropTo(clipStart() + const Duration(seconds: 5), centre)
+        ..removeCropKeyframe(1);
+
+      expect(draft().frame.cropPath.keyframes.length, 1);
+    });
+
+    test('starting_without_a_clip_fails', () {
+      expect(() => controller.startMovingCrop(), throwsStateError);
     });
   });
 }

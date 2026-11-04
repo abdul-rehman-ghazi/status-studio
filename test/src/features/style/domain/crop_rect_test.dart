@@ -16,13 +16,13 @@ void main() {
   });
 
   test('story_left_crop', () {
-    final crop = cropRectFor(story.copyWith(focus: CropFocus.left), fullHd);
+    final crop = cropRectFor(story.withFocus(CropFocus.left), fullHd);
 
     expect(crop.x, 0);
   });
 
   test('story_right_crop', () {
-    final crop = cropRectFor(story.copyWith(focus: CropFocus.right), fullHd);
+    final crop = cropRectFor(story.withFocus(CropFocus.right), fullHd);
 
     expect(crop.x, 1314);
   });
@@ -141,13 +141,19 @@ void main() {
     });
   });
 
+  test('an_anchor_between_the_three_places_puts_the_window_in_the_room', () {
+    final frame = story.copyWith(anchor: const CropAnchor(x: 0.25, y: 0.5));
+
+    expect(cropRectFor(frame, fullHd).x, 328);
+  });
+
   group('baseAnchorFor', () {
     test('centre_focus_is_the_middle', () {
       expect(baseAnchorFor(story), const CropAnchor(x: 0.5, y: 0.5));
     });
 
     test('right_focus_is_the_far_right', () {
-      expect(baseAnchorFor(story.copyWith(focus: CropFocus.right)).x, 1);
+      expect(baseAnchorFor(story.withFocus(CropFocus.right)).x, 1);
     });
 
     test('a_free_crop_anchor_is_its_place_in_the_room_left', () {
