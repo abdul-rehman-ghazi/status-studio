@@ -277,6 +277,21 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Height:** every player on Fine-tune is at most 260 dp high, so a vertical video leaves room for the controls; the crop outline stays on the video.
 - **Frame rate:** Lyrics lays out the caption again only when the line due, the look or the size changes, not every frame.
 
+**FR-23 Follow the person (M20).** On Fine-tune · Video, with "Move the crop during the clip" on and the crop able to move (FR-22), a button makes the crop follow a person in the clip by writing its keyframes. Nothing is uploaded and no key is needed.
+- **Button:** "Follow the person" under the switch, with the hint "Runs on your phone; nothing is uploaded."
+- **Detector:** ML Kit face detection, on the phone, with the bundled model (fast mode, small faces allowed, no landmarks or contours). Pose detection is only a fallback if the spike (§10 item 7) shows faces are missed too often. Other detectors were rejected: selfie segmentation (made for close-ups) and object detection (it has no person class).
+- **Frames:** sampled by FFmpeg from the already downloaded clip file, clip range only, with no new download: 4 per second, or fewer for a long clip so there are at most 240 (never below 2 per second), as JPEG scaled to fit 640 × 640. Frame k is at video time `clip.start + k / rate`. The same run lists scene cuts (`scdet`) with their times. The frames are in a cache folder that is deleted when the run ends, is cancelled or fails.
+- **Which face:** the face that overlaps the previous pick most (IoU of 0.3 or more, within one scene); otherwise the largest.
+- **Where the window goes:** its x centres the window on the face; its y puts the face a third of the way down the window. The anchor is the window's left over `1 − window width`, clamped to 0..1. An axis with under 1 % room keeps the base anchor.
+- **Gaps:** a frame with no face holds the last anchor. Before the first face, that face's anchor is used; in a scene with no face at all, the base anchor.
+- **No person:** with faces in fewer than 20 % of the frames, or in fewer than 3 frames, nothing changes and the §8 message shows.
+- **Smoothing:** a centred median over 5 samples (1.25 s), restarted at each scene cut; then a dead zone: the anchor holds until the target is 0.08 of the room away.
+- **Keyframes:** Ramer–Douglas–Peucker with a tolerance of 0.03 of the room. A scene cut is a Cut keyframe at the cut time; with no cut data, a jump of more than 0.3 of the room between neighbouring samples counts as a cut. Everything else glides. Times snap to 0.1 s and stay inside the clip (FR-22); the first keyframe is at the clip start, rounded inwards to 0.1 s; keyframes are at least 0.5 s apart; at most **12**: above that the tolerance grows by 1.5× until it fits.
+- **Replacing:** the result replaces the keyframes. When more than one exists, the app asks first: "Replace your crop keyframes?" with Replace and Keep.
+- **After:** a snackbar "The crop follows the person (6 keyframes). Drag or tap a chip to adjust." The first chip is selected and the player seeks to the clip start. Everything stays editable as FR-22 says.
+- **While it runs:** a bar, "Finding the person… 45 %", with Cancel. Cancel, leaving the step, opening Lyrics, or any change of the clip, size, fill or the free crop's size stops it and changes nothing. It doesn't use the player, and takes no foreground service (about 20 s at most).
+- **Several people:** it follows the largest, with continuity. Choosing by tapping is out of scope (§11).
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android first (minSdk 24, sideloaded APK). iOS later (deployment target 15.5, needed by ML Kit translation).
@@ -301,7 +316,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - Media3 trims, crops or blurs, scales, overlays and encodes on the phone's hardware.
   - Preview and export share `cropRectFor` and `layoutOverlay`.
   - iOS will need AVFoundation later.
-- **FFmpeg:** only WAV conversion, splitting, stream-copy muxing and thumbnails. The bundled build can't encode H.264 or read https (§10 Q1).
+- **FFmpeg:** only WAV conversion, splitting, stream-copy muxing, thumbnails, and (M20) sampling small JPEG frames for Follow the person (FR-23). The mjpeg encoder is there; the PNG encoder is not (`--disable-zlib`). The bundled build can't encode H.264 or read https (§10 Q1).
 
 ### Package map
 
@@ -469,6 +484,8 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | No Groq key, Fix with Groq | Script | Fixing a script needs a free Groq key. | Settings (snackbar action) |
 | Groq failed while fixing (other error, or 5xx/498 twice) | Script | Groq couldn't fix this script. | (snackbar) |
 | Groq's reply to Fix with Groq has no script rows | Script | Groq's reply had no script lines. Try again. | (snackbar) |
+| No person found in the clip | Fine-tune · Video | No person found in this clip. The crop stays where it is. | (snackbar) |
+| Following the person failed (frames, decoding or detector) | Fine-tune · Video | Couldn't follow the person. Try again. | (snackbar) |
 | Not enough storage | any download or export | Not enough space on your phone. | Back |
 
 Each error is a typed exception from the data layer. Screens map them to these messages, and nothing returns `null` or a sentinel.
@@ -534,9 +551,15 @@ Each error is a typed exception from the data layer. Screens map them to these m
    - **Limits (free plan, from the response headers):** 8,000 tokens per minute and 1,000 requests for `gpt-oss-120b`. One search call uses 30k to 57k tokens in total, so a second call within the same minute got HTTP 429 (`Used 7973, Requested 2535`) and one call every minute or so is the practical rate. The daily token limit is not in the headers: check it on Groq's limits page before shipping.
    - **Whether it is worth it:** at 30 rows or fewer it did the job in 15 s with no copy and paste. Above that it mis-assigns rows (FR-18's 60-row cap was set for a different reason: chats skim long scripts). The picked clip is usually well under 30 rows.
    - **Decision (2026-11-04, the user): go.** Model `openai/gpt-oss-120b` with `browser_search`. Row cap **30** on this path (FR-18 keeps 60). The shared prompt gets a rule against moving lines from elsewhere into a row, and reply parsing strips `【…】` citation marks. The daily token limit is still unknown (not in the headers): a 429 whose wait is over 60 s already gives the §8 message. The naat with verses from another poem was not tested, so it goes to the §14 device check.
+7. **Person detection on the phone (M20 task 1, device only, not yet run).** Question: can ML Kit face detection find the person in a clip fast enough and often enough on a Redmi Note 11 (profile build) to make Follow the person (FR-23) worth shipping? Clips: three of 30 s, a naat singer facing the camera, a wide shot with two people, and calligraphy only. Sampled at 4 fps, long side 640.
+   - **Measure:** frame extraction time, detector ms per frame, recall against a hand count, false-positive frames, arm64 APK growth.
+   - **Go** if all hold: ≤ 15 s in total per 30 s clip, recall ≥ 80 %, false positives ≤ 5 % (the calligraphy clip gives no keyframes), APK growth ≤ 8 MB. If recall is under 80 %, try face plus pose; if that still misses, no-go.
+   - **Not checked yet:** which face-detection plugin version resolves against `google_mlkit_commons` ^0.13.0, whether AV1 clips decode in software, whether `scdet` with `metadata=file=` behaves as FR-23 assumes (the jump rule stands in if not).
+
 
 ## 11. Out of scope for v1
 
+- Choosing which person to follow by tapping (FR-23 follows the largest).
 - iOS release; Play Store or App Store builds.
 - Local-file or share-into-app input.
 - Multiple clips per reel, music, stickers, text animation.
@@ -578,6 +601,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only`; device check pending |
 | M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
 | M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18); device check pending |
+| M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | In progress, branch `m20-follow-subject` (stacked on M19); spike and device checks pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -698,6 +722,19 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
 - [x] **9. Set an edge to the playhead (request 2026-11-04).** Tapping Start or End sets it to the playhead under the nudge rules.
 - [x] **8. Docs and review.** §13, §14, §15; reviewer pass (Opus; eight findings, all fixed except a test for a cancelled drag); push.
 
+### M20 tasks (branch `m20-follow-subject`)
+
+Request, 2026-11-04: move the crop by object detection; the subject is a person or body. The plan was written by an Opus subagent first (its choices are in FR-23). Each task: test first, tick it, commit. Task 1 needs the phone and cannot run here.
+
+- [ ] **1. Spike (device).** §10 item 7, on a scratch branch that is never merged. Pending: the phone is not available in this session.
+- [ ] **2. Frame arguments.** `lib/src/core/ffmpeg/frame_arguments.dart`: the sampling arguments (file time = video time minus the clip file's offset) and the scene-cut parser.
+- [ ] **3. Subject path (domain).** `followSubject`: boxes to anchors, smoothing, dead zone, simplification, cuts, the 12-keyframe cap, `NoSubjectFoundException`; with the cases in §13.
+- [ ] **4. Apply.** `ReelDraft.withFollowedCrop` and the controller method.
+- [ ] **5. Extractor and detector.** `FrameExtractor` (FFmpeg) and `SubjectDetector` (ML Kit) behind interfaces; the dependency; cancel the FFmpeg run by its own session, not all sessions.
+- [ ] **6. Controller.** `FollowSubjectController`: progress, cancel, cancel on change, clean-up, errors, with fakes.
+- [ ] **7. UI.** The button, progress, Cancel, the replace question and the snackbars.
+- [ ] **8. Docs and review.** §13, §14, §12 status; reviewer pass; push. CLAUDE.md's FFmpeg line needs "and frame sampling" (left for the user to approve).
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links:** a link with whitespace, `si=` parameters or the `m.` host parses.
@@ -734,6 +771,15 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
     - One overlay PNG per cue is written, kept while the render runs and deleted when it ends.
     - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
 - **Clip edges (FR-5):** tapping Start or End sets it to the playhead rounded to 0.1 s; a time that leaves under 3 s or passes the video's ends changes nothing.
+- **Follow the person (FR-23):**
+  - A steady face gives one keyframe. A face drifting left to right gives at most three glides and ends near the right. Jitter of ±0.03 of the room gives one keyframe.
+  - Two faces: the larger is followed, and a larger one appearing beside the followed one doesn't take over.
+  - A scene cut gives a Cut at the cut time; a jump of more than 0.3 of the room with no cut data gives a Cut.
+  - A gap of one second holds the last anchor. With room on x only, y keeps the base anchor.
+  - A clip of 90 s of busy movement gives at most 12 keyframes, at least 0.5 s apart, all inside the clip; a clip starting at 12.34 s gets its first keyframe at 12.4 s.
+  - Faces in fewer than 20 % of the frames change nothing and give "No person found".
+  - The frame arguments use file time (the offset subtracted), the sampling rate falls for long clips and never below 2, and the cut parser reads FFmpeg's times.
+  - Replace is asked only when more than one keyframe exists. Cancel, leaving, and a clip or size change stop the run, delete the frames and change nothing.
 - **Moving crop (FR-22):**
   - A glide moves in a straight line and arrives at its keyframe's time; a cut holds the earlier anchor until then and has jumped at exactly that time. Dart and Kotlin share their boundary cases.
   - Before the first keyframe the first anchor holds, and after the last the last.
@@ -830,6 +876,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Editing, reordering, adding and deleting lines with Urdu text; the edited script reopens for the same video.
   - [ ] Moving crop, on a phone: the window drags under a thumb (the play button sits in the corner), the keyframe chips are usable above the scrolling frame controls, and the preview glides smoothly.
   - [ ] Moving crop, render: a Cut lines up with a caption line that starts at the same time (both read the clip's clock); a Glide is smooth; the picture is no softer or stretched compared with a fixed crop of the same size; the render matches the Lyrics preview.
+  - [ ] Follow the person: a 30 s naat on the Redmi takes at most 15 s; a calligraphy-only clip says "No person found"; the crop follows a singer who sways without jitter; a cut in the video lines up in the render; Cancel responds within 1 s; 12 chips stay usable.
   - [ ] Opening Lyrics releases the Video step's player with no stutter, and Back brings it back.
   - [ ] Lyrics on a small phone: the reel-shaped player (at most 260 dp high) leaves enough lines to tap.
 - **Render:**
