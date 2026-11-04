@@ -286,6 +286,9 @@ class _SeekBar extends StatelessWidget {
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
                   overlayShape: SliderComponentShape.noOverlay,
+                  // Outline only: a coloured played part would hide the clip
+                  // range marked under it.
+                  activeTrackColor: Colors.transparent,
                   inactiveTrackColor: Colors.transparent,
                 ),
                 child: Slider(
@@ -311,6 +314,8 @@ class _SeekBar extends StatelessWidget {
   }
 }
 
+const _trackHeight = 8.0;
+
 class _ClipMarker extends StatelessWidget {
   const _ClipMarker({required this.startFraction, required this.endFraction});
 
@@ -326,16 +331,27 @@ class _ClipMarker extends StatelessWidget {
         return Stack(
           alignment: Alignment.centerLeft,
           children: [
-            const SizedBox(
-              height: 4,
+            // The whole window as an outline; only the clip is filled.
+            SizedBox(
+              height: _trackHeight,
               width: double.infinity,
-              child: ColoredBox(color: AppColors.surface),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(_trackHeight / 2),
+                  border: Border.all(color: AppColors.textMuted),
+                ),
+              ),
             ),
             Positioned(
               left: left,
               width: right - left,
-              height: 4,
-              child: const ColoredBox(color: AppColors.accent),
+              height: _trackHeight,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(_trackHeight / 2),
+                ),
+              ),
             ),
           ],
         );

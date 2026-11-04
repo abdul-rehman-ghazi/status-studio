@@ -195,6 +195,20 @@ void main() {
     expect(player.value.position, const Duration(seconds: 12));
   });
 
+  testWidgets('the_seek_bar_does_not_colour_the_time_already_played', (
+    tester,
+  ) async {
+    await pumpFineTune(tester);
+
+    final theme = tester.widget<SliderTheme>(
+      find
+          .ancestor(of: find.byType(Slider), matching: find.byType(SliderTheme))
+          .first,
+    );
+
+    expect(theme.data.activeTrackColor, Colors.transparent);
+  });
+
   testWidgets('seek_bar_moves_the_player', (tester) async {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);
