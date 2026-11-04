@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository.
 
 ## What this is
 
-Status Studio: a general-purpose Flutter app that turns any YouTube video, in any language, into a short status clip. Flow: paste link → on-device transcript (language auto-detected or chosen) → user taps start and end lines → fine-tune ±0.5 s → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share.
+Status Studio: a general-purpose Flutter app that turns any YouTube video, in any language, into a short status clip. Flow: paste link → script (YouTube captions, or Groq with the user's key; language auto-detected or chosen) → user taps start and end lines → fine-tune ±0.5 s → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share.
 
 Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
@@ -56,15 +56,14 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 - **Final render is Media3 Transformer, not FFmpeg.** The bundled FFmpeg is built with `--disable-mediacodec --disable-openssl` and has no libx264: it can't encode H.264 or read https URLs. Android renders through a Kotlin platform channel to Media3 (hardware H.264/AAC). FFmpeg is only for WAV conversion, splitting, stream-copy muxing and thumbnails.
 - **Captions and branding are drawn by Flutter.** Render caption text plus the logo to one transparent PNG at output size with Flutter's text engine; Media3 overlays it. Text rendering elsewhere would break Nastaliq letter joining.
 - **yt-dlp reads YouTube; Dart downloads.** `YouTubeVideoSource` runs yt-dlp (through `youtubedl-android`, on the `status_studio/ytdlp` Kotlin channel) only to get a video's title, length, stream URLs and caption tracks as JSON. The streams are downloaded in byte ranges with Dart `HttpClient`. Read without JavaScript first (`quickVideoInfo`, about 8 s on a mid-range phone) and with QuickJS only when that gives no streams (about 30 s). yt-dlp updates itself weekly and after a failed read. Don't bring back `youtube_explode_dart`: YouTube refused its stream URLs (spec §10 Q4).
-- **One FFmpeg only.** `whisper_ggml` depends on `ffmpeg_kit_flutter_new_min` ^2.x. Use that same package for all video work. Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL. Upgrade `ffmpeg_kit_flutter_new_min` together with `whisper_ggml` when it moves to 3.x.
-- **Heavy work off the UI thread.** Whisper transcription and FFmpeg runs are long. Stream progress to the UI, and stream transcript lines as they're produced so long videos are usable early.
-- **Groq is the only cloud exception, and it's opt-in.** With the user's own key and the Settings switch on, scripts are written by Groq `whisper-large-v3-turbo` (spec FR-12a); otherwise Whisper runs on the phone. Never ship a key in the app. Keep the key in `flutter_secure_storage`, and never log it or put it in saved files, notifications or error text.
-- **Whisper model is downloaded on first use, not bundled.** Default `small`; `base` as a lighter option.
+- **One FFmpeg only.** Use `ffmpeg_kit_flutter_new_min` for all video work. Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL.
+- **Heavy work off the UI thread.** Groq requests and FFmpeg runs are long. Stream progress to the UI, and stream transcript lines as they're produced so long videos are usable early.
+- **Groq writes every script without captions.** With the user's own free key, by `whisper-large-v3-turbo` (spec FR-12a). There is no on-device Whisper (removed in M10: 0.2× real time on a Redmi Note 11) and no on/off switch: no key means the §8 "needs a free Groq key" error. Never ship a key in the app. Keep the key in `flutter_secure_storage`, and never log it or put it in saved files, notifications or error text.
 - **Save the user's data.**
   - Script audio is the lowest-bitrate stream, or nothing when YouTube captions exist.
   - Video is never downloaded whole when it can be avoided: Fine-tune fetches only the clip window via the MP4 `sidx` index and HTTP range requests (spec FR-15).
   - Network I/O for media is Dart `HttpClient`.
-- **Reuse earlier work.** Finished scripts are saved per video/language/source and reopened without downloading (spec FR-14). Whisper progress is saved per 90-second chunk and resumed.
+- **Reuse earlier work.** Finished scripts are saved per video/language/source and reopened without downloading (spec FR-14). Groq progress is saved per 90-second piece and resumed.
 - **RTL text.** Urdu, Arabic and Persian text needs `TextDirection.rtl` and the Nastaliq or Naskh family. Nastaliq needs a tall line height (about 2.1).
 - **Distribution.** YouTube downloading keeps the app off Google Play and the App Store. Keep YouTube access behind one data-layer class so a store build could swap in local-file input.
 
@@ -85,7 +84,7 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 
 - One assertion concept per test; Arrange-Act-Assert.
 - Test names describe behaviour, e.g. `transcript_line_tap_sets_clip_start`.
-- Override providers to fake YouTube, Whisper and FFmpeg in tests. Never hit the network in tests.
+- Override providers to fake YouTube, Groq and FFmpeg in tests. Never hit the network in tests.
 
 ## Platform notes
 

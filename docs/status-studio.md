@@ -6,8 +6,8 @@
 
 Status Studio turns any YouTube video, in any language, into a short clip for WhatsApp Status, Reels, TikTok or Shorts. The user pastes a link and the app writes out the video's script. The user taps the line where the clip starts and the line where it ends, then picks a size and caption. The export is an MP4 with the Status Studio name and logo.
 
-- **On the phone:** everything after the download runs on the device: speech to text (Whisper), translation (ML Kit) and rendering (Media3 Transformer). No accounts, no servers, no analytics.
-- **One opt-in exception:** a user who pastes their own Groq API key can have scripts written by Groq's hosted Whisper, which is much faster (FR-12a). Only then does script audio leave the phone, and only to Groq. The app ships no key and has no server of its own.
+- **On the phone:** translation (ML Kit) and rendering (Media3 Transformer). No accounts, no servers, no analytics.
+- **Groq writes scripts:** a video with no YouTube captions is written out by Groq's hosted Whisper, with the user's own free API key (FR-12a). Only then does script audio leave the phone, and only to Groq. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
 - **Saves data:** it downloads the script's audio at low quality (nothing when YouTube has captions), and only the clip's part of the video, once the user has picked it.
 - **Saves work:** scripts are saved, so the same video opens straight to its script next time.
 
@@ -23,7 +23,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 | 6 | Style | `/style` | Size, fill, crop, caption text/variant/position/size; live preview with branding |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Style |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
-| 9 | Settings | `/settings` | Whisper models (tiny to large, pros and cons), download, pause or delete; optional Groq key with step-by-step help (FR-12a); background work |
+| 9 | Settings | `/settings` | Groq key with step-by-step help (FR-12a); YouTube reader; background work |
 
 - **Visual reference:** the design canvas prototype for screens 1–8. Settings follows the same visual language.
 - **Progress on Processing:** each download and transcription step has its own bar with the percent beside it (`45 %`). Under the bar it shows amount done of total and speed (`220 of 487 MB · 3.2 MB/s`), with time left on the right (`1:24 left`).
@@ -44,9 +44,8 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
    - **Automatic language:** only manual tracks count, in any language. YouTube guesses an auto-generated track's language from the audio, and a wrong guess makes the script junk: an Urdu naat's only track was auto-generated Romanian.
    - **Which auto track:** only yt-dlp's `<lang>-orig` track is what YouTube heard; the other auto tracks are machine translations and are never used.
    - **Cleaning:** music symbols and sound tags (`♪`, `[♪♪♪]`, `[Music]`) are dropped.
-3. **Speech to text** on the **lowest-bitrate MP4 audio stream**: by Groq when it's on (FR-12a), otherwise by Whisper on the phone. Each segment becomes one line.
-   - **Pieces:** both engines work in **90-second pieces**, so lines appear while the rest is still being written. Each piece's times are offset by its start.
-   - **Whisper on the phone** (`whisper_ggml`, `withSegments: true`): the audio is converted to 16 kHz mono WAV (Whisper hears nothing finer, so better audio only wastes data), cut into pieces, and run with the model kept loaded between pieces.
+3. **Speech to text** on the **lowest-bitrate MP4 audio stream**, by Groq with the user's key (FR-12a). Each segment becomes one line. Without a key the run stops with the §8 message before any audio is downloaded.
+   - **Pieces:** the audio is cut into **90-second pieces**, so lines appear while the rest is still being written. Each piece's times are offset by its start.
    - **Dropped segments:** silence, music and bracketed tokens (`[BLANK_AUDIO]`, `(music)`, `♪`) never become lines.
    - **Groq** (`whisper-large-v3-turbo`):
      - **Pieces:** stream-copied `.m4a` pieces, without WAV, about 0.5 MB each. Stream copy cuts at audio frame boundaries, so each offset is the piece's real start from FFmpeg's segment list.
@@ -54,7 +53,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
      - **Lines:** segments with empty text, or `no_speech_prob` above 0.8, are dropped (cut-off to confirm, §10 Q5).
      - **HTTP 429:** wait `retry-after` and resend when it's 60 s or less, showing "Waiting for Groq · 0:42 left"; otherwise the §8 error.
      - **HTTP 5xx or 498:** resend once after 2 s, then the §8 error.
-     - **Cancel** aborts the request in flight. Whisper on the phone stops only between pieces.
+     - **Cancel** stops before the next piece.
 - **Automatic language** is inferred from the transcript text (§6.4) and shown, e.g. "Urdu (detected)".
 - **No speech found** gives the §8 error.
 
@@ -127,25 +126,12 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - Long-press offers Delete, which removes that script and any unfinished progress for it.
   - There is one row per video and requested language. Scripts saved before video details were kept appear once their link is opened again.
 
-**FR-12 Settings: speech models.**
-- **Models:** every multilingual Whisper model (tiny, base, small, medium, large-v3), each as its 5-bit quantised file (§10 Q2). Small is the default and is marked "recommended". English-only models aren't offered: they can't write other languages.
-- **Each row:** download size or size on disk, and Download / Delete. An info button opens the model's pros and cons: speed relative to small, accuracy and the memory it needs. Switching model keeps other downloaded files until they're deleted.
-- **Downloads:**
-  - A running download shows progress, with Pause and Cancel.
-  - Pause keeps the bytes; the row shows "Paused · 45 %" with Resume and Cancel, also after a restart.
-  - Resume continues with an HTTP range request, and starts over if the server sends the whole file.
-  - Cancel deletes the bytes.
-  - A failed download keeps its bytes, so Retry continues it. A full phone deletes them.
-  - An interrupted download never leaves a file `whisper_ggml` would load.
-- **With a script waiting:**
-  - Transcription that needs a paused model resumes its download.
-  - A script waiting on a download that gets paused or cancelled stops with the §8 message.
-  - Without the model, the model downloads first, as a step on Processing.
+**FR-12 Settings: speech models (retired in M10, 2026-11-04).** On-device Whisper and its model downloads were removed; the number stays so code and history keep their references. The Settings screen now starts with FR-12a.
 
-**FR-12a Settings: cloud transcription (Groq, optional).** Off by default; it is a section below the models.
-- **Key field:** "Groq API key", masked, with Paste, Show and Remove.
-  - Saving checks the key with `GET https://api.groq.com/openai/v1/models`, which is free and sends no audio.
-  - The field then reads "Key works" or "Groq didn't accept this key."
+**FR-12a Settings: script writing (Groq).** The first section of Settings. Scripts for videos without captions need a saved key.
+- **Key field:** "Groq API key", masked, with Paste, Show, Save and Remove (Remove appears while a key is saved). Save is off while the field is empty.
+  - Save checks the key with `GET https://api.groq.com/openai/v1/models`, which is free and sends no audio, and stores it only if Groq accepts it. A wrong key never replaces a good one.
+  - The field then reads "Key works", "Groq didn't accept this key." or, offline, "You're offline. Connect and try again."
 - **Help (ⓘ):** beside the label, it opens "How to get a free Groq key", written for non-technical users:
   1. Tap **Copy link**, then open your browser and paste it: `console.groq.com/keys`.
   2. Sign in with Google or your email. The free plan needs no card.
@@ -154,19 +140,17 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   5. Come back here, tap **Paste**, then **Save**.
 
   Below the steps: "Free plan: about 2 hours of audio every hour, and 8 hours a day." and "Keep the key private, like a password. You can delete it any time on the same Groq page." The sheet has Copy link and Done buttons. Copy link puts the link on the clipboard and shows "Link copied"; the app doesn't open a browser itself.
-- **Switch:** "Write scripts with Groq", enabled only after a key passes the check. Subtext: "Much faster than the phone. Your video's audio is sent to Groq, which uses about as much data again as downloading it. Groq's terms apply."
+- **Privacy note** under the heading: "Writes the script when a video has no captions. Your video's audio is sent to Groq, which uses about as much data again as downloading it. Groq's terms apply." There is no switch: a saved key turns Groq on and Remove turns it off.
 - **Key storage:** `flutter_secure_storage` (Android Keystore). The key is never logged, and never written into saved files, notifications or error text. It goes only to `api.groq.com`.
-- **Engine per run:** Groq when the switch is on and a key is saved; otherwise Whisper on the phone. Groq needs no Whisper model, so "Downloading the speech model" is skipped.
-- **Offline at the start:** with the audio cached and a model downloaded, the script is written on the phone (FR-13), and Processing shows "Offline · writing on the phone".
-- **Use on-device** (offered by the §8 Groq errors): keeps Groq's lines so far and continues on the phone from the next piece, downloading the model if needed. The script is saved under the on-device source, because the phone finished it.
+- **No key:** a script without captions stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is downloaded. Captions and saved scripts need no key.
 
-**FR-13 Offline.** With the model downloaded and the source cached, transcription, translation (once its ML Kit pack is downloaded) and export work without a network, even with Groq on.
+**FR-13 Offline.** Saved scripts, translation (once its ML Kit pack is downloaded) and export work without a network. Writing a new script needs one (Groq).
 
 **FR-14 Saved scripts.**
-- **Key:** video ID, requested language (`auto` or a code) and source: `captions`, `whisper-<model>` or `groq-whisper-large-v3-turbo`. The entry holds the transcript (with the inferred language), the source and the save date.
+- **Key:** video ID, requested language (`auto` or a code) and source: `captions` or `groq-whisper-large-v3-turbo`. Scripts saved by earlier versions under `whisper-<model>` still open. The entry holds the transcript (with the inferred language), the source and the save date.
 - **Files:** `transcripts/<videoId>/<requested>-<source>.json` in the app support directory. The video's folder also keeps `video.json` (title, channel, length) for Recent.
 - **Same link again:** skips Processing and downloads. Script shows "Using the saved script from <d MMM> · Write it again".
-- **Write it again:** runs speech to text with the current choice (Groq, or the current Whisper model) and replaces the saved script.
+- **Write it again:** runs speech to text with Groq and replaces the saved script.
 - **Resume:** progress is saved after each 90-second piece in `<requested>-<source>.partial.json` and deleted when the run completes. An interrupted run resumes from the next piece.
 - **Retention:** 90 days after last use, at most 200 videos, least recently used dropped first.
 
@@ -188,7 +172,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Ongoing notification:**
   - It appears from the moment work starts, so the user can leave at once.
   - It starts as "Getting the script" or "Rendering your reel" at 0 %, then shows the running step as the title and `45 % · <video title>` as the text.
-  - Script steps: "Downloading the speech model", "Downloading audio", "Detecting the language", "Writing the script", "Waiting for Groq", "Lining up timestamps". Export step: "Rendering your reel".
+  - Script steps: "Downloading audio", "Detecting the language", "Writing the script", "Waiting for Groq", "Lining up timestamps". Export step: "Rendering your reel".
   - With both running, it shows the one that started last. The service stops when the last job ends.
 - **Result notification:** posted only when the app isn't on screen; tapping it opens the app where the work left off. Cancel posts nothing.
   - Script done: "Script ready" · video title. Failed: "Script stopped" · the §8 message.
@@ -202,7 +186,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 
 ## 4. Non-functional requirements
 
-- **Platforms:** Android first (minSdk 24, sideloaded APK). iOS later (deployment target 15.6, needed by `whisper_ggml`).
+- **Platforms:** Android first (minSdk 24, sideloaded APK). iOS later (deployment target 15.5, needed by ML Kit translation).
 - **Responsiveness:** transcription, FFmpeg, waveform peaks and file I/O never block the UI isolate. Every long step shows progress and can be cancelled.
 - **Storage:**
   - Media cache: `sources/<videoId>/` in the temp directory, holding script audio, WAV pieces and clip windows. It's reused, and deleted on app start after 7 days.
@@ -210,14 +194,14 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - Exports: `reels/` in app documents.
   - Downloads go to `.part` files and are renamed when complete. Whole streams download in 10 MB ranges.
 - **Data caps:** script audio is the lowest-bitrate MP4 audio. The clip is ≤ 720p H.264 plus the highest-bitrate MP4 audio, for the clip window only.
-- **Privacy:** nothing leaves the device except YouTube, model and language-pack downloads, and, only while Groq is on (FR-12a), script audio pieces sent to Groq with the user's key.
+- **Privacy:** nothing leaves the device except YouTube, language-pack downloads and, when a video has no captions (FR-12a), script audio pieces sent to Groq with the user's key.
 
 ## 5. Architecture
 
 - **Folders:** feature-first, `lib/src/features/<feature>/{domain,data,application,presentation}`, with a layer only when it has code.
 - **State:** Riverpod 3 (`Notifier`/`NotifierProvider`). The reel in progress is one immutable `ReelDraft` in `reelDraftProvider`. Changing the transcript clears the selection and clip.
 - **Services:** small interfaces exposed as providers, so fakes can replace them in tests: `VideoSource`, `Transcriber`, `CaptionTranslator`, `Renderer`, `RecentReelsRepository`, `BackgroundWorkPlatform`.
-- **Speech to text:** `WhisperTranscriber` (on the phone) and `GroqTranscriber` (FR-12a) emit the same per-piece progress and lines. The pipeline picks one per run.
+- **Speech to text:** `GroqTranscriber` (FR-12a) sends the pieces one by one and emits per-piece progress and lines.
 - **Navigation:** `go_router`, with route paths in `AppRoutes`.
 - **Rendering (Android):** Media3 Transformer behind the Kotlin channels `status_studio/render` (`start`, `cancel`) and `status_studio/render/events`.
   - Input: the clip file plus one transparent PNG, exactly the output size, holding caption and branding drawn by Flutter. It is applied last.
@@ -231,15 +215,14 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 | Need | Package | Notes |
 |---|---|---|
 | YouTube metadata, stream URLs, captions | yt-dlp via `youtubedl-android` 0.18.1 (Gradle) | Channel `status_studio/ytdlp`: `quickVideoInfo` (`-J --no-js-runtimes`), `videoInfo` (`-J` with QuickJS), `update`, `version`. Bundles Python, yt-dlp and QuickJS (§10 Q4) |
-| Speech to text (phone) | `whisper_ggml` | `transcribe(model:, audioPath:, lang:, withSegments: true, keepModelLoaded: true)` returns `null` on failure |
-| Speech to text (cloud, optional) | `dart:io` `HttpClient` | Hand-built multipart to `api.groq.com`; `GET /openai/v1/models` checks a key |
+| Speech to text (cloud) | `dart:io` `HttpClient` | Hand-built multipart to `api.groq.com`; `GET /openai/v1/models` checks a key |
 | Secret storage | `flutter_secure_storage` | The Groq key only |
-| FFmpeg | `ffmpeg_kit_flutter_new_min` ^2.x | The only FFmpeg (LGPL, from `whisper_ggml`); no mediacodec, no TLS, no libx264 |
+| FFmpeg | `ffmpeg_kit_flutter_new_min` ^2.x | The only FFmpeg (LGPL); no mediacodec, no TLS, no libx264 |
 | Final render (Android) | Media3 `transformer`, `effect`, `common` 1.11.1 | `Transformer`, `ClippingConfiguration`, `Crop`, `Presentation`, `GaussianBlurWithFrameOverlaid`, `OverlayEffect` + `BitmapOverlay` |
 | Downloads | `dart:io` `HttpClient` | Range requests for clip windows and whole streams; captions as `json3` |
 | Translation | `google_mlkit_translation` | `OnDeviceTranslator`, `OnDeviceTranslatorModelManager` |
 | Preview / gallery / share | `video_player` / `gal` / `share_plus` | |
-| Key-value storage | `shared_preferences` | `settings.whisperModel`, `recentReels` (JSON) |
+| Key-value storage | `shared_preferences` | `recentReels` (JSON) |
 | Background work | `flutter_foreground_task`, `flutter_local_notifications` | No TaskHandler: the work stays in the app's isolate. Notifications need core library desugaring |
 
 ### Engineering rules
@@ -249,18 +232,16 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Import boundaries:**
   - Only `YouTubeVideoSource` reaches yt-dlp.
   - Only `lib/src/core/ffmpeg/` imports FFmpeg Kit.
-  - Only `whisper_transcriber.dart` and `model_manager.dart` import `whisper_ggml`.
   - Only the Kotlin `render/` package imports Media3.
   - The background plugins are reached only through `BackgroundWorkPlatform`.
-- **Errors are typed:** `VideoUnavailableException`, `OfflineException`, `InsufficientStorageException`, `TranscriptionFailedException`, `NoSpeechFoundException`, and so on. Screens map them to §8. A failing background-platform call is reported with `FlutterError.reportError` and never stops the work.
-- **Whisper:** release the parked model (`releaseModel()`) when a run finishes, fails or is cancelled.
+- **Errors are typed:** `VideoUnavailableException`, `OfflineException`, `InsufficientStorageException`, `NoGroqKeyException`, `NoSpeechFoundException`, and so on. Screens map them to §8. A failing background-platform call is reported with `FlutterError.reportError` and never stops the work.
 - **yt-dlp:**
   - It updates itself at most weekly (about 3 MB), and once more after a failed read.
   - A failed read ends in a §8 message after one update and retry.
   - HLS formats are skipped. Live streams and videos without a length are unavailable.
 - **New dependencies:** maintained and widely downloaded on pub.dev. Add them with `fvm flutter pub add`.
 - **Tests never touch the network or platform:**
-  - Fake `YtDlp`, Whisper, Groq and FFmpeg.
+  - Fake `YtDlp`, Groq and FFmpeg.
   - Downloads run against a loopback `HttpServer`.
   - Override `backgroundWorkPlatformProvider` with `FakeBackgroundWorkPlatform`.
 
@@ -284,7 +265,7 @@ enum CaptionVariant { original, roman, english }  enum CaptionPosition { top, bo
 class CaptionSettings { CaptionVariant variant; String text; CaptionPosition position; CaptionSize size; }
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: first caption line
-class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // captions | whisper-<model> | groq-whisper-large-v3-turbo
+class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // captions | groq-whisper-large-v3-turbo (older: whisper-<model>)
 class SavedScript { SourceVideo video; ScriptLanguage language; SavedTranscript saved; } // a Recent row
 enum SpeechEngine { onDevice, groq }
 class CloudTranscriptionSettings { bool enabled; bool keyChecked; } // the key itself lives only in secure storage
@@ -367,12 +348,11 @@ A rule-based, letter-by-letter transliteration, with a short list of common-word
 | Video unavailable, private, age-restricted or live | Processing | This video can't be downloaded. | Back |
 | No network during download | Processing | You're offline. Connect and try again. | Retry, Back |
 | yt-dlp can't read the video, even after updating | Source / Processing | Couldn't read this video from YouTube. Try again later. | Retry, Back |
-| Model download failed | Processing / Settings | Couldn't download the speech model. | Retry |
-| Model download paused or cancelled while a script waits | Processing | The speech model download was stopped. | Retry, Back |
-| Groq rejected the key (401/403) | Processing | Groq didn't accept your API key. | Settings, Use on-device, Back |
-| Groq limit (429, wait over 60 s) | Processing | Groq's free limit is used up for now. Try again in <n> min. | Use on-device, Back |
-| Groq failed (other error, or 5xx/498 twice) | Processing | Groq couldn't write this script. | Retry, Use on-device, Back |
-| Network lost while Groq writes | Processing | You're offline. Connect and try again. | Retry, Use on-device, Back |
+| No Groq key saved, script has no captions | Processing | Writing a script needs a free Groq key. | Settings, Back |
+| Groq rejected the key (401/403) | Processing | Groq didn't accept your API key. | Settings, Back |
+| Groq limit (429, wait over 60 s) | Processing | Groq's free limit is used up for now. Try again in <n> min. | Back |
+| Groq failed (other error, or 5xx/498 twice) | Processing | Groq couldn't write this script. | Retry, Back |
+| Network lost while Groq writes | Processing | You're offline. Connect and try again. | Retry, Back |
 | Key check failed | Settings | Groq didn't accept this key. | Edit |
 | No speech found | Processing | No speech found in this video. | Try another language, Back |
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |
@@ -389,9 +369,9 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Scope | General-purpose: any video, any language. No content-type picker, no automatic segment finding; the user picks lines |
 | Distribution | Sideloaded APK, since downloading from YouTube keeps it off the stores. YouTube access sits behind `VideoSource`, so a store build could swap in local files |
 | YouTube access | yt-dlp on the phone resolves videos and Dart downloads. YouTube refused `youtube_explode_dart`'s URLs (§10 Q4). Android only |
-| Speech model | Whisper small by default; tiny to large-v3 optional; 5-bit quantised files downloaded on first use (§10 Q2) |
-| Cloud transcription | Optional Groq `whisper-large-v3-turbo` with the user's own key, off by default (FR-12a), because small runs at about 1.5× real time on a Pixel 6a. A key shipped in the APK could be extracted, and the app has no server. Groq is fast, multilingual and cheap ($0.04 per audio hour, with a free plan). Pieces go as `.m4a`, not WAV, to save data. Groq's `url` input isn't used because YouTube stream URLs are tied to the phone's IP |
-| FFmpeg | `ffmpeg_kit_flutter_new_min` only (LGPL). The full GPL build would duplicate native libraries and make the app GPL. Upgrade it together with `whisper_ggml` |
+| Speech to text | Groq `whisper-large-v3-turbo` only. On-device Whisper (`whisper_ggml`) was dropped in M10: medium q5_0 ran at 0.2× real time on a Redmi Note 11 (Snapdragon 680), and small was only 1.5× on a Pixel 6a (§10 Q2) |
+| Cloud transcription | Groq `whisper-large-v3-turbo` with the user's own key (FR-12a), because the phone is too slow (§10 Q2). A key shipped in the APK could be extracted, and the app has no server. Groq is fast, multilingual and cheap ($0.04 per audio hour, with a free plan). Pieces go as `.m4a`, not WAV, to save data. Groq's `url` input isn't used because YouTube stream URLs are tied to the phone's IP |
+| FFmpeg | `ffmpeg_kit_flutter_new_min` only (LGPL). The full GPL build would duplicate native libraries and make the app GPL |
 | Renderer | Media3 Transformer (hardware H.264), because the bundled FFmpeg can't encode H.264 |
 | Captions and branding | Drawn by Flutter to one PNG and overlaid by Media3. Other text engines break Nastaliq letter joining |
 | Data saving | Script audio at the lowest bitrate (none with captions); video and clip audio only for the clip window |
@@ -404,7 +384,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 ## 10. Spikes and measurements
 
 1. **FFmpeg build (resolved 2026-10-30).** `--disable-mediacodec --disable-openssl`, no libx264 or openh264: no H.264 encoder and no https input. So the app renders with Media3 and downloads in Dart.
-2. **Whisper speed (Pixel 6a, profile build, 2026-11-02).** One 90 s piece of a sung Urdu clip (`s6kE_uP3xH4`), whisper_ggml 2.8.1 at 6 threads:
+2. **Whisper speed (historical: on-device Whisper was removed in M10).** Pixel 6a, profile build, 2026-11-02. One 90 s piece of a sung Urdu clip (`s6kE_uP3xH4`), whisper_ggml 2.8.1 at 6 threads:
 
    | Model | File | Time | Speed | Text |
    |---|---|---|---|---|
@@ -413,7 +393,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
    | base f16 | 148 MB | 29.1 s | 3.09× | Loops |
    | base q5_1 | 60 MB | 22.8 s | 3.94× | Loops, more errors |
 
-   **Decision:** quantised files for every model (q5_1 for tiny to small, q5_0 for medium and large-v3); small stays the default. **Still to measure:** a 5-minute speech clip, the Redmi Note 11, and lines at piece boundaries.
+   **Decision:** quantised files for every model (q5_1 for tiny to small, q5_0 for medium and large-v3); small stays the default. **Redmi Note 11 (Snapdragon 680, 5.5 GB, no dot-product), profile build, 2026-11-04:** medium q5_0 ran at 0.2× real time by the app's own meter ("39:50 left" for a 9:08 video), about 7½ minutes per 90 s piece. Cancelled; this is why on-device Whisper was dropped (M10). Text quality on a Mac, same weights, piece 1 of the sung clip: medium best, small garbles and merges lines, base loops; Groq turbo is clean but merges whole choruses into 30 s segments.
 
    **Why it's slow:** `whisper_ggml` builds whisper.cpp for baseline ARMv8 (no dot-product, so it doesn't crash on old phones) and CPU only. Speed-ups for later: runtime CPU-variant dispatch, the built-in Silero VAD (`vadModelPath`), and no temperature fallback.
 3. **WhatsApp Status limit (2026-11-02).** 60 s is the general limit, and 90 s has been seen only in beta. The 60 s warning stays; confirm on a phone (§14).
@@ -458,7 +438,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M1 App shell | Every screen with fakes; selection, clip, crop maths, link parsing | Done, in `dev` |
 | M2 Video source | Metadata, downloads, cache, preview | Done, in `dev` |
 | M2b Data saver | Low-bitrate script audio, clip-only download (FR-15) | Done, in `dev` |
-| M3 Transcription | Model manager, chunked Whisper, captions, language inference, saved scripts, resume | Done, in `dev` |
+| M3 Transcription | Model manager, chunked Whisper (both removed in M10), captions, language inference, saved scripts, resume | Done, in `dev` |
 | M4 Fine-tune | Waveform, long-clip warning, language re-run | Done, in `dev` |
 | M5 Render | Overlay PNG, Roman Urdu, translation, Media3 export | Done, in `dev` |
 | M6 Library and settings | Save/share, Recent, Settings, launcher icon, cache cleanup, §8 errors | Done, in `dev` |
@@ -468,7 +448,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Saved scripts in Recent | Script rows in Recent (FR-11) | Done, branch `saved-scripts-in-recent` |
 | Model download controls | Pause, resume, cancel (FR-12) | Done, branch `model-download-controls` |
 | M9 Groq | Optional cloud transcription (FR-12a, §8) | Spec done; tasks to write, branch `m9-groq-transcription` |
-| M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Branch `m10-groq-only` (stacked on M9) |
+| M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–5 done, branch `m10-groq-only` (stacked on M9); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -479,8 +459,8 @@ Each task: test first, tick it, commit.
 - [x] **3. `GroqKeyStore`.** Key in `flutter_secure_storage`, plus the switch in settings; the switch can only be on while a key is saved.
 - [x] **4. `GroqTranscriber`.** Emits the same `ChunkEvent`s as `WhisperTranscriber`; offsets segments by piece start; drops segments over the `no_speech_prob` cut-off.
 - [x] **5. Stream-copied `.m4a` pieces.** `AudioPreparer.splitAudioCopy` (FFmpeg `-c copy`, 90 s pieces).
-- [x] **6. Pipeline engine choice.** Groq when on and a key is saved, else Whisper; skip the model step; save under `groq-whisper-large-v3-turbo`; partial progress per piece.
-- [x] **7. Errors and Use on-device.** §8 messages and actions on Processing; Use on-device keeps Groq's lines and continues from the next piece on the phone.
+- [x] **6. Pipeline engine choice.** (Superseded by M10: Groq is the only engine.) Groq when on and a key is saved, else Whisper; skip the model step; save under `groq-whisper-large-v3-turbo`; partial progress per piece.
+- [x] **7. Errors and Use on-device.** (Use on-device was removed in M10.) §8 messages and actions on Processing; Use on-device keeps Groq's lines and continues from the next piece on the phone.
 - [ ] **8. Settings section.** Key field (Paste, Show, Remove, check result), ⓘ help sheet with Copy link, switch with subtext.
 - [ ] **9. Docs.** §13 tests list, §14 device checks, milestone status.
 
@@ -492,7 +472,7 @@ Decision, 2026-11-04: on this phone class (Redmi Note 11, Snapdragon 680) Whispe
 - [x] **2. Drop Use on-device and the switch.** A saved key is the only switch; Remove turns it off. §8 actions: key rejected → Settings, Back; limit → Back; failed or offline → Retry, Back.
 - [x] **3. Settings: Groq key section.** Key field (Paste, Show, Save, Remove, check result) and the ⓘ help sheet with Copy link. (M9 task 8, without the switch.)
 - [x] **4. Remove `whisper_ggml`.** Drop the dependency and its Android settings (NDK note), WAV-only FFmpeg arguments and dead test helpers.
-- [ ] **5. Docs.** Rewrite the affected FR text, §6, §8, §10, §13, §14; update `CLAUDE.md`; merge status.
+- [x] **5. Docs.** Rewrite the affected FR text, §6, §8, §10, §13, §14; update `CLAUDE.md`; merge status.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -509,7 +489,6 @@ Decision, 2026-11-04: on this phone class (Redmi Note 11, Snapdragon 680) Whispe
 - **Transcription:**
   - Non-speech tokens never become lines.
   - Lines keep absolute times across piece boundaries.
-  - Cancel releases the model.
   - A killed run resumes from the next piece.
   - A saved script opens without downloading.
 - **Waveform:**
@@ -534,11 +513,11 @@ Decision, 2026-11-04: on this phone class (Redmi Note 11, Snapdragon 680) Whispe
 - **Groq (M9):**
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
-  - Use on-device keeps Groq's lines.
+  - A script without captions and without a key stops before downloading audio.
 
 ## 14. Device checks
 
-Run on a **release** build; debug builds compile whisper.cpp unoptimised. Phones: Pixel 6a (Tensor, 6 GB, Android 17); a slower phone such as the Redmi Note 11 is still needed.
+Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a (Tensor, 6 GB, Android 17) and Redmi Note 11 (Snapdragon 680, 5.5 GB, Android 13).
 
 **Passed (Pixel 6a, M4 build, 2026-10-30):**
 - Real metadata.
@@ -564,12 +543,11 @@ Run on a **release** build; debug builds compile whisper.cpp unoptimised. Phones
   - [ ] The first read is about 13 s, later reads about 8 s.
   - [ ] Each step's bar shows percent, done of total, speed, and a time left that counts down and then disappears.
 - **Script:**
-  - [ ] Whisper on a 5-minute speech clip and on singing; quality and speed (§10 Q2).
+  - [ ] Groq on a 5-minute speech clip and on singing; quality and speed (§10 Q5).
   - [ ] Lines at piece boundaries.
-  - [ ] Every model's ⓘ sheet reads well; medium and large write a script (large may close the app on 6 GB).
   - [ ] A killed run resumes.
   - [ ] The saved-script banner and "Write it again".
-  - [ ] Airplane mode with the model and audio cached still writes the script.
+  - [ ] Airplane mode with a saved script still opens it; a new script says "You're offline."
   - [ ] Back on Processing stops all CPU work.
 - **Fine-tune:**
   - [ ] The waveform lines up with the sound.
@@ -603,21 +581,14 @@ Run on a **release** build; debug builds compile whisper.cpp unoptimised. Phones
   - [ ] A processed video's row is above older reels.
   - [ ] Tapping it opens Script with no download.
   - [ ] Deleting it means the next paste writes the script again.
-- **Model downloads:**
-  - [ ] Pause shows "Paused · 30 %" at once.
-  - [ ] Resume continues from 30 % and the model works.
-  - [ ] Paused survives a restart.
-  - [ ] Cancel leaves no `.part` file.
-  - [ ] Airplane mode, then Retry continues.
-  - [ ] Pausing under a waiting script shows the message, and Retry resumes.
 - **Groq (M9):**
   - [ ] The key check, help sheet and Copy link.
   - [ ] A 10-minute video's script time.
   - [ ] Data used.
-  - [ ] A revoked key, the rate limit and Use on-device.
+  - [ ] A revoked key, the rate limit, and no key at all (Settings opens).
+  - [ ] Settings: Paste, Show, Save and Remove; help sheet and Copy link.
 
 ## 15. Known issues (found on the phone, not fixed)
 
-- `whisper_ggml` converts each piece to WAV again (`chunk_000.wav.wav`), although the pieces already are WAVs.
 - Processing says "Downloading audio" even when the audio is cached.
 - The language list shows both "English (detected)" and "English".
