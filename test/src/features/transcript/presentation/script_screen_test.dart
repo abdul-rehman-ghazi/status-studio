@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,19 +10,27 @@ import 'package:status_studio/src/features/lyrics/domain/lyrics_match.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/application/groq_script_fix_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
-Future<void> pumpScript(WidgetTester tester) => pumpRoutes(tester, [
-  AppRoutes.script,
-], setup: TestSetup(overrides: [draftOverride(scriptDraft)]));
+/// Taller than a phone: the test font is wide, so the tool buttons take a
+/// row each and would push the lines out of reach.
+Future<void> pumpScript(WidgetTester tester) async {
+  await pumpRoutes(tester, [
+    AppRoutes.script,
+  ], setup: TestSetup(overrides: [draftOverride(scriptDraft)]));
+  tester.view.physicalSize = const Size(1080, 3000);
+  await tester.pump();
+}
 
 Future<void> pickLinesOneToThree(WidgetTester tester) async {
   await tester.tap(find.text('علم بڑی دولت ہے'));
@@ -216,6 +225,114 @@ void main() {
 
     expect(find.textContaining("Couldn't find script lines"), findsOneWidget);
     expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
+  });
+
+  Future<void> pumpScriptWithGroq(WidgetTester tester, AskGroq askGroq) =>
+      pumpRoutes(
+        tester,
+        [AppRoutes.script],
+        setup: TestSetup(
+          overrides: [
+            draftOverride(scriptDraft),
+            groqScriptFixServiceProvider.overrideWithValue(
+              GroqScriptFixService(askGroq: askGroq),
+            ),
+            scriptEditingServiceProvider.overrideWithValue(
+              ScriptEditingService(
+                store: Future.value(
+                  TranscriptStore(
+                    Directory.systemTemp.createTempSync('groq_fix'),
+                    clock: DateTime.now,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  testWidgets('fix_with_groq_replaces_line_text', (tester) async {
+    await pumpScriptWithGroq(
+      tester,
+      (_) async => '1 | 00:12.00 | 00:20.60 | درست متن',
+    );
+
+    await tester.tap(find.text('Fix with Groq'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('درست متن'), findsOneWidget);
+  });
+
+  testWidgets('fix_with_groq_without_a_key_offers_settings', (tester) async {
+    await pumpScriptWithGroq(
+      tester,
+      (_) async => throw const NoGroqKeyException(),
+    );
+
+    await tester.tap(find.text('Fix with Groq'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fixing a script needs a free Groq key.'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+  });
+
+  testWidgets('fix_with_groq_failing_says_groq_could_not_fix_it', (
+    tester,
+  ) async {
+    await pumpScriptWithGroq(
+      tester,
+      (_) async => throw const GroqFailedException(500),
+    );
+
+    await tester.tap(find.text('Fix with Groq'));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Groq couldn't fix this script."), findsOneWidget);
+  });
+
+  testWidgets('fix_with_groq_reply_without_rows_keeps_the_script', (
+    tester,
+  ) async {
+    await pumpScriptWithGroq(tester, (_) async => 'I could not find it.');
+
+    await tester.tap(find.text('Fix with Groq'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text("Groq's reply had no script lines. Try again."),
+      findsOneWidget,
+    );
+    expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
+  });
+
+  testWidgets('fix_with_groq_turns_the_other_fix_buttons_off_while_it_runs', (
+    tester,
+  ) async {
+    await pumpScriptWithGroq(tester, (_) => Completer<String>().future);
+
+    await tester.tap(find.text('Fix with Groq'));
+    await tester.pump();
+
+    final paste = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Paste AI reply'),
+    );
+    expect(paste.onPressed, isNull);
+    expect(find.text('Cancel'), findsOneWidget);
+  });
+
+  testWidgets('cancel_ignores_the_reply_and_keeps_the_script', (tester) async {
+    final reply = Completer<String>();
+    await pumpScriptWithGroq(tester, (_) => reply.future);
+    await tester.tap(find.text('Fix with Groq'));
+    await tester.pump();
+
+    await tester.tap(find.text('Cancel'));
+    reply.complete('1 | 00:12.00 | 00:20.60 | درست متن');
+    await tester.pumpAndSettle();
+
+    expect(find.text('درست متن'), findsNothing);
+    expect(find.text('Fix with Groq'), findsOneWidget);
   });
 
   testWidgets('failed_run_shows_message_and_retry', (tester) async {

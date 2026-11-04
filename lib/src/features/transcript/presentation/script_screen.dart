@@ -13,9 +13,11 @@ import 'package:status_studio/src/features/lyrics/application/lyrics_service.dar
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/transcript/application/groq_script_fix_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/script_exchange.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
@@ -173,25 +175,33 @@ final _toolButtonStyle = TextButton.styleFrom(
 );
 
 /// The script's fixing tools on one row, so the lines keep their room.
-class _ScriptTools extends StatelessWidget {
+class _ScriptTools extends StatefulWidget {
   const _ScriptTools({required this.draft, required this.scriptIsBeingWritten});
 
   final ReelDraft draft;
   final bool scriptIsBeingWritten;
 
   @override
+  State<_ScriptTools> createState() => _ScriptToolsState();
+}
+
+class _ScriptToolsState extends State<_ScriptTools> {
+  bool _groqIsFixing = false;
+
+  @override
   Widget build(BuildContext context) {
+    final toolsAreOff = widget.scriptIsBeingWritten || _groqIsFixing;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Wrap(
         children: [
-          _LyricsAction(
-            draft: draft,
-            scriptIsBeingWritten: scriptIsBeingWritten,
-          ),
-          _AiFixActions(
-            draft: draft,
-            scriptIsBeingWritten: scriptIsBeingWritten,
+          _LyricsAction(draft: widget.draft, toolsAreOff: toolsAreOff),
+          _AiFixActions(draft: widget.draft, toolsAreOff: toolsAreOff),
+          _GroqFixAction(
+            draft: widget.draft,
+            scriptIsBeingWritten: widget.scriptIsBeingWritten,
+            onRunningChanged: (running) =>
+                setState(() => _groqIsFixing = running),
           ),
         ],
       ),
@@ -201,15 +211,13 @@ class _ScriptTools extends StatelessWidget {
 
 /// FR-17: swaps the script for the song's published lyrics.
 class _LyricsAction extends ConsumerStatefulWidget {
-  const _LyricsAction({
-    required this.draft,
-    required this.scriptIsBeingWritten,
-  });
+  const _LyricsAction({required this.draft, required this.toolsAreOff});
 
   final ReelDraft draft;
 
-  /// Lines still arriving would overwrite the lyrics, so wait for them.
-  final bool scriptIsBeingWritten;
+  /// Lines still arriving, or another fix still running, would be
+  /// overwritten by the lyrics, so wait for them.
+  final bool toolsAreOff;
 
   @override
   ConsumerState<_LyricsAction> createState() => _LyricsActionState();
@@ -221,9 +229,7 @@ class _LyricsActionState extends ConsumerState<_LyricsAction> {
   @override
   Widget build(BuildContext context) {
     final canSearch =
-        !_searching &&
-        !widget.scriptIsBeingWritten &&
-        widget.draft.video != null;
+        !_searching && !widget.toolsAreOff && widget.draft.video != null;
     return TextButton(
       style: _toolButtonStyle,
       onPressed: canSearch ? _replaceWithLyrics : null,
@@ -262,17 +268,14 @@ const _lyricsFound =
 /// FR-18: copy the script with a ready prompt for an AI agent, then paste
 /// its corrected reply back.
 class _AiFixActions extends ConsumerWidget {
-  const _AiFixActions({
-    required this.draft,
-    required this.scriptIsBeingWritten,
-  });
+  const _AiFixActions({required this.draft, required this.toolsAreOff});
 
   final ReelDraft draft;
-  final bool scriptIsBeingWritten;
+  final bool toolsAreOff;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final canUse = !scriptIsBeingWritten && draft.video != null;
+    final canUse = !toolsAreOff && draft.video != null;
     return Wrap(
       children: [
         TextButton(
@@ -329,7 +332,7 @@ class _AiFixActions extends ConsumerWidget {
       controller.correctTranscript(corrected.transcript);
       await editing.saveCorrected(video, draft.language, corrected.transcript);
       messenger.showSnackBar(
-        SnackBar(content: Text(_pastedMessage(corrected))),
+        SnackBar(content: Text(_correctedMessage(corrected))),
       );
     } on Exception catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
@@ -337,11 +340,138 @@ class _AiFixActions extends ConsumerWidget {
   }
 }
 
+/// FR-19: Groq's web-search model fixes the script, with the saved key.
+class _GroqFixAction extends ConsumerStatefulWidget {
+  const _GroqFixAction({
+    required this.draft,
+    required this.scriptIsBeingWritten,
+    required this.onRunningChanged,
+  });
+
+  final ReelDraft draft;
+  final bool scriptIsBeingWritten;
+  final ValueChanged<bool> onRunningChanged;
+
+  @override
+  ConsumerState<_GroqFixAction> createState() => _GroqFixActionState();
+}
+
+class _GroqFixActionState extends ConsumerState<_GroqFixAction> {
+  bool _running = false;
+
+  /// The run whose reply is still wanted; Cancel and leaving move it on.
+  int _wantedRun = 0;
+
+  @override
+  void dispose() {
+    _wantedRun++;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_running) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          TextButton(
+            style: _toolButtonStyle,
+            onPressed: _cancel,
+            child: const Text('Cancel'),
+          ),
+        ],
+      );
+    }
+    final canFix = !widget.scriptIsBeingWritten && widget.draft.video != null;
+    return TextButton(
+      style: _toolButtonStyle,
+      onPressed: canFix ? _fix : null,
+      child: const Text('Fix with Groq'),
+    );
+  }
+
+  void _setRunning(bool running) {
+    setState(() => _running = running);
+    widget.onRunningChanged(running);
+  }
+
+  void _cancel() {
+    _wantedRun++;
+    _setRunning(false);
+  }
+
+  Future<void> _fix() async {
+    final draft = widget.draft;
+    final video = draft.video;
+    final transcript = draft.transcript;
+    if (video == null || transcript == null) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final controller = ref.read(reelDraftProvider.notifier);
+    final editing = ref.read(scriptEditingServiceProvider);
+    final run = ++_wantedRun;
+    _setRunning(true);
+    try {
+      final corrected = await ref
+          .read(groqScriptFixServiceProvider)
+          .fix(
+            video: video,
+            transcript: transcript,
+            selection: draft.selection,
+          );
+      if (run != _wantedRun) {
+        return;
+      }
+      controller.correctTranscript(corrected.transcript);
+      await editing.saveCorrected(video, draft.language, corrected.transcript);
+      messenger.showSnackBar(
+        SnackBar(content: Text(_correctedMessage(corrected))),
+      );
+    } on Exception catch (error) {
+      if (run == _wantedRun) {
+        messenger.showSnackBar(_fixFailedSnackBar(error, router));
+      }
+    } finally {
+      if (run == _wantedRun && mounted) {
+        _setRunning(false);
+      }
+    }
+  }
+}
+
+SnackBar _fixFailedSnackBar(Object error, GoRouter router) {
+  if (error is NoGroqKeyException) {
+    return SnackBar(
+      content: const Text('Fixing a script needs a free Groq key.'),
+      action: SnackBarAction(
+        label: 'Settings',
+        onPressed: () => router.push(AppRoutes.settings),
+      ),
+    );
+  }
+  if (error is NoScriptRowsException) {
+    return const SnackBar(
+      content: Text("Groq's reply had no script lines. Try again."),
+    );
+  }
+  if (error is GroqFailedException) {
+    return const SnackBar(content: Text("Groq couldn't fix this script."));
+  }
+  return SnackBar(content: Text(errorMessageFor(error)));
+}
+
 String _copied(int lineCount) =>
     'Copied $lineCount lines. Paste them into ChatGPT (or any AI that can '
     'search the web), copy its reply, then tap Paste AI reply.';
 
-String _pastedMessage(CorrectedScript corrected) {
+String _correctedMessage(CorrectedScript corrected) {
   final updated = 'Updated ${corrected.changedLines} lines.';
   if (corrected.uncertainRows.isEmpty) {
     return updated;
