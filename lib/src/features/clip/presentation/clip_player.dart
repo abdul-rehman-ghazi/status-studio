@@ -25,7 +25,8 @@ final videoPlayerFactoryProvider = Provider<VideoPlayerFactory>(
 
 /// Plays the downloaded [source] with play, pause and a seek bar over all of
 /// it, and keeps [playhead] up to date (spec FR-5, FR-21). [clip] is only
-/// marked on the bar and where "Play clip" starts.
+/// marked on the bar and where "Play clip" starts. With [onlyRange] it plays
+/// that range and nothing else.
 class ClipPlayer extends ConsumerStatefulWidget {
   const ClipPlayer({
     super.key,
@@ -34,9 +35,15 @@ class ClipPlayer extends ConsumerStatefulWidget {
     required this.playhead,
     this.videoOverlay,
     this.frame,
+    this.onlyRange,
   });
 
   final ClipSource source;
+
+  /// In video time. When set, the bar covers just this range, the player
+  /// starts at its start and stops at its end, and "Play clip" is not shown
+  /// (Fine-tune · Lyrics shows only the clip).
+  final ClipRange? onlyRange;
 
   /// Drawn over the video, under the play button.
   final Widget? videoOverlay;
@@ -90,6 +97,10 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
       }
       return;
     }
+    final only = _onlyRangeInFile;
+    if (only != null) {
+      await _player.seekTo(only.start);
+    }
     if (mounted) {
       setState(() {});
     }
@@ -118,11 +129,36 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     end: widget.clip.end - widget.source.offset,
   );
 
-  Future<void> _seekToVideoTime(Duration videoTime) =>
-      _player.seekTo(videoTime - widget.source.offset);
+  /// [ClipPlayer.onlyRange] in the clip file's own time.
+  ClipRange? get _onlyRangeInFile {
+    final only = widget.onlyRange;
+    if (only == null) {
+      return null;
+    }
+    return ClipRange(
+      start: only.start - widget.source.offset,
+      end: only.end - widget.source.offset,
+    );
+  }
+
+  Future<void> _seekToVideoTime(Duration videoTime) {
+    final fileTime = videoTime - widget.source.offset;
+    final only = _onlyRangeInFile;
+    if (only == null) {
+      return _player.seekTo(fileTime);
+    }
+    final inRange = fileTime < only.start
+        ? only.start
+        : (fileTime > only.end ? only.end : fileTime);
+    return _player.seekTo(inRange);
+  }
 
   void _reportPlayhead() {
     final value = _player.value;
+    final only = _onlyRangeInFile;
+    if (only != null && value.isPlaying && value.position >= only.end) {
+      unawaited(_player.pause());
+    }
     widget.playhead.report(
       position: value.position + widget.source.offset,
       isPlaying: value.isPlaying,
@@ -135,7 +171,13 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
       return;
     }
     final value = _player.value;
-    if (value.position >= value.duration) {
+    final only = _onlyRangeInFile;
+    if (only != null) {
+      // Past the end, or before the start, playing begins at the start.
+      if (value.position >= only.end || value.position < only.start) {
+        await _player.seekTo(only.start);
+      }
+    } else if (value.position >= value.duration) {
       await _player.seekTo(Duration.zero);
     }
     await _player.play();
@@ -220,20 +262,23 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
           valueListenable: _player,
           builder: (context, value, _) => _SeekBar(
             playhead: widget.playhead,
-            duration: value.duration,
-            clipInFile: _clipInFile,
+            span:
+                _onlyRangeInFile ??
+                ClipRange(start: Duration.zero, end: value.duration),
+            markedClip: widget.onlyRange == null ? _clipInFile : null,
             offset: widget.source.offset,
             onSeek: value.isInitialized ? _player.seekTo : null,
           ),
         ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: value.isInitialized ? _playClip : null,
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Play clip'),
+        if (widget.onlyRange == null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: value.isInitialized ? _playClip : null,
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Play clip'),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -245,15 +290,19 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
 class _SeekBar extends StatefulWidget {
   const _SeekBar({
     required this.playhead,
-    required this.duration,
-    required this.clipInFile,
+    required this.span,
+    required this.markedClip,
     required this.offset,
     required this.onSeek,
   });
 
   final ClipPlayhead playhead;
-  final Duration duration;
-  final ClipRange clipInFile;
+
+  /// What the bar covers, in the clip file's time.
+  final ClipRange span;
+
+  /// The clip to fill on the bar, or none when the bar is the clip.
+  final ClipRange? markedClip;
   final Duration offset;
   final ValueChanged<Duration>? onSeek;
 
@@ -290,16 +339,18 @@ class _SeekBarState extends State<_SeekBar>
 
   @override
   Widget build(BuildContext context) {
-    final totalMilliseconds = widget.duration.inMilliseconds;
-    if (totalMilliseconds == 0) {
+    final startMilliseconds = widget.span.start.inMilliseconds;
+    final spanMilliseconds = widget.span.length.inMilliseconds;
+    if (spanMilliseconds <= 0) {
       return const SizedBox(height: 48);
     }
     final videoTime = widget.playhead.position;
     final shownMilliseconds = (videoTime - widget.offset).inMilliseconds.clamp(
-      0,
-      totalMilliseconds,
+      startMilliseconds,
+      startMilliseconds + spanMilliseconds,
     );
     final onSeek = widget.onSeek;
+    final marked = widget.markedClip;
     return Row(
       children: [
         Expanded(
@@ -310,12 +361,14 @@ class _SeekBarState extends State<_SeekBar>
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _trackInset),
                   child: _ClipMarker(
-                    startFraction:
-                        widget.clipInFile.start.inMilliseconds /
-                        totalMilliseconds,
-                    endFraction:
-                        widget.clipInFile.end.inMilliseconds /
-                        totalMilliseconds,
+                    startFraction: marked == null
+                        ? null
+                        : (marked.start.inMilliseconds - startMilliseconds) /
+                              spanMilliseconds,
+                    endFraction: marked == null
+                        ? null
+                        : (marked.end.inMilliseconds - startMilliseconds) /
+                              spanMilliseconds,
                   ),
                 ),
               ),
@@ -329,7 +382,8 @@ class _SeekBarState extends State<_SeekBar>
                 ),
                 child: Slider(
                   value: shownMilliseconds.toDouble(),
-                  max: totalMilliseconds.toDouble(),
+                  min: startMilliseconds.toDouble(),
+                  max: (startMilliseconds + spanMilliseconds).toDouble(),
                   semanticFormatterCallback: (_) => 'Seek',
                   onChanged: onSeek == null
                       ? null
@@ -362,15 +416,18 @@ const _trackHeight = 8.0;
 class _ClipMarker extends StatelessWidget {
   const _ClipMarker({required this.startFraction, required this.endFraction});
 
-  final double startFraction;
-  final double endFraction;
+  /// Both none: nothing is filled, only the outline shows.
+  final double? startFraction;
+  final double? endFraction;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final left = constraints.maxWidth * startFraction.clamp(0, 1);
-        final right = constraints.maxWidth * endFraction.clamp(0, 1);
+        final start = startFraction;
+        final end = endFraction;
+        final left = constraints.maxWidth * (start ?? 0).clamp(0, 1);
+        final right = constraints.maxWidth * (end ?? 0).clamp(0, 1);
         return Stack(
           alignment: Alignment.centerLeft,
           children: [
@@ -385,17 +442,18 @@ class _ClipMarker extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(
-              left: left,
-              width: right - left,
-              height: _trackHeight,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(_trackHeight / 2),
+            if (start != null && end != null)
+              Positioned(
+                left: left,
+                width: right - left,
+                height: _trackHeight,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(_trackHeight / 2),
+                  ),
                 ),
               ),
-            ),
           ],
         );
       },

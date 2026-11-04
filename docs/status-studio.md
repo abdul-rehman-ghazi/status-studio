@@ -237,7 +237,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 
 **FR-21 Fine-tune lyrics (M18; its own step since M19).** Step 2 of Fine-tune lists the clip's lines, editable, with the video playing with the lyrics on it.
 - **Lines:** only the picked clip's lines are listed. Lines around the clip are not shown. Every listed line reacts to a tap.
-- **Player:** the reel as it will look: the video cut to the output frame (FR-6) with the crop where FR-22 puts it at that moment, and the line due on it, laid out as FR-7 says (caption position and size). Play and pause, and a seek bar over the clip.
+- **Player:** the reel as it will look: the video cut to the output frame (FR-6) with the crop where FR-22 puts it at that moment, and the line due on it, laid out as FR-7 says (caption position and size). Play and pause, and a seek bar over the clip only: it starts at the clip start, stops at the clip end (playing again from the end starts at the start), and has no "Play clip" button. Nothing outside the clip can be seen or reached.
 - **Tap a line:**
   - **While paused:** seeks to the line's start.
   - **While playing (tap to time):** the line's start becomes the playhead. The line that was highlighted at that moment ends there, so the new highlight replaces it. The tapped line keeps its length (at least 1 s), cut at the next line's start.
@@ -746,6 +746,7 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
   - A vertical video's player is at most 260 dp high. Chips and the crop outline show only while the crop can move, and the switch stays while keyframes exist. The free crop editor changes only the size while the crop moves.
 - **Fine-tune lyrics (FR-21):**
   - Only the clip's lines are listed. The line due shows on the video, and nothing shows between lines. Add line is off outside the clip.
+  - The player covers only the clip: it starts at its start, stops at its end, and its seek bar spans just the clip.
 - **Fine-tune lines (FR-21):**
   - A tap while playing sets the line's start to the playhead and ends the highlighted line there.
   - A tap earlier than the previous line's start changes nothing.

@@ -29,6 +29,64 @@ Future<void> pumpLyrics(
 );
 
 void main() {
+  group('only the clip', () {
+    final clip = pickedDraft.clip!;
+
+    testWidgets('the_player_starts_at_the_clip_start', (tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpLyrics(tester, playerFactory: players.call);
+
+      expect(players.created.single.value.position, fileTime(clip.start));
+    });
+
+    testWidgets('the_seek_bar_covers_only_the_clip', (tester) async {
+      await pumpLyrics(tester);
+
+      final slider = tester.widget<Slider>(find.byType(Slider));
+
+      expect(
+        (slider.min, slider.max),
+        (
+          fileTime(clip.start).inMilliseconds.toDouble(),
+          fileTime(clip.end).inMilliseconds.toDouble(),
+        ),
+      );
+    });
+
+    testWidgets('playback_pauses_at_the_clip_end', (tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpLyrics(tester, playerFactory: players.call);
+      await tester.tap(find.byTooltip('Play'));
+      await tester.pump();
+      final player = players.created.single;
+
+      player.value = player.value.copyWith(position: fileTime(clip.end));
+      await tester.pump();
+
+      expect(player.value.isPlaying, isFalse);
+    });
+
+    testWidgets('playing_from_the_end_starts_again_at_the_start', (
+      tester,
+    ) async {
+      final players = RecordingPlayerFactory();
+      await pumpLyrics(tester, playerFactory: players.call);
+      final player = players.created.single;
+      player.value = player.value.copyWith(position: fileTime(clip.end));
+
+      await tester.tap(find.byTooltip('Play'));
+      await tester.pump();
+
+      expect(player.value.position, fileTime(clip.start));
+    });
+
+    testWidgets('there_is_no_play_clip_button', (tester) async {
+      await pumpLyrics(tester);
+
+      expect(find.text('Play clip'), findsNothing);
+    });
+  });
+
   group('video with the lyrics', () {
     testWidgets('shows_the_reel_not_the_bare_video', (tester) async {
       await pumpLyrics(tester);
@@ -36,13 +94,13 @@ void main() {
       expect(find.byType(ReelStage), findsOneWidget);
     });
 
-    testWidgets('no_line_shows_on_the_video_before_the_first_line', (
+    testWidgets('the_first_line_shows_on_the_video_from_the_clip_start', (
       tester,
     ) async {
       await pumpLyrics(tester);
 
-      // Once in the list; the video shows nothing yet.
-      expect(find.text(sampleTranscript.lines[1].text), findsOneWidget);
+      // In the list and, the clip starting where it begins, on the video.
+      expect(find.text(sampleTranscript.lines[1].text), findsNWidgets(2));
     });
 
     testWidgets('the_line_due_shows_on_the_video', (tester) async {

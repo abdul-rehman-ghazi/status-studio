@@ -99,6 +99,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
               video: video,
               clip: clip,
               playhead: _playhead,
+              onlyRange: clip,
               frame: (context, videoWidget) => ReelStage(
                 draft: draft,
                 sourceSize: previewSourceSize(ref, draft),
