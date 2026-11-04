@@ -280,8 +280,8 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 **FR-23 Follow the person (M20).** On Fine-tune · Video, with "Move the crop during the clip" on and the crop able to move (FR-22), a button makes the crop follow a person in the clip by writing its keyframes. Nothing is uploaded and no key is needed.
 - **Button:** "Follow the person" under the switch, with the hint "Runs on your phone; nothing is uploaded."
 - **Detector:** ML Kit face detection, on the phone, with the bundled model (fast mode, small faces allowed, no landmarks or contours). Pose detection is only a fallback if the spike (§10 item 7) shows faces are missed too often. Other detectors were rejected: selfie segmentation (made for close-ups) and object detection (it has no person class).
-- **Frames:** sampled by FFmpeg from the already downloaded clip file, clip range only, with no new download: 4 per second, or fewer for a long clip so there are at most 240 (never below 2 per second), as JPEG scaled to fit 640 × 640. Frame k is at video time `clip.start + k / rate`. The same run lists scene cuts (`scdet`) with their times; a build without that filter fails the run, so it is run again without it and the jump rule below covers the cuts. The frames are in a cache folder that is deleted when the run ends, is cancelled or fails.
-- **Which face:** one person per scene, chosen once and followed to its end, not picked again in every frame. Faces in neighbouring frames (and up to 2 s apart, for a missed detection) are joined into one person when they are about the same size (area within 0.4×–2.5×) and no more than two face-widths and two face-heights apart; distance rather than overlap, because a quick mover leaves no overlap at 4 frames a second. Among the people seen in at least 90 % as many frames as the one seen longest, the one with the largest total face area is followed. So a bigger face that only passes through, or a small one always in the background, is not followed. In frames where the followed person is not seen the crop holds (Gaps).
+- **Frames:** sampled by FFmpeg from the already downloaded clip file, clip range only, with no new download: 4 per second, or fewer for a long clip so there are at most 240 (never below 2 per second), as JPEG scaled to fit 640 × 640. Frame k is at video time `clip.start + k / rate`. The same run lists scene cuts (`scdet`) with their times; a build without that filter fails the run, so it is run again without it and the jump rule below covers the cuts. The frames are in a cache folder that is deleted when the run ends (after the choice, FR-25), is cancelled or fails.
+- **Which face:** one person per scene, chosen once and followed to its end, not picked again in every frame. Faces in neighbouring frames (and up to 2 s apart, for a missed detection) are joined into one person when they are about the same size (area within 0.4×–2.5×) and no more than two face-widths and two face-heights apart; distance rather than overlap, because a quick mover leaves no overlap at 4 frames a second. Among the people seen in at least 90 % as many frames as the one seen longest, the one with the largest total face area is followed. So a bigger face that only passes through, or a small one always in the background, is not followed. In frames where the followed person is not seen the crop holds (Gaps). This is the pick when only one person is on screen at a time, for "Choose for me", and for scenes FR-25's choice can't reach.
 - **Where the window goes:** its x centres the window on the face; its y puts the face a third of the way down the window. The anchor is the window's left over `1 − window width`, clamped to 0..1. An axis with under 1 % room keeps the base anchor.
 - **Gaps:** a frame with no face holds the last anchor. Before the first face, that face's anchor is used; in a scene with no face at all, the base anchor.
 - **No person:** with faces in fewer than 20 % of the frames, or in fewer than 3 frames, nothing changes and the §8 message shows.
@@ -290,7 +290,16 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Replacing:** the result replaces the keyframes. When more than one exists, the app asks first: "Replace your crop keyframes?" with Replace and Keep.
 - **After:** a snackbar "The crop follows the person (6 keyframes). Drag or tap a chip to adjust." The first chip is selected and the player seeks to the clip start. Everything stays editable as FR-22 says.
 - **While it runs:** a bar, "Finding the person… 45 %", with Cancel. Sampling the frames has no progress to show, so until the first frame is looked at the bar is indeterminate and has no percent. The detector is made for the run and closed when it ends, fails or is cancelled. Cancel, leaving the step, opening Lyrics, turning "Move the crop" off, or any change of the clip, size, fill or the free crop's size stops it and changes nothing. If the user moves the crop by hand meanwhile, that wins and the result is dropped. It doesn't use the player, and takes no foreground service (about 20 s at most).
-- **Several people:** it follows the one seen longest (the biggest among those about as long), and does not switch to another person. Choosing by tapping is out of scope (§11).
+- **Several people:** when two or more are on screen at once, the user chooses (FR-25); otherwise it follows the one seen longest (the biggest among those about as long), and does not switch to another person.
+
+**FR-25 Choose the person (M22).** When Follow the person (FR-23) finds two or more people on screen at once, it asks whom to follow before writing keyframes.
+- **People:** a person is an FR-23 face track seen in at least 3 frames and in at least 20 % of its scene's frames, so a one-frame false face is never offered.
+- **Picture:** the sampled frame with the most people at once. Ties go to the largest total face area, then the earliest. It shows at most 6 people, the biggest. With fewer than 2 there is no question and FR-23 runs as before.
+- **Chooser:** a bottom sheet titled "Who should the crop follow?" with the hint "Tap a face." It shows the frame at the clip's aspect ratio (at most 360 dp high), with an accent outline and a number on each face, numbered left to right. A tap inside a face, or within 24 dp of it, chooses the nearest face, so even a small face has a 48 dp target. A tap far from every face does nothing. Screen readers hear "Person 1", "Person 2" and so on, and can activate each. The buttons are "Choose for me" (the FR-23 pick) and "Cancel".
+- **Following:** in the scene of the picture, the chosen face's track is followed even if it is not the longest. Every other scene follows the person whose face is about the same size and place as the chosen one (FR-23's same-face test, on the track's average box), the nearest if there are several. With none, it uses the FR-23 pick. People can't be recognised across cuts; place and size are a guess that holds for repeated camera angles. Where the chosen person is not seen, the crop holds (FR-23 Gaps). Cuts are found exactly as in FR-23; the choice never adds or removes one.
+- **Frames:** they stay in the cache folder while the sheet is open. They are deleted when the user chooses, taps Cancel, dismisses the sheet, leaves the step, or changes the clip, size, fill or free crop size.
+- **Cancel or dismiss:** nothing changes, and the button comes back. A hand edit made while frames were being looked at still wins: no question is asked and nothing changes.
+- **After:** the same snackbar as FR-23.
 
 ## 4. Non-functional requirements
 
@@ -484,7 +493,7 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | No Groq key, Fix with Groq | Script | Fixing a script needs a free Groq key. | Settings (snackbar action) |
 | Groq failed while fixing (other error, or 5xx/498 twice) | Script | Groq couldn't fix this script. | (snackbar) |
 | Groq's reply to Fix with Groq has no script rows | Script | Groq's reply had no script lines. Try again. | (snackbar) |
-| No person found in the clip | Fine-tune · Video | No person found in this clip. The crop stays where it is. | (snackbar) |
+| No person found in the clip (the chooser never opens for this) | Fine-tune · Video | No person found in this clip. The crop stays where it is. | (snackbar) |
 | Following the person failed (frames, decoding or detector) | Fine-tune · Video | Couldn't follow the person. Try again. | (snackbar) |
 | Not enough storage | any download or export | Not enough space on your phone. | Back |
 
@@ -559,7 +568,6 @@ Each error is a typed exception from the data layer. Screens map them to these m
 
 ## 11. Out of scope for v1
 
-- Choosing which person to follow by tapping (FR-23 follows the largest).
 - iOS release; Play Store or App Store builds.
 - Local-file or share-into-app input.
 - Multiple clips per reel, music, stickers, text animation.
@@ -602,6 +610,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
 | M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18); device check pending |
 | M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | Built, branch `m20-follow-subject` (stacked on M19); the spike (§10 item 7) and the device checks are pending, so whether to ship it is undecided |
+| M22 Choose the person | Tap a face to choose whom Follow the person follows (FR-25) | In progress, branch `m22-choose-person` (stacked on M20) |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -735,6 +744,19 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
 - [x] **7. UI.** The button, progress, Cancel, the replace question and the snackbars.
 - [x] **8. Docs and review.** §13, §14, §12 status; reviewer pass (Opus; six findings, all fixed); push. CLAUDE.md's FFmpeg line still needs "and frame sampling" (left for the user to approve).
 
+### M22 tasks (branch `m22-choose-person`)
+
+Request, 2026-11-04: the followed person is sometimes the wrong one; "Tap to choose person". The plan was written by an Opus subagent first (its choices are in FR-25). Each task: test first, tick it, commit.
+
+- [x] **1. Docs.** FR-25; the FR-23, §8 and §11 edits; the §12 row; §13; §14.
+- [ ] **2. Face tracks out (refactor, no behaviour change).** `lib/src/features/style/domain/face_tracks.dart`: `FaceTrack`, `trackFaces` and `mostProminent` moved from `subject_path.dart` and made public; `FaceTrack.typicalFace` added. `subject_path.dart`: a public `SubjectScene` (with `firstIndex`) and `scenesOf`. The existing `subject_path_test.dart` passes unchanged.
+- [ ] **3. Choosable people (domain).** `lib/src/features/style/domain/person_choice.dart`: `PersonChoice`, `choosablePeople`.
+- [ ] **4. Follow the chosen person (domain).** `followPerson` in `subject_path.dart`, with the same-place rule.
+- [ ] **5. Controller.** `FollowChoosing`, `choose`, `chooseForMe`, who owns the frames, and how cancel, reset, dispose and changes behave while choosing.
+- [ ] **6. Chooser sheet.** `lib/src/features/clip/presentation/person_chooser_sheet.dart`; `FollowSubjectSection` keeps the button off while choosing.
+- [ ] **7. Wire into Fine-tune.** `fine_tune_screen.dart` opens the sheet on `FollowChoosing`, and a dismissal cancels.
+- [ ] **8. Docs and review.** Tick the tasks, set the §12 status, reviewer pass, push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links:** a link with whitespace, `si=` parameters or the `m.` host parses.
@@ -779,6 +801,7 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
   - A gap of one second holds the last anchor. With room on x only, y keeps the base anchor.
   - A clip of 90 s of busy movement gives at most 12 keyframes, at least 0.5 s apart, all inside the clip; a clip starting at 12.34 s gets its first keyframe at 12.4 s.
   - Faces in fewer than 20 % of the frames change nothing and give "No person found".
+  - **Choose the person (FR-25):** two people together are offered, numbered left to right, at most 6; a face seen in under 3 frames or 20 % of its scene is not; the picture has the most people and then the biggest faces. The chosen smaller face is followed; another scene follows the face in the same place, or the FR-23 pick without one; the cuts are the same as without a choice. A tap within 24 dp chooses the nearest face; a far tap does nothing. Choose, Cancel, dismissing, leaving and a clip change all delete the frames; Cancel and dismissing change nothing; one person asks nothing.
   - The frame arguments use file time (the offset subtracted), the sampling rate falls for long clips and never below 2, and the cut parser reads FFmpeg's times.
   - Replace is asked only when more than one keyframe exists. Cancel, leaving, turning the move off, and a clip or size change stop the run, delete the frames and change nothing; a hand edit during the run wins. The detector is closed after every run.
   - A build without the scene filter is run again without it. The cuts file path is escaped for the filter graph. Until the first frame is looked at the bar is indeterminate.
@@ -879,6 +902,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Moving crop, on a phone: the window drags under a thumb (the play button sits in the corner), the keyframe chips are usable above the scrolling frame controls, and the preview glides smoothly.
   - [ ] Moving crop, render: a Cut lines up with a caption line that starts at the same time (both read the clip's clock); a Glide is smooth; the picture is no softer or stretched compared with a fixed crop of the same size; the render matches the Lyrics preview.
   - [ ] Follow the person: a 30 s naat on the Redmi takes at most 15 s; a calligraphy-only clip says "No person found"; the crop follows a singer who sways without jitter; a cut in the video lines up in the render; Cancel responds within 1 s; 12 chips stay usable.
+  - [ ] Choose the person (M22): a two-person wide shot opens the chooser; a small face in the background can be tapped; the chosen person is followed through the render; a repeated camera angle after a cut still follows them; TalkBack reads "Person 1"; a portrait phone video shows the picture at the right aspect (rotation).
   - [ ] Opening Lyrics releases the Video step's player with no stutter, and Back brings it back.
   - [ ] Lyrics on a small phone: the reel-shaped player (at most 260 dp high) leaves enough lines to tap.
 - **Render:**
