@@ -727,8 +727,8 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
 Request, 2026-11-04: move the crop by object detection; the subject is a person or body. The plan was written by an Opus subagent first (its choices are in FR-23). Each task: test first, tick it, commit. Task 1 needs the phone and cannot run here.
 
 - [ ] **1. Spike (device).** §10 item 7, on a scratch branch that is never merged. Pending: the phone is not available in this session.
-- [ ] **2. Frame arguments.** `lib/src/core/ffmpeg/frame_arguments.dart`: the sampling arguments (file time = video time minus the clip file's offset) and the scene-cut parser.
-- [ ] **3. Subject path (domain).** `followSubject`: boxes to anchors, smoothing, dead zone, simplification, cuts, the 12-keyframe cap, `NoSubjectFoundException`; with the cases in §13.
+- [x] **2. Frame arguments.** `lib/src/core/ffmpeg/frame_arguments.dart`: the sampling arguments (file time = video time minus the clip file's offset) and the scene-cut parser.
+- [x] **3. Subject path (domain).** `followSubject`: boxes to anchors, smoothing, dead zone, simplification, cuts, the 12-keyframe cap, `NoSubjectFoundException`; with the cases in §13.
 - [ ] **4. Apply.** `ReelDraft.withFollowedCrop` and the controller method.
 - [ ] **5. Extractor and detector.** `FrameExtractor` (FFmpeg) and `SubjectDetector` (ML Kit) behind interfaces; the dependency; cancel the FFmpeg run by its own session, not all sessions.
 - [ ] **6. Controller.** `FollowSubjectController`: progress, cancel, cancel on change, clean-up, errors, with fakes.
@@ -772,7 +772,7 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
     - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
 - **Clip edges (FR-5):** tapping Start or End sets it to the playhead rounded to 0.1 s; a time that leaves under 3 s or passes the video's ends changes nothing.
 - **Follow the person (FR-23):**
-  - A steady face gives one keyframe. A face drifting left to right gives at most three glides and ends near the right. Jitter of ±0.03 of the room gives one keyframe.
+  - A steady face gives one keyframe. A face drifting left to right gives at most four keyframes, all glides, and ends near the right. Jitter of ±0.03 of the room gives one keyframe.
   - Two faces: the larger is followed, and a larger one appearing beside the followed one doesn't take over.
   - A scene cut gives a Cut at the cut time; a jump of more than 0.3 of the room with no cut data gives a Cut.
   - A gap of one second holds the last anchor. With room on x only, y keeps the base anchor.
