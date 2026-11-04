@@ -44,13 +44,29 @@ class FineTuneDraftSaver {
     return _enqueue(() => _delete(draft));
   }
 
+  /// Notes that [draft] is already kept on disk as it is (it was just
+  /// continued), so leaving Fine-tune without a change doesn't rewrite it.
+  Future<void> rememberKept(ReelDraft draft) {
+    if (!FineTuneDraft.canKeep(draft)) {
+      return Future<void>.value();
+    }
+    return _enqueue(() async {
+      _lastWritten = FineTuneDraft.of(draft, savedAt: _noTime);
+      _lastDiscarded = null;
+    });
+  }
+
   Future<void> _write(ReelDraft draft) async {
     final work = FineTuneDraft.of(draft, savedAt: _noTime);
-    if (work == _lastWritten || work == _lastDiscarded) {
+    final store = await stores.drafts();
+    // The file can be deleted elsewhere (Delete progress, a failed Continue),
+    // so "already written" only counts while it is still there.
+    final alreadyKept = work == _lastWritten && await store.has(work.script);
+    if (alreadyKept || work == _lastDiscarded) {
       return;
     }
     final kept = FineTuneDraft.of(draft, savedAt: _clock());
-    await (await stores.drafts()).save(kept);
+    await store.save(kept);
     _lastWritten = work;
     _lastDiscarded = null;
     await (await stores.scripts()).markUsed(kept.script.videoId);
@@ -74,7 +90,9 @@ class FineTuneDraftSaver {
   Future<void> _ignoringFailure(Future<void> Function() work) async {
     try {
       await work();
-    } on Exception {
+    } on Object {
+      // An Error must not end the queue either: every later save would be
+      // skipped for the rest of the session.
       return;
     }
   }

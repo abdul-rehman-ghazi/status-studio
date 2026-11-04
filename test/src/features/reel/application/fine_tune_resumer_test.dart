@@ -94,6 +94,39 @@ void main() {
     },
   );
 
+  test('a_script_still_being_written_with_the_picked_lines_is_ready', () async {
+    final saved = await keep();
+    await scripts.savePartial(
+      fineTuneDraftFixture().script,
+      groqSource,
+      PartialTranscript(
+        completedChunks: 1,
+        lines: pickedReelDraft().transcript!.lines,
+      ),
+    );
+
+    final outcome = await resumer.resume(saved);
+
+    expect(outcome, isA<FineTuneReady>());
+    expect(await drafts.list(), hasLength(1));
+  });
+
+  test('a_partial_script_without_the_picked_lines_is_script_gone', () async {
+    final saved = await keep();
+    await scripts.savePartial(
+      fineTuneDraftFixture().script,
+      groqSource,
+      PartialTranscript(
+        completedChunks: 1,
+        lines: pickedReelDraft().transcript!.lines.take(2).toList(),
+      ),
+    );
+
+    final outcome = await resumer.resume(saved);
+
+    expect(outcome, isA<FineTuneScriptGone>());
+  });
+
   test('no_script_at_all_is_script_gone', () async {
     final saved = await keep();
 

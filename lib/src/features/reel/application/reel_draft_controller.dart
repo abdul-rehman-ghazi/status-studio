@@ -27,6 +27,10 @@ class ReelDraftController extends Notifier<ReelDraft> {
   void setLanguage(ScriptLanguage language) =>
       state = state.copyWith(language: language);
 
+  /// A script written again replaces the edited lines, so edits stop
+  /// shielding the lines from it (spec FR-21).
+  void forgetLineEdits() => state = state.copyWith(linesEdited: false);
+
   void setTranscript(Transcript transcript) =>
       state = state.withTranscript(transcript);
 

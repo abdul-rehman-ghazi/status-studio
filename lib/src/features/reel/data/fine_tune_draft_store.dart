@@ -37,6 +37,9 @@ class FineTuneDraftStore {
     return drafts;
   }
 
+  /// Whether a file is kept for [key], readable or not.
+  Future<bool> has(TranscriptKey key) => _file(key).exists();
+
   Future<void> delete(TranscriptKey key) async {
     final file = _file(key);
     if (await file.exists()) {

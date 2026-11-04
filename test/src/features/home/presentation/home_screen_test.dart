@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
+import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
@@ -317,7 +319,39 @@ void main() {
     testWidgets('continue_opens_fine_tune_with_the_kept_clip', (tester) async {
       await tapContinue(tester, FineTuneReady(pickedDraft));
 
+      final restored = ProviderScope.containerOf(
+        tester.element(find.byType(Scaffold).last),
+      ).read(reelDraftProvider);
       expect(find.text('Fine-tune · Video'), findsOneWidget);
+      expect(restored.clip, pickedDraft.clip);
+      expect(restored.selection, pickedDraft.selection);
+    });
+
+    testWidgets('a_double_tap_on_continue_opens_the_screens_once', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          fineTunes: [kept],
+          fineTuneResumer: FakeFineTuneResumer(
+            FineTuneReady(pickedDraft),
+            delay: const Duration(milliseconds: 200),
+          ),
+          scriptPipeline: SavedScriptPipeline(sampleTranscript),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Kept song'));
+      await tester.tap(find.text('Kept song'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('New reel'), findsOneWidget);
     });
 
     testWidgets('back_from_a_continued_fine_tune_shows_script', (tester) async {

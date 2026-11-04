@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/branding/presentation/logo_mark.dart'
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/library/domain/recent_entries.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
@@ -316,13 +317,22 @@ class _ScriptThumbnail extends StatelessWidget {
 
 /// A fine-tune kept at Fine-tune, to continue later (FR-24). Long-press
 /// offers Delete progress, which leaves the video's script.
-class _FineTuneRow extends ConsumerWidget {
+class _FineTuneRow extends ConsumerStatefulWidget {
   const _FineTuneRow({required this.fineTune});
 
   final SavedFineTune fineTune;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FineTuneRow> createState() => _FineTuneRowState();
+}
+
+class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
+  var _opening = false;
+
+  SavedFineTune get fineTune => widget.fineTune;
+
+  @override
+  Widget build(BuildContext context) {
     final clipLength = fineTune.draft.clip.length;
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -342,8 +352,21 @@ class _FineTuneRow extends ConsumerWidget {
     );
   }
 
+  /// Reading the saved script takes a moment; a second tap in that time
+  /// would open every screen twice.
   Future<void> _continue(BuildContext context, WidgetRef ref) async {
-    final outcome = await ref.read(fineTuneResumerProvider).resume(fineTune);
+    if (_opening) {
+      return;
+    }
+    setState(() => _opening = true);
+    final FineTuneResume outcome;
+    try {
+      outcome = await ref.read(fineTuneResumerProvider).resume(fineTune);
+    } finally {
+      if (mounted) {
+        setState(() => _opening = false);
+      }
+    }
     if (!context.mounted) {
       return;
     }
@@ -362,6 +385,7 @@ class _FineTuneRow extends ConsumerWidget {
     switch (outcome) {
       case FineTuneReady(draft: final restored):
         draft.restore(restored);
+        unawaited(ref.read(fineTuneDraftSaverProvider).rememberKept(restored));
         _startScript(ref);
         context
           ..push(AppRoutes.script)

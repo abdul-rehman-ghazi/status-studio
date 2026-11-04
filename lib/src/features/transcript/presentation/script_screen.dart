@@ -110,6 +110,7 @@ class ScriptScreen extends ConsumerWidget {
   void _writeAgain(BuildContext context, WidgetRef ref) {
     final draft = ref.read(reelDraftProvider);
     if (draft.video case final video?) {
+      ref.read(reelDraftProvider.notifier).forgetLineEdits();
       ref
           .read(scriptProgressProvider.notifier)
           .writeAgain(video, draft.language);
@@ -122,7 +123,9 @@ class ScriptScreen extends ConsumerWidget {
     WidgetRef ref,
     ScriptLanguage language,
   ) {
-    ref.read(reelDraftProvider.notifier).setLanguage(language);
+    ref.read(reelDraftProvider.notifier)
+      ..forgetLineEdits()
+      ..setLanguage(language);
     if (ref.read(reelDraftProvider).video case final video?) {
       ref.read(scriptProgressProvider.notifier).start(video, language);
     }

@@ -301,8 +301,8 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - It also keeps a fingerprint of the script's lines from the first line through the last picked one (a 32-bit FNV-1a hash of each line's start, end and text, stable across runs). That tells a changed script apart, and lines added later (a script still being written) don't count.
 - **When:** 1 s after the last change while Fine-tune · Video is open or under a later step (Lyrics, Style, Export). Also at once when Fine-tune · Video closes (Back included) or the app goes to the background.
   - A change is anything that changes the reel: a nudge, an edge set to the playhead, size, fill, crop, a keyframe, a line edit, a caption setting.
-  - A fine-tune equal to the last one written is not written again.
-  - A failed write is ignored, because the work is still in the app.
+  - A fine-tune equal to the last one written is not written again, unless its file was deleted since. Continuing a fine-tune counts as writing it, so leaving Fine-tune without a change keeps its date.
+  - A failed write, whatever its cause, is ignored and never stops later saves, because the work is still in the app.
 - **One per video and language:** a new fine-tune of the same video and requested language replaces the kept one. Back to Script leaves it as it was; picking other lines replaces it when Fine-tune is next left or the app is hidden.
 - **File:** `transcripts/<videoId>/draft-<requested>.json` in app support, beside the scripts. It is written as `.part` and renamed, and carries `version` 1.
   - A file that can't be read, or has a newer version, is ignored and stays on disk. Its video's script row shows instead.
@@ -310,7 +310,8 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Recent (FR-11):** a kept fine-tune has a row with a tune icon, the video title, `Fine-tune · <clip length> · <d MMM>` (e.g. `18.5 s`, the date of the last save) and "Continue" on the right.
   - It replaces the script row of the same video and language, so the video shows once. It sorts by its last save among the reels and scripts.
   - **Tap, script found and still fitting:** opens Fine-tune · Video with everything as it was, and Back shows Script with the lines picked. The script opens without downloading. The clip window is reused while it is cached (FR-15) and downloaded otherwise; offline, that download fails as on any Fine-tune.
-  - **Tap, script gone** (no saved script for the video and language, e.g. the app closed while it was being written): opens Processing, which writes or resumes the script (FR-3, FR-14), then Script with the snackbar "This fine-tune's script had to be written again. Pick the lines again; the size and caption style are kept."
+  - **Tap, script still being written:** the lines Groq had written so far count as the script when they hold the picked lines (the same fingerprint check). It opens as the first case, and the run carries on and adds the rest.
+  - **Tap, script gone** (no saved script for the video and language, and no unfinished progress that holds the picked lines): opens Processing, which writes or resumes the script (FR-3, FR-14), then Script with the snackbar "This fine-tune's script had to be written again. Pick the lines again; the size and caption style are kept."
   - **Tap, script changed** (the fingerprint differs, the picked lines run past the script's end, or the clip runs past the video's end; e.g. after Write it again): opens Script with the current script and the snackbar "The script changed since this fine-tune was saved. Pick the lines again; the size and caption style are kept."
   - In both of those cases the kept fine-tune is deleted. What carries over: size, fill, the crop stopped where it was at the old clip start (as FR-22 "New lines" says), and the caption's position and size. The lines, the clip and the caption text do not.
   - **Long-press:** offers "Delete progress". It deletes only the kept fine-tune, and the video's script row shows again.
@@ -632,7 +633,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
 | M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18); device check pending |
 | M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | Built, branch `m20-follow-subject` (stacked on M19); the spike (§10 item 7) and the device checks are pending, so whether to ship it is undecided |
-| M21 Continue later | Fine-tune is kept as it changes and continued from Recent (FR-24) | In progress, branch `m21-fine-tune-drafts` (stacked on M20) |
+| M21 Continue later | Fine-tune is kept as it changes and continued from Recent (FR-24) | Built, branch `m21-fine-tune-drafts` (stacked on M20); device checks pending (§14) |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -781,7 +782,7 @@ Request, 2026-11-04: save Fine-tune progress and continue later. The plan was wr
 - [x] **9. Recent merge (domain).** `recentEntries`: a fine-tune replaces its script row.
 - [x] **10. Home rows.** Continue row, long-press Delete progress.
 - [x] **11. Continue and the Script notice.** Tap paths and the snackbar on Script.
-- [ ] **12. Docs and review.** §13, §14, §12 status; reviewer pass (Opus); push.
+- [x] **12. Docs and review.** §13, §14, §12 status; reviewer pass (Opus; eight findings, all fixed: unfinished scripts continue, saver survives errors and outside deletes, export reads its saver before awaiting, Continue ignores a second tap, edited-lines shield resets on a new script); push. CLAUDE.md's "Reuse earlier work" bullet could gain "Fine-tune progress is kept per video and language (FR-24)" (left for the user to approve).
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -891,6 +892,9 @@ Request, 2026-11-04: save Fine-tune progress and continue later. The plan was wr
   - There is one per video and language. A save marks the video used, the draft goes when its folder is pruned, and a `.part` file is never listed.
   - A finished export deletes it, and a later save of the same draft writes nothing. A delete waits for a save in progress.
   - Edited lines reopen from the `edited` script even when a newer one exists.
+  - A script still being written, whose lines so far hold the picked ones, continues as Ready; one that doesn't is script gone.
+  - A kept fine-tune deleted elsewhere (Delete progress) is written again by the next save of the same work.
+  - A second tap on Continue while the first is reading the script does nothing. Writing a script again or choosing another language drops the line-edit shield, so the new script replaces the lines.
   - The Continue row replaces the script row, and Delete progress brings the script row back.
   - Continue opens Fine-tune and Back shows Script. With the script gone it opens Processing; with the script changed it opens Script with the snackbar. Both delete the draft and keep the frame (crop at the old start) and the caption's position and size.
 

@@ -85,12 +85,14 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   Future<void> _keepAndOpenDone(String videoPath) async {
     final draft = ref.read(reelDraftProvider);
     final size = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
+    // Read before the await: leaving the screen meanwhile disposes its ref.
+    final fineTunes = ref.read(fineTuneDraftSaverProvider);
     try {
       final reel = await ref
           .read(recentReelsProvider.notifier)
           .keep(videoPath, draft, size);
       // The reel is made, so the kept fine-tune is spent (spec FR-24).
-      unawaited(ref.read(fineTuneDraftSaverProvider).discard(draft));
+      unawaited(fineTunes.discard(draft));
       if (mounted) {
         context.pushReplacement(AppRoutes.doneFor(reel.id));
       }

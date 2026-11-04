@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/data/fine_tune_draft_store.dart';
+import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
@@ -18,6 +19,7 @@ void main() {
   late int opened;
   late int clockTicks;
   late bool failNextOpen;
+  late Object openFailure;
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('fine_tune_saver_test');
@@ -26,6 +28,7 @@ void main() {
     opened = 0;
     clockTicks = 0;
     failNextOpen = false;
+    openFailure = const FileSystemException('disk full');
     final scripts = TranscriptStore(root, clock: DateTime.now);
     saver = FineTuneDraftSaver(
       stores: (
@@ -33,7 +36,7 @@ void main() {
           opened++;
           if (failNextOpen) {
             failNextOpen = false;
-            throw const FileSystemException('disk full');
+            throw openFailure;
           }
           return drafts;
         },
@@ -126,6 +129,36 @@ void main() {
     await saving;
 
     expect(await drafts.list(), isEmpty);
+  });
+
+  test('an_error_in_one_save_does_not_block_the_next', () async {
+    failNextOpen = true;
+    openFailure = StateError('broken');
+    await saver.save(pickedReelDraft());
+
+    await saver.save(pickedReelDraft());
+
+    expect(await drafts.list(), hasLength(1));
+  });
+
+  test('a_draft_deleted_elsewhere_is_written_again', () async {
+    await saver.save(pickedReelDraft());
+    await drafts.delete((await drafts.list()).single.script);
+
+    await saver.save(pickedReelDraft());
+
+    expect(await drafts.list(), hasLength(1));
+  });
+
+  test('remembering_the_continued_work_stops_a_repeat_write', () async {
+    await drafts.save(
+      FineTuneDraft.of(pickedReelDraft(), savedAt: DateTime.utc(2026)),
+    );
+    await saver.rememberKept(pickedReelDraft());
+
+    await saver.save(pickedReelDraft());
+
+    expect((await drafts.list()).single.savedAt, DateTime.utc(2026));
   });
 
   test('a_failed_save_does_not_block_the_next', () async {

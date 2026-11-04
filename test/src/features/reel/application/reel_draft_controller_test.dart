@@ -29,6 +29,15 @@ void main() {
     expect(draft(), pickedDraft);
   });
 
+  test('forgetting_line_edits_lets_a_new_script_replace_the_lines', () {
+    controller.restore(pickedDraft.copyWith(linesEdited: true));
+    controller.forgetLineEdits();
+
+    controller.growTranscript(fixture.copyWith(languageCode: 'en', lines: []));
+
+    expect(draft().transcript!.lines, isEmpty);
+  });
+
   test('range_tap_sets_clip_from_lines', () {
     controller
       ..setTranscript(fixture)

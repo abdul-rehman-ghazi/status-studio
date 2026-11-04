@@ -122,15 +122,21 @@ SavedFineTune savedFineTune({
 
 /// Answers every Continue with [outcome] instead of reading the disk.
 class FakeFineTuneResumer implements FineTuneResumer {
-  FakeFineTuneResumer(this.outcome);
+  FakeFineTuneResumer(this.outcome, {this.delay = Duration.zero});
 
   final FineTuneResume outcome;
+
+  /// How long reading the saved script takes.
+  final Duration delay;
 
   @override
   FineTuneStores get stores => throw UnimplementedError();
 
   @override
-  Future<FineTuneResume> resume(SavedFineTune saved) async => outcome;
+  Future<FineTuneResume> resume(SavedFineTune saved) async {
+    await Future<void>.delayed(delay);
+    return outcome;
+  }
 }
 
 /// Finds [transcript] saved already, as the real pipeline does (FR-14):
