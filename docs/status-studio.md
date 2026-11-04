@@ -117,12 +117,17 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Placement:** at the top when the caption is at the bottom, and at the bottom otherwise.
 
 **FR-9 Export.**
+- **File name:** `<kalam>-<start>-<end>.mp4`, e.g. `Arsh_e-علم_بڑی-وقت_کی.mp4`.
+  - **kalam:** the first 2 words of the video title, cleaned as for the lyrics search (FR-17: brackets, "Official Video"-style words and anything after a `|` removed).
+  - **start / end:** the first 2 words of the caption's first line and of its last line. A one-line caption uses it for both.
+  - **Words:** letters, marks and digits only, so punctuation and characters illegal in file names are dropped; joined by `_`. A part with no words is left out; with none at all the name is `reel`.
+  - **Same name again:** `-2`, `-3`, … is added, so a new reel never replaces an earlier one. The name is also the reel's id in Recent, and what Save to gallery and Share show.
 - **Output:** MP4 with H.264 video (`video/avc`) and AAC audio (`audio/mp4a-latm`), at the source frame rate, rendered by Media3 Transformer (§5).
 - **Progress:** Media3's own progress.
 - **Cancel:** stops the render, deletes the partial file and returns to Style.
 - **Failure:** a native render error shows "Couldn't make the reel." It never hangs.
 
-**FR-10 Save and share.** Save to gallery (`gal`). Android 10+ needs no permission. Android 7–9 asks once; a refusal explains and offers "Open settings". Share opens the system share sheet with the MP4 (`share_plus`).
+**FR-10 Save and share.** Done plays the exported file, not a still: tap to play or pause, with a progress bar that can be dragged, and back to the start at the end. The thumbnail shows until the file opens and stays if it won't play; Save and Share work either way. Save to gallery (`gal`). Android 10+ needs no permission. Android 7–9 asks once; a refusal explains and offers "Open settings". Share opens the system share sheet with the MP4 (`share_plus`).
 
 **FR-11 Recent.**
 - **Reels:** newest first, at most 50; the oldest is dropped and its MP4 and thumbnail deleted.
@@ -488,6 +493,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M11 Timed captions | One caption line at a time (FR-7a) | Done, branch `m11-timed-captions` (stacked on M10); device check pending |
 | M12 Real lyrics | Lyrics from lrclib.net replace the script (FR-17) | Done, branch `m12-online-lyrics` (stacked on M11); device check pending |
 | M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12); device check pending |
+| M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -546,6 +552,15 @@ Request, 2026-11-04: export the script with timing for an AI agent and paste the
 - [x] **4. Script screen.** Copy for AI and Paste AI reply on one compact row with Real lyrics; snackbars; §8 message.
 - [x] **5. Docs.** FR-18, §8, §13, §14.
 
+### M14 tasks (branch `m14-reel-preview`)
+
+Requests, 2026-11-04: no way to view the output before saving and sharing; name the exported reel `{kalam 2 words}-{start 2 words}-{end 2 words}`. Each task: test first, tick it, commit.
+
+- [x] **1. Player on Done.** `ReelPlayer`: tap to play or pause, progress bar, rewinds at the end, thumbnail until ready or if the file won't open; disposed on leaving.
+- [x] **2. File name.** `reelFileStem` and a free output path (`-2`, `-3`, …).
+- [x] **3. Overlay clean-up race.** The renderer deleted the overlay PNGs after reporting the end of a render, so a listener could still see them; it now deletes first (found by a flaky test).
+- [x] **4. Docs.** FR-9, FR-10, §13, §14.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links:** a link with whitespace, `si=` parameters or the `m.` host parses.
@@ -574,6 +589,8 @@ Request, 2026-11-04: export the script with timing for an AI agent and paste the
   - A long caption shrinks, then ellipsizes.
   - Cancel deletes the partial MP4.
   - A native error surfaces as "Couldn't make the reel."
+  - **File name (FR-9):** two words from the title, the caption's first line and its last line; punctuation dropped; a repeated name gets `-2`.
+  - **Done player (FR-10):** it plays and pauses on tap, rewinds at the end, falls back to the thumbnail for a file that won't open, and is disposed on leaving.
   - **Caption lines (FR-7a):**
     - Each line is a cue at its script line's time, counted from the clip start and clamped to a nudged clip.
     - An edited line count shares the clip by line length.
@@ -670,6 +687,12 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] A processed video's row is above older reels.
   - [ ] Tapping it opens Script with no download.
   - [ ] Deleting it means the next paste writes the script again.
+- **Preview and file name (M14):**
+  - [ ] Done plays the reel with sound; tap pauses; the bar can be dragged; it rewinds at the end.
+  - [ ] A reel with timed captions shows each line when expected (this is the first place the Media3 timing can be seen).
+  - [ ] The saved file in the gallery and the shared file show the `<kalam>-<start>-<end>` name, with Urdu words intact.
+  - [ ] The Recent list thumbnail still appears for a file with an Urdu name (FFmpeg reads the path).
+  - [ ] Exporting the same clip twice gives `…-2.mp4`.
 - **Caption lines (M11):**
   - [ ] A reel with 3+ lines shows one line at a time, each when it is said, and only the branding between lines.
   - [ ] Cue times line up with the video (Media3 hands the overlay times counted from the clip start; if the first line is early or late by the clip's lead-in, fix the offset in `TimedCaptionOverlay`).

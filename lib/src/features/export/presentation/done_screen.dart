@@ -8,6 +8,7 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/export/data/reel_actions.dart';
+import 'package:status_studio/src/features/export/presentation/reel_player.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -75,7 +76,10 @@ class _ReelSummary extends StatelessWidget {
               height: _previewMaxHeight,
               child: AspectRatio(
                 aspectRatio: reel.size.width / reel.size.height,
-                child: _Thumbnail(path: reel.thumbnailPath),
+                child: ReelPlayer(
+                  reel: reel,
+                  fallback: _Thumbnail(path: reel.thumbnailPath),
+                ),
               ),
             ),
           ),

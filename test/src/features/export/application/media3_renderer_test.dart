@@ -115,6 +115,28 @@ void main() {
     );
   });
 
+  test(
+    'output_file_is_named_after_the_kalam_and_its_first_and_last_lines',
+    () async {
+      final native = FakeNative(finishWithProgress)..install();
+
+      await renderer.render(pickedDraft).drain<void>();
+
+      final spec = native.calls.single.arguments as Map<Object?, Object?>;
+      expect(spec['outputPath'], '${folder.path}/Sample-علم_بڑی-وقت_کی.mp4');
+    },
+  );
+
+  test('a_second_reel_with_the_same_name_gets_a_number', () async {
+    File('${folder.path}/Sample-علم_بڑی-وقت_کی.mp4').writeAsStringSync('x');
+    final native = FakeNative(finishWithProgress)..install();
+
+    await renderer.render(pickedDraft).drain<void>();
+
+    final spec = native.calls.single.arguments as Map<Object?, Object?>;
+    expect(spec['outputPath'], '${folder.path}/Sample-علم_بڑی-وقت_کی-2.mp4');
+  });
+
   test('progress_events_become_render_running', () async {
     FakeNative(finishWithProgress).install();
 

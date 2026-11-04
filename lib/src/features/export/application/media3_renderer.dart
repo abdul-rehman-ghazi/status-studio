@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:status_studio/src/core/ffmpeg/media_probe.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
+import 'package:status_studio/src/features/export/domain/reel_file_name.dart';
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/export/domain/render_spec.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
@@ -120,9 +121,23 @@ class Media3Renderer implements Renderer {
         sourceSize: sourceSize,
         overlayPath: branding.path,
         captionCues: await _writeCueOverlays(draft, run, stem, output),
-        outputPath: '${folder.path}/$name.mp4',
+        outputPath: await _freeOutputPath(folder, draft),
       ),
     );
+  }
+
+  /// `<kalam>-<start>-<end>.mp4` (FR-9); a second reel with the same name
+  /// gets `-2`, `-3`, … so it never replaces the first.
+  Future<String> _freeOutputPath(Directory folder, ReelDraft draft) async {
+    final stem = reelFileStem(
+      videoTitle: draft.video?.title ?? '',
+      captionText: draft.caption.text,
+    );
+    var path = '${folder.path}/$stem.mp4';
+    for (var copy = 2; await File(path).exists(); copy++) {
+      path = '${folder.path}/$stem-$copy.mp4';
+    }
+    return path;
   }
 
   /// One image per caption line, so only that line shows at a time.
@@ -170,8 +185,7 @@ class Media3Renderer implements Renderer {
         run.progress.add(RenderRunning((event['value']! as num).toDouble()));
       case 'done':
         _rendering = null;
-        run.progress.add(RenderFinished(event['path']! as String));
-        unawaited(_finish(run));
+        unawaited(_deliverDone(run, event['path']! as String));
       case _:
         unawaited(_fail(run, '${event['message']}'));
     }
@@ -180,8 +194,11 @@ class Media3Renderer implements Renderer {
   Future<void> _fail(_RenderRun run, String reason) =>
       _failWith(run, RenderFailedException(reason));
 
-  Future<void> _finish(_RenderRun run) async {
+  /// The overlay PNGs go before the result is reported, so a listener that
+  /// sees the end of the render never finds them still on disk.
+  Future<void> _deliverDone(_RenderRun run, String videoPath) async {
     await run.deleteOverlays();
+    run.progress.add(RenderFinished(videoPath));
     await run.progress.close();
   }
 
@@ -191,12 +208,16 @@ class Media3Renderer implements Renderer {
     if (progress.isClosed) {
       return;
     }
+    await run.deleteOverlays();
+    if (progress.isClosed) {
+      return;
+    }
     progress.addError(switch (mapIoError(error)) {
       final InsufficientStorageException full => full,
       final RenderFailedException failed => failed,
       _ => RenderFailedException('$error'),
     });
-    await _finish(run);
+    await progress.close();
   }
 }
 
