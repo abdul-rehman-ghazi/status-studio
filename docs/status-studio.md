@@ -250,20 +250,26 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Script still being written:** once any line is edited, lines that arrive later are not added to this reel (the edited lines win).
 
 **FR-22 Moving crop (M19).** Where the crop window sits can change while the clip plays, for Crop to fill and Free crop. Blur background and 16:9 keep the whole frame, so nothing moves.
-- **What moves:** the window's position only. Its size is fixed for the clip: the preset's largest rectangle, or the free crop's width and height.
-- **Anchor:** a position is an anchor `(x, y)`, each from 0 to 1 across the room the window has to move (0 = left or top, 1 = right or bottom). Crop to fill's Left, Center and Right are x = 0, 0.5, 1 with y = 0.5. A free crop's anchor is `left / (1 − width)` and `top / (1 − height)`.
+- **What moves:** the window's position only. Its size is fixed for the clip: the preset's largest rectangle, or the free crop's width and height. It moves only along an axis where it has room (a 9:16 window in a 16:9 frame moves left and right; a 4:5 window in a 9:16 video moves up and down). With room on neither axis, the switch is hidden.
+- **Anchor:** a position is an anchor `(x, y)`, each from 0 to 1 across the room the window has to move (0 = left or top, 1 = right or bottom). The frame keeps a base anchor (default 0.5, 0.5). Keep in view's Left, Center and Right set its x to 0, 0.5 and 1. A free crop's anchor is `left / (1 − width)` and `top / (1 − height)`, and its base is `freeCrop.left` and `top` themselves.
 - **Keyframes:** a keyframe is a time in video time, an anchor and how it is reached: **Glide** or **Cut**.
   - **Glide:** the anchor moves in a straight line from the previous keyframe's anchor to this one, arriving at this keyframe's time.
-  - **Cut:** the anchor holds the previous keyframe's value until this keyframe's time, then jumps.
-  - Before the first keyframe the anchor is the first keyframe's; after the last it holds. The first keyframe's way of arriving has no effect.
-  - Keyframes are kept in video time, so nudging the clip does not move them. Times snap to 0.1 s, and one within 0.25 s of another replaces it.
-- **Off by default:** "Move the crop during the clip" is a switch on step 1. Off, the crop is as FR-6 says (no keyframes). Turning it on creates a first keyframe at the clip start from the current crop. Turning it off removes the keyframes and keeps the crop at the clip start.
+  - **Cut:** the anchor holds the previous keyframe's value until this keyframe's time, then jumps. At exactly that time it has jumped (Dart and Kotlin agree).
+  - Before the first keyframe the anchor is the first keyframe's; after the last it holds. The first keyframe's way of arriving has no effect, so its Glide and Cut choice is hidden.
+  - Keyframes are kept in video time, so nudging the clip does not move them. A new keyframe's time is inside the clip; it snaps to 0.1 s, and one within 0.25 s of another replaces it.
+  - A keyframe outside the clip (after a nudge or a line edit) has no effect on the reel except as the position the crop starts from or holds. Its chip is dimmed, and it can still be deleted.
+- **Off by default:** "Move the crop during the clip" is a switch on step 1. Off, the crop is as FR-6 says. Turning it on creates a first keyframe at the clip start from the current crop. Turning it off removes the keyframes and keeps the crop where it was at the clip start: Crop to fill stores it as the base anchor, Free crop writes it into its rectangle.
 - **Editing (on):**
-  - Dragging the crop window over the player sets a keyframe at the playhead: it replaces the one there, or adds one that glides in.
-  - A row of keyframe chips under the player shows each time. Tap one to jump to it. The selected keyframe offers a Glide or Cut choice and Delete. The first keyframe can't be deleted.
-- **Rounding:** each keyframe's pixel rectangle is rounded as §6.3 says.
+  - **Drag:** dragging the crop window over the player moves it with the finger and writes one keyframe, at the playhead where the drag started, when the finger lifts: it replaces the one there or adds one that glides in. Keep in view is hidden while the switch is on.
+  - **Chips:** a row under the player, in the pinned part, shows each keyframe's time. Tap one to jump to it. The selected keyframe offers Glide or Cut (not on the first) and Delete. Any keyframe can be deleted except the only one left.
+  - **Touch:** the window can be dragged from anywhere inside it, and from a margin around its outline.
+- **Changing the size or fill:** keyframes stay but have no effect while Blur or 16:9 is chosen, and come back when a crop is chosen again. Changing the free crop's size keeps them.
+- **Rounding:** each keyframe's pixel rectangle is rounded as §6.3 says. The preview moves in whole pixels; the render moves in fractions of one.
 - **Render:** the keyframes go to Kotlin as rectangles (§6.3.1) with their times counted from the clip start; the crop between them is computed per frame (§6.3.2). A reel with the switch off renders exactly as before.
-- **Previews:** Fine-tune · Lyrics shows the moving crop (FR-21); Style shows the crop at the clip start.
+- **Previews:**
+  - Both Fine-tune steps follow the playhead frame by frame while playing (the player reports its position every 100 ms or so, so a ticker adds the time since the last report).
+  - Fine-tune · Lyrics shows the moving crop and the lyric line due (FR-21), by extending `reel_preview.dart`. Style shows the crop at the clip start.
+- **One decoder at a time:** when Lyrics opens, the Video step's player is released, and it is made again when Lyrics closes.
 
 ## 4. Non-functional requirements
 
@@ -340,7 +346,7 @@ class ClipRange { Duration start; Duration end; }
 enum AspectPreset { story9x16, portrait4x5, square1x1, landscape16x9, free }
 enum FillMode { crop, blur }  enum CropFocus { left, center, right }
 class FreeCropRect { double left, top, width, height; } // fractions of the source frame
-class FrameSettings { AspectPreset preset; FillMode fill; CropFocus focus; FreeCropRect freeCrop; CropPath cropPath; }
+class FrameSettings { AspectPreset preset; FillMode fill; CropAnchor anchor; FreeCropRect freeCrop; CropPath cropPath; } // anchor replaces CropFocus (M19); Left/Center/Right set anchor.x
 class CropAnchor { double x, y; }                                    // 0..1 across the window's room to move (FR-22)
 enum CropArrival { glide, cut }
 class CropKeyframe { Duration time; CropAnchor anchor; CropArrival arrival; } // video time
@@ -387,7 +393,11 @@ The target aspect is `aw:ah` and the source is `sw × sh`. Crop sizes are even i
 
 ### 6.3.2 Moving crop for Media3 (M19)
 
-With keyframes, `Crop` is replaced by a `MatrixTransformation` whose matrix is computed for each frame's presentation time from the keyframes (time counted from the clip start): the crop rectangle at that time, taken in NDC as §6.3.1, scaled to fill the frame (`scale = 2/(right−left)`, `2/(top−bottom)`, translated by `−(right+left)/(right−left)`, `−(top+bottom)/(top−bottom)`). It is followed by `Presentation.createForWidthAndHeight(outW, outH, LAYOUT_STRETCH_TO_FIT)`, which undoes the stretch because the window's aspect already is the output's. A Cut holds the earlier rectangle until the keyframe time; a Glide interpolates each edge linearly. Device check pending (§14).
+With keyframes, `Crop` is replaced by a `MatrixTransformation` whose matrix is computed for each frame from the keyframes. The time is the frame's presentation time counted from the clip start, from one helper (`clipTimeMs`) that the caption overlay uses too, so the crop and the caption lines can't drift apart.
+- **Rectangle at a time:** a pure function `ndcRectAt(keyframes, timeMs)` (unit-tested without Android): before the first keyframe the first rectangle; after the last the last; between two a Glide interpolates each edge linearly and a Cut holds the earlier until the later's time, and from that time on is the later. This is the same rule as `CropPath.anchorAt` in Dart.
+- **Matrix:** the rectangle in NDC (§6.3.1) scaled to fill the frame (`scale = 2/(right−left)`, `2/(top−bottom)`, translated by `−(right+left)/(right−left)`, `−(top+bottom)/(top−bottom)`), built as a plain 4 × 4 array (no `android.graphics.Matrix`, which unit tests can't use).
+- **Size:** `configure` returns the window's pixel size, as `Crop` does, so the `Presentation.createForWidthAndHeight(outW, outH, LAYOUT_STRETCH_TO_FIT)` after it is the same near-1:1 step as the fixed crop's.
+- **Unchanged:** the overlay still comes last, and Blur and 16:9 never send keyframes. Device check pending (§14).
 
 ### 6.4 Language inference (automatic)
 
@@ -670,15 +680,16 @@ Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, 
 
 ### M19 tasks (branch `m19-fine-tune-steps`)
 
-Request, 2026-11-04: crop position that changes while the video plays (glide or cut, both); Fine-tune in two steps, video then lyrics, with the lyrics on the video. Each task: test first, tick it, commit.
+Request, 2026-11-04: crop position that changes while the video plays (glide or cut, both); Fine-tune in two steps, video then lyrics, with the lyrics on the video. The plan was checked by an Opus reviewer before task 3, and its changes are in FR-22 and §6.3.2: Kotlin comes before any UI that can make keyframes, the base anchor replaces Keep in view's three values, a drag writes one keyframe, a ticker moves the previews smoothly. Each task: test first, tick it, commit.
 
-- [x] **1. Crop path (domain).** Anchor, keyframes with Glide or Cut, the anchor at a time, set a keyframe at a time (snap, replace within 0.25 s), change how one arrives, remove one (not the first).
+- [x] **1. Crop path (domain).** Anchor, keyframes with Glide or Cut, the anchor at a time, set a keyframe at a time (snap, replace within 0.25 s), change how one arrives, remove one.
 - [x] **2. Frame carries the path.** `FrameSettings.cropPath`; the pixel crop at a time (`cropRectAt`), equal to `cropRectFor` with no keyframes; keyframes in the render spec as NDC rectangles from the clip start.
-- [ ] **3. Two steps.** Routes, step labels and buttons; the Video step keeps the player, nudges and warnings and takes size, fill and crop from Style; the Lyrics step takes the lines; Style keeps the caption.
-- [ ] **4. Moving crop on Video.** The crop window over the player; the switch; drag sets a keyframe at the playhead; chips with Glide, Cut and Delete.
-- [ ] **5. Lyrics step.** Only the clip's lines; the player shows the reel (moving crop and the due line).
-- [ ] **6. Kotlin.** The keyframed matrix transformation and its unit tests.
-- [ ] **7. Docs and review.** §13, §14, §15; reviewer pass; push.
+- [ ] **3. Kotlin.** `RenderSpec` reads `cropKeyframes`; pure `ndcRectAt` with the boundary cases the Dart tests use; the matrix transformation with `configure` and one `clipTimeMs` helper shared with the caption overlay. Before any UI can make keyframes, because Kotlin refuses a spec with keyframes today.
+- [ ] **4. Base anchor.** `FrameSettings.anchor` replaces `focus` (Keep in view sets it); keyframes can be removed unless the last one; a new keyframe time is clamped into the clip.
+- [ ] **5. Two steps.** Routes, step labels for all screens ("of 5") and buttons; the Video step keeps the player, nudges and warnings and takes size, fill and crop from Style; the Lyrics step takes the lines (only the clip's); Style keeps the caption.
+- [ ] **6. Moving crop on Video.** The crop window over the player, with the switch (hidden without room); drag writes one keyframe on release; chips in the pinned part with Glide, Cut and Delete; a ticker for the playhead.
+- [ ] **7. Lyrics preview.** `ReelPreview` follows the playhead (moving crop and the due cue); the Video step's player is released while Lyrics is open.
+- [ ] **8. Docs and review.** §13, §14, §15; reviewer pass; push.
 
 ## 13. Behaviour that must stay covered by tests
 
