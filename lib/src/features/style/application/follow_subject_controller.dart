@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +11,10 @@ import 'package:status_studio/src/features/source/application/clip_source_contro
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
 import 'package:status_studio/src/features/style/data/frame_extractor.dart';
 import 'package:status_studio/src/features/style/data/subject_detector.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/style/domain/person_choice.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 import 'package:status_studio/src/features/style/domain/subject_path.dart';
 
@@ -31,6 +35,25 @@ class FollowRunning extends FollowState {
   final double fraction;
 }
 
+/// Two or more people are on screen at once and the user is asked whom to
+/// follow (spec FR-25).
+class FollowChoosing extends FollowState {
+  const FollowChoosing({
+    required this.picture,
+    required this.pictureSize,
+    required this.choices,
+  });
+
+  /// The sampled frame the choices are faces in.
+  final File picture;
+
+  /// The video's size; the picture keeps its aspect ratio.
+  final OutputSize pictureSize;
+
+  /// All in [picture], left to right.
+  final List<PersonChoice> choices;
+}
+
 class FollowDone extends FollowState {
   const FollowDone(this.keyframeCount);
 
@@ -43,6 +66,21 @@ class FollowNoSubject extends FollowState {
 
 class FollowFailed extends FollowState {
   const FollowFailed();
+}
+
+/// What a question about whom to follow needs once the user has answered.
+class _PendingChoice {
+  const _PendingChoice({
+    required this.frames,
+    required this.track,
+    required this.geometry,
+    required this.pathAtStart,
+  });
+
+  final SampledFrames frames;
+  final SubjectTrack track;
+  final FollowGeometry geometry;
+  final CropPath pathAtStart;
 }
 
 /// Sampling the frames takes this share of the progress; the rest is looking
@@ -61,6 +99,10 @@ class FollowSubjectController extends Notifier<FollowState> {
   /// between frames and ends without touching anything.
   var _generation = 0;
   FfmpegCancelHandle? _cancelFfmpeg;
+
+  /// The frames kept on disk while the user chooses; deleted by whatever ends
+  /// the question.
+  _PendingChoice? _pending;
 
   @override
   FollowState build() {
@@ -85,11 +127,13 @@ class FollowSubjectController extends Notifier<FollowState> {
     if (source == null) {
       throw StateError('Follow the person started before the clip downloaded.');
     }
+    _releasePending();
     final pathAtStart = draft.frame.cropPath;
     final generation = ++_generation;
     final cancelFfmpeg = _cancelFfmpeg = FfmpegCancelHandle();
     state = const FollowRunning(0);
     SampledFrames? frames;
+    var keptForTheChoice = false;
     try {
       final sourceSize = await ref.read(clipFrameSizeProvider(source).future);
       frames = await ref
@@ -103,21 +147,33 @@ class FollowSubjectController extends Notifier<FollowState> {
       if (_isStale(generation)) {
         return;
       }
-      final path = followSubject(
-        SubjectTrack(samples: samples, sceneCuts: frames.sceneCuts),
-        FollowGeometry.forFrame(
-          frame: draft.frame,
-          sourceSize: sourceSize,
-          clip: clip,
-        ),
+      final track = SubjectTrack(samples: samples, sceneCuts: frames.sceneCuts);
+      final geometry = FollowGeometry.forFrame(
+        frame: draft.frame,
+        sourceSize: sourceSize,
+        clip: clip,
       );
-      if (ref.read(reelDraftProvider).frame.cropPath != pathAtStart) {
-        // The user moved the crop by hand meanwhile; that wins.
+      final choices = choosablePeople(track, geometry);
+      if (choices.length < 2) {
+        _apply(followSubject(track, geometry), pathAtStart);
+        return;
+      }
+      if (_handEdited(pathAtStart)) {
         state = const FollowIdle();
         return;
       }
-      ref.read(reelDraftProvider.notifier).followCrop(path);
-      state = FollowDone(path.keyframes.length);
+      _pending = _PendingChoice(
+        frames: frames,
+        track: track,
+        geometry: geometry,
+        pathAtStart: pathAtStart,
+      );
+      keptForTheChoice = true;
+      state = FollowChoosing(
+        picture: frames.frames[choices.first.sampleIndex],
+        pictureSize: sourceSize,
+        choices: choices,
+      );
     } on NoSubjectFoundException {
       if (!_isStale(generation)) {
         state = const FollowNoSubject();
@@ -127,32 +183,83 @@ class FollowSubjectController extends Notifier<FollowState> {
         state = const FollowFailed();
       }
     } finally {
-      await frames?.delete();
+      if (!keptForTheChoice) {
+        await frames?.delete();
+      }
     }
   }
 
-  /// Stops the run: nothing is changed and the frames are deleted.
+  /// The user chose [choice] in the question: follow that person (spec FR-25).
+  void choose(PersonChoice choice) {
+    _answer((pending) => followPerson(pending.track, pending.geometry, choice));
+  }
+
+  /// The user left it to the app: follow the automatic pick (spec FR-23).
+  void chooseForMe() {
+    _answer((pending) => followSubject(pending.track, pending.geometry));
+  }
+
+  void _answer(CropPath Function(_PendingChoice pending) pathFor) {
+    final pending = _pending;
+    if (pending == null || state is! FollowChoosing) {
+      return;
+    }
+    _pending = null;
+    unawaited(pending.frames.delete());
+    try {
+      _apply(pathFor(pending), pending.pathAtStart);
+    } on NoSubjectFoundException {
+      state = const FollowNoSubject();
+    } on Object {
+      state = const FollowFailed();
+    }
+  }
+
+  void _apply(CropPath path, CropPath pathAtStart) {
+    if (_handEdited(pathAtStart)) {
+      state = const FollowIdle();
+      return;
+    }
+    ref.read(reelDraftProvider.notifier).followCrop(path);
+    state = FollowDone(path.keyframes.length);
+  }
+
+  /// The user moved the crop by hand meanwhile; that wins.
+  bool _handEdited(CropPath pathAtStart) =>
+      ref.read(reelDraftProvider).frame.cropPath != pathAtStart;
+
+  /// Stops the run or the question: nothing is changed and the frames are
+  /// deleted.
   void cancel() {
-    final wasRunning = state is FollowRunning;
+    final wasActive = state is FollowRunning || state is FollowChoosing;
     _stop();
-    if (wasRunning) {
+    if (wasActive) {
       state = const FollowIdle();
     }
   }
 
   /// Back to nothing shown, once the user has seen how a run ended.
   void reset() {
-    if (state is! FollowRunning) {
+    if (state is! FollowRunning && state is! FollowChoosing) {
       state = const FollowIdle();
     }
   }
 
   void _stop() {
     _generation++;
+    _releasePending();
     final cancelFfmpeg = _cancelFfmpeg;
     _cancelFfmpeg = null;
     if (cancelFfmpeg != null) {
       unawaited(cancelFfmpeg.cancel());
+    }
+  }
+
+  void _releasePending() {
+    final pending = _pending;
+    _pending = null;
+    if (pending != null) {
+      unawaited(pending.frames.delete());
     }
   }
 

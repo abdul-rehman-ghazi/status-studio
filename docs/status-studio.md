@@ -752,7 +752,7 @@ Request, 2026-11-04: the followed person is sometimes the wrong one; "Tap to cho
 - [x] **2. Face tracks out (refactor, no behaviour change).** `lib/src/features/style/domain/face_tracks.dart`: `FaceTrack`, `trackFaces` and `mostProminent` moved from `subject_path.dart` and made public; `FaceTrack.typicalFace` added. `subject_path.dart`: a public `SubjectScene` (with `firstIndex`) and `scenesOf`. The existing `subject_path_test.dart` passes unchanged.
 - [x] **3. Choosable people (domain).** `lib/src/features/style/domain/person_choice.dart`: `PersonChoice`, `choosablePeople`.
 - [x] **4. Follow the chosen person (domain).** `followPerson` in `subject_path.dart`, with the same-place rule.
-- [ ] **5. Controller.** `FollowChoosing`, `choose`, `chooseForMe`, who owns the frames, and how cancel, reset, dispose and changes behave while choosing.
+- [x] **5. Controller.** `FollowChoosing`, `choose`, `chooseForMe`, who owns the frames, and how cancel, reset, dispose and changes behave while choosing.
 - [ ] **6. Chooser sheet.** `lib/src/features/clip/presentation/person_chooser_sheet.dart`; `FollowSubjectSection` keeps the button off while choosing.
 - [ ] **7. Wire into Fine-tune.** `fine_tune_screen.dart` opens the sheet on `FollowChoosing`, and a dismissal cancels.
 - [ ] **8. Docs and review.** Tick the tasks, set the §12 status, reviewer pass, push.

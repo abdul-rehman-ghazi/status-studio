@@ -15,6 +15,7 @@ import 'package:status_studio/src/features/style/data/subject_detector.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
 import '../../../../helpers/fake_follow.dart';
@@ -273,6 +274,203 @@ void main() {
       await start();
 
       expect(detector.closed, isTrue);
+    });
+  });
+
+  group('two people on screen', () {
+    /// Deleting the frames is not awaited by whatever ends the question, so
+    /// give the file system a moment.
+    Future<void> framesAreDeleted() async {
+      for (var tries = 0; tries < 100; tries++) {
+        if (!extractor.made!.existsSync()) {
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+    }
+
+    // The window centred on the face, over the room left by a 9:16 window in
+    // a 16:9 frame (0.3156 of the width).
+    const leftAnchor = 0.1346;
+    const rightAnchor = 0.8653;
+
+    void arrangeTwoPeople() => arrange(
+      faces: FakeSubjectDetector(facesAt: (_) => [leftFace, rightFace]),
+    );
+
+    PersonChoice theRightOne() => (stateNow() as FollowChoosing).choices.last;
+
+    test('wait_for_a_choice', () async {
+      arrangeTwoPeople();
+
+      await start();
+
+      expect(stateNow(), isA<FollowChoosing>());
+    });
+
+    test('offer_both_people', () async {
+      arrangeTwoPeople();
+
+      await start();
+
+      expect((stateNow() as FollowChoosing).choices.length, 2);
+    });
+
+    test('show_the_frame_of_the_choices', () async {
+      arrangeTwoPeople();
+
+      await start();
+
+      final choosing = stateNow() as FollowChoosing;
+      expect(
+        choosing.picture.path,
+        endsWith('frame${choosing.choices.first.sampleIndex}.jpg'),
+      );
+    });
+
+    test('the_picture_has_the_size_of_the_video', () async {
+      arrangeTwoPeople();
+
+      await start();
+
+      expect(
+        (stateNow() as FollowChoosing).pictureSize,
+        const OutputSize(1920, 1080),
+      );
+    });
+
+    test('keep_the_frames_while_choosing', () async {
+      arrangeTwoPeople();
+
+      await start();
+
+      expect(extractor.made!.existsSync(), isTrue);
+    });
+
+    test('change_nothing_while_choosing', () async {
+      arrangeTwoPeople();
+      final before = pathNow();
+
+      await start();
+
+      expect(pathNow(), before);
+    });
+
+    test('choosing_follows_that_person', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container.read(followSubjectProvider.notifier).choose(theRightOne());
+
+      expect(pathNow().keyframes.single.anchor.x, closeTo(rightAnchor, 0.001));
+    });
+
+    test('choosing_ends_done', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container.read(followSubjectProvider.notifier).choose(theRightOne());
+
+      expect(stateNow(), isA<FollowDone>());
+    });
+
+    test('choosing_deletes_the_frames', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container.read(followSubjectProvider.notifier).choose(theRightOne());
+      await framesAreDeleted();
+
+      expect(extractor.made!.existsSync(), isFalse);
+    });
+
+    test('choose_for_me_follows_the_automatic_pick', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container.read(followSubjectProvider.notifier).chooseForMe();
+
+      expect(pathNow().keyframes.single.anchor.x, closeTo(leftAnchor, 0.001));
+    });
+
+    test('cancel_while_choosing_changes_nothing', () async {
+      arrangeTwoPeople();
+      final before = pathNow();
+      await start();
+
+      container.read(followSubjectProvider.notifier).cancel();
+
+      expect(pathNow(), before);
+      expect(stateNow(), isA<FollowIdle>());
+    });
+
+    test('cancel_while_choosing_deletes_the_frames', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container.read(followSubjectProvider.notifier).cancel();
+      await framesAreDeleted();
+
+      expect(extractor.made!.existsSync(), isFalse);
+    });
+
+    test('a_new_clip_while_choosing_deletes_the_frames', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container
+          .read(reelDraftProvider.notifier)
+          .nudgeClipEnd(ClipRange.nudgeStep);
+      await framesAreDeleted();
+
+      expect(extractor.made!.existsSync(), isFalse);
+      expect(stateNow(), isA<FollowIdle>());
+    });
+
+    test('disposing_while_choosing_deletes_the_frames', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container.dispose();
+      await framesAreDeleted();
+
+      expect(extractor.made!.existsSync(), isFalse);
+    });
+
+    test('a_hand_edit_during_the_run_skips_the_question', () async {
+      arrangeTwoPeople();
+      detector.gate = Completer<void>();
+      await downloadClip();
+      final run = container.read(followSubjectProvider.notifier).start();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      container
+          .read(reelDraftProvider.notifier)
+          .moveCropTo(pickedDraft.clip!.start, const CropAnchor(x: 0, y: 0.5));
+      detector.gate!.complete();
+      await run;
+
+      expect(stateNow(), isA<FollowIdle>());
+      expect(extractor.made!.existsSync(), isFalse);
+    });
+
+    test('reset_while_choosing_keeps_choosing', () async {
+      arrangeTwoPeople();
+      await start();
+
+      container.read(followSubjectProvider.notifier).reset();
+
+      expect(stateNow(), isA<FollowChoosing>());
+    });
+
+    test('choosing_when_not_asked_does_nothing', () async {
+      arrangeTwoPeople();
+
+      container
+          .read(followSubjectProvider.notifier)
+          .choose(const PersonChoice(sampleIndex: 0, face: leftFace));
+
+      expect(stateNow(), isA<FollowIdle>());
     });
   });
 
