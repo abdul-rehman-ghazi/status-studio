@@ -12,6 +12,7 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
+import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -73,13 +74,26 @@ class ReelPreview extends ConsumerWidget {
                     ),
             ),
             _OverlayLayer(
-              spec: OverlaySpec(output: output, caption: draft.caption),
+              spec: OverlaySpec(
+                output: output,
+                caption: _firstLineCaption(draft),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// The preview is the clip's first frame, so it shows the caption's first
+/// line, as the export does at that moment (spec FR-7a).
+CaptionSettings _firstLineCaption(ReelDraft draft) {
+  if (draft.clip == null) {
+    return draft.caption;
+  }
+  final cues = draft.captionCues;
+  return draft.caption.copyWith(text: cues.isEmpty ? '' : cues.first.text);
 }
 
 typedef _Framing = ({FrameSettings frame, OutputSize sourceSize});

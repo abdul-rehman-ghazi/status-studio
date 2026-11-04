@@ -64,4 +64,51 @@ class RenderSpecTest {
 
         assertThrows(IllegalArgumentException::class.java) { RenderSpec.fromMap(map) }
     }
+
+    private val cues = listOf(
+        CaptionCue(startMs = 0, endMs = 4000, path = "/cache/overlay_1.png"),
+        CaptionCue(startMs = 4000, endMs = 9000, path = "/cache/overlay_2.png"),
+    )
+
+    @Test
+    fun fromMap_parses_caption_cues() {
+        val map = specMap("fill" to "none") + ("captionCues" to listOf(
+            mapOf("startMs" to 0, "endMs" to 4000L, "path" to "/cache/overlay_1.png"),
+        ))
+
+        val spec = RenderSpec.fromMap(map)
+
+        assertEquals(listOf(cues[0]), spec.captionCues)
+    }
+
+    @Test
+    fun fromMap_without_cues_has_none() {
+        val spec = RenderSpec.fromMap(specMap("fill" to "none"))
+
+        assertEquals(emptyList<CaptionCue>(), spec.captionCues)
+    }
+
+    @Test
+    fun fromMap_rejects_cue_without_path() {
+        val map = specMap("fill" to "none") + ("captionCues" to listOf(
+            mapOf("startMs" to 0, "endMs" to 4000),
+        ))
+
+        assertThrows(IllegalArgumentException::class.java) { RenderSpec.fromMap(map) }
+    }
+
+    @Test
+    fun overlayPathAt_gives_the_line_due() {
+        assertEquals("/cache/overlay_2.png", overlayPathAt("/cache/overlay.png", cues, 4500))
+    }
+
+    @Test
+    fun overlayPathAt_ends_a_cue_exclusively() {
+        assertEquals("/cache/overlay_2.png", overlayPathAt("/cache/overlay.png", cues, 4000))
+    }
+
+    @Test
+    fun overlayPathAt_gives_branding_between_and_after_cues() {
+        assertEquals("/cache/overlay.png", overlayPathAt("/cache/overlay.png", cues, 9000))
+    }
 }

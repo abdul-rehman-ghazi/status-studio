@@ -100,6 +100,15 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Block:** centred, black at 38 % behind the text, padding 2 % of output width, margin 6 % of output height from the edge.
 - **Overflow:** if the block would pass 35 % of output height, the font shrinks in 5 % steps down to 60 % of the chosen size, then the text is clipped with an ellipsis.
 
+**FR-7a Caption lines, one at a time (M11).** The exported reel shows one caption line at a time, never the whole caption at once.
+- **Lines:** each non-blank line of the caption text is one cue.
+- **Timing:** while the caption has one line per picked script line, each cue shows from its script line's start to its end, counted from the clip start and clamped to the clip (so a nudge moves them with the clip). A cue left with no time inside the clip is dropped.
+- **Edited text:** adding or removing lines loses the pairing, so the clip is shared out in proportion to each line's length. Translation and Roman variants follow the same rule.
+- **Between lines:** only the branding shows.
+- **Look:** each line is laid out as in FR-7 on its own, so the font fits each line, not the longest.
+- **Render:** Dart paints the branding on its own plus one transparent PNG per cue at output size. Kotlin lays the branding over the clip and swaps in the cue's PNG while it is due, opening each PNG only when its line is due. The PNGs stay until the render ends (cancel, error or done), then are deleted.
+- **Style preview:** a still of the clip's first frame, so it shows the first line.
+
 **FR-8 Branding (always on).**
 - **Pill:** the Trim logo and "Status Studio" in Inter SemiBold.
 - **Sizes:** logo height 4.5 % of output width, and text at 55 % of the logo height.
@@ -449,6 +458,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Model download controls | Pause, resume, cancel (FR-12) | Done, branch `model-download-controls` |
 | M9 Groq | Optional cloud transcription (FR-12a, §8) | Spec done; tasks to write, branch `m9-groq-transcription` |
 | M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–7 done, branch `m10-groq-only` (stacked on M9); device check pending |
+| M11 Timed captions | One caption line at a time (FR-7a) | Done, branch `m11-timed-captions` (stacked on M10); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -475,6 +485,16 @@ Decision, 2026-11-04: on this phone class (Redmi Note 11, Snapdragon 680) Whispe
 - [x] **5. Docs.** Rewrite the affected FR text, §6, §8, §10, §13, §14; update `CLAUDE.md`; merge status.
 - [x] **6. Turbo hallucination guard.** Turbo reports `no_speech_prob` 0 and invents "Thank you." on silence and music (§10 Q5). A piece whose segments are all known phrases gives no lines; the same phrase beside real speech is kept.
 - [x] **7. Clean-up.** Delete scripts and progress saved under `whisper-*` on startup; unpin the NDK; install the new build on the Redmi.
+
+### M11 tasks (branch `m11-timed-captions`)
+
+Request, 2026-11-04: show one line of caption at a time. Each task: test first, tick it, commit.
+
+- [x] **1. Cue timing (domain).** `buildCaptionCues`: spoken times when counts match, shared by length otherwise, clamped to the clip, blank lines and empty cues dropped. `ReelDraft.captionCues`.
+- [x] **2. Render spec and overlays (Dart).** `RenderJob.captionCues`; the renderer paints the branding PNG plus one PNG per cue and keeps them until the render ends.
+- [x] **3. Timed overlay (Kotlin).** `RenderSpec.captionCues`, `overlayPathAt`, and a `BitmapOverlay` that opens each cue's PNG when it is due.
+- [x] **4. Preview and hint.** The Style preview shows the first line; the caption hint explains that lines show one at a time.
+- [x] **5. Docs.** FR-7a, §13, §14.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -504,6 +524,11 @@ Decision, 2026-11-04: on this phone class (Redmi Note 11, Snapdragon 680) Whispe
   - A long caption shrinks, then ellipsizes.
   - Cancel deletes the partial MP4.
   - A native error surfaces as "Couldn't make the reel."
+  - **Caption lines (FR-7a):**
+    - Each line is a cue at its script line's time, counted from the clip start and clamped to a nudged clip.
+    - An edited line count shares the clip by line length.
+    - One overlay PNG per cue is written, kept while the render runs and deleted when it ends.
+    - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
 - **Library:**
   - The 51st reel drops the oldest and its files.
   - Reels with missing files are skipped, and corrupt preferences give an empty list.
@@ -583,6 +608,11 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] A processed video's row is above older reels.
   - [ ] Tapping it opens Script with no download.
   - [ ] Deleting it means the next paste writes the script again.
+- **Caption lines (M11):**
+  - [ ] A reel with 3+ lines shows one line at a time, each when it is said, and only the branding between lines.
+  - [ ] Cue times line up with the video (Media3 hands the overlay times counted from the clip start; if the first line is early or late by the clip's lead-in, fix the offset in `TimedCaptionOverlay`).
+  - [ ] A 60 s clip with ~20 lines renders without running out of memory.
+  - [ ] Cancel mid-render leaves no overlay PNGs in the reels folder.
 - **Groq (M9):**
   - [ ] The key check, help sheet and Copy link.
   - [ ] A 10-minute video's script time.

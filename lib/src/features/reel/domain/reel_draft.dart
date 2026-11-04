@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/style/domain/caption_cues.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
@@ -74,6 +75,29 @@ class ReelDraft {
         text: _selectedText(transcript, selection),
       ),
     );
+  }
+
+  /// The caption's lines with their times, or none before a clip is set
+  /// (spec FR-7a).
+  List<CaptionCue> get captionCues {
+    final clip = this.clip;
+    if (clip == null) {
+      return const [];
+    }
+    return buildCaptionCues(
+      captionText: caption.text,
+      spokenLines: _selectedLines,
+      clip: clip,
+    );
+  }
+
+  List<TranscriptLine> get _selectedLines {
+    final transcript = this.transcript;
+    final selection = this.selection;
+    if (transcript == null || selection is! RangeSelected) {
+      return const [];
+    }
+    return transcript.lines.sublist(selection.start, selection.end + 1);
   }
 
   ReelDraft copyWith({

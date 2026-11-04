@@ -115,4 +115,26 @@ void main() {
       [closeTo(720 / 1280, 1e-9), 1.0],
     );
   });
+
+  test('spec_lists_caption_cues_in_milliseconds', () {
+    final job = RenderJob(
+      source: jobWith(const FrameSettings()).source,
+      clip: ClipRange(start: at(1, 0), end: at(1, 20)),
+      frame: const FrameSettings(),
+      sourceSize: const OutputSize(1920, 1080),
+      overlayPath: '/cache/overlay.png',
+      outputPath: '/files/reel.mp4',
+      captionCues: const [
+        RenderCue(
+          start: Duration(seconds: 2),
+          end: Duration(milliseconds: 6500),
+          overlayPath: '/cache/overlay_1.png',
+        ),
+      ],
+    );
+
+    expect(renderSpecFor(job)['captionCues'], [
+      {'startMs': 2000, 'endMs': 6500, 'path': '/cache/overlay_1.png'},
+    ]);
+  });
 }

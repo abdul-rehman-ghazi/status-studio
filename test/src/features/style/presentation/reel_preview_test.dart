@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
+import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:video_player/video_player.dart';
 
@@ -73,5 +74,16 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('preview_shows_only_the_first_caption_line', (tester) async {
+    await pumpStyleWithClip(tester);
+
+    Finder inPreview(String text) => find.descendant(
+      of: find.byType(ReelPreview),
+      matching: find.text(text),
+    );
+    expect(inPreview(sampleTranscript.lines[1].text), findsOneWidget);
+    expect(inPreview(sampleTranscript.lines[2].text), findsNothing);
   });
 }

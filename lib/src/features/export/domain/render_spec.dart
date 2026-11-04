@@ -7,6 +7,31 @@ import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 /// Spec §6.3.1: Media3's Gaussian blur behind the sharp frame.
 const _blurSigma = 20.0;
 
+/// One caption line's overlay image and when it shows, counted from the
+/// clip's start (spec FR-7a).
+@immutable
+class RenderCue {
+  const RenderCue({
+    required this.start,
+    required this.end,
+    required this.overlayPath,
+  });
+
+  final Duration start;
+  final Duration end;
+  final String overlayPath;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RenderCue &&
+      other.start == start &&
+      other.end == end &&
+      other.overlayPath == overlayPath;
+
+  @override
+  int get hashCode => Object.hash(start, end, overlayPath);
+}
+
 /// Everything one export needs.
 @immutable
 class RenderJob {
@@ -17,6 +42,7 @@ class RenderJob {
     required this.sourceSize,
     required this.overlayPath,
     required this.outputPath,
+    this.captionCues = const [],
   });
 
   final ClipSource source;
@@ -25,8 +51,11 @@ class RenderJob {
 
   /// The clip file's frame size, which crops are measured in.
   final OutputSize sourceSize;
+
+  /// The branding on its own, shown whenever no caption line is.
   final String overlayPath;
   final String outputPath;
+  final List<RenderCue> captionCues;
 
   @override
   bool operator ==(Object other) =>
@@ -36,11 +65,19 @@ class RenderJob {
       other.frame == frame &&
       other.sourceSize == sourceSize &&
       other.overlayPath == overlayPath &&
-      other.outputPath == outputPath;
+      other.outputPath == outputPath &&
+      listEquals(other.captionCues, captionCues);
 
   @override
-  int get hashCode =>
-      Object.hash(source, clip, frame, sourceSize, overlayPath, outputPath);
+  int get hashCode => Object.hash(
+    source,
+    clip,
+    frame,
+    sourceSize,
+    overlayPath,
+    outputPath,
+    Object.hashAll(captionCues),
+  );
 }
 
 /// The map sent to the Kotlin renderer on `status_studio/render`.
@@ -51,6 +88,14 @@ Map<String, Object?> renderSpecFor(RenderJob job) {
     'inputPath': job.source.file.path,
     'outputPath': job.outputPath,
     'overlayPath': job.overlayPath,
+    'captionCues': [
+      for (final cue in job.captionCues)
+        {
+          'startMs': cue.start.inMilliseconds,
+          'endMs': cue.end.inMilliseconds,
+          'path': cue.overlayPath,
+        },
+    ],
     // The clip file starts at the source offset, not at video time zero.
     'clipStartMs': (job.clip.start - job.source.offset).inMilliseconds,
     'clipEndMs': (job.clip.end - job.source.offset).inMilliseconds,

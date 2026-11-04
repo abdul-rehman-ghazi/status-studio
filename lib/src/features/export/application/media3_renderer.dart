@@ -43,12 +43,14 @@ class Media3Renderer implements Renderer {
 
   /// The file being written, deleted if the render is cancelled.
   File? _rendering;
+  _RenderRun? _current;
 
   /// Built on a controller rather than `async*`, so cancelling the stream
   /// returns at once instead of waiting for the native render to end.
   @override
   Stream<RenderProgress> render(ReelDraft draft) {
     final run = _RenderRun();
+    _current = run;
     run.progress.onListen = () {
       unawaited(_begin(draft, run));
     };
@@ -67,16 +69,12 @@ class Media3Renderer implements Renderer {
       _rendering = File(spec['outputPath']! as String);
       // Listening before `start`, so no event is missed.
       run.events = _events.receiveBroadcastStream().listen(
-        (event) => _forward(event, run.progress),
-        onError: (Object error) => _fail(run.progress, '$error'),
+        (event) => _forward(event, run),
+        onError: (Object error) => _fail(run, '$error'),
       );
       await _methods.invokeMethod<void>('start', spec);
     } on Object catch (error) {
-      _failWith(run.progress, error);
-    } finally {
-      // Kotlin decodes the overlay inside `start`, so once `start` has
-      // returned (or the render never started) the PNG is no longer needed.
-      await run.deleteOverlay();
+      await _failWith(run, error);
     }
   }
 
@@ -85,6 +83,7 @@ class Media3Renderer implements Renderer {
     try {
       await _methods.invokeMethod<void>('cancel');
     } finally {
+      await _current?.deleteOverlays();
       final partial = _rendering;
       _rendering = null;
       if (partial != null && await partial.exists()) {
@@ -103,14 +102,14 @@ class Media3Renderer implements Renderer {
     final folder = await services.outputDirectory;
     await folder.create(recursive: true);
     final name = 'reel_${DateTime.now().millisecondsSinceEpoch}';
-    final overlay = File('${folder.path}/${name}_overlay.png');
-    run.overlay = overlay;
-    await overlay.writeAsBytes(
-      await services.paintOverlay(
-        OverlaySpec(
-          output: outputSizeFor(draft.frame, sourceSize),
-          caption: draft.caption,
-        ),
+    final output = outputSizeFor(draft.frame, sourceSize);
+    final stem = '${folder.path}/${name}_overlay';
+    final branding = await _writeOverlay(
+      run,
+      '$stem.png',
+      OverlaySpec(
+        output: output,
+        caption: draft.caption.copyWith(text: ''),
       ),
     );
     return renderSpecFor(
@@ -119,34 +118,76 @@ class Media3Renderer implements Renderer {
         clip: clip,
         frame: draft.frame,
         sourceSize: sourceSize,
-        overlayPath: overlay.path,
+        overlayPath: branding.path,
+        captionCues: await _writeCueOverlays(draft, run, stem, output),
         outputPath: '${folder.path}/$name.mp4',
       ),
     );
   }
 
-  void _forward(Object? event, StreamController<RenderProgress> progress) {
+  /// One image per caption line, so only that line shows at a time.
+  Future<List<RenderCue>> _writeCueOverlays(
+    ReelDraft draft,
+    _RenderRun run,
+    String stem,
+    OutputSize output,
+  ) async {
+    final cues = <RenderCue>[];
+    for (final (position, cue) in draft.captionCues.indexed) {
+      final file = await _writeOverlay(
+        run,
+        '${stem}_${position + 1}.png',
+        OverlaySpec(
+          output: output,
+          caption: draft.caption.copyWith(text: cue.text),
+        ),
+      );
+      cues.add(
+        RenderCue(start: cue.start, end: cue.end, overlayPath: file.path),
+      );
+    }
+    return cues;
+  }
+
+  Future<File> _writeOverlay(
+    _RenderRun run,
+    String path,
+    OverlaySpec spec,
+  ) async {
+    final file = File(path);
+    run.overlays.add(file);
+    await file.writeAsBytes(await services.paintOverlay(spec));
+    return file;
+  }
+
+  void _forward(Object? event, _RenderRun run) {
     if (event is! Map) {
-      _fail(progress, 'Unexpected render event $event.');
+      unawaited(_fail(run, 'Unexpected render event $event.'));
       return;
     }
     switch (event['type']) {
       case 'progress':
-        progress.add(RenderRunning((event['value']! as num).toDouble()));
+        run.progress.add(RenderRunning((event['value']! as num).toDouble()));
       case 'done':
         _rendering = null;
-        progress.add(RenderFinished(event['path']! as String));
-        unawaited(progress.close());
+        run.progress.add(RenderFinished(event['path']! as String));
+        unawaited(_finish(run));
       case _:
-        _fail(progress, '${event['message']}');
+        unawaited(_fail(run, '${event['message']}'));
     }
   }
 
-  void _fail(StreamController<RenderProgress> progress, String reason) =>
-      _failWith(progress, RenderFailedException(reason));
+  Future<void> _fail(_RenderRun run, String reason) =>
+      _failWith(run, RenderFailedException(reason));
+
+  Future<void> _finish(_RenderRun run) async {
+    await run.deleteOverlays();
+    await run.progress.close();
+  }
 
   /// A full disk keeps its own message; anything else is a failed render.
-  void _failWith(StreamController<RenderProgress> progress, Object error) {
+  Future<void> _failWith(_RenderRun run, Object error) async {
+    final progress = run.progress;
     if (progress.isClosed) {
       return;
     }
@@ -155,25 +196,30 @@ class Media3Renderer implements Renderer {
       final RenderFailedException failed => failed,
       _ => RenderFailedException('$error'),
     });
-    unawaited(progress.close());
+    await _finish(run);
   }
 }
 
-/// One render's stream, its native event subscription and its overlay PNG.
+/// One render's stream, its native event subscription and its overlay PNGs.
 class _RenderRun {
   final progress = StreamController<RenderProgress>();
   StreamSubscription<Object?>? events;
-  File? overlay;
+
+  /// Kept until the render ends: Kotlin opens each caption image when its
+  /// line is due, not up front.
+  final overlays = <File>[];
 
   Future<void> stopListening() async => events?.cancel();
 
-  Future<void> deleteOverlay() async {
-    final written = overlay;
-    overlay = null;
-    try {
-      await written?.delete();
-    } on PathNotFoundException {
-      // Never written, or already gone: nothing to clean up.
+  Future<void> deleteOverlays() async {
+    final written = List.of(overlays);
+    overlays.clear();
+    for (final file in written) {
+      try {
+        await file.delete();
+      } on PathNotFoundException {
+        // Never written, or already gone: nothing to clean up.
+      }
     }
   }
 }
