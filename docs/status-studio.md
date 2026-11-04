@@ -10,7 +10,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Groq writes scripts:** a video with no YouTube captions is written out by Groq's hosted Whisper, with the user's own free API key (FR-12a). Script audio leaves the phone only then, and only to Groq. The same key also powers Fix with Groq (FR-19), which sends the picked lines, the title and the link when the user taps it. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
 - **Saves data:** it downloads the script's audio at low quality (nothing when YouTube has captions), and only the clip's part of the video, once the user has picked it.
 - **Saves work:** scripts are saved, so the same video opens straight to its script next time.
-- **Real lyrics:** for a song, one tap replaces the script with its published, time-synced lyrics from lrclib.net (FR-17). Only the video's cleaned title is sent, to that one service.
+- **Real lyrics (button removed in M17):** it was one tap that replaced the script with its published, time-synced lyrics from lrclib.net (FR-17). Only the video's cleaned title is sent, to that one service.
 
 ## 2. Screens
 
@@ -159,7 +159,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Key storage:** `flutter_secure_storage` (Android Keystore). The key is never logged, and never written into saved files, notifications or error text. It goes only to `api.groq.com`.
 - **No key:** a script without captions stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is downloaded. Captions and saved scripts need no key.
 
-**FR-17 Real lyrics (M12).** For songs, the script Groq or YouTube wrote is often wrong; the song's published lyrics are right.
+**FR-17 Real lyrics (M12; button removed from Script in M17, so nothing opens this now; the lyrics code stays).** For songs, the script Groq or YouTube wrote is often wrong; the song's published lyrics are right.
 - **Where:** a "Real lyrics" button on Script, off while a script is still being written (late lines would overwrite the lyrics) and while a search runs.
 - **Service:** `lrclib.net`, free, no key and no account. One `GET /api/search?q=<query>` with a `StatusStudio/1.0` user agent. Only the cleaned video title leaves the phone (nothing is sent about the user or the audio).
 - **Query:** the video title without brackets (`(Official Video)`, `[HD]`, `【MV】`), words such as official, lyrics, video, audio, HD, 4K, and anything after a `|`.
@@ -170,7 +170,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **After:** "The lyrics from lrclib.net replaced the script. Line times follow the studio song, so check them in Fine-tune."
 - **Captions:** with FR-7a each lyric line shows on its own, when it is sung.
 
-**FR-18 Fix the script with an AI agent (M13).** For text the lyrics service lacks (a naat with verses from another poem), the user takes the script to any AI chat that can search the web and brings the corrected text back. Two buttons on Script, next to "Real lyrics", both off while a script is still being written.
+**FR-18 Fix the script with an AI agent (M13; both buttons removed from Script in M17, so nothing opens this now; the prompt and reply parsing stay because FR-19 uses them).** For text the lyrics service lacks (a naat with verses from another poem), the user takes the script to any AI chat that can search the web and brings the corrected text back. Two buttons on Script, next to "Real lyrics", both off while a script is still being written.
 - **Copy for AI:** copies one block to the clipboard: a ready prompt (video title, `https://youtu.be/<id>`, rules) followed by the lines as `<number> | <mm:ss.xx> | <mm:ss.xx> | <text>`. Row numbers are the line's index in the whole script + 1. The user pastes it into the chat unchanged. Snackbar: "Copied <n> lines. Paste them into ChatGPT (or any AI that can search the web), copy its reply, then tap Paste AI reply."
   - **Which lines:** the picked clip's lines when a range is picked; otherwise the whole script if it has at most **60** lines. More than 60 lines, picked or not, gives the §8 message instead. Why: a chat refuses or skims a long script (a 225-row script made ChatGPT ask for it in sections, and no rows came back), and only the clip's lines matter.
 - **The prompt asks the agent to:** search for the real lyrics and never invent words; keep numbers and times and change only the text; correct rows that belong to a different poem from that poem; keep the script (no Roman, no translation); mark rows with no source by ` [?]`; never ask for fewer rows or for sections; never move a line from another part of the poem into a row (M15); reply with the rows in one code block, then list changed rows with source links.
@@ -181,10 +181,10 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **After:** the lines keep the picked range and clip; the caption is refilled from the corrected lines. The script is saved as the newest script (source `edited`, FR-14), so the video reopens corrected.
 - **Privacy:** nothing is sent by the app. The user chooses what to paste into which chat.
 
-**FR-19 Fix the script with Groq (M15; the §10 spike #6 said go).** A third button on Script, **Fix with Groq**, does what Copy for AI plus Paste AI reply do, with the key from FR-12a and no clipboard. FR-18 stays as it is: it is the fallback and the choice for users who prefer ChatGPT.
+**FR-19 Fix the script with Groq (M15; the §10 spike #6 said go).** The one fixing button on Script (since M17), **Fix with Groq**, does what Copy for AI plus Paste AI reply did, with the key from FR-12a and no clipboard. It sits alone on the row above the lines. Real lyrics, Copy for AI and Paste AI reply were removed in M17.
 - **Same rules as FR-18:** the same prompt and the same lines (the picked clip's, or the whole script up to the row cap), the same reply handling (matched by row number, text only, times unchanged, `[?]` marks named in the snackbar) and the same result (the lines keep the range and clip, the caption is refilled, the script is saved as the newest script with source `edited`).
-- **Model and row cap:** `openai/gpt-oss-120b` with Groq's `browser_search` tool. At most **30** lines (the picked clip's, or the whole script); more gives the same §8 message as FR-18. Why 30: at 54 rows the model moved lines of the poem into the wrong rows (§10 #6). FR-18 keeps its cap of 60.
-- **While it runs:** the button shows progress and a Cancel; Copy for AI, Paste AI reply, Real lyrics and Fix with Groq are all off. Cancel stops waiting: the reply is ignored and nothing is saved (a request already sent still counts against the plan).
+- **Model and row cap:** `openai/gpt-oss-120b` with Groq's `browser_search` tool. At most **30** lines (the picked clip's, or the whole script); more gives the same §8 message. Why 30: at 54 rows the model moved lines of the poem into the wrong rows (§10 #6).
+- **While it runs:** the button shows progress and a Cancel. Cancel stops waiting: the reply is ignored and nothing is saved (a request already sent still counts against the plan).
 - **No key:** the button is shown, and tapping it gives the §8 "needs a free Groq key" message with Settings.
 - **Privacy:** the picked lines, the video title and its link go to Groq, only when the user taps this button. Say so in the FR-12a help text: the key is also used for this.
 - **Limits:** a call counts against the same free plan as writing scripts. A 429 is handled as in FR-12a.
@@ -417,12 +417,12 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | Gallery access refused | Done | Allow Photos access in Settings to save reels. | Open settings |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
 | More than 60 lines to copy for an AI, or more than 30 for Fix with Groq | Script | Too many lines for an AI to check. Tap the start and end lines of your clip first. | (snackbar) |
-| Pasted AI reply has no script rows | Script | Couldn't find script lines in what you pasted. Copy the AI's whole reply and try again. | (snackbar) |
+| (No longer shown, M17) Pasted AI reply has no script rows | Script | Couldn't find script lines in what you pasted. Copy the AI's whole reply and try again. | (snackbar) |
 | No Groq key, Fix with Groq | Script | Fixing a script needs a free Groq key. | Settings (snackbar action) |
 | Groq failed while fixing (other error, or 5xx/498 twice) | Script | Groq couldn't fix this script. | (snackbar) |
 | Groq's reply to Fix with Groq has no script rows | Script | Groq's reply had no script lines. Try again. | (snackbar) |
-| No synced lyrics match the video | Script | Couldn't find the lyrics for this video. The script stays as it is. | (snackbar) |
-| No network while looking for lyrics | Script | You're offline. Connect and try again. | (snackbar) |
+| (No longer shown, M17) No synced lyrics match the video | Script | Couldn't find the lyrics for this video. The script stays as it is. | (snackbar) |
+| (No longer shown, M17) No network while looking for lyrics | Script | You're offline. Connect and try again. | (snackbar) |
 | Not enough storage | any download or export | Not enough space on your phone. | Back |
 
 Each error is a typed exception from the data layer. Screens map them to these messages, and nothing returns `null` or a sentinel.
@@ -529,6 +529,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13); device check pending |
 | M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Done, branch `m15-groq-script-fix` (stacked on M14); device check pending |
 | M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main`; device check pending |
+| M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply are removed | Done, branch `m17-groq-fix-only`; device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -616,6 +617,13 @@ Request, 2026-11-04: the app opens on a white screen; make a launch animation fr
 - [x] **3. Native splash.** Android launch window and Android 12+ splash: background `#0E1311` and the logo; dark `NormalTheme` background; iOS launch screen background.
 - [x] **4. Docs.** FR-20, §7, §13, §14.
 
+### M17 tasks (branch `m17-groq-fix-only`)
+
+Request, 2026-11-04: keep only the Fix with Groq button on the Script screen. Each task: test first, tick it, commit.
+
+- [x] **1. Script screen.** A test that Script offers Fix with Groq and not Real lyrics, Copy for AI or Paste AI reply; the three buttons, their widget tests and the clipboard fake are removed; Fix with Groq sits alone and keeps its Cancel while it runs.
+- [x] **2. Docs.** FR-17, FR-18, FR-19, §8, §13, §14 and `CLAUDE.md`. The lyrics code, `lyricsServiceProvider` and the Copy for AI snackbar text are left in place with no screen using them; delete them in a later milestone if the buttons stay gone.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links:** a link with whitespace, `si=` parameters or the `m.` host parses.
@@ -659,7 +667,7 @@ Request, 2026-11-04: the app opens on a white screen; make a launch animation fr
   - Cancel posts no result, and results post only when the app is hidden.
   - The service outlives the first of two jobs.
   - Platform calls stay in order.
-- **Lyrics (M12):**
+- **Lyrics (M12; no screen uses them since M17, the domain tests stay):**
   - Rows with fractions of 1 to 3 digits, empty rows, metadata and repeated timestamps parse into lines.
   - A song whose length is over 10 s off, or whose title the video doesn't name, never matches.
   - Failed or unreachable lookups become `OfflineException`; a missing match leaves the script as it was.
@@ -764,13 +772,13 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Cue times line up with the video (Media3 hands the overlay times counted from the clip start; if the first line is early or late by the clip's lead-in, fix the offset in `TimedCaptionOverlay`).
   - [ ] A 60 s clip with ~20 lines renders without running out of memory.
   - [ ] Cancel mid-render leaves no overlay PNGs in the reels folder.
-- **Lyrics (M12):**
+- **Lyrics (M12; button removed in M17, skip these):**
   - [ ] "Real lyrics" on a well-known song (official audio and official video) fills the script; lines match what is sung.
   - [ ] Line times are right against the video; on a video with a long intro they are not offered (no match) or are off by the intro (note which).
   - [ ] A song LRCLIB lacks (a naat or regional song) gives the "Couldn't find the lyrics" message and keeps the script.
   - [ ] Offline gives the offline message.
   - [ ] Reopening the same link opens the lyrics, not the Groq script.
-- **AI script fix (M13):**
+- **AI script fix (M13; buttons removed in M17, skip these; Fix with Groq has its own checks):**
   - [ ] Copy for AI, paste into ChatGPT with web search on, copy its whole reply, Paste AI reply: lines update, and the right lines are named as unchecked.
   - [ ] A real Urdu reply (RTL text, Urdu digits or a table the agent chose) still parses; if not, note the format the agent used.
   - [ ] ChatGPT answers the copied clip lines (about 10–30 rows) in one reply, with no request to split them.
