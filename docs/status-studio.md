@@ -66,9 +66,9 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 
 **FR-5 Fine-tune.**
 - **Opening:** downloads the clip (FR-15); the preview shows download progress until it's ready.
-- **Range:** the clip runs from the start line's start to the end line's end.
+- **Range:** the clip runs from the start line's start to the end line's end. Editing the lines (FR-21) moves it.
 - **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. A clip that starts out invalid (from transcript times) still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
-- **Preview:** plays only the clip range and stops at its end; leaving the screen disposes the player.
+- **Preview:** plays the whole downloaded window (FR-15), with play, pause and a seek bar (FR-21); leaving the screen disposes the player.
 - **Waveform:** 60 bars over the downloaded window, with the clip highlighted.
 - **Long-clip warning:** above 60.0 s, "Longer than 60 s. WhatsApp Status may cut it." It never blocks.
 
@@ -229,6 +229,20 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **No overlap:** bars never reach the bracket arms and brackets never touch the bars.
 - **Reduce motion:** when the system asks for no animations, Home shows straight away.
 - **Taps:** taps don't reach Home while the splash covers it.
+
+**FR-21 Fine-tune lines (M18).** The lines under the player are the script's lines, and they are editable here.
+- **Window:** the download stays as FR-15 says (5 s either side). Fine-tune lists every line that overlaps the window; lines outside the picked range are dimmed.
+- **Player:** play and pause, plus a seek bar over the whole window with the clip range marked. Playback does not stop at the clip end. A "Play clip" button seeks to the clip start and plays.
+- **Tap a line:**
+  - **While paused:** seeks to the line's start.
+  - **While playing (tap to time):** the line's start becomes the playhead. The line that was highlighted at that moment ends there, so the new highlight replaces it. The tapped line keeps its length (at least 1 s), cut at the next line's start. A tap earlier than the previous line's start is ignored.
+  - **A tapped line outside the picked range** is added to the range, with every line between.
+- **Highlight:** the line whose start ≤ playhead < end is highlighted, only while it lasts; between lines nothing is.
+- **Edit:** a pencil opens a text field with the line's text. Saving an empty text keeps the old one.
+- **Reorder:** a drag handle moves a line's text to another place. Times stay where they are, so lines stay in time order: reordering swaps which text sits at which time.
+- **Add:** "Add line" asks for text and inserts a line at the playhead, 2 s long (cut at the next line's start; the line it lands in ends there).
+- **Delete:** removes a line. The last picked line can't be deleted.
+- **After an edit:** the picked range keeps covering the same lines. The clip follows the range's first and last lines when their times or the range change; a nudge on its own is kept. The caption is refilled from the lines (as FR-18 does), and the script is saved as the newest script (source `edited`, FR-14) after 1 s without edits and when the screen closes.
 
 ## 4. Non-functional requirements
 
@@ -517,6 +531,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Done, branch `m15-groq-script-fix` (stacked on M14); device check pending |
 | M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main`; device check pending |
 | M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only`; device check pending |
+| M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | In progress, branch `m18-fine-tune-lines` (stacked on M17) |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -612,6 +627,17 @@ Request, 2026-11-04: keep only the Fix with Groq button on the Script screen. Ea
 - [x] **2. Delete the lyrics feature (request 2026-11-04: "do it").** Test first: the file-name test for a title with a `|`. Then `lib/src/features/lyrics` and its tests are removed.
 - [x] **3. Docs.** FR-17, FR-18, FR-19, §8, §13, §14 and `CLAUDE.md`. The lyrics feature is deleted (tests with it); title cleaning for the file name moved into `reel_file_name.dart`; the `LyricsNotFoundException` message and `lyricsSource` are gone.
 
+### M18 tasks (branch `m18-fine-tune-lines`)
+
+Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, reorder, add) and tap-to-time while playing. The 5 s extra video of FR-15 stays. Each task: test first, tick it, commit.
+
+- [ ] **1. Line edits (domain).** Pure functions on a script and its picked range: edit text, reorder (text moves, times stay), add at the playhead, delete, sync a line to the playhead, and which line is highlighted at a time.
+- [ ] **2. Draft.** Applying an edit keeps the range on the same lines, refills the caption, and moves the clip only when the range or its first or last line's times change.
+- [ ] **3. Player.** Play, pause and seek over the window; no stop at the clip end; a playhead that Fine-tune can read and seek.
+- [ ] **4. Lines list.** All lines in the window, dimmed outside the range, highlight, tap to seek or to time, edit, reorder, add, delete.
+- [ ] **5. Save.** The edited script is saved as `edited` after 1 s idle and when the screen closes.
+- [ ] **6. Docs.** §13 and §14 entries; mark M18 done.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links:** a link with whitespace, `si=` parameters or the `m.` host parses.
@@ -647,6 +673,14 @@ Request, 2026-11-04: keep only the Fix with Groq button on the Script screen. Ea
     - An edited line count shares the clip by line length.
     - One overlay PNG per cue is written, kept while the render runs and deleted when it ends.
     - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
+- **Fine-tune lines (FR-21):**
+  - A tap while playing sets the line's start to the playhead and ends the highlighted line there.
+  - A tap earlier than the previous line's start changes nothing.
+  - Reorder moves text only; times stay in place.
+  - A new line lands at the playhead; the line it lands in ends there.
+  - Delete refuses the last picked line, and the range keeps the same lines.
+  - The clip follows the range's end lines, and a plain nudge survives an edit elsewhere.
+  - Highlight lasts from a line's start to its end, and nothing between lines.
 - **Library:**
   - The 51st reel drops the oldest and its files.
   - Reels with missing files are skipped, and corrupt preferences give an empty list.
@@ -716,6 +750,9 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] The waveform lines up with the sound.
   - [ ] The warning appears above 60 s.
   - [ ] A language change reuses the audio.
+  - [ ] Play, pause and the seek bar work over the window; playback runs past the clip end.
+  - [ ] Tapping lines while a naat plays times them, and the highlight follows without lag.
+  - [ ] Editing, reordering, adding and deleting lines with Urdu text; the edited script reopens for the same video.
 - **Render:**
   - [ ] A 10 s clip with each fill (9:16 crop and blur, 4:5, 16:9, free) is H.264, matches the layout, with a sharp full-frame overlay and audio in sync.
   - [ ] The stretched blur looks acceptable (§6.3.1).
