@@ -525,7 +525,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12); device check pending |
 | M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13); device check pending |
 | M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Planned, branch `m15-groq-script-fix` (stacked on M14); starts with spike §10 #6 |
-| M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Planned, branch `m16-launch-animation` (stacked on M15) |
+| M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, branch `m16-launch-animation` (stacked on M15); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -611,7 +611,7 @@ Request, 2026-11-04: the app opens on a white screen; make a launch animation fr
 - [x] **1. Logo pose and timeline.** `LogoPose` (bracket inset, bar half-lengths) and `LogoPainter(pose:)`; `launchFrameAt(progress)`: rest pose at 0 and from the exit on, bars within their limits, brackets clear of the bars, wordmark shown before the exit, splash gone at 1.
 - [x] **2. `LaunchSplash` widget.** Over the app from the first frame, removed when the animation ends, skipped with reduce motion, blocks taps; wired in `StatusStudioApp` behind `launchSplashEnabledProvider`, which app tests turn off.
 - [x] **3. Native splash.** Android launch window and Android 12+ splash: background `#0E1311` and the logo; dark `NormalTheme` background; iOS launch screen background.
-- [ ] **4. Docs.** FR-20, §7, §13, §14.
+- [x] **4. Docs.** FR-20, §7, §13, §14.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -672,6 +672,11 @@ Request, 2026-11-04: the app opens on a white screen; make a launch animation fr
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
   - A script without captions and without a key stops before downloading audio.
+
+- **Launch animation (M16):**
+  - The first frame is the logo's rest pose, the same as the native splash.
+  - Outer bars stay under y 31 and the brackets move in at most 7 units, so nothing overlaps.
+  - The splash covers Home, blocks taps, and goes when the animation ends; reduce motion skips it.
 
 ## 14. Device checks
 
@@ -767,6 +772,12 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Data used.
   - [ ] A revoked key, the rate limit, and no key at all (Settings opens).
   - [ ] Settings: Paste, Show, Save and Remove; help sheet and Copy link.
+
+**Launch animation (M16), on both phones:**
+- [ ] Cold start from the launcher: dark background with the logo from the first moment, no white flash.
+- [ ] The native logo hands over to Flutter's without a jump in size or position (Android 13 splash API on the Redmi, and with three-button navigation if possible).
+- [ ] The animation plays once and Home is usable straight after; with "Remove animations" on, Home shows at once.
+- [ ] Returning to the app from Recents doesn't replay it.
 
 ## 15. Known issues (found on the phone, not fixed)
 
