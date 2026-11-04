@@ -17,7 +17,7 @@ Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact
   - Work on one milestone per branch (`m9-groq-transcription`, …).
   - Write a milestone's tasks as a checklist under it in §12, test first, before coding.
   - Tick each checkbox as you go, and commit after each task.
-  - Merge when `fvm flutter analyze` and `fvm flutter test` are clean.
+  - Merge when `tool/check.sh` passes.
 - If code and the document disagree, the document wins. Fix whichever is wrong in the same commit and say so in the commit message.
 - Spikes record their results in §10 before dependent tasks start. Device checks go into §14, not onto the phone mid-milestone.
 - Update the milestone's status in §12 when it is merged.
@@ -28,11 +28,19 @@ Always go through FVM; the SDK version is pinned in `.fvmrc`.
 
 ```sh
 fvm flutter pub get
-fvm flutter analyze          # must report no issues
-fvm flutter test             # must pass
-fvm dart format lib test     # format before committing
+tool/check.sh                # format + analyze + all tests; must exit 0 before every commit
+fvm flutter test -r failures-only test/path/to/one_test.dart   # while writing a test or its code
 fvm flutter build apk --debug
 ```
+
+## Keeping sessions cheap
+
+Every tool call re-reads the whole conversation, so cost grows with the number of calls and with session length, not with how much a command prints.
+- **Test-first loop:** run only the test file you're working on, with `-r failures-only`. Run `tool/check.sh` once per task, just before the commit, never format, analyze and test as separate calls.
+- **Batch work:** make all of a task's edits before running tests, and put independent reads or searches in one call.
+- **Read narrowly:** read the lines you need (`sed -n` ranges, `grep -n`) rather than whole files, and don't re-read a file you've just edited.
+- **One task per session:** state lives in `docs/status-studio.md` and git, so start a fresh session (`/clear`) for each milestone task instead of carrying a long one.
+- **Subagents:** only for wide searches or an independent review, with a narrow brief.
 
 ## Architecture
 

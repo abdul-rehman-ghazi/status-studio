@@ -49,3 +49,6 @@ app.*.map.json
 
 # FVM: the pinned SDK version lives in .fvmrc; the local SDK link is per machine
 .fvm/
+
+# Claude Code personal settings
+.claude/settings.local.json

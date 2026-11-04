@@ -52,9 +52,7 @@ fvm flutter run
 Common commands:
 
 ```sh
-fvm flutter analyze
-fvm flutter test
-fvm dart format lib test
+tool/check.sh        # format, analyze and test; prints only failures
 fvm flutter build apk --debug
 ```
 
@@ -101,8 +99,7 @@ All are licensed under the SIL Open Font License 1.1. The licence files sit next
 ## Releasing
 
 ```sh
-fvm flutter analyze
-fvm flutter test
+tool/check.sh
 fvm flutter build apk --release --split-per-abi
 ```
 

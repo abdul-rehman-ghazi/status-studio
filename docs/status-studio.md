@@ -445,7 +445,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 **Workflow:**
 - One branch per milestone.
 - Each task is a checklist under its milestone here, test first, ticked as it's done, with a commit per task.
-- Merge when `fvm flutter analyze` and `fvm flutter test` are clean.
+- Merge when `tool/check.sh` (format, analyze, all tests) passes.
 - If code and this document disagree, this document wins; fix it in the same commit.
 - Spike results go into §10 before dependent tasks start.
 - Device checks go into §14.
