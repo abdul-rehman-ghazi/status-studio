@@ -168,6 +168,17 @@ void main() {
       expect(find.textContaining('Create API Key'), findsOneWidget);
     });
 
+    testWidgets('note_says_fix_with_groq_sends_the_picked_lines', (
+      tester,
+    ) async {
+      await openSettings(tester);
+
+      expect(
+        find.textContaining('Tapping Fix with Groq on the Script screen'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('help_shows_the_free_plan_and_privacy_notes', (tester) async {
       await openHelp(tester);
 
