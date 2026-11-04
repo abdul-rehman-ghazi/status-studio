@@ -8,24 +8,12 @@ Paste a link. The app writes out the video's script on the device, in whatever l
 
 ## Documentation
 
-- **Product and technical spec:** [`docs/superpowers/specs/2026-10-29-status-studio-design.md`](docs/superpowers/specs/2026-10-29-status-studio-design.md). Flow, requirements, domain rules, error states, decisions and open questions.
-- **Implementation plans:** one per milestone in [`docs/superpowers/plans/`](docs/superpowers/plans/), written as test-first tasks with checkboxes.
+- **Project document:** [`docs/status-studio.md`](docs/status-studio.md). The spec (flow, requirements, domain rules, error states, decisions, measurements), milestones and their status, device checks and known issues, all in one file.
 - **Design canvas:** clickable prototype, all screens, build plan and logo options: https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
 ## Roadmap
 
-| Milestone | Delivers | Status |
-|---|---|---|
-| Setup | Project, dependencies, fonts, signing, docs | Done |
-| [M1](docs/superpowers/plans/2026-10-29-m1-app-shell.md) | Every screen wired with fake services; real domain logic | Done (branch m1-app-shell) |
-| [M2](docs/superpowers/plans/2026-10-29-m2-video-source.md) | YouTube metadata, downloads, cache, clip preview | Done (branch m2-video-source) |
-| [M2b](docs/superpowers/plans/2026-10-30-m2b-data-saver.md) | Low-bitrate script audio, clip-only download via `sidx` + HTTP ranges | Done (branch m2b-data-saver) |
-| [M3](docs/superpowers/plans/2026-10-29-m3-transcription.md) | On-device script: Whisper, YouTube captions, language detection | Done (branch m3-transcription) |
-| [M4](docs/superpowers/plans/2026-10-29-m4-fine-tune.md) | Waveform, long-clip warning, language re-run | Done (branch m4-fine-tune) |
-| [M5](docs/superpowers/plans/2026-10-29-m5-render.md) | Overlay, Roman Urdu, translation, Media3 export | Done (branch m5-render) |
-| [M6](docs/superpowers/plans/2026-10-29-m6-library-settings-polish.md) | Save/share, recent reels, settings, icon, error states | Done (branch m6-library-settings-polish) |
-| [M7](docs/superpowers/plans/2026-11-02-m7-yt-dlp.md) | yt-dlp video source (YouTube refused youtube_explode), self-updating; percent, sizes and speed per step | Done, device check pending (branch m7-yt-dlp) |
-| [M8](docs/superpowers/plans/2026-11-02-m8-background-work.md) | Scripts and exports keep running in the background or with the phone locked; result notifications; battery access in Settings | Done, device check pending (branch m8-background-work) |
+M1–M8 are done and merged into `dev`. Saved scripts in Recent and model download controls are done on their branches. M9, optional Groq cloud transcription, is specified. Status per milestone: [§12 of the project document](docs/status-studio.md#12-milestones).
 
 ## Features (planned)
 
@@ -84,7 +72,7 @@ lib/
       data/                  Repositories and external services (YouTube, Whisper, FFmpeg…)
       application/           Riverpod controllers and coordinating services
       presentation/          Screens and widgets
-docs/superpowers/            Spec and milestone implementation plans
+docs/status-studio.md        Spec, milestones, device checks, known issues
 assets/fonts/                Bundled Urdu and Arabic fonts (OFL)
 test/                        Mirrors lib/
 ```
@@ -133,5 +121,5 @@ Smoke test on a phone with a release build:
 7. Share it.
 8. Reopen the reel from Recent.
 
-The full on-phone checklist is in [docs/device-testing-todo.md](docs/device-testing-todo.md).
+The full on-phone checklist is in [§14 of the project document](docs/status-studio.md#14-device-checks).
 

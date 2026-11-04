@@ -8,18 +8,19 @@ Status Studio: a general-purpose Flutter app that turns any YouTube video, in an
 
 Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
-## Spec and plans
+## The project document
 
-- Spec: `docs/superpowers/specs/2026-10-29-status-studio-design.md`. It is the source of truth for behaviour, copy, sizes and error messages.
-- Plans: `docs/superpowers/plans/*-m<N>-*.md`, one per milestone, in this order: **M1 → M2 → M2b → M3 → M4 → M5 → M6**. M2b (`2026-10-30-m2b-data-saver.md`) comes after M2 even though its date sorts later. Each task lists files, interfaces and the exact tests to write first.
+- Everything lives in one file: `docs/status-studio.md`. "The spec" means this file. It is the source of truth for behaviour, copy, sizes and error messages.
+- It holds the product spec (§1–§11), milestones and their task lists (§12), behaviour that tests must cover (§13), device checks (§14) and known issues (§15).
+- Code cites its § and FR numbers, so never renumber them; add new sections at the end.
 - Workflow:
-  - Work on one milestone per branch (`m1-app-shell`, …).
-  - Follow the plan's tasks in order and write the failing test first.
-  - Tick each checkbox in the plan as you go, and commit after each task.
+  - Work on one milestone per branch (`m9-groq-transcription`, …).
+  - Write a milestone's tasks as a checklist under it in §12, test first, before coding.
+  - Tick each checkbox as you go, and commit after each task.
   - Merge when `fvm flutter analyze` and `fvm flutter test` are clean.
-- If the plan and the spec disagree, the spec wins. Fix the plan in the same commit and say so in the commit message.
-- Spikes (M3 Task 1, M5 Task 1) record their results in spec §10 before dependent tasks start.
-- Update the README Roadmap status when a milestone is merged.
+- If code and the document disagree, the document wins. Fix whichever is wrong in the same commit and say so in the commit message.
+- Spikes record their results in §10 before dependent tasks start. Device checks go into §14, not onto the phone mid-milestone.
+- Update the milestone's status in §12 when it is merged.
 
 ## Commands
 
