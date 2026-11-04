@@ -42,6 +42,10 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   final _playhead = ClipPlayhead();
   var _selectedKeyframe = 0;
 
+  /// True while Lyrics is open: two players over one clip can be more than a
+  /// phone's hardware decoders allow, so this step lets go of its own.
+  var _playerReleased = false;
+
   @override
   void dispose() {
     _playhead.dispose();
@@ -70,21 +74,23 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: ClipSourcePlayer(
-              video: video,
-              clip: clip,
-              playhead: _playhead,
-              videoOverlay: canMoveCrop(draft.frame, sourceSize)
-                  ? CropWindowOverlay(
-                      frame: draft.frame,
-                      sourceSize: sourceSize,
-                      playhead: _playhead,
-                      editable: !path.isEmpty,
-                      onMoved: (time, anchor) =>
-                          _moveCropTo(controller, time, anchor),
-                    )
-                  : null,
-            ),
+            child: _playerReleased
+                ? const ClipPlayerPlaceholder()
+                : ClipSourcePlayer(
+                    video: video,
+                    clip: clip,
+                    playhead: _playhead,
+                    videoOverlay: canMoveCrop(draft.frame, sourceSize)
+                        ? CropWindowOverlay(
+                            frame: draft.frame,
+                            sourceSize: sourceSize,
+                            playhead: _playhead,
+                            editable: !path.isEmpty,
+                            onMoved: (time, anchor) =>
+                                _moveCropTo(controller, time, anchor),
+                          )
+                        : null,
+                  ),
           ),
           if (!path.isEmpty)
             Padding(
@@ -105,11 +111,19 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       ),
       bottomNavigationBar: BottomAction(
         child: FilledButton(
-          onPressed: () => context.push(AppRoutes.lyrics),
+          onPressed: _openLyrics,
           child: const Text('Next: lyrics'),
         ),
       ),
     );
+  }
+
+  Future<void> _openLyrics() async {
+    setState(() => _playerReleased = true);
+    await context.push(AppRoutes.lyrics);
+    if (mounted) {
+      setState(() => _playerReleased = false);
+    }
   }
 
   /// One keyframe is written when a drag ends; it becomes the selected one.

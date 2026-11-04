@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/presentation/reel_stage.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
@@ -27,15 +29,64 @@ Future<void> pumpLyrics(
 );
 
 void main() {
+  group('video with the lyrics', () {
+    testWidgets('shows_the_reel_not_the_bare_video', (tester) async {
+      await pumpLyrics(tester);
+
+      expect(find.byType(ReelStage), findsOneWidget);
+    });
+
+    testWidgets('no_line_shows_on_the_video_before_the_first_line', (
+      tester,
+    ) async {
+      await pumpLyrics(tester);
+
+      // Once in the list; the video shows nothing yet.
+      expect(find.text(sampleTranscript.lines[1].text), findsOneWidget);
+    });
+
+    testWidgets('the_line_due_shows_on_the_video', (tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpLyrics(tester, playerFactory: players.call);
+
+      players.created.single.value = players.created.single.value.copyWith(
+        position: fileTime(const Duration(seconds: 25)),
+      );
+      await tester.pump();
+
+      // In the list and on the video.
+      expect(find.text(sampleTranscript.lines[1].text), findsNWidgets(2));
+    });
+
+    testWidgets('the_line_leaves_the_video_between_lines', (tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpLyrics(tester, playerFactory: players.call);
+
+      // Line 1 ends at 30.0 s and line 2 starts at 30.8 s.
+      players.created.single.value = players.created.single.value.copyWith(
+        position: fileTime(const Duration(milliseconds: 30400)),
+      );
+      await tester.pump();
+
+      expect(find.text(sampleTranscript.lines[1].text), findsOneWidget);
+    });
+  });
+
   group('lines', () {
     String textOf(int index) => sampleTranscript.lines[index].text;
+
+    /// The line's row in the list; a line due also shows on the video.
+    Finder rowOf(int index) => find.descendant(
+      of: find.byType(ClipLinesList),
+      matching: find.text(textOf(index)),
+    );
 
     ReelDraft draftNow(WidgetTester tester) =>
         ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
             .read(reelDraftProvider);
 
     Future<void> reveal(WidgetTester tester, int index) async {
-      final line = find.text(textOf(index));
+      final line = rowOf(index);
       await tester.ensureVisible(line);
       await tester.pumpAndSettle();
     }
@@ -57,7 +108,7 @@ void main() {
       await pumpLyrics(tester, playerFactory: players.call);
       await reveal(tester, 2);
 
-      await tester.tap(find.text(textOf(2)));
+      await tester.tap(rowOf(2));
       await tester.pump();
 
       expect(
@@ -74,7 +125,7 @@ void main() {
       await reveal(tester, 2);
       await playAt(tester, players.created.single, const Duration(seconds: 33));
 
-      await tester.tap(find.text(textOf(2)));
+      await tester.tap(rowOf(2));
       await tester.pump();
 
       expect(
@@ -184,6 +235,8 @@ void main() {
       await pumpLyrics(tester);
       await reveal(tester, 2);
 
+      await tester.ensureVisible(find.byTooltip('Move line').at(0));
+      await tester.pumpAndSettle();
       await tester.drag(
         find.byTooltip('Move line').at(0),
         const Offset(0, 150),
@@ -196,7 +249,10 @@ void main() {
 
   group('saving edits', () {
     Future<void> editFirstShownLine(WidgetTester tester) async {
-      final line = find.text(sampleTranscript.lines[2].text);
+      final line = find.descendant(
+        of: find.byType(ClipLinesList),
+        matching: find.text(sampleTranscript.lines[2].text),
+      );
       await tester.ensureVisible(line);
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Delete line').at(1));

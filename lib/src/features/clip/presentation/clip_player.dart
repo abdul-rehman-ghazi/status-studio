@@ -11,6 +11,10 @@ import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
+/// The tallest a reel-shaped player gets: a 9:16 reel at full width would
+/// fill the screen.
+const _framedMaxHeight = 260.0;
+
 typedef VideoPlayerFactory = VideoPlayerController Function(File source);
 
 /// Creates players, so tests can swap in one that never touches the platform.
@@ -28,12 +32,18 @@ class ClipPlayer extends ConsumerStatefulWidget {
     required this.clip,
     required this.playhead,
     this.videoOverlay,
+    this.frame,
   });
 
   final ClipSource source;
 
   /// Drawn over the video, under the play button.
   final Widget? videoOverlay;
+
+  /// Builds what is shown around the unframed video, with the output's
+  /// aspect (the reel as it will look); without it the video is shown as it
+  /// is.
+  final Widget Function(BuildContext context, Widget video)? frame;
   final ClipPlayhead playhead;
 
   /// In video time; the player works in the clip file's time.
@@ -135,6 +145,59 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     await _player.play();
   }
 
+  /// The video, or the reel built around it by [ClipPlayer.frame], with the
+  /// overlay and the play button over it.
+  Widget _stage(VideoPlayerValue value) {
+    final video = VideoPlayer(_player);
+    final frame = widget.frame;
+    final Widget sized;
+    if (frame != null && value.isInitialized) {
+      sized = SizedBox(
+        width: double.infinity,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: _framedMaxHeight),
+            child: frame(context, video),
+          ),
+        ),
+      );
+    } else {
+      sized = AspectRatio(
+        aspectRatio: value.isInitialized ? value.aspectRatio : 16 / 9,
+        child: value.isInitialized ? video : const SizedBox.shrink(),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(
+        children: [
+          const Positioned.fill(child: ColoredBox(color: AppColors.surface)),
+          sized,
+          if (value.isInitialized && widget.videoOverlay != null)
+            Positioned.fill(child: widget.videoOverlay!),
+          // Over a crop window the middle belongs to dragging it.
+          Positioned.fill(
+            child: Align(
+              alignment: widget.videoOverlay == null
+                  ? Alignment.center
+                  : Alignment.bottomLeft,
+              child: Padding(
+                padding: EdgeInsets.all(widget.videoOverlay == null ? 0 : 8),
+                child: ValueListenableBuilder<VideoPlayerValue>(
+                  valueListenable: _player,
+                  builder: (context, value, _) => _PlayButton(
+                    playing: value.isPlaying,
+                    onPressed: value.isInitialized ? _togglePlayback : null,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_unplayable) {
@@ -144,41 +207,7 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: AspectRatio(
-            aspectRatio: value.isInitialized ? value.aspectRatio : 16 / 9,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                const Positioned.fill(
-                  child: ColoredBox(color: AppColors.surface),
-                ),
-                if (value.isInitialized) VideoPlayer(_player),
-                if (value.isInitialized && widget.videoOverlay != null)
-                  Positioned.fill(child: widget.videoOverlay!),
-                // Over a crop window the middle belongs to dragging it.
-                Align(
-                  alignment: widget.videoOverlay == null
-                      ? Alignment.center
-                      : Alignment.bottomLeft,
-                  child: Padding(
-                    padding: EdgeInsets.all(
-                      widget.videoOverlay == null ? 0 : 8,
-                    ),
-                    child: ValueListenableBuilder<VideoPlayerValue>(
-                      valueListenable: _player,
-                      builder: (context, value, _) => _PlayButton(
-                        playing: value.isPlaying,
-                        onPressed: value.isInitialized ? _togglePlayback : null,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        _stage(value),
         ValueListenableBuilder<VideoPlayerValue>(
           valueListenable: _player,
           builder: (context, value, _) => _SeekBar(

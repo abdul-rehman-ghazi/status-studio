@@ -91,4 +91,35 @@ void main() {
 
     expect(cues, isEmpty);
   });
+
+  group('cueDueAt', () {
+    const cues = [
+      CaptionCue(
+        text: 'a',
+        start: Duration(seconds: 1),
+        end: Duration(seconds: 3),
+      ),
+      CaptionCue(
+        text: 'b',
+        start: Duration(seconds: 3),
+        end: Duration(seconds: 5),
+      ),
+    ];
+
+    test('is_the_cue_playing_at_the_time', () {
+      expect(cueDueAt(cues, const Duration(seconds: 2))?.text, 'a');
+    });
+
+    test('moves_on_at_a_cues_end', () {
+      expect(cueDueAt(cues, const Duration(seconds: 3))?.text, 'b');
+    });
+
+    test('is_none_before_the_first_cue', () {
+      expect(cueDueAt(cues, Duration.zero), isNull);
+    });
+
+    test('is_none_after_the_last_cue', () {
+      expect(cueDueAt(cues, const Duration(seconds: 5)), isNull);
+    });
+  });
 }

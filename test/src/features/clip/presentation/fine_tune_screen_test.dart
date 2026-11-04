@@ -163,17 +163,28 @@ void main() {
     expect(players.created.single.disposed, isTrue);
   });
 
-  testWidgets('playback_pauses_when_lyrics_opens', (tester) async {
+  testWidgets('video_player_is_released_while_lyrics_is_open', (tester) async {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);
-    await tester.tap(find.text('Play clip'));
-    await tester.pump();
 
     await tester.tap(find.text('Next: lyrics'));
     await tester.pumpAndSettle();
 
     // Lyrics makes its own player; this step's was the first.
-    expect(players.created.first.value.isPlaying, isFalse);
+    expect(players.created.first.disposed, isTrue);
+  });
+
+  testWidgets('video_player_comes_back_when_lyrics_closes', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    await tester.tap(find.text('Next: lyrics'));
+    await tester.pumpAndSettle();
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(players.created.last.disposed, isFalse);
+    expect(players.created.length, 3);
   });
 
   testWidgets('unplayable_source_shows_message', (tester) async {

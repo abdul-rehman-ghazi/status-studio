@@ -27,6 +27,17 @@ class CaptionCue {
   int get hashCode => Object.hash(text, start, end);
 }
 
+/// The cue showing at [time] counted from the clip's start, or none between
+/// lines. A cue's end is exclusive, so back-to-back lines never overlap.
+CaptionCue? cueDueAt(List<CaptionCue> cues, Duration time) {
+  for (final cue in cues) {
+    if (cue.start <= time && time < cue.end) {
+      return cue;
+    }
+  }
+  return null;
+}
+
 /// The caption's lines, each with its own time (spec FR-7a).
 ///
 /// While the caption still has one line per picked script line, each shows

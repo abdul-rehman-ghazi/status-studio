@@ -20,6 +20,7 @@ class ClipSourcePlayer extends ConsumerStatefulWidget {
     required this.clip,
     required this.playhead,
     this.videoOverlay,
+    this.frame,
   });
 
   final SourceVideo video;
@@ -28,6 +29,9 @@ class ClipSourcePlayer extends ConsumerStatefulWidget {
 
   /// Drawn over the video once it plays.
   final Widget? videoOverlay;
+
+  /// See [ClipPlayer.frame].
+  final Widget Function(BuildContext context, Widget video)? frame;
 
   @override
   ConsumerState<ClipSourcePlayer> createState() => ClipSourcePlayerState();
@@ -81,6 +85,7 @@ class ClipSourcePlayerState extends ConsumerState<ClipSourcePlayer> {
         clip: widget.clip,
         playhead: widget.playhead,
         videoOverlay: widget.videoOverlay,
+        frame: widget.frame,
       );
     }
     if (source.error case final error?) {
@@ -109,5 +114,15 @@ class _PlayerMessage extends StatelessWidget {
         child: Center(child: HintText(text)),
       ),
     );
+  }
+}
+
+/// Holds the player's place while it is released (see Fine-tune · Video).
+class ClipPlayerPlaceholder extends StatelessWidget {
+  const ClipPlayerPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _PlayerMessage(text: 'Paused while you edit the lyrics.');
   }
 }

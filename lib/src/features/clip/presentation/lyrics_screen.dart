@@ -11,6 +11,8 @@ import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dar
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
+import 'package:status_studio/src/features/style/presentation/reel_stage.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
@@ -97,6 +99,12 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
               video: video,
               clip: clip,
               playhead: _playhead,
+              frame: (context, videoWidget) => ReelStage(
+                draft: draft,
+                sourceSize: previewSourceSize(ref, draft),
+                video: videoWidget,
+                playhead: _playhead,
+              ),
             ),
           ),
           Expanded(child: _lines(draft)),
