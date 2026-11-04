@@ -5,7 +5,8 @@ import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
-const _sameFaceOverlap = 0.3;
+const _leastShareOfLongest = 0.9;
+const _longestGap = Duration(seconds: 2);
 const _smallestRoom = 0.01;
 const _medianWindow = 5;
 const _deadZone = 0.08;
@@ -88,34 +89,69 @@ List<Duration> _withMissedJumps(List<Duration> detected, List<Duration> jumps) {
   return [...detected, ...missed];
 }
 
-/// A face that jumps far between two neighbouring frames is taken to be a
-/// cut, whether or not the scene detector saw one.
+/// Where no face of a frame is a face of the frame before, and the picture's
+/// centre of attention jumps far: a cut, whether or not the scene detector
+/// saw one. A bystander coming or going does not count, since the followed
+/// person is still there; nor does a person missed for a moment.
 List<Duration> _cutsFromJumps(
   List<SubjectSample> samples,
   FollowGeometry geometry,
 ) {
   final cuts = <Duration>[];
-  SubjectBox? previousFace;
-  CropAnchor? previousAnchor;
-  for (final sample in samples) {
-    final face = _pickFace(sample.faces, previousFace);
-    if (face == null) {
-      previousFace = null;
-      previousAnchor = null;
+  for (var i = 1; i < samples.length; i++) {
+    final before = samples[i - 1].faces;
+    final after = samples[i].faces;
+    if (before.isEmpty || after.isEmpty || _someFaceContinues(before, after)) {
       continue;
     }
-    final anchor = _anchorFor(face, geometry);
-    final before = previousAnchor;
-    if (before != null &&
-        math.max((anchor.x - before.x).abs(), (anchor.y - before.y).abs()) >
-            _jumpIsACut) {
-      cuts.add(sample.time);
+    if (_seenAroundTheBreak(samples, i)) {
+      continue;
     }
-    previousFace = face;
-    previousAnchor = anchor;
+    final jump = _distanceBetween(
+      _anchorFor(_largest(before), geometry),
+      _anchorFor(_largest(after), geometry),
+    );
+    if (jump > _jumpIsACut) {
+      cuts.add(samples[i].time);
+    }
   }
   return cuts;
 }
+
+bool _someFaceContinues(List<SubjectBox> before, List<SubjectBox> after) {
+  return after.any((face) => before.any((b) => b.couldBeSameFaceAs(face)));
+}
+
+/// A face from before [breakIndex] is back within two seconds, or one after
+/// it was there that recently: the person was only missed for a moment, or
+/// someone stood in front. The picture did not cut.
+bool _seenAroundTheBreak(List<SubjectSample> samples, int breakIndex) {
+  final before = samples[breakIndex - 1];
+  final after = samples[breakIndex];
+  for (var i = breakIndex + 1; i < samples.length; i++) {
+    if (samples[i].time - before.time > _longestGap) {
+      break;
+    }
+    if (_someFaceContinues(before.faces, samples[i].faces)) {
+      return true;
+    }
+  }
+  for (var i = breakIndex - 2; i >= 0; i--) {
+    if (after.time - samples[i].time > _longestGap) {
+      break;
+    }
+    if (_someFaceContinues(samples[i].faces, after.faces)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+SubjectBox _largest(List<SubjectBox> faces) =>
+    faces.reduce((best, next) => next.area > best.area ? next : best);
+
+double _distanceBetween(CropAnchor from, CropAnchor to) =>
+    math.max((to.x - from.x).abs(), (to.y - from.y).abs());
 
 // --- One scene's anchors ------------------------------------------------
 
@@ -141,41 +177,105 @@ List<_Point> _scenePoints(_Scene scene, FollowGeometry geometry) {
   return _simplified(points, _tolerance);
 }
 
-/// The anchor for every sample: a frame with no face holds the last one;
-/// the frames before the first face take that face's; a scene with no face
-/// keeps the base.
+/// The anchor for every sample: a frame where the followed person is not seen
+/// holds the last one; the frames before the first sighting take that one; a
+/// scene with no face keeps the base.
 List<CropAnchor> _filledAnchors(
   List<SubjectSample> samples,
   FollowGeometry geometry,
 ) {
+  final followed = _mostProminent(_trackFaces(samples));
   final found = <CropAnchor?>[];
-  SubjectBox? previousFace;
-  for (final sample in samples) {
-    final face = _pickFace(sample.faces, previousFace);
+  for (var i = 0; i < samples.length; i++) {
+    final face = followed?.faceAt(i);
     found.add(face == null ? null : _anchorFor(face, geometry));
-    previousFace = face ?? previousFace;
   }
   final first = found.firstWhere((a) => a != null, orElse: () => null);
   var held = first ?? geometry.base;
   return [for (final anchor in found) held = anchor ?? held];
 }
 
-/// The face to follow: the one that overlaps the previous pick, else the
-/// largest.
-SubjectBox? _pickFace(List<SubjectBox> faces, SubjectBox? previous) {
-  if (faces.isEmpty) {
-    return null;
+// --- Whom to follow -----------------------------------------------------
+
+/// One person's faces through a scene, by sample index.
+class _FaceTrack {
+  _FaceTrack(int sampleIndex, this._lastTime, SubjectBox face)
+    : _last = face,
+      _areaSeen = face.area,
+      _faces = {sampleIndex: face};
+
+  final Map<int, SubjectBox> _faces;
+  SubjectBox _last;
+  Duration _lastTime;
+  double _areaSeen;
+
+  int get sightings => _faces.length;
+
+  /// The sum of the face's areas, to tell apart people seen about as long.
+  double get areaSeen => _areaSeen;
+
+  SubjectBox? faceAt(int sampleIndex) => _faces[sampleIndex];
+
+  bool canTake(SubjectBox face, Duration time) =>
+      time - _lastTime <= _longestGap && _last.couldBeSameFaceAs(face);
+
+  double distanceTo(SubjectBox face) => math.max(
+    (face.centreX - _last.centreX).abs(),
+    (face.centreY - _last.centreY).abs(),
+  );
+
+  void add(int sampleIndex, Duration time, SubjectBox face) {
+    _faces[sampleIndex] = face;
+    _last = face;
+    _lastTime = time;
+    _areaSeen += face.area;
   }
-  if (previous != null) {
-    final closest = faces.reduce(
-      (best, next) =>
-          next.overlapWith(previous) > best.overlapWith(previous) ? next : best,
-    );
-    if (closest.overlapWith(previous) >= _sameFaceOverlap) {
-      return closest;
+}
+
+/// Joins each frame's faces to the people seen before, so a person is one
+/// track however the others come and go. A person unseen for up to two
+/// seconds (a missed detection, a turned head) is picked up again.
+List<_FaceTrack> _trackFaces(List<SubjectSample> samples) {
+  final tracks = <_FaceTrack>[];
+  for (final (index, sample) in samples.indexed) {
+    final taken = <_FaceTrack>{};
+    final largestFirst = [...sample.faces]
+      ..sort((a, b) => b.area.compareTo(a.area));
+    for (final face in largestFirst) {
+      final open = tracks.where(
+        (track) => !taken.contains(track) && track.canTake(face, sample.time),
+      );
+      if (open.isEmpty) {
+        final started = _FaceTrack(index, sample.time, face);
+        tracks.add(started);
+        taken.add(started);
+        continue;
+      }
+      final nearest = open.reduce(
+        (best, next) =>
+            next.distanceTo(face) < best.distanceTo(face) ? next : best,
+      );
+      nearest.add(index, sample.time, face);
+      taken.add(nearest);
     }
   }
-  return faces.reduce((best, next) => next.area > best.area ? next : best);
+  return tracks;
+}
+
+/// The person to follow: among those on screen for most of the scene, the
+/// biggest. A bigger face that only passes through is not the subject, and
+/// neither is a small one in the background that is always there.
+_FaceTrack? _mostProminent(List<_FaceTrack> tracks) {
+  if (tracks.isEmpty) {
+    return null;
+  }
+  final longest = tracks.map((track) => track.sightings).reduce(math.max);
+  final lastingMost = tracks.where(
+    (track) => track.sightings >= longest * _leastShareOfLongest,
+  );
+  return lastingMost.reduce(
+    (best, next) => next.areaSeen > best.areaSeen ? next : best,
+  );
 }
 
 /// The window centred on the face across, with the face a third of the way

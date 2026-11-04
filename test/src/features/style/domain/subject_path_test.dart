@@ -283,6 +283,71 @@ void main() {
     );
   });
 
+  group('followSubject with several people', () {
+    final threeSeconds = clipOfSeconds(0, 3);
+
+    int cutsIn(CropPath path) =>
+        path.keyframes.where((k) => k.arrival == CropArrival.cut).length;
+
+    test('a_person_who_moves_fast_is_still_the_one_followed', () {
+      // Moves 0.07 a frame, so the boxes of two frames no longer overlap
+      // enough to match by overlap; a bigger, briefly seen face passes by.
+      final path = followSubject(
+        trackOf(
+          threeSeconds,
+          (frame) => [
+            faceAt(0.1 + 0.07 * frame),
+            if (frame >= 4 && frame <= 8) faceAt(0.9, size: 0.14),
+          ],
+        ),
+        geometryFor(threeSeconds),
+      );
+
+      expect(cutsIn(path), 0);
+    });
+
+    test('a_larger_face_seen_only_at_the_start_is_not_followed', () {
+      final path = followSubject(
+        trackOf(
+          tenSeconds,
+          (frame) => [faceAt(0.3), if (frame < 2) faceAt(0.8, size: 0.3)],
+        ),
+        geometryFor(tenSeconds),
+      );
+
+      expect(path.keyframes.single.anchor.x, closeTo(0.2076, 0.001));
+    });
+
+    test('someone_else_while_the_person_is_missed_is_not_followed', () {
+      final path = followSubject(
+        trackOf(
+          tenSeconds,
+          (frame) => frame >= 10 && frame <= 13
+              ? [faceAt(0.75, size: 0.2)]
+              : [faceAt(0.3)],
+        ),
+        geometryFor(tenSeconds),
+      );
+
+      expect(path.keyframes.single.anchor.x, closeTo(0.2076, 0.001));
+    });
+
+    test('a_small_face_always_in_the_background_is_not_the_subject', () {
+      final path = followSubject(
+        trackOf(
+          tenSeconds,
+          (frame) => [
+            faceAt(0.8, size: 0.04),
+            if (frame < 38) faceAt(0.3, size: 0.12),
+          ],
+        ),
+        geometryFor(tenSeconds),
+      );
+
+      expect(path.keyframes.first.anchor.x, closeTo(0.2076, 0.001));
+    });
+  });
+
   group('followSubject with a busy clip', () {
     final ninetySeconds = clipOfSeconds(0, 90);
     final random = math.Random(7);
