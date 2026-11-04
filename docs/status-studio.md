@@ -775,7 +775,7 @@ Request, 2026-11-04: save Fine-tune progress and continue later. The plan was wr
 - [x] **3. Draft rules (domain).** `canKeep`, `FineTuneDraft.of`, `fits`, `restoredOnto`, `startOver`, and the stable script fingerprint.
 - [x] **4. Shared JSON files and script-store additions.** `core/json_files.dart` (atomic write) moved out of `TranscriptStore`; `loadFromSource`, `loadVideo`, `markUsed`.
 - [x] **5. Draft store (data).** `FineTuneDraftStore`: save, list (skips unreadable), delete; provider.
-- [ ] **6. Saver and list (application).** `FineTuneDraftSaver` (serial, no repeat writes, discard after export) and `fineTuneDraftsProvider`.
+- [x] **6. Saver and list (application).** `FineTuneDraftSaver` (serial, no repeat writes, discard after export) and `fineTuneDraftsProvider`.
 - [ ] **7. Wiring the saves.** Fine-tune screen (1 s debounce, close, background), Lyrics background flush, Export discards; test helpers and default overrides.
 - [ ] **8. Resumer (application).** `FineTuneResumer`: Ready, ScriptGone, ScriptChanged; `ReelDraftController.restore`.
 - [ ] **9. Recent merge (domain).** `recentEntries`: a fine-tune replaces its script row.
