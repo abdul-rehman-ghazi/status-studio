@@ -631,7 +631,7 @@ Request, 2026-11-04: keep only the Fix with Groq button on the Script screen. Ea
 
 Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, reorder, add) and tap-to-time while playing. The 5 s extra video of FR-15 stays. Each task: test first, tick it, commit.
 
-- [ ] **1. Line edits (domain).** Pure functions on a script and its picked range: edit text, reorder (text moves, times stay), add at the playhead, delete, sync a line to the playhead, and which line is highlighted at a time.
+- [x] **1. Line edits (domain).** Pure functions on a script and its picked range: edit text, reorder (text moves, times stay), add at the playhead, delete, sync a line to the playhead, and which line is highlighted at a time.
 - [ ] **2. Draft.** Applying an edit keeps the range on the same lines, refills the caption, and moves the clip only when the range or its first or last line's times change.
 - [ ] **3. Player.** Play, pause and seek over the window; no stop at the clip end; a playhead that Fine-tune can read and seek.
 - [ ] **4. Lines list.** All lines in the window, dimmed outside the range, highlight, tap to seek or to time, edit, reorder, add, delete.
