@@ -1,4 +1,11 @@
-import 'package:status_studio/src/features/lyrics/domain/lyrics_query.dart';
+// Brackets and what is inside them: "(Official Video)", "[HD]", "【MV】".
+final _bracketed = RegExp(r'\([^)]*\)|\[[^\]]*\]|【[^】]*】');
+
+// Words YouTube titles add that no kalam's name contains.
+final _titleNoise = RegExp(
+  r'\b(official|lyrical|lyrics?|video|audio|music|full song|hd|4k|mv|visualizer)\b',
+  caseSensitive: false,
+);
 
 const _wordsPerPart = 2;
 const _fallbackStem = 'reel';
@@ -17,7 +24,7 @@ String reelFileStem({required String videoTitle, required String captionText}) {
       .where((line) => line.isNotEmpty)
       .toList();
   final parts = [
-    _firstWords(lyricsQueryFor(videoTitle)),
+    _firstWords(_kalamFrom(videoTitle)),
     if (lines.isNotEmpty) _firstWords(lines.first),
     if (lines.isNotEmpty) _firstWords(lines.last),
   ].where((part) => part.isNotEmpty);
@@ -30,3 +37,15 @@ String _firstWords(String text) => text
     .where((word) => word.isNotEmpty)
     .take(_wordsPerPart)
     .join('_');
+
+/// The video title without brackets, "Official Video"-style words and
+/// anything after a `|`.
+String _kalamFrom(String videoTitle) {
+  final beforeBar = videoTitle.split('|').first;
+  return beforeBar
+      .replaceAll(_bracketed, ' ')
+      .replaceAll(_titleNoise, ' ')
+      .replaceAll(RegExp(r'[-–—_]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}

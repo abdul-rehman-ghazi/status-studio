@@ -1,5 +1,4 @@
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
-import 'package:status_studio/src/features/lyrics/domain/lyrics_match.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/style/domain/translation_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
@@ -22,8 +21,6 @@ String errorMessageFor(Object error) {
       retryAfter,
     ),
     GroqFailedException() => "Groq couldn't write this script.",
-    LyricsNotFoundException() =>
-      "Couldn't find the lyrics for this video. The script stays as it is.",
     NoScriptRowsException() =>
       "Couldn't find script lines in what you pasted. Copy the AI's whole "
           'reply and try again.',

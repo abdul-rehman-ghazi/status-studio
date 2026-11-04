@@ -9,9 +9,6 @@ const captionsSource = 'captions';
 /// Source name of a script Groq wrote (FR-14).
 const groqSource = 'groq-whisper-large-v3-turbo';
 
-/// Source name of a script made from published lyrics (FR-17).
-const lyricsSource = 'lrclib';
-
 /// Source name of a script whose text was corrected by an AI agent (FR-18).
 const editedSource = 'edited';
 

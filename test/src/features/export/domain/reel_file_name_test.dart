@@ -20,6 +20,15 @@ void main() {
     expect(stem, 'Wah_Kya-a_b-a_b');
   });
 
+  test('kalam_drops_a_bar_and_everything_after_it', () {
+    final stem = reelFileStem(
+      videoTitle: 'Rick Astley - Never Gonna (4K) | Remastered',
+      captionText: 'a b c',
+    );
+
+    expect(stem, 'Rick_Astley-a_b-a_b');
+  });
+
   test('a_one_line_caption_uses_it_for_start_and_end', () {
     final stem = reelFileStem(videoTitle: 'Naat', captionText: 'one two three');
 
