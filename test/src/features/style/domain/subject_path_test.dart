@@ -348,6 +348,131 @@ void main() {
     });
   });
 
+  group('followPerson', () {
+    // A big person on the left and a small one on the right; the automatic
+    // pick is the big one.
+    final bigOne = faceAt(0.3, size: 0.2);
+    final smallOne = faceAt(0.75, size: 0.08);
+    // Window centred on 0.75: (0.75 − 0.158) / 0.684.
+    const smallOnesAnchor = 0.8655;
+    const bigOnesAnchor = 0.2076;
+
+    SubjectTrack together({
+      List<Duration>? sceneCuts,
+      List<SubjectBox> Function(int frame)? facesAt,
+    }) => trackOf(
+      tenSeconds,
+      facesAt ?? (_) => [bigOne, smallOne],
+      sceneCuts: sceneCuts,
+    );
+
+    PersonChoice smallOneAt(SubjectTrack track, int sampleIndex) =>
+        PersonChoice(
+          sampleIndex: sampleIndex,
+          face: track.samples[sampleIndex].faces.firstWhere(
+            (face) => face.width < 0.1,
+          ),
+        );
+
+    test('the_chosen_smaller_face_is_followed', () {
+      final track = together();
+
+      final path = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 0),
+      );
+
+      expect(path.keyframes.single.anchor.x, closeTo(smallOnesAnchor, 0.001));
+    });
+
+    test('the_chosen_person_missed_for_a_second_holds_the_crop', () {
+      final track = together(
+        facesAt: (frame) =>
+            frame >= 10 && frame <= 13 ? [bigOne] : [bigOne, smallOne],
+      );
+
+      final path = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 0),
+      );
+
+      expect(path.keyframes.single.anchor.x, closeTo(smallOnesAnchor, 0.001));
+    });
+
+    test('a_later_scene_follows_the_face_in_the_same_place', () {
+      final track = together(sceneCuts: [const Duration(seconds: 25)]);
+
+      final path = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 0),
+      );
+
+      expect(path.keyframes.last.anchor.x, closeTo(smallOnesAnchor, 0.001));
+    });
+
+    test('an_earlier_scene_follows_the_face_in_the_same_place', () {
+      final track = together(sceneCuts: [const Duration(seconds: 25)]);
+
+      final path = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 30),
+      );
+
+      expect(path.keyframes.first.anchor.x, closeTo(smallOnesAnchor, 0.001));
+    });
+
+    test('a_scene_without_such_a_face_uses_the_automatic_pick', () {
+      final track = together(
+        sceneCuts: [const Duration(seconds: 25)],
+        facesAt: (frame) => frame < 20 ? [bigOne, smallOne] : [bigOne],
+      );
+
+      final path = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 0),
+      );
+
+      expect(path.keyframes.last.anchor.x, closeTo(bigOnesAnchor, 0.001));
+    });
+
+    test('choosing_keeps_the_same_cuts', () {
+      final track = together(sceneCuts: [const Duration(seconds: 25)]);
+      List<Duration> cutsOf(CropPath path) => [
+        for (final keyframe in path.keyframes)
+          if (keyframe.arrival == CropArrival.cut) keyframe.time,
+      ];
+
+      final chosen = followPerson(
+        track,
+        geometryFor(tenSeconds),
+        smallOneAt(track, 0),
+      );
+
+      expect(
+        cutsOf(chosen),
+        cutsOf(followSubject(track, geometryFor(tenSeconds))),
+      );
+    });
+
+    test('a_choice_matching_no_face_is_an_argument_error', () {
+      final track = together();
+
+      expect(
+        () => followPerson(
+          track,
+          geometryFor(tenSeconds),
+          PersonChoice(sampleIndex: 0, face: faceAt(0.5, size: 0.05)),
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
   group('followSubject with a busy clip', () {
     final ninetySeconds = clipOfSeconds(0, 90);
     final random = math.Random(7);

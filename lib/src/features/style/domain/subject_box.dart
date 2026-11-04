@@ -67,6 +67,28 @@ class SubjectSample {
   final List<SubjectBox> faces;
 }
 
+/// One person to choose, as a face in one sampled frame (spec FR-25).
+///
+/// [face] is found in the samples by equality, so it must be the very object
+/// from [sampleIndex]'s sample, never rebuilt from screen coordinates.
+@immutable
+class PersonChoice {
+  const PersonChoice({required this.sampleIndex, required this.face});
+
+  /// The frame's place in the whole track's samples.
+  final int sampleIndex;
+  final SubjectBox face;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PersonChoice &&
+      other.sampleIndex == sampleIndex &&
+      other.face == face;
+
+  @override
+  int get hashCode => Object.hash(sampleIndex, face);
+}
+
 /// What detection found over the clip, in time order (spec FR-23).
 @immutable
 class SubjectTrack {

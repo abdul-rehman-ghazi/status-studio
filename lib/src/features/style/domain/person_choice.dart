@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/style/domain/face_tracks.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 import 'package:status_studio/src/features/style/domain/subject_path.dart';
@@ -7,28 +6,6 @@ const _leastSightings = 3;
 const _leastShareOfScene = 0.2;
 const _mostPeopleOffered = 6;
 const _fewestToAsk = 2;
-
-/// One person to choose, as a face in one sampled frame (spec FR-25).
-///
-/// [face] is found in the samples by equality, so it must be the very object
-/// from [sampleIndex]'s sample, never rebuilt from screen coordinates.
-@immutable
-class PersonChoice {
-  const PersonChoice({required this.sampleIndex, required this.face});
-
-  /// The frame's place in the whole track's samples.
-  final int sampleIndex;
-  final SubjectBox face;
-
-  @override
-  bool operator ==(Object other) =>
-      other is PersonChoice &&
-      other.sampleIndex == sampleIndex &&
-      other.face == face;
-
-  @override
-  int get hashCode => Object.hash(sampleIndex, face);
-}
 
 /// The people to choose between, all in one frame, left to right; fewer than
 /// two means there is nothing to ask.

@@ -23,25 +23,94 @@ const _tenth = Duration(milliseconds: 100);
 ///
 /// Throws [NoSubjectFoundException] when faces are too rare to follow.
 CropPath followSubject(SubjectTrack track, FollowGeometry geometry) {
-  return _pathFor(track, geometry, (scene, tracks) => mostProminent(tracks));
+  requireEnoughFaces(track.samples);
+  final scenes = scenesOf(track, geometry);
+  return _pathOfScenes(scenes, geometry, [
+    for (final scene in scenes) mostProminent(trackFaces(scene.samples)),
+  ]);
 }
 
-/// Which person a scene follows, from the people found in it; none keeps the
-/// base anchor.
-typedef _WhomToFollow = FaceTrack? Function(
-  SubjectScene scene,
-  List<FaceTrack> people,
-);
-
-CropPath _pathFor(
+/// The crop path that follows the person who was [choice]d (spec FR-25): in
+/// the scene of the picture, that person; in the other scenes, the face about
+/// the same size and in the same place, else the one seen longest.
+///
+/// Throws [NoSubjectFoundException] when faces are too rare to follow, and
+/// [ArgumentError] when [choice]'s face is not in its sample.
+CropPath followPerson(
   SubjectTrack track,
   FollowGeometry geometry,
-  _WhomToFollow whom,
+  PersonChoice choice,
 ) {
   requireEnoughFaces(track.samples);
+  final scenes = scenesOf(track, geometry);
+  final people = [for (final scene in scenes) trackFaces(scene.samples)];
+  final chosenScene = scenes.indexWhere(
+    (scene) =>
+        choice.sampleIndex >= scene.firstIndex &&
+        choice.sampleIndex < scene.firstIndex + scene.samples.length,
+  );
+  if (chosenScene < 0) {
+    throw ArgumentError.value(choice.sampleIndex, 'choice', 'is not a sample');
+  }
+  final chosen = _thePersonIn(
+    people[chosenScene],
+    choice.face,
+    choice.sampleIndex - scenes[chosenScene].firstIndex,
+  );
+  return _pathOfScenes(scenes, geometry, [
+    for (final (index, scenePeople) in people.indexed)
+      index == chosenScene
+          ? chosen
+          : _likeThe(chosen, scenePeople) ?? mostProminent(scenePeople),
+  ]);
+}
+
+FaceTrack _thePersonIn(
+  List<FaceTrack> people,
+  SubjectBox face,
+  int sceneSampleIndex,
+) {
+  return people.firstWhere(
+    (person) => person.faceAt(sceneSampleIndex) == face,
+    orElse: () => throw ArgumentError.value(
+      face,
+      'choice',
+      'is not a face in its sample',
+    ),
+  );
+}
+
+/// The person of another scene who sits about where [chosen] usually does and
+/// is about as big; the nearest when several do. Faces can't be recognised
+/// across cuts, so place and size stand in: right for a repeated camera angle.
+FaceTrack? _likeThe(FaceTrack chosen, List<FaceTrack> people) {
+  final usual = chosen.typicalFace;
+  final alike = people.where(
+    (person) => usual.couldBeSameFaceAs(person.typicalFace),
+  );
+  if (alike.isEmpty) {
+    return null;
+  }
+  return alike.reduce(
+    (best, next) =>
+        _centresApart(usual, next.typicalFace) <
+            _centresApart(usual, best.typicalFace)
+        ? next
+        : best,
+  );
+}
+
+double _centresApart(SubjectBox a, SubjectBox b) =>
+    math.max((a.centreX - b.centreX).abs(), (a.centreY - b.centreY).abs());
+
+CropPath _pathOfScenes(
+  List<SubjectScene> scenes,
+  FollowGeometry geometry,
+  List<FaceTrack?> followed,
+) {
   final paths = [
-    for (final scene in scenesOf(track, geometry))
-      _scenePoints(scene, geometry, whom(scene, trackFaces(scene.samples))),
+    for (final (index, scene) in scenes.indexed)
+      _scenePoints(scene, geometry, followed[index]),
   ];
   return CropPath(_cappedKeyframes(paths, geometry.clip));
 }
