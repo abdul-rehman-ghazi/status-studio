@@ -19,8 +19,9 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 | 2 | Source | `/source` | Paste a YouTube link; choose language (default automatic) |
 | 3 | Processing | `/processing` | Download audio → detect language → transcribe → line up timestamps (skipped for a saved script, FR-14) |
 | 4 | Script | `/script` | Full script; tap the start line, then the end line |
-| 5 | Fine-tune | `/fine-tune` | Download only the clip (FR-15); preview; nudge start and end by ±0.5 s |
-| 6 | Style | `/style` | Size, fill, crop, caption text/variant/position/size; live preview with branding |
+| 5 | Fine-tune · Video | `/fine-tune` | Step 1 of Fine-tune (M19): download only the clip (FR-15); play, pause, seek; nudge start and end by ±0.5 s; size, fill and crop, with a crop that can move during the clip (FR-22) |
+| 5b | Fine-tune · Lyrics | `/fine-tune/lyrics` | Step 2 of Fine-tune (M19): only the clip's lines; edit them and set when each one shows; the video plays with the lyrics on it (FR-21) |
+| 6 | Style | `/style` | Caption text/variant/position/size; live preview with branding. Size and crop moved to Fine-tune · Video in M19 |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Style |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
 | 9 | Settings | `/settings` | Groq key with step-by-step help (FR-12a); YouTube reader; background work |
@@ -64,15 +65,18 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - Lines between start and end are highlighted.
 - "Next" is enabled only when both are set.
 
-**FR-5 Fine-tune.**
-- **Opening:** downloads the clip (FR-15); the preview shows download progress until it's ready.
-- **Range:** the clip runs from the start line's start to the end line's end. Editing the lines (FR-21) moves it.
-- **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. A clip that starts out invalid (from transcript times) still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
-- **Preview:** plays the whole downloaded window (FR-15), with play, pause and a seek bar (FR-21); leaving the screen disposes the player.
-- **Waveform:** 60 bars over the downloaded window, with the clip highlighted.
-- **Long-clip warning:** above 60.0 s, "Longer than 60 s. WhatsApp Status may cut it." It never blocks.
+**FR-5 Fine-tune (two steps since M19).** Both steps keep their own player over the same downloaded clip (FR-15); Next on step 1 opens step 2, and Back returns.
+- **Step 1, Video** (`/fine-tune`, "Step 3 of 5"):
+  - **Opening:** downloads the clip (FR-15); the player shows download progress until it's ready.
+  - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole downloaded window with the clip range marked. It does not stop at the clip end. "Play clip" seeks to the clip start and plays.
+  - **Range:** the clip runs from the start line's start to the end line's end.
+  - **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. A clip that starts out invalid (from transcript times) still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
+  - **Waveform:** 60 bars over the downloaded window, with the clip highlighted.
+  - **Long-clip warning:** above 60.0 s, "Longer than 60 s. WhatsApp Status may cut it." It never blocks.
+  - **Frame:** size, fill, keep in view and free crop (FR-6), and a crop that moves (FR-22). The crop window is drawn over the player.
+- **Step 2, Lyrics** (`/fine-tune/lyrics`, "Step 4 of 5"): FR-21.
 
-**FR-6 Frame.**
+**FR-6 Frame (on Fine-tune · Video since M19).**
 
 | Preset | Output size |
 |---|---|
@@ -230,20 +234,36 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Reduce motion:** when the system asks for no animations, Home shows straight away.
 - **Taps:** taps don't reach Home while the splash covers it.
 
-**FR-21 Fine-tune lines (M18).** The lines under the player are the script's lines, and they are editable here.
-- **Window:** the download stays as FR-15 says (5 s either side). Fine-tune lists every line that overlaps the window; lines outside the picked range are dimmed and ignore taps.
-- **Player:** pinned above the scrolling rest of the screen, so the lines can be tapped with the video in view. Play and pause, plus a seek bar over the whole window with the clip range marked. Playback does not stop at the clip end. A "Play clip" button seeks to the clip start and plays.
-- **Tap a line (only the picked clip's lines react; the dimmed ones around them are context):**
-  - **While paused:** seeks to the line's start. Nothing else changes.
+**FR-21 Fine-tune lyrics (M18; its own step since M19).** Step 2 of Fine-tune lists the clip's lines, editable, with the video playing with the lyrics on it.
+- **Lines:** only the picked clip's lines are listed. Lines around the clip are not shown. Every listed line reacts to a tap.
+- **Player:** the reel as it will look: the video cut to the output frame (FR-6) with the crop where FR-22 puts it at that moment, and the line due on it, laid out as FR-7 says (caption position and size). Play and pause, and a seek bar over the clip.
+- **Tap a line:**
+  - **While paused:** seeks to the line's start.
   - **While playing (tap to time):** the line's start becomes the playhead. The line that was highlighted at that moment ends there, so the new highlight replaces it. The tapped line keeps its length (at least 1 s), cut at the next line's start.
   - **Ignored:** a tap earlier than the previous line's start, or on a line earlier than the one playing, so lines stay in time order.
-- **Highlight:** the line whose start ≤ playhead < end is highlighted, only while it lasts; between lines nothing is.
+- **Highlight:** the line whose start ≤ playhead < end is highlighted, only while it lasts; between lines nothing is, and the video shows no lyrics.
 - **Edit:** a pencil opens a text field with the line's text. Saving an empty text keeps the old one. A line break becomes a space, so a line stays one caption line.
 - **Reorder:** a drag handle moves a line's text to another place. Times stay where they are, so lines stay in time order: reordering swaps which text sits at which time.
-- **Add:** "Add line" asks for text and inserts a line at the playhead, 2 s long (cut at the next line's start; the line it lands in ends there). When a line starts exactly at the playhead (right after tapping it while paused), that line's time is shared: the new line takes the first half, at most 2 s. A new line that lands in a picked line is picked.
-- **Delete:** removes a line. The last picked line can't be deleted.
-- **After an edit:** the picked range keeps covering the same lines. Each clip edge follows its own line only when that line's time changes (or an add or delete makes another line the first or last); a nudge on the other edge is kept. The caption is refilled from the lines (as FR-18 does), and the script is saved as the newest script (source `edited`, FR-14) after 1 s without edits and when the screen closes.
+- **Add:** "Add line" asks for text and inserts a line at the playhead, 2 s long (cut at the next line's start; the line it lands in ends there). When a line starts exactly at the playhead (right after tapping it while paused), that line's time is shared: the new line takes the first half, at most 2 s. The playhead must be inside the clip; Add line is off outside it.
+- **Delete:** removes a line. The last line can't be deleted.
+- **After an edit:** the clip's edges follow the first and last lines only when that line's time changes (or an add or delete makes another line first or last); a nudge on the other edge is kept. The caption is refilled from the lines (as FR-18 does), and the script is saved as the newest script (source `edited`, FR-14) after 1 s without edits and when the screen closes.
 - **Script still being written:** once any line is edited, lines that arrive later are not added to this reel (the edited lines win).
+
+**FR-22 Moving crop (M19).** Where the crop window sits can change while the clip plays, for Crop to fill and Free crop. Blur background and 16:9 keep the whole frame, so nothing moves.
+- **What moves:** the window's position only. Its size is fixed for the clip: the preset's largest rectangle, or the free crop's width and height.
+- **Anchor:** a position is an anchor `(x, y)`, each from 0 to 1 across the room the window has to move (0 = left or top, 1 = right or bottom). Crop to fill's Left, Center and Right are x = 0, 0.5, 1 with y = 0.5. A free crop's anchor is `left / (1 − width)` and `top / (1 − height)`.
+- **Keyframes:** a keyframe is a time in video time, an anchor and how it is reached: **Glide** or **Cut**.
+  - **Glide:** the anchor moves in a straight line from the previous keyframe's anchor to this one, arriving at this keyframe's time.
+  - **Cut:** the anchor holds the previous keyframe's value until this keyframe's time, then jumps.
+  - Before the first keyframe the anchor is the first keyframe's; after the last it holds. The first keyframe's way of arriving has no effect.
+  - Keyframes are kept in video time, so nudging the clip does not move them. Times snap to 0.1 s, and one within 0.25 s of another replaces it.
+- **Off by default:** "Move the crop during the clip" is a switch on step 1. Off, the crop is as FR-6 says (no keyframes). Turning it on creates a first keyframe at the clip start from the current crop. Turning it off removes the keyframes and keeps the crop at the clip start.
+- **Editing (on):**
+  - Dragging the crop window over the player sets a keyframe at the playhead: it replaces the one there, or adds one that glides in.
+  - A row of keyframe chips under the player shows each time. Tap one to jump to it. The selected keyframe offers a Glide or Cut choice and Delete. The first keyframe can't be deleted.
+- **Rounding:** each keyframe's pixel rectangle is rounded as §6.3 says.
+- **Render:** the keyframes go to Kotlin as rectangles (§6.3.1) with their times counted from the clip start; the crop between them is computed per frame (§6.3.2). A reel with the switch off renders exactly as before.
+- **Previews:** Fine-tune · Lyrics shows the moving crop (FR-21); Style shows the crop at the clip start.
 
 ## 4. Non-functional requirements
 
@@ -320,7 +340,11 @@ class ClipRange { Duration start; Duration end; }
 enum AspectPreset { story9x16, portrait4x5, square1x1, landscape16x9, free }
 enum FillMode { crop, blur }  enum CropFocus { left, center, right }
 class FreeCropRect { double left, top, width, height; } // fractions of the source frame
-class FrameSettings { AspectPreset preset; FillMode fill; CropFocus focus; FreeCropRect freeCrop; }
+class FrameSettings { AspectPreset preset; FillMode fill; CropFocus focus; FreeCropRect freeCrop; CropPath cropPath; }
+class CropAnchor { double x, y; }                                    // 0..1 across the window's room to move (FR-22)
+enum CropArrival { glide, cut }
+class CropKeyframe { Duration time; CropAnchor anchor; CropArrival arrival; } // video time
+class CropPath { List<CropKeyframe> keyframes; }                      // empty = a fixed crop
 class OutputSize { int width; int height; }
 enum CaptionVariant { original, roman, english }  enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large }
 class CaptionSettings { CaptionVariant variant; String text; CaptionPosition position; CaptionSize size; }
@@ -360,6 +384,10 @@ The target aspect is `aw:ah` and the source is `sw × sh`. Crop sizes are even i
   - It can't follow a covering `Presentation`.
   - If it looks wrong on a phone, switch to a two-sequence `Composition` (device check pending, §14).
 - **16:9:** `Presentation` only.
+
+### 6.3.2 Moving crop for Media3 (M19)
+
+With keyframes, `Crop` is replaced by a `MatrixTransformation` whose matrix is computed for each frame's presentation time from the keyframes (time counted from the clip start): the crop rectangle at that time, taken in NDC as §6.3.1, scaled to fill the frame (`scale = 2/(right−left)`, `2/(top−bottom)`, translated by `−(right+left)/(right−left)`, `−(top+bottom)/(top−bottom)`). It is followed by `Presentation.createForWidthAndHeight(outW, outH, LAYOUT_STRETCH_TO_FIT)`, which undoes the stretch because the window's aspect already is the output's. A Cut holds the earlier rectangle until the keyframe time; a Glide interpolates each edge linearly. Device check pending (§14).
 
 ### 6.4 Language inference (automatic)
 
@@ -533,6 +561,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main`; device check pending |
 | M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only`; device check pending |
 | M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
+| M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | In progress, branch `m19-fine-tune-steps` (stacked on M18) |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -638,6 +667,18 @@ Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, 
 - [x] **4. Lines list.** All lines in the window, dimmed outside the range, highlight, tap to seek or to time, edit, reorder, add, delete.
 - [x] **5. Save.** The edited script is saved as `edited` after 1 s idle and when the screen closes.
 - [x] **6. Docs.** §13 and §14 entries; mark M18 done.
+
+### M19 tasks (branch `m19-fine-tune-steps`)
+
+Request, 2026-11-04: crop position that changes while the video plays (glide or cut, both); Fine-tune in two steps, video then lyrics, with the lyrics on the video. Each task: test first, tick it, commit.
+
+- [ ] **1. Crop path (domain).** Anchor, keyframes with Glide or Cut, the anchor at a time, set a keyframe at a time (snap, replace within 0.25 s), change how one arrives, remove one (not the first).
+- [ ] **2. Frame carries the path.** `FrameSettings.cropPath`; the pixel crop at a time (`cropRectAt`), equal to `cropRectFor` with no keyframes; keyframes in the render spec as NDC rectangles from the clip start.
+- [ ] **3. Two steps.** Routes, step labels and buttons; the Video step keeps the player, nudges and warnings and takes size, fill and crop from Style; the Lyrics step takes the lines; Style keeps the caption.
+- [ ] **4. Moving crop on Video.** The crop window over the player; the switch; drag sets a keyframe at the playhead; chips with Glide, Cut and Delete.
+- [ ] **5. Lyrics step.** Only the clip's lines; the player shows the reel (moving crop and the due line).
+- [ ] **6. Kotlin.** The keyframed matrix transformation and its unit tests.
+- [ ] **7. Docs and review.** §13, §14, §15; reviewer pass; push.
 
 ## 13. Behaviour that must stay covered by tests
 
