@@ -672,7 +672,7 @@ Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, 
 
 Request, 2026-11-04: crop position that changes while the video plays (glide or cut, both); Fine-tune in two steps, video then lyrics, with the lyrics on the video. Each task: test first, tick it, commit.
 
-- [ ] **1. Crop path (domain).** Anchor, keyframes with Glide or Cut, the anchor at a time, set a keyframe at a time (snap, replace within 0.25 s), change how one arrives, remove one (not the first).
+- [x] **1. Crop path (domain).** Anchor, keyframes with Glide or Cut, the anchor at a time, set a keyframe at a time (snap, replace within 0.25 s), change how one arrives, remove one (not the first).
 - [ ] **2. Frame carries the path.** `FrameSettings.cropPath`; the pixel crop at a time (`cropRectAt`), equal to `cropRectFor` with no keyframes; keyframes in the render spec as NDC rectangles from the clip start.
 - [ ] **3. Two steps.** Routes, step labels and buttons; the Video step keeps the player, nudges and warnings and takes size, fill and crop from Style; the Lyrics step takes the lines; Style keeps the caption.
 - [ ] **4. Moving crop on Video.** The crop window over the player; the switch; drag sets a keyframe at the playhead; chips with Glide, Cut and Delete.
