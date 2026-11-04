@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/presentation/follow_subject_section.dart';
 import 'package:status_studio/src/features/style/application/follow_subject_controller.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 Future<void> pumpSection(WidgetTester tester, FollowState state) {
   return tester.pumpWidget(
@@ -72,6 +75,21 @@ void main() {
             onCancel: () {},
           ),
         ),
+      ),
+    );
+
+    final button = tester.widget<OutlinedButton>(find.byType(OutlinedButton));
+
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('while_choosing_the_button_is_off', (tester) async {
+    await pumpSection(
+      tester,
+      FollowChoosing(
+        picture: File('/no/such/frame.jpg'),
+        pictureSize: const OutputSize(1920, 1080),
+        choices: const [],
       ),
     );
 

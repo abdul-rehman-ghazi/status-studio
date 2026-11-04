@@ -694,6 +694,105 @@ void main() {
       expect(pathNow(tester), before);
     });
 
+    group('with two people', () {
+      Future<void> pumpTwoPeople(WidgetTester tester) => pumpMoving(
+        tester,
+        faces: FakeSubjectDetector(facesAt: (_) => [leftFace, rightFace]),
+      );
+
+      Future<void> askWhom(WidgetTester tester) async {
+        await tapFollow(tester);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('the_chooser_opens', (tester) async {
+        await pumpTwoPeople(tester);
+
+        await askWhom(tester);
+
+        expect(find.text('Who should the crop follow?'), findsOneWidget);
+      });
+
+      testWidgets('tapping_a_face_ends_with_the_snackbar', (tester) async {
+        await pumpTwoPeople(tester);
+        await askWhom(tester);
+        final picture = tester.getRect(find.byKey(const Key('person-picture')));
+
+        await tester.tapAt(
+          picture.topLeft + Offset(picture.width * 0.75, picture.height * 0.4),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'The crop follows the person (1 keyframe). '
+            'Drag or tap a chip to adjust.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('tapping_a_face_closes_the_chooser', (tester) async {
+        await pumpTwoPeople(tester);
+        await askWhom(tester);
+        final picture = tester.getRect(find.byKey(const Key('person-picture')));
+
+        await tester.tapAt(
+          picture.topLeft + Offset(picture.width * 0.75, picture.height * 0.4),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Who should the crop follow?'), findsNothing);
+      });
+
+      testWidgets('choose_for_me_ends_with_the_snackbar', (tester) async {
+        await pumpTwoPeople(tester);
+        await askWhom(tester);
+
+        await tester.tap(find.text('Choose for me'));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('The crop follows the person'), findsOne);
+      });
+
+      testWidgets('cancel_changes_nothing_and_brings_the_button_back', (
+        tester,
+      ) async {
+        await pumpTwoPeople(tester);
+        final before = pathNow(tester);
+        await askWhom(tester);
+
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+
+        expect(pathNow(tester), before);
+        expect(find.text('Follow the person'), findsOneWidget);
+      });
+
+      testWidgets('dismissing_the_chooser_changes_nothing_and_deletes_frames', (
+        tester,
+      ) async {
+        await pumpTwoPeople(tester);
+        final before = pathNow(tester);
+        await askWhom(tester);
+
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        // The delete is real file work whose steps run in this test's fake
+        // clock, so let real time pass and pump between the steps.
+        for (var tries = 0; tries < 20; tries++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+
+        expect(pathNow(tester), before);
+        expect(find.text('Follow the person'), findsOneWidget);
+        expect(extractor.made!.existsSync(), isFalse);
+      });
+    });
+
     group('with keyframes of the users own', () {
       Future<void> addSecondKeyframe(WidgetTester tester) async {
         ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
