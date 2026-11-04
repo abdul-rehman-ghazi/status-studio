@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/translation_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
@@ -95,6 +96,20 @@ void main() {
     expect(
       errorMessageFor(const GroqOfflineException()),
       "You're offline. Connect and try again.",
+    );
+  });
+
+  test('no_person_found_says_the_crop_stays', () {
+    expect(
+      errorMessageFor(const NoSubjectFoundException()),
+      'No person found in this clip. The crop stays where it is.',
+    );
+  });
+
+  test('a_failed_follow_asks_to_try_again', () {
+    expect(
+      errorMessageFor(const FollowFailedException('boom')),
+      "Couldn't follow the person. Try again.",
     );
   });
 }

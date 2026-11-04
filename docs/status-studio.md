@@ -601,7 +601,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only`; device check pending |
 | M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
 | M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18); device check pending |
-| M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | In progress, branch `m20-follow-subject` (stacked on M19); spike and device checks pending |
+| M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | Built, branch `m20-follow-subject` (stacked on M19); the spike (§10 item 7) and the device checks are pending, so whether to ship it is undecided |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -732,7 +732,7 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
 - [x] **4. Apply.** `ReelDraft.withFollowedCrop` and the controller method.
 - [x] **5. Extractor and detector.** `FrameExtractor` (FFmpeg) and `SubjectDetector` (ML Kit) behind interfaces; the dependency; cancel the FFmpeg run by its own session, not all sessions.
 - [x] **6. Controller.** `FollowSubjectController`: progress, cancel, cancel on change, clean-up, errors, with fakes.
-- [ ] **7. UI.** The button, progress, Cancel, the replace question and the snackbars.
+- [x] **7. UI.** The button, progress, Cancel, the replace question and the snackbars.
 - [ ] **8. Docs and review.** §13, §14, §12 status; reviewer pass; push. CLAUDE.md's FFmpeg line needs "and frame sampling" (left for the user to approve).
 
 ## 13. Behaviour that must stay covered by tests

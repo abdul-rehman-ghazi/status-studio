@@ -3,13 +3,11 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
-import 'package:status_studio/src/features/source/domain/clip_source.dart';
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
 import 'package:status_studio/src/features/style/application/follow_subject_controller.dart';
 import 'package:status_studio/src/features/style/data/frame_extractor.dart';
@@ -17,69 +15,11 @@ import 'package:status_studio/src/features/style/data/subject_detector.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
-import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
+import '../../../../helpers/fake_follow.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
-
-/// Makes [frameCount] real files in a temp folder, so deleting them is seen.
-class FakeFrameExtractor implements FrameExtractor {
-  FakeFrameExtractor({this.frameCount = 8, this.failure});
-
-  final int frameCount;
-  final Exception? failure;
-  Directory? made;
-  FfmpegCancelHandle? handle;
-
-  @override
-  Future<SampledFrames> extract(
-    ClipSource source,
-    ClipRange clip,
-    FfmpegCancelHandle cancel,
-  ) async {
-    handle = cancel;
-    if (failure case final failure?) {
-      throw failure;
-    }
-    final directory = made = Directory.systemTemp.createTempSync('follow_test');
-    return SampledFrames(
-      directory: directory,
-      frames: [
-        for (var i = 0; i < frameCount; i++)
-          File('${directory.path}/frame$i.jpg')..writeAsBytesSync(const [1]),
-      ],
-      framesPerSecond: 4,
-      sceneCuts: const [],
-    );
-  }
-}
-
-class FakeSubjectDetector implements SubjectDetector {
-  FakeSubjectDetector({this.facesAt, this.failure});
-
-  final List<SubjectBox> Function(int call)? facesAt;
-  final Exception? failure;
-
-  /// When set, each look waits for it.
-  Completer<void>? gate;
-  var calls = 0;
-
-  @override
-  Future<List<SubjectBox>> facesIn(File frame) async {
-    final call = calls++;
-    await gate?.future;
-    if (failure case final failure?) {
-      throw failure;
-    }
-    return facesAt?.call(call) ?? const [];
-  }
-
-  @override
-  Future<void> close() async {}
-}
-
-const centredFace = SubjectBox(left: 0.45, top: 0.35, width: 0.1, height: 0.1);
 
 void main() {
   late ProviderContainer container;

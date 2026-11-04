@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -15,13 +16,16 @@ import 'package:status_studio/src/features/clip/domain/waveform.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/clip/presentation/crop_keyframe_chips.dart';
 import 'package:status_studio/src/features/clip/presentation/crop_window_overlay.dart';
+import 'package:status_studio/src/features/clip/presentation/follow_subject_section.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/style/application/follow_subject_controller.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/crop_rect.dart';
+import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/frame_controls.dart';
 import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
@@ -64,6 +68,8 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     final sourceSize = previewSourceSize(ref, draft);
     final path = draft.frame.cropPath;
     final canMove = canMoveCrop(draft.frame, sourceSize);
+    final follow = ref.watch(followSubjectProvider);
+    ref.listen(followSubjectProvider, _showHowFollowEnded);
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Fine-tune · Video',
@@ -106,7 +112,14 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
               ),
             ),
           Expanded(
-            child: _scrollingBody(draft, video, clip, controller, sourceSize),
+            child: _scrollingBody(
+              draft,
+              video,
+              clip,
+              controller,
+              sourceSize,
+              follow,
+            ),
           ),
         ],
       ),
@@ -119,10 +132,72 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     );
   }
 
+  /// Asks first when the user has keyframes of their own to lose.
+  Future<void> _follow() async {
+    final keyframes = ref.read(reelDraftProvider).frame.cropPath.keyframes;
+    if (keyframes.length > 1 && !await _confirmReplacingKeyframes()) {
+      return;
+    }
+    if (mounted) {
+      unawaited(ref.read(followSubjectProvider.notifier).start());
+    }
+  }
+
+  Future<bool> _confirmReplacingKeyframes() async {
+    final replace = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Replace your crop keyframes?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    return replace ?? false;
+  }
+
+  /// Says how a run ended (spec FR-23), then clears it.
+  void _showHowFollowEnded(FollowState? before, FollowState after) {
+    final message = switch (after) {
+      FollowDone(:final keyframeCount) =>
+        'The crop follows the person ($keyframeCount '
+            '${keyframeCount == 1 ? 'keyframe' : 'keyframes'}). '
+            'Drag or tap a chip to adjust.',
+      FollowNoSubject() => errorMessageFor(const NoSubjectFoundException()),
+      FollowFailed() => errorMessageFor(const FollowFailedException('')),
+      _ => null,
+    };
+    if (message == null) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+    if (after is FollowDone) {
+      _selectFirstKeyframeAtTheStart();
+    }
+    ref.read(followSubjectProvider.notifier).reset();
+  }
+
+  void _selectFirstKeyframeAtTheStart() {
+    setState(() => _selectedKeyframe = 0);
+    final clip = ref.read(reelDraftProvider).clip;
+    if (clip != null && _playhead.isReady) {
+      unawaited(_playhead.seekTo(clip.start));
+    }
+  }
+
   /// Lyrics starts its own player only once this step's is gone, and this
   /// step makes its player again only once Lyrics has slid away: never two
   /// decoders at a time (spec FR-22).
   Future<void> _openLyrics() async {
+    ref.read(followSubjectProvider.notifier).cancel();
     setState(() => _playerReleased = true);
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) {
@@ -193,6 +268,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     ClipRange clip,
     ReelDraftController controller,
     OutputSize sourceSize,
+    FollowState follow,
   ) {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -251,6 +327,15 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
                 controller.stopMovingCrop();
               }
             },
+          ),
+        if (canMoveCrop(draft.frame, sourceSize) &&
+            !draft.frame.cropPath.isEmpty)
+          FollowSubjectSection(
+            state: follow,
+            canStart:
+                ref.watch(clipSourceProvider(video.videoId)).value != null,
+            onStart: _follow,
+            onCancel: ref.read(followSubjectProvider.notifier).cancel,
           ),
         if (draft.frame.preset == AspectPreset.free) ...[
           const SizedBox(height: 16),

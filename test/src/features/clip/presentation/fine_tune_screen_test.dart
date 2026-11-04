@@ -1,17 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/data/frame_extractor.dart';
+import 'package:status_studio/src/features/style/data/subject_detector.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
+import '../../../../helpers/fake_follow.dart';
 import '../../../../helpers/fake_video_player.dart';
 import '../../../../helpers/fine_tune_pump.dart';
 import '../../../../helpers/fixtures.dart';
@@ -22,6 +28,7 @@ Future<void> pumpFineTune(
   FakeClipSourcePreparer? clipPreparer,
   ReelDraft? draft,
   List<double>? waveformPeaks,
+  List<Override> overrides = const [],
 }) => pumpFineTuneStep(
   tester,
   AppRoutes.fineTune,
@@ -29,15 +36,16 @@ Future<void> pumpFineTune(
   clipPreparer: clipPreparer,
   draft: draft,
   waveformPeaks: waveformPeaks,
+  overrides: overrides,
 );
 
-/// Scrolls [label] into view, then taps it.
+/// Scrolls the body to its top, then down to [label], then taps it. Starting
+/// from the top finds a label whatever the list has grown to since.
 Future<void> tapText(WidgetTester tester, String label) async {
-  await tester.scrollUntilVisible(
-    find.text(label),
-    200,
-    scrollable: find.byType(Scrollable).last,
-  );
+  final body = find.byType(Scrollable).last;
+  await tester.drag(body, const Offset(0, 3000));
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(find.text(label), 200, scrollable: body);
   await tester.ensureVisible(find.text(label));
   await tester.pumpAndSettle();
   await tester.tap(find.text(label));
@@ -446,6 +454,11 @@ void main() {
         await pumpFineTune(tester);
         await tapText(tester, 'Free');
         await tapText(tester, movingSwitch);
+        await tester.scrollUntilVisible(
+          find.text('Reset'),
+          200,
+          scrollable: find.byType(Scrollable).last,
+        );
 
         await tester.drag(
           find.byKey(const ValueKey('free-crop-area')),
@@ -530,6 +543,226 @@ void main() {
       await tapText(tester, movingSwitch);
 
       expect(pathNow(tester).isEmpty, isTrue);
+    });
+  });
+
+  group('follow the person', () {
+    const movingSwitch = 'Move the crop during the clip';
+    late FakeFrameExtractor extractor;
+    late FakeSubjectDetector detector;
+    late RecordingPlayerFactory players;
+
+    CropPath pathNow(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
+            .read(reelDraftProvider)
+            .frame
+            .cropPath;
+
+    Future<void> pumpMoving(
+      WidgetTester tester, {
+      FakeSubjectDetector? faces,
+      bool moving = true,
+    }) async {
+      extractor = FakeFrameExtractor();
+      detector = faces ?? FakeSubjectDetector(facesAt: (_) => [centredFace]);
+      players = RecordingPlayerFactory();
+      await pumpFineTune(
+        tester,
+        playerFactory: players.call,
+        overrides: [
+          frameExtractorProvider.overrideWithValue(extractor),
+          subjectDetectorProvider.overrideWithValue(detector),
+        ],
+      );
+      if (moving) {
+        await tapText(tester, movingSwitch);
+      }
+    }
+
+    Future<void> tapFollow(WidgetTester tester) =>
+        tapText(tester, 'Follow the person');
+
+    testWidgets('the_button_shows_while_the_crop_moves', (tester) async {
+      await pumpMoving(tester);
+      await tester.scrollUntilVisible(
+        find.text('Follow the person'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      expect(find.text('Runs on your phone; nothing is uploaded.'), findsOne);
+    });
+
+    testWidgets('the_button_is_not_shown_while_the_crop_is_fixed', (
+      tester,
+    ) async {
+      await pumpMoving(tester, moving: false);
+      await tester.scrollUntilVisible(
+        find.text(movingSwitch),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      expect(find.text('Follow the person'), findsNothing);
+    });
+
+    testWidgets('a_run_ends_with_a_snackbar_saying_how_many_keyframes', (
+      tester,
+    ) async {
+      await pumpMoving(tester);
+
+      await tapFollow(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'The crop follows the person (1 keyframe). '
+          'Drag or tap a chip to adjust.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a_finished_run_goes_to_the_clip_start', (tester) async {
+      await pumpMoving(tester);
+      final player = players.created.single;
+      player.value = player.value.copyWith(
+        position: fileTime(const Duration(seconds: 40)),
+      );
+
+      await tapFollow(tester);
+      await tester.pumpAndSettle();
+
+      expect(player.value.position, fileTime(pickedDraft.clip!.start));
+    });
+
+    testWidgets('no_person_shows_the_message_and_changes_nothing', (
+      tester,
+    ) async {
+      await pumpMoving(tester, faces: FakeSubjectDetector());
+      final before = pathNow(tester);
+
+      await tapFollow(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('No person found in this clip. The crop stays where it is.'),
+        findsOneWidget,
+      );
+      expect(pathNow(tester), before);
+    });
+
+    testWidgets('a_failure_shows_its_message', (tester) async {
+      await pumpMoving(
+        tester,
+        faces: FakeSubjectDetector(failure: Exception('model')),
+      );
+
+      await tapFollow(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text("Couldn't follow the person. Try again."), findsOne);
+    });
+
+    testWidgets('a_run_shows_its_progress_and_a_cancel', (tester) async {
+      await pumpMoving(
+        tester,
+        faces: FakeSubjectDetector()..gate = Completer(),
+      );
+
+      await tapFollow(tester);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.textContaining('Finding the person'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('cancel_brings_the_button_back_and_changes_nothing', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      await pumpMoving(tester, faces: FakeSubjectDetector()..gate = gate);
+      final before = pathNow(tester);
+      await tapFollow(tester);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      await tester.tap(find.text('Cancel'));
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Follow the person'), findsOneWidget);
+      expect(pathNow(tester), before);
+    });
+
+    group('with keyframes of the users own', () {
+      Future<void> addSecondKeyframe(WidgetTester tester) async {
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
+            .read(reelDraftProvider.notifier)
+            .moveCropTo(
+              pickedDraft.clip!.start + const Duration(seconds: 5),
+              const CropAnchor(x: 1, y: 0.5),
+            );
+        await tester.pump();
+      }
+
+      testWidgets('replacing_is_asked_first', (tester) async {
+        await pumpMoving(tester);
+        await addSecondKeyframe(tester);
+
+        await tapFollow(tester);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Replace your crop keyframes?'), findsOneWidget);
+      });
+
+      testWidgets('keep_does_not_run', (tester) async {
+        await pumpMoving(tester);
+        await addSecondKeyframe(tester);
+        await tapFollow(tester);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Keep'));
+        await tester.pumpAndSettle();
+
+        expect(extractor.made, isNull);
+        expect(pathNow(tester).keyframes.length, 2);
+      });
+
+      testWidgets('replace_runs_and_replaces', (tester) async {
+        await pumpMoving(tester);
+        await addSecondKeyframe(tester);
+        await tapFollow(tester);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Replace'));
+        await tester.pumpAndSettle();
+
+        expect(pathNow(tester).keyframes.length, 1);
+      });
+    });
+
+    testWidgets('one_keyframe_is_replaced_without_asking', (tester) async {
+      await pumpMoving(tester);
+
+      await tapFollow(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Replace your crop keyframes?'), findsNothing);
+    });
+
+    testWidgets('opening_lyrics_cancels_a_run', (tester) async {
+      final gate = Completer<void>();
+      await pumpMoving(tester, faces: FakeSubjectDetector()..gate = gate);
+      final before = pathNow(tester);
+      await tapFollow(tester);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      await tester.tap(find.text('Next: lyrics'));
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(extractor.handle!.isCancelled, isTrue);
+      expect(pathNow(tester), before);
     });
   });
 }
