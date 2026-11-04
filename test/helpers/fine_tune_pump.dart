@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
@@ -46,6 +47,7 @@ Future<void> pumpFineTuneStep(
   ReelDraft? draft,
   List<double>? waveformPeaks,
   ScriptEditingService? scriptEditing,
+  FineTuneDraftSaver? fineTuneSaver,
   List<Override> overrides = const [],
 }) => pumpRoutes(
   tester,
@@ -61,6 +63,7 @@ Future<void> pumpFineTuneStep(
     playerFactory: playerFactory,
     clipPreparer: clipPreparer,
     waveformPeaks: waveformPeaks,
+    fineTuneSaver: fineTuneSaver,
   ),
 );
 

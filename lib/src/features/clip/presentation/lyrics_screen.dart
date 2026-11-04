@@ -30,6 +30,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
 
   final _playhead = ClipPlayhead();
   late final ScriptEditingService _scriptEditing;
+  late final AppLifecycleListener _lifecycle;
   Timer? _saveTimer;
   Future<void> Function()? _pendingSave;
 
@@ -38,11 +39,13 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     super.initState();
     // Read now: dispose saves a pending edit and can't use ref.
     _scriptEditing = ref.read(scriptEditingServiceProvider);
+    _lifecycle = AppLifecycleListener(onHide: () => unawaited(_savePending()));
   }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
+    _lifecycle.dispose();
     unawaited(_savePending());
     _playhead.dispose();
     super.dispose();

@@ -18,6 +18,7 @@ import 'package:status_studio/src/features/clip/presentation/crop_keyframe_chips
 import 'package:status_studio/src/features/clip/presentation/crop_window_overlay.dart';
 import 'package:status_studio/src/features/clip/presentation/follow_subject_section.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
@@ -50,11 +51,39 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   /// phone's hardware decoders allow, so this step lets go of its own.
   var _playerReleased = false;
 
+  static const _keepDelay = Duration(seconds: 1);
+
+  late final FineTuneDraftSaver _saver;
+  late final AppLifecycleListener _lifecycle;
+  late ReelDraft _latestDraft;
+  Timer? _keepTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Read now: dispose keeps the latest work and can't use ref.
+    _saver = ref.read(fineTuneDraftSaverProvider);
+    _latestDraft = ref.read(reelDraftProvider);
+    // This step stays open under Lyrics, Style and Export, so it sees every
+    // change to the reel (spec FR-24).
+    ref.listenManual(reelDraftProvider, (_, next) {
+      _latestDraft = next;
+      _keepTimer?.cancel();
+      _keepTimer = Timer(_keepDelay, _keepNow);
+    });
+    _lifecycle = AppLifecycleListener(onHide: _keepNow);
+  }
+
   @override
   void dispose() {
+    _keepTimer?.cancel();
+    _lifecycle.dispose();
+    _keepNow();
     _playhead.dispose();
     super.dispose();
   }
+
+  void _keepNow() => unawaited(_saver.save(_latestDraft));
 
   @override
   Widget build(BuildContext context) {

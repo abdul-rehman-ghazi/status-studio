@@ -18,7 +18,10 @@ import 'package:status_studio/src/features/export/application/fake_renderer.dart
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/export/data/reel_actions.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
@@ -40,6 +43,7 @@ import 'fake_clip_preparer.dart';
 import 'fake_reel_actions.dart';
 import 'fake_video_player.dart';
 import 'fake_yt_dlp.dart';
+import 'fine_tune_drafts.dart';
 import 'recording_ffmpeg.dart';
 import 'saved_scripts.dart';
 
@@ -60,6 +64,8 @@ class TestSetup {
     this.savedScripts = const [],
     this.ytDlp,
     this.backgroundWork,
+    this.fineTuneSaver,
+    this.fineTunes = const [],
   });
 
   final List<Override> overrides;
@@ -91,6 +97,12 @@ class TestSetup {
   /// Defaults to a fresh [FakeBackgroundWorkPlatform].
   final BackgroundWorkPlatform? backgroundWork;
 
+  /// Defaults to a fresh [RecordingFineTuneDraftSaver].
+  final FineTuneDraftSaver? fineTuneSaver;
+
+  /// The kept fine-tunes Home lists, newest first.
+  final List<SavedFineTune> fineTunes;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
@@ -121,6 +133,12 @@ class TestSetup {
     ),
     sourceCacheProvider.overrideWith(
       (ref) async => SourceCache(Directory.systemTemp),
+    ),
+    fineTuneDraftSaverProvider.overrideWithValue(
+      fineTuneSaver ?? RecordingFineTuneDraftSaver(),
+    ),
+    fineTuneDraftsProvider.overrideWith(
+      () => FakeFineTuneDraftsController(fineTunes),
     ),
     launchSplashEnabledProvider.overrideWithValue(false),
     ...overrides,

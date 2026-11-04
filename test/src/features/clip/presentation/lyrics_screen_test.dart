@@ -350,6 +350,19 @@ void main() {
       expect(editing.saved.single.lines.length, 8);
     });
 
+    testWidgets('going_to_the_background_saves_a_pending_edit', (tester) async {
+      final editing = RecordingScriptEditingService();
+      await pumpLyrics(tester, scriptEditing: editing);
+      await editFirstShownLine(tester);
+
+      tester.binding
+        ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+
+      expect(editing.saved.single.lines.length, 8);
+    });
+
     testWidgets('lines_still_streaming_in_save_nothing', (tester) async {
       final editing = RecordingScriptEditingService();
       await pumpLyrics(tester, scriptEditing: editing);

@@ -303,7 +303,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - A change is anything that changes the reel: a nudge, an edge set to the playhead, size, fill, crop, a keyframe, a line edit, a caption setting.
   - A fine-tune equal to the last one written is not written again.
   - A failed write is ignored, because the work is still in the app.
-- **One per video and language:** a new fine-tune of the same video and requested language replaces the kept one. Back to Script leaves it as it was; picking other lines replaces it once Fine-tune opens again.
+- **One per video and language:** a new fine-tune of the same video and requested language replaces the kept one. Back to Script leaves it as it was; picking other lines replaces it when Fine-tune is next left or the app is hidden.
 - **File:** `transcripts/<videoId>/draft-<requested>.json` in app support, beside the scripts. It is written as `.part` and renamed, and carries `version` 1.
   - A file that can't be read, or has a newer version, is ignored and stays on disk. Its video's script row shows instead.
   - Saving counts as a use of the video. The file goes with the video's folder under FR-14's retention (90 days after last use, at most 200 videos).
@@ -776,7 +776,7 @@ Request, 2026-11-04: save Fine-tune progress and continue later. The plan was wr
 - [x] **4. Shared JSON files and script-store additions.** `core/json_files.dart` (atomic write) moved out of `TranscriptStore`; `loadFromSource`, `loadVideo`, `markUsed`.
 - [x] **5. Draft store (data).** `FineTuneDraftStore`: save, list (skips unreadable), delete; provider.
 - [x] **6. Saver and list (application).** `FineTuneDraftSaver` (serial, no repeat writes, discard after export) and `fineTuneDraftsProvider`.
-- [ ] **7. Wiring the saves.** Fine-tune screen (1 s debounce, close, background), Lyrics background flush, Export discards; test helpers and default overrides.
+- [x] **7. Wiring the saves.** Fine-tune screen (1 s debounce, close, background), Lyrics background flush, Export discards; test helpers and default overrides.
 - [ ] **8. Resumer (application).** `FineTuneResumer`: Ready, ScriptGone, ScriptChanged; `ReelDraftController.restore`.
 - [ ] **9. Recent merge (domain).** `recentEntries`: a fine-tune replaces its script row.
 - [ ] **10. Home rows.** Continue row, long-press Delete progress.

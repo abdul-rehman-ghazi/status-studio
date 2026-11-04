@@ -11,16 +11,20 @@ import 'package:status_studio/src/features/reel/application/reel_draft_controlle
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/style/data/frame_extractor.dart';
 import 'package:status_studio/src/features/style/data/subject_detector.dart';
+import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
 import '../../../../helpers/fake_follow.dart';
 import '../../../../helpers/fake_video_player.dart';
+import '../../../../helpers/fine_tune_drafts.dart';
 import '../../../../helpers/fine_tune_pump.dart';
 import '../../../../helpers/fixtures.dart';
+import '../../../../helpers/pump_app.dart';
 
 Future<void> pumpFineTune(
   WidgetTester tester, {
@@ -57,6 +61,8 @@ ClipRange clipNow(WidgetTester tester) =>
     ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
         .read(reelDraftProvider)
         .clip!;
+
+const nudge = Duration(milliseconds: 500);
 
 void main() {
   testWidgets('nudge_start_updates_label', (tester) async {
@@ -763,6 +769,94 @@ void main() {
 
       expect(extractor.handle!.isCancelled, isTrue);
       expect(pathNow(tester), before);
+    });
+  });
+
+  group('keeping the fine-tune', () {
+    late RecordingFineTuneDraftSaver saver;
+
+    setUp(() => saver = RecordingFineTuneDraftSaver());
+
+    Future<void> nudgeStartEarlier(WidgetTester tester) async {
+      await tester.tap(find.bySemanticsLabel('Start half a second earlier'));
+      await tester.pump();
+    }
+
+    testWidgets('a_nudge_is_kept_after_a_second_without_changes', (
+      tester,
+    ) async {
+      await pumpFineTuneStep(tester, AppRoutes.fineTune, fineTuneSaver: saver);
+      await nudgeStartEarlier(tester);
+
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(saver.saved.single.clip, clipNow(tester));
+    });
+
+    testWidgets('nothing_is_kept_before_the_pause', (tester) async {
+      await pumpFineTuneStep(tester, AppRoutes.fineTune, fineTuneSaver: saver);
+      await nudgeStartEarlier(tester);
+
+      await tester.pump(const Duration(milliseconds: 900));
+
+      expect(saver.saved, isEmpty);
+    });
+
+    testWidgets('a_run_of_nudges_is_kept_once', (tester) async {
+      await pumpFineTuneStep(tester, AppRoutes.fineTune, fineTuneSaver: saver);
+      await nudgeStartEarlier(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+      await nudgeStartEarlier(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+      await nudgeStartEarlier(tester);
+
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(saver.saved, hasLength(1));
+    });
+
+    testWidgets('leaving_fine_tune_keeps_it_at_once', (tester) async {
+      await pumpFineTuneStep(tester, AppRoutes.fineTune, fineTuneSaver: saver);
+      await nudgeStartEarlier(tester);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(saver.saved.last.clip!.start, pickedDraft.clip!.start - nudge);
+    });
+
+    testWidgets('going_to_the_background_keeps_it_at_once', (tester) async {
+      await pumpFineTuneStep(tester, AppRoutes.fineTune, fineTuneSaver: saver);
+      await nudgeStartEarlier(tester);
+
+      tester.binding
+        ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+
+      expect(saver.saved.single.clip, clipNow(tester));
+    });
+
+    testWidgets('a_change_made_while_lyrics_is_open_is_kept', (tester) async {
+      await pumpRoutes(
+        tester,
+        [AppRoutes.fineTune, AppRoutes.lyrics],
+        setup: TestSetup(
+          overrides: [
+            draftOverride(pickedDraft),
+            scriptEditingServiceProvider.overrideWithValue(
+              RecordingScriptEditingService(),
+            ),
+          ],
+          fineTuneSaver: saver,
+        ),
+      );
+
+      ProviderScope.containerOf(tester.element(find.byType(Scaffold).last))
+          .read(reelDraftProvider.notifier)
+          .updateCaption(const CaptionSettings(text: 'new words'));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(saver.saved.single.caption.text, 'new words');
     });
   });
 }
