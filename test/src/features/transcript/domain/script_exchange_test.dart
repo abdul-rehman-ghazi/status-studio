@@ -147,6 +147,46 @@ void main() {
     );
   });
 
+  test('groq_takes_thirty_lines_and_no_more', () {
+    final lines = linesToCheck(
+      longScript(mostLinesForGroq),
+      const NoSelection(),
+      mostLines: mostLinesForGroq,
+    );
+
+    expect(lines, hasLength(mostLinesForGroq));
+  });
+
+  test('groq_rejects_thirty_one_lines', () {
+    expect(
+      () => linesToCheck(
+        longScript(mostLinesForGroq + 1),
+        const NoSelection(),
+        mostLines: mostLinesForGroq,
+      ),
+      throwsA(isA<TooManyLinesForAiException>()),
+    );
+  });
+
+  test('citation_marks_are_removed_from_the_reply_text', () {
+    final corrected = applyCorrectedScript(
+      script,
+      '1 | 00:21.40 | 00:30.00 | درست ایک【1†L10-L12】',
+    );
+
+    expect(textsOf(corrected).first, 'درست ایک');
+  });
+
+  test('prompt_forbids_moving_lines_from_other_parts_of_the_poem', () {
+    final prompt = scriptPromptFor(
+      videoTitle: 'Some Naat',
+      videoUrl: 'https://youtu.be/abc',
+      lines: script.lines,
+    );
+
+    expect(prompt, contains('Never move a line from another part'));
+  });
+
   test('prompt_keeps_row_numbers_of_the_full_script', () {
     final prompt = scriptPromptFor(
       videoTitle: 't',

@@ -12,6 +12,10 @@ class NoScriptRowsException implements Exception {
 /// More lines than this are more than an AI chat will check in one reply.
 const mostLinesForAi = 60;
 
+/// Past this many lines Groq's web-search model starts to put lines of the
+/// poem in the wrong rows (spec §10 #6).
+const mostLinesForGroq = 30;
+
 /// Too many lines to send to an AI agent in one go (spec §8).
 class TooManyLinesForAiException implements Exception {
   const TooManyLinesForAiException();
@@ -37,6 +41,9 @@ class CorrectedScript {
 
 const _uncertainMark = '[?]';
 
+// Search models cite their sources inside the text: `【1†L10-L12】`.
+final _citationMark = RegExp(r'【[^】]*】');
+
 // `12 | 00:21.40 | 00:30.00 | text`; the text may itself hold bars.
 final _row = RegExp(
   r'^\s*(\d+)\s*\|\s*[\d:.,]+\s*\|\s*[\d:.,]+\s*\|\s*(.*\S)\s*$',
@@ -44,15 +51,17 @@ final _row = RegExp(
 
 /// The lines worth sending to an AI agent: the picked clip's lines, or the
 /// whole script when it is short. Throws [TooManyLinesForAiException] when
-/// that is more than [mostLinesForAi], since a chat refuses or skims it.
+/// that is more than [mostLines], since an agent refuses, skims or misplaces
+/// them.
 List<TranscriptLine> linesToCheck(
   Transcript transcript,
-  LineSelection selection,
-) {
+  LineSelection selection, {
+  int mostLines = mostLinesForAi,
+}) {
   final lines = selection is RangeSelected
       ? transcript.lines.sublist(selection.start, selection.end + 1)
       : transcript.lines;
-  if (lines.length > mostLinesForAi) {
+  if (lines.length > mostLines) {
     throw const TooManyLinesForAiException();
   }
   return lines;
@@ -82,7 +91,7 @@ Each row is: <number> | <start> | <end> | <text>
 
 Rules:
 1. Search the web for the real lyrics (naat sites, the poet's collection, the video's description). Use what you find. Never invent or improve words from memory. If you cannot find a reliable source for a row, keep its text and add " $_uncertainMark" at the end of that row.
-2. Keep every row's number, start and end exactly as given. Change only the text. Do not merge, split, reorder or delete rows.
+2. Keep every row's number, start and end exactly as given. Change only the text. Do not merge, split, reorder or delete rows. Never move a line from another part of the poem into a row: a row keeps what is sung there, and a short refrain row stays a refrain.
 3. The video may contain verses (shaer) from a different poem. Where a row sounds like another poem, find that poem and correct the row from it.
 4. Write in the same script as the input (Urdu stays in Urdu script, not Roman). No translation and no added punctuation.
 5. Do not ask me to send fewer rows or to split them. Correct what is here, and mark any row you cannot verify with $_uncertainMark.
@@ -131,7 +140,7 @@ CorrectedScript applyCorrectedScript(Transcript current, String pasted) {
 Map<int, String> _textByRowNumber(String pasted) {
   final textByRow = <int, String>{};
   for (final row in pasted.split('\n')) {
-    final match = _row.firstMatch(row);
+    final match = _row.firstMatch(row.replaceAll(_citationMark, ''));
     if (match != null) {
       textByRow[int.parse(match.group(1)!)] = match.group(2)!;
     }
