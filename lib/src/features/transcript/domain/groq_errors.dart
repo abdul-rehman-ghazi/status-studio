@@ -34,3 +34,11 @@ class GroqOfflineException implements Exception {
   @override
   String toString() => 'GroqOfflineException';
 }
+
+/// Groq was asked for without a saved key.
+class NoGroqKeyException implements Exception {
+  const NoGroqKeyException();
+
+  @override
+  String toString() => 'NoGroqKeyException';
+}
