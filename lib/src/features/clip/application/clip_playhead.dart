@@ -6,6 +6,9 @@ import 'package:flutter/foundation.dart';
 /// The platform reports its position only about twice a second, so while
 /// playing [position] adds the time since the last report. Tap to time needs
 /// that finer reading.
+const _blendWithin = Duration(milliseconds: 250);
+const _blendShare = 0.3;
+
 class ClipPlayhead extends ChangeNotifier {
   ClipPlayhead({Duration Function()? clock})
     : _clock = clock ?? _stopwatchClock();
@@ -28,8 +31,17 @@ class ClipPlayhead extends ChangeNotifier {
     return _reportedPosition + (_clock() - _reportedAt);
   }
 
+  /// While playing, a report that differs a little from the position already
+  /// shown is blended in rather than jumped to, so the bar and the crop don't
+  /// stutter each time the platform reports; a big difference is a seek and
+  /// is followed at once.
   void report({required Duration position, required bool isPlaying}) {
-    _reportedPosition = position;
+    final continuing = _isPlaying && isPlaying;
+    final shown = this.position;
+    final drift = position - shown;
+    _reportedPosition = continuing && drift.abs() < _blendWithin
+        ? shown + drift * _blendShare
+        : position;
     _reportedAt = _clock();
     _isPlaying = isPlaying;
     notifyListeners();

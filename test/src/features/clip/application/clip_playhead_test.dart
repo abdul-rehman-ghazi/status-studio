@@ -55,4 +55,52 @@ void main() {
 
     expect(playhead.isPlaying, isFalse);
   });
+
+  group('a report while playing', () {
+    test('a_small_correction_is_blended_in_not_jumped_to', () {
+      playhead.report(position: const Duration(seconds: 10), isPlaying: true);
+      now += const Duration(milliseconds: 300);
+
+      playhead.report(
+        position: const Duration(milliseconds: 10200),
+        isPlaying: true,
+      );
+
+      // 10.3 s was shown; a jump back to 10.2 s would be seen as a stutter.
+      expect(playhead.position.inMilliseconds, inInclusiveRange(10250, 10300));
+    });
+
+    test('a_forward_correction_is_blended_in_too', () {
+      playhead.report(position: const Duration(seconds: 10), isPlaying: true);
+      now += const Duration(milliseconds: 300);
+
+      playhead.report(
+        position: const Duration(milliseconds: 10400),
+        isPlaying: true,
+      );
+
+      expect(playhead.position.inMilliseconds, inInclusiveRange(10300, 10350));
+    });
+
+    test('a_big_difference_is_a_seek_and_is_followed_at_once', () {
+      playhead.report(position: const Duration(seconds: 10), isPlaying: true);
+      now += const Duration(milliseconds: 300);
+
+      playhead.report(position: const Duration(seconds: 30), isPlaying: true);
+
+      expect(playhead.position, const Duration(seconds: 30));
+    });
+
+    test('the_first_report_after_a_pause_is_taken_as_it_is', () {
+      playhead.report(position: const Duration(seconds: 10), isPlaying: false);
+      now += const Duration(seconds: 5);
+
+      playhead.report(
+        position: const Duration(milliseconds: 10100),
+        isPlaying: true,
+      );
+
+      expect(playhead.position, const Duration(milliseconds: 10100));
+    });
+  });
 }

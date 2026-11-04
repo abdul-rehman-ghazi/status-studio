@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -218,7 +219,7 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
         ValueListenableBuilder<VideoPlayerValue>(
           valueListenable: _player,
           builder: (context, value, _) => _SeekBar(
-            position: value.position,
+            playhead: widget.playhead,
             duration: value.duration,
             clipInFile: _clipInFile,
             offset: widget.source.offset,
@@ -239,33 +240,66 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
 }
 
 /// A slider over the downloaded window, with the clip range marked under it.
-class _SeekBar extends StatelessWidget {
+/// It reads the playhead, not the player, so it moves smoothly between the
+/// player's reports.
+class _SeekBar extends StatefulWidget {
   const _SeekBar({
-    required this.position,
+    required this.playhead,
     required this.duration,
     required this.clipInFile,
     required this.offset,
     required this.onSeek,
   });
 
-  static const _trackInset = 10.0;
-
-  final Duration position;
+  final ClipPlayhead playhead;
   final Duration duration;
   final ClipRange clipInFile;
   final Duration offset;
   final ValueChanged<Duration>? onSeek;
 
   @override
+  State<_SeekBar> createState() => _SeekBarState();
+}
+
+class _SeekBarState extends State<_SeekBar>
+    with SingleTickerProviderStateMixin {
+  static const _trackInset = 10.0;
+
+  /// Wide enough for `99:59.9` in digits of equal width, so the slider
+  /// beside it never changes size as the time changes.
+  static const _timeWidth = 64.0;
+
+  late final PlayheadRedraw _redraw;
+
+  @override
+  void initState() {
+    super.initState();
+    _redraw = PlayheadRedraw(
+      vsync: this,
+      playhead: widget.playhead,
+      isMounted: () => mounted,
+      redraw: () => setState(() {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _redraw.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final totalMilliseconds = duration.inMilliseconds;
+    final totalMilliseconds = widget.duration.inMilliseconds;
     if (totalMilliseconds == 0) {
       return const SizedBox(height: 48);
     }
-    final shownMilliseconds = position.inMilliseconds.clamp(
+    final videoTime = widget.playhead.position;
+    final shownMilliseconds = (videoTime - widget.offset).inMilliseconds.clamp(
       0,
       totalMilliseconds,
     );
+    final onSeek = widget.onSeek;
     return Row(
       children: [
         Expanded(
@@ -277,9 +311,11 @@ class _SeekBar extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: _trackInset),
                   child: _ClipMarker(
                     startFraction:
-                        clipInFile.start.inMilliseconds / totalMilliseconds,
+                        widget.clipInFile.start.inMilliseconds /
+                        totalMilliseconds,
                     endFraction:
-                        clipInFile.end.inMilliseconds / totalMilliseconds,
+                        widget.clipInFile.end.inMilliseconds /
+                        totalMilliseconds,
                   ),
                 ),
               ),
@@ -297,7 +333,7 @@ class _SeekBar extends StatelessWidget {
                   semanticFormatterCallback: (_) => 'Seek',
                   onChanged: onSeek == null
                       ? null
-                      : (milliseconds) => onSeek!(
+                      : (milliseconds) => onSeek(
                           Duration(milliseconds: milliseconds.round()),
                         ),
                 ),
@@ -305,9 +341,16 @@ class _SeekBar extends StatelessWidget {
             ],
           ),
         ),
-        Text(
-          formatClipTime(position + offset),
-          style: const TextStyle(color: AppColors.textMuted),
+        SizedBox(
+          width: _timeWidth,
+          child: Text(
+            formatClipTime(videoTime),
+            textAlign: TextAlign.end,
+            style: const TextStyle(
+              color: AppColors.textMuted,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
         ),
       ],
     );

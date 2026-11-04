@@ -209,6 +209,30 @@ void main() {
     expect(theme.data.activeTrackColor, Colors.transparent);
   });
 
+  testWidgets('the_seek_bar_moves_between_the_players_reports', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    final player = players.created.single;
+    player.value = player.value.copyWith(
+      isPlaying: true,
+      position: fileTime(const Duration(seconds: 25)),
+    );
+    await tester.pump();
+    final before = tester.widget<Slider>(find.byType(Slider)).value;
+
+    // The player reports nothing for 300 ms, as a real one doesn't for a
+    // while; the bar still moves on.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(
+      tester.widget<Slider>(find.byType(Slider)).value,
+      greaterThan(before + 200),
+    );
+  });
+
   testWidgets('seek_bar_moves_the_player', (tester) async {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);

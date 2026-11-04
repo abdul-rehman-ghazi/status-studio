@@ -68,7 +68,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 **FR-5 Fine-tune (two steps since M19).** Both steps keep their own player over the same downloaded clip (FR-15); Next on step 1 opens step 2, and Back returns.
 - **Step 1, Video** (`/fine-tune`, "Step 3 of 5"):
   - **Opening:** downloads the clip (FR-15); the player shows download progress until it's ready.
-  - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole downloaded window, drawn as an outline with only the clip range filled; the time already played is not coloured, so it never hides the clip range. It does not stop at the clip end. "Play clip" seeks to the clip start and plays.
+  - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole downloaded window, drawn as an outline with only the clip range filled; the time already played is not coloured, so it never hides the clip range. The bar and its time follow the interpolated playhead, so they move smoothly between the player's reports; a report that differs a little is blended in, a big one is a seek. The time has a fixed width with equal-width digits, so the bar never changes size. It does not stop at the clip end. "Play clip" seeks to the clip start and plays.
   - **Range:** the clip runs from the start line's start to the end line's end.
   - **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. A clip that starts out invalid (from transcript times) still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
   - **Set to the playhead:** tapping the Start time, or the End time, sets it to where the video is now, rounded to 0.1 s. The nudge rules apply: a time that would leave the clip under **3 s**, or outside the video, changes nothing. It does nothing until the player is ready.
@@ -824,7 +824,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] The waveform lines up with the sound.
   - [ ] The warning appears above 60 s.
   - [ ] A language change reuses the audio.
-  - [ ] Play, pause and the seek bar work over the window; playback runs past the clip end.
+  - [ ] Play, pause and the seek bar work over the window; playback runs past the clip end; the bar and its time move without jerks or width changes.
   - [ ] Tapping lines while a naat plays times them, and the highlight follows without lag.
   - [ ] Editing, reordering, adding and deleting lines with Urdu text; the edited script reopens for the same video.
   - [ ] Moving crop, on a phone: the window drags under a thumb (the play button sits in the corner), the keyframe chips are usable above the scrolling frame controls, and the preview glides smoothly.
