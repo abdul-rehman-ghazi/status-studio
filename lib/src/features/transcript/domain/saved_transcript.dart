@@ -1,14 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
-import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// Source name of a script that came from YouTube captions (FR-14).
 const captionsSource = 'captions';
-
-/// Source name of a script Whisper wrote with [model] (FR-14).
-String whisperSource(SpeechModel model) => 'whisper-${model.name}';
 
 /// Source name of a script Groq wrote (FR-14).
 const groqSource = 'groq-whisper-large-v3-turbo';

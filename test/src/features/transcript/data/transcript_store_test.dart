@@ -5,7 +5,6 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
-import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
@@ -89,21 +88,14 @@ void main() {
       completedChunks: 2,
       lines: transcript.lines,
     );
-    await store.savePartial(
-      keyFor('a'),
-      whisperSource(SpeechModel.small),
-      partial,
-    );
-    final loaded = await store.loadPartial(
-      keyFor('a'),
-      whisperSource(SpeechModel.small),
-    );
+    await store.savePartial(keyFor('a'), groqSource, partial);
+    final loaded = await store.loadPartial(keyFor('a'), groqSource);
 
-    await store.clearPartial(keyFor('a'), whisperSource(SpeechModel.small));
+    await store.clearPartial(keyFor('a'), groqSource);
 
     expect(loaded, partial);
     await expectLater(
-      store.loadPartial(keyFor('a'), whisperSource(SpeechModel.small)),
+      store.loadPartial(keyFor('a'), groqSource),
       throwsA(isA<NoSavedTranscriptException>()),
     );
   });
@@ -137,17 +129,14 @@ void main() {
   test('prune_keeps_video_with_only_partial_progress', () async {
     await store.savePartial(
       keyFor('resuming'),
-      whisperSource(SpeechModel.small),
+      groqSource,
       const PartialTranscript(completedChunks: 1, lines: []),
     );
     now = start.add(const Duration(days: 1));
 
     await store.prune();
 
-    final partial = await store.loadPartial(
-      keyFor('resuming'),
-      whisperSource(SpeechModel.small),
-    );
+    final partial = await store.loadPartial(keyFor('resuming'), groqSource);
     expect(partial.completedChunks, 1);
   });
 
@@ -253,7 +242,7 @@ void main() {
       await store.saveVideo(videoWithId('a'));
       await store.savePartial(
         keyFor('a'),
-        whisperSource(SpeechModel.small),
+        groqSource,
         PartialTranscript(completedChunks: 1, lines: transcript.lines),
       );
 

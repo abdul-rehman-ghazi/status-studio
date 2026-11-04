@@ -18,7 +18,8 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.hotmail.arehmananis.statusstudio"
     compileSdk = flutter.compileSdkVersion
-    // whisper_ggml needs NDK 29; NDKs are backward compatible, so the app uses it too.
+    // Pinned when whisper_ggml needed NDK 29; drop once a clean build confirms
+    // nothing else does.
     ndkVersion = "29.0.13113456"
 
     compileOptions {

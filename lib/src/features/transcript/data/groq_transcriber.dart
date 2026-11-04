@@ -1,9 +1,41 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
-import 'package:status_studio/src/features/transcript/data/whisper_transcriber.dart';
 import 'package:status_studio/src/features/transcript/domain/segment_lines.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript.dart';
+
+/// What a run reports: progress inside a piece, or a finished piece's
+/// lines.
+sealed class ChunkEvent {
+  const ChunkEvent();
+}
+
+/// The piece at [position] is [fraction] of the way through.
+@immutable
+class ChunkProgress extends ChunkEvent {
+  const ChunkProgress({required this.position, required this.fraction});
+
+  final int position;
+  final double fraction;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChunkProgress &&
+      other.position == position &&
+      other.fraction == fraction;
+
+  @override
+  int get hashCode => Object.hash(position, fraction);
+}
+
+/// A piece's lines, once it is written.
+class ChunkWritten extends ChunkEvent {
+  const ChunkWritten(this.lines);
+
+  final List<TranscriptLine> lines;
+}
 
 /// Segments Groq is this sure hold no speech are dropped. Provisional until
 /// the M9 spike (§10 Q5) measures it on a music-only piece.

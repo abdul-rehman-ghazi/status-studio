@@ -28,10 +28,6 @@ class ProcessingScreen extends ConsumerStatefulWidget {
 class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   var _leaving = false;
 
-  /// Once this run has downloaded the model, its row stays, ticked, so the
-  /// user sees where the time and data went.
-  var _downloadedModel = false;
-
   /// Measures each step's speed from when this screen first saw it.
   final _clock = Stopwatch()..start();
   final _amounts = <ScriptStage, _StepAmounts>{};
@@ -89,7 +85,6 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     final draft = ref.watch(reelDraftProvider);
     final run = ref.watch(scriptProgressProvider);
     _openScriptIfDone(run);
-    _downloadedModel |= run.value?.stage == ScriptStage.downloadingModel;
     return PopScope(
       // System back leaves the run as surely as Cancel does.
       onPopInvokedWithResult: (didPop, _) {
@@ -117,10 +112,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
               _RunFailed(error: error)
             else
               _RunSteps(
-                steps: [
-                  if (_downloadedModel) _modelStep,
-                  ..._scriptSteps(draft.language, run.value),
-                ],
+                steps: _scriptSteps(draft.language, run.value),
                 progress: run.value,
                 readings: _readings,
               ),
@@ -188,7 +180,6 @@ class _RunSteps extends StatelessWidget {
 enum _FailureAction {
   retry('Retry'),
   settings('Settings'),
-  useOnDevice('Use on-device'),
   back('Back'),
   anotherLanguage('Try another language');
 
@@ -201,20 +192,13 @@ List<_FailureAction> _actionsFor(Object error) {
   return switch (error) {
     NoSpeechFoundException() => [_FailureAction.anotherLanguage],
     VideoUnavailableException() || InsufficientStorageException() => const [],
-    GroqKeyRejectedException() => const [
+    NoGroqKeyException() || GroqKeyRejectedException() => const [
       _FailureAction.settings,
-      _FailureAction.useOnDevice,
       _FailureAction.back,
     ],
-    GroqRateLimitedException() => const [
-      _FailureAction.useOnDevice,
-      _FailureAction.back,
-    ],
-    GroqFailedException() || GroqOfflineException() => const [
-      _FailureAction.retry,
-      _FailureAction.useOnDevice,
-      _FailureAction.back,
-    ],
+    GroqRateLimitedException() => const [_FailureAction.back],
+    GroqFailedException() ||
+    GroqOfflineException() => const [_FailureAction.retry, _FailureAction.back],
     _ => const [_FailureAction.retry],
   };
 }
@@ -250,12 +234,7 @@ class _RunFailed extends ConsumerWidget {
   void _perform(_FailureAction action, BuildContext context, WidgetRef ref) {
     switch (action) {
       case _FailureAction.retry:
-        _restart(ref, (run, video, language) => run.start(video, language));
-      case _FailureAction.useOnDevice:
-        _restart(
-          ref,
-          (run, video, language) => run.useOnDevice(video, language),
-        );
+        _retry(ref);
       case _FailureAction.settings:
         context.push(AppRoutes.settings);
       case _FailureAction.back || _FailureAction.anotherLanguage:
@@ -263,13 +242,10 @@ class _RunFailed extends ConsumerWidget {
     }
   }
 
-  void _restart(
-    WidgetRef ref,
-    void Function(ScriptProgressController, SourceVideo, ScriptLanguage) run,
-  ) {
+  void _retry(WidgetRef ref) {
     final draft = ref.read(reelDraftProvider);
     if (draft.video case final video?) {
-      run(ref.read(scriptProgressProvider.notifier), video, draft.language);
+      ref.read(scriptProgressProvider.notifier).start(video, draft.language);
     }
   }
 }
@@ -281,12 +257,6 @@ typedef _StepAmounts = ({WorkRate rate, WorkAmount latest, Duration latestAt});
 
 /// How much of a step is done, and how fast, as last measured.
 typedef _StepReading = ({WorkAmount amount, double? perSecond});
-
-final _Step _modelStep = (
-  label: ScriptStage.downloadingModel.label,
-  detail: 'Needed once, then it works offline',
-  stage: ScriptStage.downloadingModel,
-);
 
 List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
   return [
@@ -302,7 +272,7 @@ List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
     ),
     (
       label: ScriptStage.transcribing.label,
-      detail: 'Whisper, on your phone',
+      detail: 'Groq, in the cloud',
       stage: ScriptStage.transcribing,
     ),
     (

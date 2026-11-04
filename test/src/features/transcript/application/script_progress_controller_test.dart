@@ -16,10 +16,9 @@ import '../../../../helpers/fake_background_work_platform.dart';
 import '../../../../helpers/fixtures.dart';
 
 /// Each run starts, then waits at its gate the way a pipeline waits on a
-/// download or a Whisper chunk.
+/// download or a Groq piece.
 class GatedPipeline implements ScriptPipeline {
   final started = <ScriptLanguage>[];
-  final continuedOnDevice = <ScriptLanguage>[];
   final gate = Completer<void>();
 
   @override
@@ -41,15 +40,6 @@ class GatedPipeline implements ScriptPipeline {
     SourceVideo video,
     ScriptLanguage language,
   ) => run(video, language);
-
-  @override
-  Stream<ScriptProgress> continueOnDevice(
-    SourceVideo video,
-    ScriptLanguage language,
-  ) {
-    continuedOnDevice.add(language);
-    return run(video, language);
-  }
 }
 
 /// Sends whatever the test adds to [events].
@@ -62,12 +52,6 @@ class ControlledPipeline implements ScriptPipeline {
 
   @override
   Stream<ScriptProgress> writeAgain(
-    SourceVideo video,
-    ScriptLanguage language,
-  ) => events.stream;
-
-  @override
-  Stream<ScriptProgress> continueOnDevice(
     SourceVideo video,
     ScriptLanguage language,
   ) => events.stream;
@@ -97,13 +81,6 @@ void main() {
 
   ScriptProgressController controller() =>
       container.read(scriptProgressProvider.notifier);
-
-  test('use_on_device_runs_the_pipelines_on_device_path', () async {
-    controller().useOnDevice(sampleVideo, ScriptLanguage.urdu);
-    await pumpEventQueue();
-
-    expect(pipeline.continuedOnDevice, [ScriptLanguage.urdu]);
-  });
 
   test('restart_waits_while_previous_run_is_busy', () async {
     controller().start(sampleVideo, ScriptLanguage.urdu);

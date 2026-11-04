@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
 import 'package:status_studio/src/features/transcript/data/groq_transcriber.dart';
-import 'package:status_studio/src/features/transcript/data/whisper_transcriber.dart';
 
 class _FakeGroqClient extends GroqClient {
   _FakeGroqClient(this.replies) : super(apiKey: 'gsk_fake');

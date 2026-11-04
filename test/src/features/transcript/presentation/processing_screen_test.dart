@@ -46,18 +46,12 @@ class FailingPipeline extends FakeScriptPipeline {
   final Object error;
 
   @override
-  Stream<ScriptProgress> continueOnDevice(
-    SourceVideo video,
-    ScriptLanguage language,
-  ) => super.run(video, language);
-
-  @override
   Stream<ScriptProgress> run(SourceVideo video, ScriptLanguage language) =>
       Stream.error(error);
 }
 
 /// Sends whatever the test adds to [events], so the screen is up before
-/// the run reports anything, as it is while a model downloads on a phone.
+/// the run reports anything, as it is while the audio downloads.
 class ManualPipeline extends FakeScriptPipeline {
   ManualPipeline();
 
@@ -83,32 +77,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Lining up timestamps'), findsOneWidget);
-  });
-
-  testWidgets('downloaded_model_step_stays_listed', (tester) async {
-    final pipeline = ManualPipeline();
-    final empty = sampleTranscript.copyWith(lines: const []);
-    await startProcessing(tester, step: Duration.zero, pipeline: pipeline);
-    await tester.pump(const Duration(seconds: 1));
-    pipeline.events.add(
-      ScriptProgress(
-        stage: ScriptStage.downloadingModel,
-        fraction: 0.1,
-        transcript: empty,
-      ),
-    );
-    await tester.pump();
-
-    pipeline.events.add(
-      ScriptProgress(
-        stage: ScriptStage.downloadingAudio,
-        fraction: 0.15,
-        transcript: empty,
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Downloading the speech model'), findsOneWidget);
   });
 
   group('step amounts', () {
@@ -296,38 +264,51 @@ void main() {
     }
 
     List<String> offeredActions() => [
-      for (final label in ['Retry', 'Settings', 'Use on-device', 'Back'])
+      for (final label in ['Retry', 'Settings', 'Back'])
         if (find.widgetWithText(OutlinedButton, label).evaluate().isNotEmpty)
           label,
     ];
 
-    testWidgets('rejected_key_offers_settings_on_device_and_back', (
-      tester,
-    ) async {
+    testWidgets('rejected_key_offers_settings_and_back', (tester) async {
       await failWith(tester, const GroqKeyRejectedException());
 
-      expect(offeredActions(), ['Settings', 'Use on-device', 'Back']);
+      expect(offeredActions(), ['Settings', 'Back']);
     });
 
-    testWidgets('rate_limit_offers_on_device_and_back', (tester) async {
+    testWidgets('missing_key_offers_settings_and_back', (tester) async {
+      await failWith(tester, const NoGroqKeyException());
+
+      expect(offeredActions(), ['Settings', 'Back']);
+    });
+
+    testWidgets('missing_key_message_is_shown', (tester) async {
+      await failWith(tester, const NoGroqKeyException());
+
+      expect(
+        find.text('Writing a script needs a free Groq key.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('rate_limit_offers_back_only', (tester) async {
       await failWith(
         tester,
         const GroqRateLimitedException(Duration(minutes: 5)),
       );
 
-      expect(offeredActions(), ['Use on-device', 'Back']);
+      expect(offeredActions(), ['Back']);
     });
 
-    testWidgets('groq_failure_offers_retry_on_device_and_back', (tester) async {
+    testWidgets('groq_failure_offers_retry_and_back', (tester) async {
       await failWith(tester, const GroqFailedException(500));
 
-      expect(offeredActions(), ['Retry', 'Use on-device', 'Back']);
+      expect(offeredActions(), ['Retry', 'Back']);
     });
 
-    testWidgets('groq_offline_offers_retry_on_device_and_back', (tester) async {
+    testWidgets('groq_offline_offers_retry_and_back', (tester) async {
       await failWith(tester, const GroqOfflineException());
 
-      expect(offeredActions(), ['Retry', 'Use on-device', 'Back']);
+      expect(offeredActions(), ['Retry', 'Back']);
     });
 
     testWidgets('rejected_key_message_is_shown', (tester) async {
@@ -343,18 +324,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.widgetWithText(AppBar, 'Settings'), findsOneWidget);
-    });
-
-    testWidgets('use_on_device_action_continues_the_run', (tester) async {
-      await failWith(tester, const GroqFailedException(500));
-
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Use on-device'));
-      // The cancelled run's subscription only finishes cancelling on real
-      // microtasks, not on fake-async pumps.
-      await tester.runAsync(pumpEventQueue);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Pick the lines'), findsOneWidget);
     });
 
     testWidgets('back_action_leaves_processing', (tester) async {

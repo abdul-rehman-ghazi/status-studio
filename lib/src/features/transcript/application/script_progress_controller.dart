@@ -37,12 +37,12 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
     return const AsyncLoading();
   }
 
-  /// Saved script, captions or Whisper, whichever comes first (FR-3).
+  /// Saved script, captions or Groq, whichever comes first (FR-3).
   void start(SourceVideo video, ScriptLanguage language) => _follow(
     _keptRunning(ref.read(scriptPipelineProvider).run(video, language), video),
   );
 
-  /// Whisper again, replacing the saved script (FR-14).
+  /// Groq again, replacing the saved script (FR-14).
   void writeAgain(SourceVideo video, ScriptLanguage language) => _follow(
     _keptRunning(
       ref.read(scriptPipelineProvider).writeAgain(video, language),
@@ -50,15 +50,7 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
     ),
   );
 
-  /// Whisper on the phone, after the lines Groq already wrote (FR-12a).
-  void useOnDevice(SourceVideo video, ScriptLanguage language) => _follow(
-    _keptRunning(
-      ref.read(scriptPipelineProvider).continueOnDevice(video, language),
-      video,
-    ),
-  );
-
-  /// Stops the run; Whisper releases its model as the stream closes.
+  /// Stops the run.
   void cancel() {
     _generation++;
     _stopListening();
@@ -78,8 +70,8 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
   }
 
   /// A cancelled run keeps going until its current step ends (a download,
-  /// an FFmpeg run, a Whisper chunk). Two runs at once would share audio
-  /// files and load the model twice, so the next one waits.
+  /// an FFmpeg run, a Groq piece). Two runs at once would share audio
+  /// files, so the next one waits.
   Future<void> _followOnceStopped(
     Stream<ScriptProgress> run,
     int generation,

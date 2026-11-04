@@ -4,34 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/ffmpeg/audio_arguments.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 
-/// Turns downloaded audio into the WAV chunks Whisper transcribes.
+/// Cuts downloaded audio into the pieces Groq transcribes.
 class AudioPreparer {
   AudioPreparer(this.runner);
 
   final FfmpegRunner runner;
-
-  /// `audio.wav` next to [audio], reused if already made (M4's waveform
-  /// reads it too).
-  Future<File> toWav(File audio) async {
-    final wav = File('${audio.parent.path}/audio.wav');
-    if (await wav.exists()) {
-      return wav;
-    }
-    // Converted under another name so a half-written WAV is never reused.
-    final converting = File('${wav.path}.converting.wav');
-    await runner.run(
-      wavArguments(inputPath: audio.path, outputPath: converting.path),
-    );
-    return converting.rename(wav.path);
-  }
-
-  /// [wav] cut into pieces of [chunkSeconds], in playback order.
-  Future<List<File>> splitIntoChunks(File wav, {int chunkSeconds = 90}) =>
-      _split(
-        wav,
-        folderName: 'chunks_$chunkSeconds',
-        chunkSeconds: chunkSeconds,
-      );
 
   /// [audio] cut into `.m4a` pieces of [chunkSeconds] by stream copy, the
   /// small files Groq is sent (spec FR-12a). Cuts fall on audio packets, so

@@ -1,29 +1,3 @@
-/// The speech model couldn't be downloaded (spec §8).
-class ModelDownloadException implements Exception {
-  const ModelDownloadException(this.reason);
-
-  final String reason;
-
-  @override
-  String toString() => 'ModelDownloadException: $reason';
-}
-
-/// The speech model download was paused or cancelled while something
-/// waited for it (spec §8).
-class ModelDownloadStoppedException implements Exception {
-  const ModelDownloadStoppedException();
-}
-
-/// Whisper failed on a chunk of audio.
-class TranscriptionFailedException implements Exception {
-  const TranscriptionFailedException(this.reason);
-
-  final String reason;
-
-  @override
-  String toString() => 'TranscriptionFailedException: $reason';
-}
-
 /// The whole video produced no lines of speech (spec §8).
 class NoSpeechFoundException implements Exception {
   const NoSpeechFoundException();

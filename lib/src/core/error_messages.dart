@@ -13,9 +13,8 @@ String errorMessageFor(Object error) {
     YouTubeChangedException() =>
       "Couldn't read this video from YouTube. Try again later.",
     InsufficientStorageException() => 'Not enough space on your phone.',
-    ModelDownloadException() => "Couldn't download the speech model.",
-    ModelDownloadStoppedException() => 'The speech model download was stopped.',
     NoSpeechFoundException() => 'No speech found in this video.',
+    NoGroqKeyException() => 'Writing a script needs a free Groq key.',
     GroqKeyRejectedException() => "Groq didn't accept your API key.",
     GroqRateLimitedException(:final retryAfter) => _groqLimitMessage(
       retryAfter,

@@ -28,20 +28,6 @@ void main() {
     );
   });
 
-  test('maps_stopped_model_download', () {
-    expect(
-      errorMessageFor(const ModelDownloadStoppedException()),
-      'The speech model download was stopped.',
-    );
-  });
-
-  test('maps_model_download', () {
-    expect(
-      errorMessageFor(const ModelDownloadException('x')),
-      "Couldn't download the speech model.",
-    );
-  });
-
   test('maps_unavailable', () {
     expect(
       errorMessageFor(const VideoUnavailableException('x')),
@@ -67,6 +53,13 @@ void main() {
     expect(
       errorMessageFor(const TranslationPackMissingException('ur')),
       'English needs a one-time download.',
+    );
+  });
+
+  test('maps_missing_groq_key', () {
+    expect(
+      errorMessageFor(const NoGroqKeyException()),
+      'Writing a script needs a free Groq key.',
     );
   });
 

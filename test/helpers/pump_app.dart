@@ -30,14 +30,12 @@ import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
-import 'package:status_studio/src/features/transcript/data/model_manager.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import 'fake_background_work_platform.dart';
 import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
-import 'fake_model_manager.dart';
 import 'fake_reel_actions.dart';
 import 'fake_video_player.dart';
 import 'fake_yt_dlp.dart';
@@ -59,7 +57,6 @@ class TestSetup {
     this.reelActions,
     this.recentReels = const [],
     this.savedScripts = const [],
-    this.modelManager,
     this.ytDlp,
     this.backgroundWork,
   });
@@ -87,9 +84,6 @@ class TestSetup {
   /// The finished scripts Home lists, newest first.
   final List<SavedScript> savedScripts;
 
-  /// Defaults to a [FakeModelManager] with nothing downloaded.
-  final ModelManager? modelManager;
-
   /// Defaults to a fresh [FakeYtDlp]; the video source is faked anyway.
   final YtDlp? ytDlp;
 
@@ -102,7 +96,6 @@ class TestSetup {
     captionTranslatorProvider.overrideWithValue(translator),
     reelActionsProvider.overrideWithValue(reelActions ?? FakeReelActions()),
     ffmpegRunnerProvider.overrideWithValue(const SilentFfmpegRunner()),
-    modelManagerProvider.overrideWithValue(modelManager ?? FakeModelManager()),
     ytDlpProvider.overrideWithValue(ytDlp ?? FakeYtDlp()),
     backgroundWorkPlatformProvider.overrideWithValue(
       backgroundWork ?? FakeBackgroundWorkPlatform(),
