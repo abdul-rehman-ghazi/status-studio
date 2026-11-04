@@ -733,7 +733,7 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
 - [x] **5. Extractor and detector.** `FrameExtractor` (FFmpeg) and `SubjectDetector` (ML Kit) behind interfaces; the dependency; cancel the FFmpeg run by its own session, not all sessions.
 - [x] **6. Controller.** `FollowSubjectController`: progress, cancel, cancel on change, clean-up, errors, with fakes.
 - [x] **7. UI.** The button, progress, Cancel, the replace question and the snackbars.
-- [ ] **8. Docs and review.** §13, §14, §12 status; reviewer pass; push. CLAUDE.md's FFmpeg line needs "and frame sampling" (left for the user to approve).
+- [x] **8. Docs and review.** §13, §14, §12 status; reviewer pass (Opus; six findings, all fixed); push. CLAUDE.md's FFmpeg line still needs "and frame sampling" (left for the user to approve).
 
 ## 13. Behaviour that must stay covered by tests
 
