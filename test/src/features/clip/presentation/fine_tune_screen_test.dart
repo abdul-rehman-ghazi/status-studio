@@ -44,6 +44,12 @@ Future<void> tapText(WidgetTester tester, String label) async {
   await tester.pump();
 }
 
+/// The clip as the draft holds it now.
+ClipRange clipNow(WidgetTester tester) =>
+    ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
+        .read(reelDraftProvider)
+        .clip!;
+
 void main() {
   testWidgets('nudge_start_updates_label', (tester) async {
     await pumpFineTune(tester);
@@ -61,6 +67,50 @@ void main() {
     await tester.pump();
 
     expect(find.text('0:49.3'), findsOneWidget);
+  });
+
+  testWidgets('tapping_the_start_time_sets_it_to_the_playhead', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    players.created.single.value = players.created.single.value.copyWith(
+      position: fileTime(const Duration(seconds: 25)),
+    );
+    await tester.pump();
+
+    await tester.tap(find.bySemanticsLabel('Set start to the playhead'));
+    await tester.pump();
+
+    expect(clipNow(tester).start, const Duration(seconds: 25));
+  });
+
+  testWidgets('tapping_the_end_time_sets_it_to_the_playhead', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    players.created.single.value = players.created.single.value.copyWith(
+      position: fileTime(const Duration(seconds: 45)),
+    );
+    await tester.pump();
+
+    await tester.tap(find.bySemanticsLabel('Set end to the playhead'));
+    await tester.pump();
+
+    expect(clipNow(tester).end, const Duration(seconds: 45));
+  });
+
+  testWidgets('a_tap_that_would_make_the_clip_too_short_changes_nothing', (
+    tester,
+  ) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    players.created.single.value = players.created.single.value.copyWith(
+      position: fileTime(const Duration(seconds: 47)),
+    );
+    await tester.pump();
+
+    await tester.tap(find.bySemanticsLabel('Set start to the playhead'));
+    await tester.pump();
+
+    expect(clipNow(tester).start, pickedDraft.clip!.start);
   });
 
   testWidgets('shows_clip_length', (tester) async {

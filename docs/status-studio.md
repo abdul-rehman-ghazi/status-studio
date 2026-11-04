@@ -71,6 +71,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole downloaded window with the clip range marked. It does not stop at the clip end. "Play clip" seeks to the clip start and plays.
   - **Range:** the clip runs from the start line's start to the end line's end.
   - **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. A clip that starts out invalid (from transcript times) still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
+  - **Set to the playhead:** tapping the Start time, or the End time, sets it to where the video is now, rounded to 0.1 s. The nudge rules apply: a time that would leave the clip under **3 s**, or outside the video, changes nothing. It does nothing until the player is ready.
   - **Waveform:** 60 bars over the downloaded window, with the clip highlighted.
   - **Long-clip warning:** above 60.0 s, "Longer than 60 s. WhatsApp Status may cut it." It never blocks.
   - **Frame:** size, fill, keep in view and free crop (FR-6), and a crop that moves (FR-22). The crop window is drawn over the player.
@@ -694,6 +695,7 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
 - [x] **5. Two steps.** Routes, step labels for all screens ("of 5") and buttons; the Video step keeps the player, nudges and warnings and takes size, fill and crop from Style; the Lyrics step takes the lines (only the clip's); Style keeps the caption.
 - [x] **6. Moving crop on Video.** The crop window over the player, with the switch (hidden without room); drag writes one keyframe on release; chips in the pinned part with Glide, Cut and Delete; a ticker for the playhead.
 - [x] **7. Lyrics preview.** `ReelPreview` follows the playhead (moving crop and the due cue); the Video step's player is released while Lyrics is open.
+- [x] **9. Set an edge to the playhead (request 2026-11-04).** Tapping Start or End sets it to the playhead under the nudge rules.
 - [x] **8. Docs and review.** §13, §14, §15; reviewer pass (Opus; eight findings, all fixed except a test for a cancelled drag); push.
 
 ## 13. Behaviour that must stay covered by tests
@@ -731,6 +733,7 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
     - An edited line count shares the clip by line length.
     - One overlay PNG per cue is written, kept while the render runs and deleted when it ends.
     - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
+- **Clip edges (FR-5):** tapping Start or End sets it to the playhead rounded to 0.1 s; a time that leaves under 3 s or passes the video's ends changes nothing.
 - **Moving crop (FR-22):**
   - A glide moves in a straight line and arrives at its keyframe's time; a cut holds the earlier anchor until then and has jumped at exactly that time. Dart and Kotlin share their boundary cases.
   - Before the first keyframe the first anchor holds, and after the last the last.

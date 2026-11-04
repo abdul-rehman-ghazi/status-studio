@@ -68,6 +68,16 @@ class ReelDraftController extends Notifier<ReelDraft> {
   void removeCropKeyframe(int index) =>
       state = state.withoutCropKeyframe(index);
 
+  /// Sets the clip start to [videoTime], rounded to a tenth of a second. The
+  /// nudge rules apply: a start that leaves under 3 s, or passes the video's
+  /// ends, changes nothing (spec FR-5).
+  void setClipStartAt(Duration videoTime) =>
+      nudgeClipStart(_roundedToTenth(videoTime) - _requireClip().start);
+
+  /// Sets the clip end to [videoTime]; see [setClipStartAt].
+  void setClipEndAt(Duration videoTime) =>
+      nudgeClipEnd(_roundedToTenth(videoTime) - _requireClip().end);
+
   void updateFrame(FrameSettings frame) => state = state.copyWith(frame: frame);
 
   void updateCaption(CaptionSettings caption) =>
@@ -89,3 +99,6 @@ class ReelDraftController extends Notifier<ReelDraft> {
     return video;
   }
 }
+
+Duration _roundedToTenth(Duration time) =>
+    Duration(milliseconds: (time.inMilliseconds / 100).round() * 100);

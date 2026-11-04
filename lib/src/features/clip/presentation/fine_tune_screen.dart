@@ -157,6 +157,13 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
   }
 
+  /// Tapping a clip time sets it to where the video is now (spec FR-5).
+  void _setEdgeToPlayhead(void Function(Duration videoTime) setEdge) {
+    if (_playhead.isReady) {
+      setEdge(_playhead.position);
+    }
+  }
+
   /// One keyframe is written when a drag ends; it becomes the selected one.
   void _moveCropTo(
     ReelDraftController controller,
@@ -204,6 +211,8 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
                 edge: _ClipEdge.start,
                 time: clip.start,
                 onNudge: controller.nudgeClipStart,
+                onSetToPlayhead: () =>
+                    _setEdgeToPlayhead(controller.setClipStartAt),
               ),
             ),
             const SizedBox(width: 12),
@@ -212,9 +221,15 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
                 edge: _ClipEdge.end,
                 time: clip.end,
                 onNudge: controller.nudgeClipEnd,
+                onSetToPlayhead: () =>
+                    _setEdgeToPlayhead(controller.setClipEndAt),
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        const HintText(
+          'Tap a time to set it to where the video is now, or nudge it.',
         ),
         const SizedBox(height: 24),
         FrameControls(
@@ -398,11 +413,13 @@ class _NudgeCard extends StatelessWidget {
     required this.edge,
     required this.time,
     required this.onNudge,
+    required this.onSetToPlayhead,
   });
 
   final _ClipEdge edge;
   final Duration time;
   final ValueChanged<Duration> onNudge;
+  final VoidCallback onSetToPlayhead;
 
   @override
   Widget build(BuildContext context) {
@@ -415,9 +432,21 @@ class _NudgeCard extends StatelessWidget {
       child: Column(
         children: [
           HintText(edge.label),
-          Text(
-            formatClipTime(time),
-            style: Theme.of(context).textTheme.titleLarge,
+          Semantics(
+            label: 'Set ${edge.label.toLowerCase()} to the playhead',
+            button: true,
+            excludeSemantics: true,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onSetToPlayhead,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Text(
+                  formatClipTime(time),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           Row(

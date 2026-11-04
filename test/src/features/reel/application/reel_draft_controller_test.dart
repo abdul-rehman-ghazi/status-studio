@@ -76,6 +76,56 @@ void main() {
     expect(draft().clip!.start, const Duration(milliseconds: 20900));
   });
 
+  group('setting an edge at a video time', () {
+    void pickLinesOneToThree() {
+      controller
+        ..setVideo(sampleVideo)
+        ..setTranscript(fixture)
+        ..tapLine(1)
+        ..tapLine(3);
+    }
+
+    test('sets_the_clip_start', () {
+      pickLinesOneToThree();
+
+      controller.setClipStartAt(const Duration(seconds: 25));
+
+      expect(draft().clip!.start, const Duration(seconds: 25));
+    });
+
+    test('sets_the_clip_end', () {
+      pickLinesOneToThree();
+
+      controller.setClipEndAt(const Duration(seconds: 45));
+
+      expect(draft().clip!.end, const Duration(seconds: 45));
+    });
+
+    test('rounds_the_time_to_a_tenth_of_a_second', () {
+      pickLinesOneToThree();
+
+      controller.setClipStartAt(const Duration(milliseconds: 25049));
+
+      expect(draft().clip!.start, const Duration(milliseconds: 25000));
+    });
+
+    test('ignores_a_start_that_would_leave_under_three_seconds', () {
+      pickLinesOneToThree();
+
+      controller.setClipStartAt(const Duration(seconds: 47));
+
+      expect(draft().clip!.start, const Duration(milliseconds: 21400));
+    });
+
+    test('ignores_an_end_before_the_start', () {
+      pickLinesOneToThree();
+
+      controller.setClipEndAt(const Duration(seconds: 10));
+
+      expect(draft().clip!.end, const Duration(milliseconds: 48800));
+    });
+  });
+
   test('start_new_resets_draft', () {
     controller
       ..setVideo(sampleVideo)
