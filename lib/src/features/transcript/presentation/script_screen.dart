@@ -296,16 +296,21 @@ class _AiFixActions extends ConsumerWidget {
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
-    await Clipboard.setData(
-      ClipboardData(
-        text: scriptPromptFor(
-          videoTitle: video.title,
-          videoUrl: 'https://youtu.be/${video.videoId}',
-          transcript: transcript,
+    try {
+      final lines = linesToCheck(transcript, draft.selection);
+      await Clipboard.setData(
+        ClipboardData(
+          text: scriptPromptFor(
+            videoTitle: video.title,
+            videoUrl: 'https://youtu.be/${video.videoId}',
+            lines: lines,
+          ),
         ),
-      ),
-    );
-    messenger.showSnackBar(const SnackBar(content: Text(_copied)));
+      );
+      messenger.showSnackBar(SnackBar(content: Text(_copied(lines.length))));
+    } on Exception catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
+    }
   }
 
   Future<void> _pasteFixed(BuildContext context, WidgetRef ref) async {
@@ -332,9 +337,9 @@ class _AiFixActions extends ConsumerWidget {
   }
 }
 
-const _copied =
-    'Copied. Paste it into ChatGPT (or any AI that can search the web), copy '
-    'its reply, then tap Paste AI reply.';
+String _copied(int lineCount) =>
+    'Copied $lineCount lines. Paste them into ChatGPT (or any AI that can '
+    'search the web), copy its reply, then tap Paste AI reply.';
 
 String _pastedMessage(CorrectedScript corrected) {
   final updated = 'Updated ${corrected.changedLines} lines.';

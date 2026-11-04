@@ -166,8 +166,9 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Captions:** with FR-7a each lyric line shows on its own, when it is sung.
 
 **FR-18 Fix the script with an AI agent (M13).** For text the lyrics service lacks (a naat with verses from another poem), the user takes the script to any AI chat that can search the web and brings the corrected text back. Two buttons on Script, next to "Real lyrics", both off while a script is still being written.
-- **Copy for AI:** copies one block to the clipboard: a ready prompt (video title, `https://youtu.be/<id>`, rules) followed by every script line as `<number> | <mm:ss.xx> | <mm:ss.xx> | <text>`. Row numbers are line index + 1. The user pastes it into the chat unchanged. Snackbar: "Copied. Paste it into ChatGPT (or any AI that can search the web), copy its reply, then tap Paste AI reply."
-- **The prompt asks the agent to:** search for the real lyrics and never invent words; keep numbers and times and change only the text; correct rows that belong to a different poem from that poem; keep the script (no Roman, no translation); mark rows with no source by ` [?]`; reply with the rows in one code block, then list changed rows with source links.
+- **Copy for AI:** copies one block to the clipboard: a ready prompt (video title, `https://youtu.be/<id>`, rules) followed by the lines as `<number> | <mm:ss.xx> | <mm:ss.xx> | <text>`. Row numbers are the line's index in the whole script + 1. The user pastes it into the chat unchanged. Snackbar: "Copied <n> lines. Paste them into ChatGPT (or any AI that can search the web), copy its reply, then tap Paste AI reply."
+  - **Which lines:** the picked clip's lines when a range is picked; otherwise the whole script if it has at most **60** lines. More than 60 lines, picked or not, gives the §8 message instead. Why: a chat refuses or skims a long script (a 225-row script made ChatGPT ask for it in sections, and no rows came back), and only the clip's lines matter.
+- **The prompt asks the agent to:** search for the real lyrics and never invent words; keep numbers and times and change only the text; correct rows that belong to a different poem from that poem; keep the script (no Roman, no translation); mark rows with no source by ` [?]`; never ask for fewer rows or for sections; reply with the rows in one code block, then list changed rows with source links.
 - **Paste AI reply:** reads the clipboard and takes every row that matches the format, from anywhere in the reply (code fences, links and chatter are ignored).
   - **Matched by row number, text only.** Times always stay as they were, so an agent that changes a time can't move a line. Rows missing from the reply, empty, or with unknown numbers keep their text or are ignored.
   - **`[?]`:** the mark is removed from the text; the snackbar names those lines: "Updated 12 lines. The AI found no source for line 3, 7: read it before you use it."
@@ -389,6 +390,7 @@ A rule-based, letter-by-letter transliteration, with a short list of common-word
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |
 | Gallery access refused | Done | Allow Photos access in Settings to save reels. | Open settings |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
+| More than 60 lines to send to an AI | Script | Too many lines for an AI to check. Tap the start and end lines of your clip first. | (snackbar) |
 | Pasted AI reply has no script rows | Script | Couldn't find script lines in what you pasted. Copy the AI's whole reply and try again. | (snackbar) |
 | No synced lyrics match the video | Script | Couldn't find the lyrics for this video. The script stays as it is. | (snackbar) |
 | No network while looking for lyrics | Script | You're offline. Connect and try again. | (snackbar) |
@@ -591,7 +593,8 @@ Request, 2026-11-04: export the script with timing for an AI agent and paste the
   - Failed or unreachable lookups become `OfflineException`; a missing match leaves the script as it was.
   - Lyrics saved after a Groq script are the one that reopens.
 - **AI script fix (M13):**
-  - The prompt holds the title, link and every row with its time.
+  - The prompt holds the title, link and each row with its time and its row number in the whole script.
+  - Only the picked clip's lines are sent; more than 60 lines, picked or not, are refused.
   - A reply's text replaces lines by row number; its times are never used.
   - Fences and chatter around rows are ignored; rows with bars in the text stay whole.
   - Missing rows keep their text; `[?]` rows are kept and named; a reply with no rows is rejected and changes nothing.
@@ -681,7 +684,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - **AI script fix (M13):**
   - [ ] Copy for AI, paste into ChatGPT with web search on, copy its whole reply, Paste AI reply: lines update, and the right lines are named as unchecked.
   - [ ] A real Urdu reply (RTL text, Urdu digits or a table the agent chose) still parses; if not, note the format the agent used.
-  - [ ] The clipboard holds a ~100-line script without trimming.
+  - [ ] ChatGPT answers the copied clip lines (about 10–30 rows) in one reply, with no request to split them.
   - [ ] Reopening the same link opens the corrected script.
 - **Groq (M9):**
   - [ ] The key check, help sheet and Copy link.

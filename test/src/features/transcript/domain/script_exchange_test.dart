@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/script_exchange.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -28,7 +29,7 @@ void main() {
     final prompt = scriptPromptFor(
       videoTitle: 'Some Naat',
       videoUrl: 'https://youtu.be/abc',
-      transcript: script,
+      lines: script.lines,
     );
 
     expect(prompt, contains('Video title: Some Naat'));
@@ -105,5 +106,54 @@ void main() {
       () => applyCorrectedScript(script, 'Sorry, I cannot do that.'),
       throwsA(isA<NoScriptRowsException>()),
     );
+  });
+
+  Transcript longScript(int lineCount) => Transcript(
+    languageCode: 'ur',
+    lines: [
+      for (var index = 0; index < lineCount; index++)
+        TranscriptLine(
+          index: index,
+          text: 'line $index',
+          start: Duration(seconds: index * 5),
+          end: Duration(seconds: index * 5 + 4),
+        ),
+    ],
+  );
+
+  test('lines_to_check_are_the_picked_range_even_in_a_long_script', () {
+    final lines = linesToCheck(longScript(225), const RangeSelected(100, 104));
+
+    expect(lines.map((line) => line.index), [100, 101, 102, 103, 104]);
+  });
+
+  test('lines_to_check_are_the_whole_script_when_it_is_short', () {
+    final lines = linesToCheck(longScript(mostLinesForAi), const NoSelection());
+
+    expect(lines, hasLength(mostLinesForAi));
+  });
+
+  test('a_long_script_with_no_pick_is_too_long_for_an_ai', () {
+    expect(
+      () => linesToCheck(longScript(225), const NoSelection()),
+      throwsA(isA<TooManyLinesForAiException>()),
+    );
+  });
+
+  test('a_picked_range_over_the_limit_is_too_long_for_an_ai', () {
+    expect(
+      () => linesToCheck(longScript(225), const RangeSelected(0, 60)),
+      throwsA(isA<TooManyLinesForAiException>()),
+    );
+  });
+
+  test('prompt_keeps_row_numbers_of_the_full_script', () {
+    final prompt = scriptPromptFor(
+      videoTitle: 't',
+      videoUrl: 'u',
+      lines: longScript(225).lines.sublist(100, 102),
+    );
+
+    expect(prompt, contains('101 | 08:20.00 | 08:24.00 | line 100'));
   });
 }

@@ -27,6 +27,9 @@ String errorMessageFor(Object error) {
     NoScriptRowsException() =>
       "Couldn't find script lines in what you pasted. Copy the AI's whole "
           'reply and try again.',
+    TooManyLinesForAiException() =>
+      'Too many lines for an AI to check. Tap the start and end lines of '
+          'your clip first.',
     RenderFailedException() => "Couldn't make the reel.",
     TranslationPackMissingException() => 'English needs a one-time download.',
     _ => 'Something went wrong. Try again.',

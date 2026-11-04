@@ -164,6 +164,19 @@ void main() {
     );
   });
 
+  testWidgets('copy_for_ai_sends_only_the_picked_lines', (tester) async {
+    final clipboard = FakeClipboard('')..install();
+    await pumpRoutes(tester, [
+      AppRoutes.script,
+    ], setup: TestSetup(overrides: [draftOverride(pickedDraft)]));
+
+    await tester.tap(find.text('Copy for AI'));
+    await tester.pump();
+
+    expect(clipboard.text, contains('2 | 00:21.40'));
+    expect(clipboard.text, isNot(contains('1 | 00:12.00')));
+  });
+
   testWidgets('paste_fixed_script_replaces_line_text', (tester) async {
     FakeClipboard('1 | 00:12.00 | 00:20.60 | درست متن').install();
     await pumpRoutes(

@@ -1,3 +1,4 @@
+import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// What the user pasted holds no script rows (spec §8).
@@ -6,6 +7,17 @@ class NoScriptRowsException implements Exception {
 
   @override
   String toString() => 'NoScriptRowsException';
+}
+
+/// More lines than this are more than an AI chat will check in one reply.
+const mostLinesForAi = 60;
+
+/// Too many lines to send to an AI agent in one go (spec §8).
+class TooManyLinesForAiException implements Exception {
+  const TooManyLinesForAiException();
+
+  @override
+  String toString() => 'TooManyLinesForAiException';
 }
 
 /// A script with its text corrected by an AI agent (spec FR-18).
@@ -30,14 +42,30 @@ final _row = RegExp(
   r'^\s*(\d+)\s*\|\s*[\d:.,]+\s*\|\s*[\d:.,]+\s*\|\s*(.*\S)\s*$',
 );
 
-/// The prompt for an AI agent, with the video and every script line in it
-/// (spec FR-18). Pasted as is, it needs nothing else from the user.
+/// The lines worth sending to an AI agent: the picked clip's lines, or the
+/// whole script when it is short. Throws [TooManyLinesForAiException] when
+/// that is more than [mostLinesForAi], since a chat refuses or skims it.
+List<TranscriptLine> linesToCheck(
+  Transcript transcript,
+  LineSelection selection,
+) {
+  final lines = selection is RangeSelected
+      ? transcript.lines.sublist(selection.start, selection.end + 1)
+      : transcript.lines;
+  if (lines.length > mostLinesForAi) {
+    throw const TooManyLinesForAiException();
+  }
+  return lines;
+}
+
+/// The prompt for an AI agent, with the video and [lines] in it (spec
+/// FR-18). Pasted as is, it needs nothing else from the user.
 String scriptPromptFor({
   required String videoTitle,
   required String videoUrl,
-  required Transcript transcript,
+  required List<TranscriptLine> lines,
 }) {
-  final rows = transcript.lines
+  final rows = lines
       .map(
         (line) =>
             '${line.index + 1} | ${_clock(line.start)} | ${_clock(line.end)} | '
@@ -45,7 +73,7 @@ String scriptPromptFor({
       )
       .join('\n');
   return '''
-Below is a time-stamped script that was auto-transcribed from a YouTube video of a naat or song. The text has mistakes. Fix the TEXT using the real published lyrics you find online, and reply with the script in the same format.
+Below are rows of a time-stamped script that was auto-transcribed from a YouTube video of a naat or song. The text has mistakes. Fix the TEXT using the real published lyrics you find online, and reply with the rows in the same format. These rows are only a part of the video, so the row numbers do not start at 1; keep them as given.
 
 Video title: $videoTitle
 Video link: $videoUrl
@@ -57,7 +85,8 @@ Rules:
 2. Keep every row's number, start and end exactly as given. Change only the text. Do not merge, split, reorder or delete rows.
 3. The video may contain verses (shaer) from a different poem. Where a row sounds like another poem, find that poem and correct the row from it.
 4. Write in the same script as the input (Urdu stays in Urdu script, not Roman). No translation and no added punctuation.
-5. Reply with only the corrected rows in one code block. After it, list each row you changed with the source link you used, and each row marked $_uncertainMark.
+5. Do not ask me to send fewer rows or to split them. Correct what is here, and mark any row you cannot verify with $_uncertainMark.
+6. Reply with only the corrected rows in one code block. After it, list each row you changed with the source link you used, and each row marked $_uncertainMark.
 
 Script:
 $rows
