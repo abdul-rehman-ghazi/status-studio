@@ -571,7 +571,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main`; device check pending |
 | M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only`; device check pending |
 | M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
-| M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | In progress, branch `m19-fine-tune-steps` (stacked on M18) |
+| M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -726,6 +726,16 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
     - An edited line count shares the clip by line length.
     - One overlay PNG per cue is written, kept while the render runs and deleted when it ends.
     - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
+- **Moving crop (FR-22):**
+  - A glide moves in a straight line and arrives at its keyframe's time; a cut holds the earlier anchor until then and has jumped at exactly that time. Dart and Kotlin share their boundary cases.
+  - Before the first keyframe the first anchor holds, and after the last the last.
+  - A new keyframe snaps to 0.1 s, replaces one within 0.25 s (keeping how it arrives) and is moved into the clip.
+  - Any keyframe can be removed except the only one. Turning the switch off keeps the crop where it was at the clip start (the base anchor for Crop to fill, the rectangle for Free crop).
+  - Keyframes go to the render spec as NDC rectangles with times from the clip start, in place of the fixed crop; Blur and 16:9 send none.
+  - The switch is hidden without room to move. A drag writes one keyframe, at the playhead where it began. The first keyframe has no Glide or Cut. Keep in view is hidden while the crop moves.
+  - The Video step's player is released while Lyrics is open and made again on Back.
+- **Fine-tune lyrics (FR-21):**
+  - Only the clip's lines are listed. The line due shows on the video, and nothing shows between lines. Add line is off outside the clip.
 - **Fine-tune lines (FR-21):**
   - A tap while playing sets the line's start to the playhead and ends the highlighted line there.
   - A tap earlier than the previous line's start changes nothing.
@@ -807,6 +817,10 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Play, pause and the seek bar work over the window; playback runs past the clip end.
   - [ ] Tapping lines while a naat plays times them, and the highlight follows without lag.
   - [ ] Editing, reordering, adding and deleting lines with Urdu text; the edited script reopens for the same video.
+  - [ ] Moving crop, on a phone: the window drags under a thumb (the play button sits in the corner), the keyframe chips are usable above the scrolling frame controls, and the preview glides smoothly.
+  - [ ] Moving crop, render: a Cut lines up with a caption line that starts at the same time (both read the clip's clock); a Glide is smooth; the picture is no softer or stretched compared with a fixed crop of the same size; the render matches the Lyrics preview.
+  - [ ] Opening Lyrics releases the Video step's player with no stutter, and Back brings it back.
+  - [ ] Lyrics on a small phone: the reel-shaped player (at most 260 dp high) leaves enough lines to tap.
 - **Render:**
   - [ ] A 10 s clip with each fill (9:16 crop and blur, 4:5, 16:9, free) is H.264, matches the layout, with a sharp full-frame overlay and audio in sync.
   - [ ] The stretched blur looks acceptable (§6.3.1).
@@ -869,3 +883,4 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - Processing says "Downloading audio" even when the audio is cached.
 - The language list shows both "English (detected)" and "English".
 - **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) Timing a line beyond the downloaded window starts a new download (FR-15) and replaces the player in the middle of playing. (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
+- **Moving crop (M19):** (a) The free-crop editor still moves the fixed rectangle while keyframes exist; that has no effect until the switch is turned off. (b) Style's preview shows the first caption line whatever the time. (c) Jumping to a keyframe outside the downloaded window (after a nudge) can't show it, because the clip file doesn't hold that moment.
