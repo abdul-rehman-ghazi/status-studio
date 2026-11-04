@@ -181,6 +181,14 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **After:** the lines keep the picked range and clip; the caption is refilled from the corrected lines. The script is saved as the newest script (source `edited`, FR-14), so the video reopens corrected.
 - **Privacy:** nothing is sent by the app. The user chooses what to paste into which chat.
 
+**FR-19 Fix the script with Groq (M15; the §10 spike #6 said go).** A third button on Script, **Fix with Groq**, does what Copy for AI plus Paste AI reply do, with the key from FR-12a and no clipboard. FR-18 stays as it is: it is the fallback and the choice for users who prefer ChatGPT.
+- **Same rules as FR-18:** the same prompt and the same lines (the picked clip's, or the whole script up to the row cap), the same reply handling (matched by row number, text only, times unchanged, `[?]` marks named in the snackbar) and the same result (the lines keep the range and clip, the caption is refilled, the script is saved as the newest script with source `edited`).
+- **Model and row cap:** `openai/gpt-oss-120b` with Groq's `browser_search` tool. At most **30** lines (the picked clip's, or the whole script); more gives the same §8 message as FR-18. Why 30: at 54 rows the model moved lines of the poem into the wrong rows (§10 #6). FR-18 keeps its cap of 60.
+- **While it runs:** the button shows progress and a Cancel; Copy for AI, Paste AI reply, Real lyrics and Fix with Groq are all off. Cancel stops waiting: the reply is ignored and nothing is saved (a request already sent still counts against the plan).
+- **No key:** the button is shown, and tapping it gives the §8 "needs a free Groq key" message with Settings.
+- **Privacy:** the picked lines, the video title and its link go to Groq, only when the user taps this button. Say so in the FR-12a help text: the key is also used for this.
+- **Limits:** a call counts against the same free plan as writing scripts. A 429 is handled as in FR-12a.
+
 **FR-13 Offline.** Saved scripts, translation (once its ML Kit pack is downloaded) and export work without a network. Writing a new script needs one (Groq).
 
 **FR-14 Saved scripts.**
@@ -455,6 +463,15 @@ Each error is a typed exception from the data layer. Screens map them to these m
    - **`no_speech_prob` does not work on `whisper-large-v3-turbo`.** It is 0.000 on every segment, including a 90 s piano-only piece and 60 s of digital silence. Both came back as invented text ("Thank you." in 30 s segments, with `avg_logprob` −0.3 to −0.6 and `compression_ratio` 0.58). Those values overlap real sung Urdu (0.74–0.88), so no cut-off on them separates the two. `whisper-large-v3` (not turbo) does report it: 0.701 on silence. So the 0.6 cut-off in `groqNoSpeechCutoff` does nothing today. **Decided 2026-11-04 (M10 task 6): (a), keeping turbo.** Options were: (a) drop segments that are known hallucinations ("Thank you.", "you", "Thanks for watching.") or identical text repeated over 30 s segments, keeping turbo; or (b) use `whisper-large-v3`, which costs more per audio hour (check Groq's pricing page) and has a working `no_speech_prob`.
    - **Limits from the response headers (free plan):** 7,200 audio seconds per hour (`x-ratelimit-limit-audio-seconds`) and 2,000 requests (`x-ratelimit-limit-requests`, reset in about 2 min, so the daily/minute split in Groq's docs isn't visible). One 90 s piece uses 90 s of the hour budget. The reset time is a duration string such as `2m12s`; `retry-after` is only sent with a 429.
    - **Still to do on a phone:** timing on mobile data, and the FR-12a help-sheet button names (depends on task 8).
+6. **Groq web-search model for the script fix (M15 task 1, run 2026-11-04, decision: go).** Question: can the user's Groq key fix a script the way ChatGPT does in FR-18? It only can if the model searches the web. Run from a Mac with the user's free key, using the exact FR-18 prompt on a 54-row script that Groq turbo wrote for `s6kE_uP3xH4` (sung Urdu naat; title in the prompt was "Main Madine Chala", guessed from the lyrics).
+   - **Models:** `GET /models` lists `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `openai/gpt-oss-safeguard-20b`, `qwen/qwen3.8-27b`, `allam-2-7b` and the speech and prompt-guard models. **`groq/compound`, `groq/compound-mini` and `compound-beta` are not available to this key** ("model_not_found"). Web search comes from `openai/gpt-oss-120b` with `"tools": [{"type": "browser_search"}]`; the reply's `executed_tools` lists each search and page open. Not tested: `gpt-oss-20b`.
+   - **30 rows (15 s, 33k tokens in total, 6 searches/opens):** every row came back, in order. 24 rows were corrected from a lyrics page, 6 were marked `[?]` (two verses it could not find). Quality looked good on a read-through, with the problems below. Not checked against a published lyrics page by a native reader.
+   - **54 rows (19 s, 29k tokens):** rows 1 to 32 were not checked line by line, but rows 33 to 52 were **replaced with other lines of the poem, out of order, by position and not by sound.** Example: row 35 "وہ اہد کی زمین" (the singer says Uhud) became "وہ بقی کی زمیں" (the page says Baqi), and rows 37 to 52 were lines from elsewhere in the poem. Rows 53 ("موسیقی") and 54 ("Thank you.") were kept and marked `[?]`, which is right.
+   - **120 rows (the 54 repeated, 19 s, 57k tokens):** only 11 rows came back, in the poem's order with added commas, so rule 4 and the row-count rule both failed. No cap above about 54 is worth trying.
+   - **Problems that need code or prompt work:** (1) the 30-row reply put citation marks like `【1†L10-L12】` inside the row text, so `applyCorrectedScript` must strip `【…】`; (2) short filler rows ("محمدینِ چلا") were sometimes replaced with a different real verse, so the prompt needs "if a row sounds like a refrain, keep or repair it; never fill it with a line from another place"; (3) the model sometimes returns times that are wrong (`02:60.00`), which is harmless because FR-18 ignores times.
+   - **Limits (free plan, from the response headers):** 8,000 tokens per minute and 1,000 requests for `gpt-oss-120b`. One search call uses 30k to 57k tokens in total, so a second call within the same minute got HTTP 429 (`Used 7973, Requested 2535`) and one call every minute or so is the practical rate. The daily token limit is not in the headers: check it on Groq's limits page before shipping.
+   - **Whether it is worth it:** at 30 rows or fewer it did the job in 15 s with no copy and paste. Above that it mis-assigns rows (FR-18's 60-row cap was set for a different reason: chats skim long scripts). The picked clip is usually well under 30 rows.
+   - **Decision (2026-11-04, the user): go.** Model `openai/gpt-oss-120b` with `browser_search`. Row cap **30** on this path (FR-18 keeps 60). The shared prompt gets a rule against moving lines from elsewhere into a row, and reply parsing strips `【…】` citation marks. The daily token limit is still unknown (not in the headers): a 429 whose wait is over 60 s already gives the §8 message. The naat with verses from another poem was not tested, so it goes to the §14 device check.
 
 ## 11. Out of scope for v1
 
@@ -494,6 +511,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M12 Real lyrics | Lyrics from lrclib.net replace the script (FR-17) | Done, branch `m12-online-lyrics` (stacked on M11); device check pending |
 | M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12); device check pending |
 | M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13); device check pending |
+| M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Planned, branch `m15-groq-script-fix` (stacked on M14); starts with spike §10 #6 |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -560,6 +578,17 @@ Requests, 2026-11-04: no way to view the output before saving and sharing; name 
 - [x] **2. File name.** `reelFileStem` and a free output path (`-2`, `-3`, …).
 - [x] **3. Overlay clean-up race.** The renderer deleted the overlay PNGs after reporting the end of a render, so a listener could still see them; it now deletes first (found by a flaky test).
 - [x] **4. Docs.** FR-9, FR-10, §13, §14.
+
+### M15 tasks (branch `m15-groq-script-fix`)
+
+Request, 2026-11-04: merge the script fix (FR-18) and Groq transcription into one API key. Each task: test first, tick it, commit. Tasks 2 to 6 start only after task 1 records "go".
+
+- [x] **1. Spike §10 #6.** Find the web-search models the key can call and test them on the FR-18 prompt; record the results and the go or stop decision in §10. On "stop", mark M15 cancelled in the §12 table and do nothing else.
+- [ ] **2. Chat call in `GroqClient`.** `fixScript(prompt)` posts to `/chat/completions` with the spiked model and returns the reply text. Reuses `_send`, so 401/403, 429 waits, 5xx retries and offline map to the existing typed exceptions. Tests with a fake server: reply text returned, the key only in the header, 429 wait and retry, rejected key.
+- [ ] **3. `GroqScriptFixService` (application).** Builds the FR-18 prompt for the same lines, calls `fixScript`, applies the reply with `applyCorrectedScript`, leaves saving to the screen, which saves after Cancel is no longer possible, as Paste AI reply does. Throws the existing `NoScriptRowsException` when the reply has no rows and `TooManyLinesForAiException` above the 30-line cap. Tests with a fake `GroqClient` provider.
+- [ ] **4. Script screen.** Fix with Groq button: progress and Cancel, other fix buttons off meanwhile, no-key message with Settings, snackbars as FR-18 (`[?]` lines named). Widget tests with provider overrides.
+- [ ] **5. Help text.** The FR-12a help sheet and Settings line say the key also fixes scripts and that the picked lines go to Groq on tap.
+- [ ] **6. Docs.** FR-12a and FR-18 cross-links, §1 summary line, §8 rows for Groq failing during a fix, §13, §14 device check (a real naat on the phone, mobile data), and `CLAUDE.md`'s "Groq writes every script" bullet.
 
 ## 13. Behaviour that must stay covered by tests
 
