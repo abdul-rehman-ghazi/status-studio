@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 // The epsilon stops values like 575.9999999 (from 1920 × 0.3) losing a pixel.
@@ -77,6 +78,66 @@ PixelRect cropRectFor(FrameSettings frame, OutputSize source) {
   return _fillCrop(frame, source);
 }
 
+/// Where the crop window is at [videoTime] (spec FR-22). With no keyframes
+/// it is [cropRectFor]. The window keeps its size and its place moves in the
+/// room around it.
+PixelRect cropRectAt(
+  FrameSettings frame,
+  OutputSize source,
+  Duration videoTime,
+) {
+  if (frame.cropPath.isEmpty) {
+    return cropRectFor(frame, source);
+  }
+  final anchor = frame.cropPath.anchorAt(videoTime, base: baseAnchorFor(frame));
+  return cropRectForAnchor(frame, source, anchor);
+}
+
+/// The window of [frame]'s size with its place set by [anchor] in the room
+/// around it (spec FR-22).
+PixelRect cropRectForAnchor(
+  FrameSettings frame,
+  OutputSize source,
+  CropAnchor anchor,
+) {
+  final fixed = cropRectFor(frame, source);
+  return PixelRect(
+    x: _floor(anchor.x * (source.width - fixed.width)),
+    y: _floor(anchor.y * (source.height - fixed.height)),
+    width: fixed.width,
+    height: fixed.height,
+  );
+}
+
+/// Whether [frame] crops at all and the window has room to move on some
+/// axis (spec FR-22).
+bool canMoveCrop(FrameSettings frame, OutputSize source) {
+  final cropsToFill =
+      frame.preset == AspectPreset.free ||
+      (frame.preset != AspectPreset.landscape16x9 &&
+          frame.fill == FillMode.crop);
+  if (!cropsToFill) {
+    return false;
+  }
+  final window = cropRectFor(frame, source);
+  return window.width < source.width || window.height < source.height;
+}
+
+/// The anchor of the fixed crop, where a moving crop starts (spec FR-22).
+CropAnchor baseAnchorFor(FrameSettings frame) {
+  if (frame.preset == AspectPreset.free) {
+    final crop = frame.freeCrop;
+    return CropAnchor(
+      x: _placeInRoom(crop.left, crop.width),
+      y: _placeInRoom(crop.top, crop.height),
+    );
+  }
+  return frame.anchor;
+}
+
+double _placeInRoom(double start, double size) =>
+    size >= 1 ? 0 : start / (1 - size);
+
 PixelRect _freeCrop(FreeCropRect crop, OutputSize source) {
   return PixelRect(
     x: _floor(source.width * crop.left),
@@ -87,7 +148,7 @@ PixelRect _freeCrop(FreeCropRect crop, OutputSize source) {
 }
 
 /// The largest rectangle of the preset's aspect inside the source, placed
-/// by the focus and centred vertically.
+/// by the frame's anchor in the room around it.
 PixelRect _fillCrop(FrameSettings frame, OutputSize source) {
   final target = outputSizeFor(frame, source);
   final targetAspect = target.width / target.height;
@@ -99,18 +160,12 @@ PixelRect _fillCrop(FrameSettings frame, OutputSize source) {
       ? _floorToEven(source.height.toDouble())
       : _floorToEven(source.width / targetAspect);
   return PixelRect(
-    x: _focusX(frame.focus, source.width - width),
-    y: (source.height - height) ~/ 2,
+    x: _floor(frame.anchor.x * (source.width - width)),
+    y: _floor(frame.anchor.y * (source.height - height)),
     width: width,
     height: height,
   );
 }
-
-int _focusX(CropFocus focus, int spareWidth) => switch (focus) {
-  CropFocus.left => 0,
-  CropFocus.center => spareWidth ~/ 2,
-  CropFocus.right => spareWidth,
-};
 
 /// [rect] in Media3's normalised device coordinates (spec §6.3.1).
 NdcRect toNdc(PixelRect rect, OutputSize source) {

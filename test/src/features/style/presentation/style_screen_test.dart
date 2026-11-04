@@ -56,25 +56,6 @@ Future<void> tapText(WidgetTester tester, String label) async {
 }
 
 void main() {
-  testWidgets('fill_options_hidden_for_16_9', (tester) async {
-    await pumpStyle(tester);
-
-    await tapText(tester, '16:9');
-
-    expect(find.text('Blur background'), findsNothing);
-  });
-
-  testWidgets('free_preset_shows_crop_editor', (tester) async {
-    await pumpStyle(tester);
-
-    await tapText(tester, 'Free');
-
-    expect(
-      find.text('Drag to move. Drag the corner to resize.'),
-      findsOneWidget,
-    );
-  });
-
   testWidgets('branding_moves_to_bottom_when_caption_on_top', (tester) async {
     await pumpStyle(tester);
 
@@ -84,25 +65,6 @@ void main() {
       tester.getCenter(find.text('Status Studio').last).dy,
       greaterThan(tester.getCenter(find.byType(ReelPreview)).dy),
     );
-  });
-
-  testWidgets('size_hint_shows_output_size', (tester) async {
-    await pumpStyle(tester);
-
-    await tapText(tester, '4:5');
-
-    expect(
-      find.text('Instagram and Facebook posts · 1080 × 1350'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('blur_background_hides_keep_in_view', (tester) async {
-    await pumpStyle(tester);
-
-    await tapText(tester, 'Blur background');
-
-    expect(find.text('Keep in view'), findsNothing);
   });
 
   testWidgets('caption_starts_with_selected_lines', (tester) async {

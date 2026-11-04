@@ -5,7 +5,10 @@ import 'package:video_player/video_player.dart';
 
 /// A player that never touches the platform; it only moves its value.
 class FakeVideoPlayerController extends VideoPlayerController {
-  FakeVideoPlayerController() : super.file(File('fake.mp4'));
+  FakeVideoPlayerController({this.frameSize = const Size(1280, 720)})
+    : super.file(File('fake.mp4'));
+
+  final Size frameSize;
 
   var disposed = false;
 
@@ -14,7 +17,7 @@ class FakeVideoPlayerController extends VideoPlayerController {
     value = value.copyWith(
       isInitialized: true,
       duration: const Duration(minutes: 6, seconds: 48),
-      size: const Size(1280, 720),
+      size: frameSize,
     );
   }
 
@@ -58,3 +61,7 @@ class BrokenVideoPlayerController extends FakeVideoPlayerController {
 
 VideoPlayerController brokenPlayerFactory(File source) =>
     BrokenVideoPlayerController();
+
+/// A player of a vertical video, like a Short.
+VideoPlayerController portraitPlayerFactory(File source) =>
+    FakeVideoPlayerController(frameSize: const Size(720, 1280));

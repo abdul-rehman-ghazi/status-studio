@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#3DD68C</color>
+    <!-- AppColors.background -->
+    <color name="launch_background">#0E1311</color>
 </resources>

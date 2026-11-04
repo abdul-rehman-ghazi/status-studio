@@ -54,8 +54,7 @@ class ReelRenderer(private val context: Context) {
      */
     fun start(spec: RenderSpec, listener: Listener) {
         check(running == null) { "A render is already running." }
-        val overlay = BitmapFactory.decodeFile(spec.overlayPath)
-            ?: throw IllegalArgumentException("Couldn't read the overlay ${spec.overlayPath}.")
+        val overlay = TimedCaptionOverlay(spec.overlayPath, spec.captionCues)
         val transformer = Transformer.Builder(context)
             .setVideoMimeType(spec.videoMimeType)
             .setAudioMimeType(spec.audioMimeType)
@@ -116,7 +115,7 @@ class ReelRenderer(private val context: Context) {
         }
     }
 
-    private fun editedMediaItem(spec: RenderSpec, overlay: Bitmap): EditedMediaItem {
+    private fun editedMediaItem(spec: RenderSpec, overlay: TimedCaptionOverlay): EditedMediaItem {
         val clipping = MediaItem.ClippingConfiguration.Builder()
             .setStartPositionMs(spec.clipStartMs)
             .setEndPositionMs(spec.clipEndMs)
@@ -131,7 +130,7 @@ class ReelRenderer(private val context: Context) {
     }
 
     /** Framing first, the caption and branding overlay always last. */
-    private fun videoEffects(spec: RenderSpec, overlay: Bitmap): List<Effect> {
+    private fun videoEffects(spec: RenderSpec, overlay: TimedCaptionOverlay): List<Effect> {
         val fitOutput = Presentation.createForWidthAndHeight(
             spec.outputWidth,
             spec.outputHeight,
@@ -148,6 +147,15 @@ class ReelRenderer(private val context: Context) {
                     Presentation.LAYOUT_STRETCH_TO_FIT,
                 ),
             )
+            // The window moves, but keeps one size, so the same near-1:1 stretch applies.
+            is Fill.MovingCrop -> listOf(
+                MovingCrop(fill.keyframes),
+                Presentation.createForWidthAndHeight(
+                    spec.outputWidth,
+                    spec.outputHeight,
+                    Presentation.LAYOUT_STRETCH_TO_FIT,
+                ),
+            )
             // The blur runs on the source frame: it draws that whole frame sharp at the given
             // scale, and its output already has the output's aspect.
             is Fill.Blur -> listOf(
@@ -156,6 +164,40 @@ class ReelRenderer(private val context: Context) {
             )
             Fill.None -> listOf(fitOutput)
         }
-        return framing + OverlayEffect(listOf(BitmapOverlay.createStaticBitmapOverlay(overlay)))
+        return framing + OverlayEffect(listOf(overlay))
+    }
+}
+
+/**
+ * Lays the branding image over the clip, swapping it for the caption line's image while that
+ * line is due (spec FR-7a). Images are opened one at a time as they come due: a reel can have
+ * dozens, and each is a full-size frame.
+ */
+@OptIn(markerClass = [UnstableApi::class])
+private class TimedCaptionOverlay(
+    private val brandingPath: String,
+    private val cues: List<CaptionCue>,
+) : BitmapOverlay() {
+    private var shownPath: String? = null
+    private var shown: Bitmap? = null
+
+    init {
+        // Fails the render at once, rather than midway, when the branding image is unreadable.
+        bitmapAt(brandingPath)
+    }
+
+    override fun getBitmap(presentationTimeUs: Long): Bitmap =
+        bitmapAt(overlayPathAt(brandingPath, cues, clipTimeMs(presentationTimeUs)))
+
+    private fun bitmapAt(path: String): Bitmap {
+        val current = shown
+        if (current != null && path == shownPath) {
+            return current
+        }
+        val decoded = BitmapFactory.decodeFile(path)
+            ?: throw IllegalArgumentException("Couldn't read the overlay $path.")
+        shownPath = path
+        shown = decoded
+        return decoded
     }
 }

@@ -8,7 +8,6 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// In run order, so screens can compare stages with `index`.
 enum ScriptStage {
-  downloadingModel('Downloading the speech model'),
   downloadingAudio('Downloading audio'),
   detectingLanguage('Detecting the language'),
   transcribing('Writing the script'),
@@ -49,10 +48,10 @@ class ScriptProgress {
 
 /// Turns a video into a transcript.
 abstract interface class ScriptPipeline {
-  /// A saved script if there is one, else captions, else Whisper (FR-3).
+  /// A saved script if there is one, else captions, else Groq (FR-3).
   Stream<ScriptProgress> run(SourceVideo video, ScriptLanguage language);
 
-  /// Whisper only, replacing any saved script ("Write it again", FR-14).
+  /// Groq only, replacing any saved script ("Write it again", FR-14).
   Stream<ScriptProgress> writeAgain(SourceVideo video, ScriptLanguage language);
 }
 

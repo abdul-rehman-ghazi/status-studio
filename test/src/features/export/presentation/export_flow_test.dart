@@ -11,6 +11,7 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_background_work_platform.dart';
+import '../../../../helpers/fine_tune_drafts.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
@@ -19,6 +20,7 @@ Future<void> pumpExport(
   WidgetTester tester, {
   required Renderer renderer,
   FakeBackgroundWorkPlatform? background,
+  RecordingFineTuneDraftSaver? fineTuneSaver,
 }) => pumpRoutes(
   tester,
   [AppRoutes.style, AppRoutes.export],
@@ -26,6 +28,7 @@ Future<void> pumpExport(
     overrides: [draftOverride(pickedDraft)],
     renderer: renderer,
     backgroundWork: background,
+    fineTuneSaver: fineTuneSaver,
   ),
 );
 
@@ -90,6 +93,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Reel ready'), findsOneWidget);
+  });
+
+  testWidgets('a_finished_export_discards_the_kept_fine_tune', (tester) async {
+    final folder = Directory.systemTemp.createTempSync('export_flow_test');
+    addTearDown(() => folder.deleteSync(recursive: true));
+    final saver = RecordingFineTuneDraftSaver();
+    await pumpExport(
+      tester,
+      renderer: FileRenderer(folder),
+      fineTuneSaver: saver,
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(saver.discarded.single, pickedDraft);
+  });
+
+  testWidgets('a_cancelled_export_keeps_it', (tester) async {
+    final saver = RecordingFineTuneDraftSaver();
+    await pumpExport(
+      tester,
+      renderer: const FakeRenderer(step: Duration(seconds: 1)),
+      fineTuneSaver: saver,
+    );
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(saver.discarded, isEmpty);
   });
 
   testWidgets('cancel_export_returns_to_style', (tester) async {

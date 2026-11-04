@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -11,15 +10,14 @@ import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/real_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/data/audio_preparer.dart';
-import 'package:status_studio/src/features/transcript/data/model_manager.dart';
+import 'package:status_studio/src/features/transcript/data/groq_client.dart';
+import 'package:status_studio/src/features/transcript/data/groq_transcriber.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
-import 'package:status_studio/src/features/transcript/data/whisper_transcriber.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
-import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
-import '../../../../helpers/fake_whisper.dart';
 import '../../../../helpers/fixtures.dart';
 
 final savedAt = DateTime.utc(2026, 10, 30, 12);
@@ -70,59 +68,52 @@ class ScriptVideoSource extends FakeVideoSource {
   }
 }
 
-/// Says the model is there unless [missing]; downloading it reports halfway
-/// then done.
-class FakeModelManager extends ModelManager {
-  FakeModelManager({this.missing = false})
-    : super(
-        pathFor: (_) async => '',
-        uriFor: (_) => Uri(),
-        httpClient: HttpClient(),
-      );
+/// Splits any audio into [pieceCount] named pieces without FFmpeg.
+class FakeAudioPreparer extends AudioPreparer {
+  FakeAudioPreparer({this.pieceCount = 3}) : super(const FfmpegRunner());
 
-  bool missing;
+  final int pieceCount;
 
   @override
-  Future<bool> isDownloaded(SpeechModel model) async => !missing;
-
-  static const modelBytes = 1000;
-
-  @override
-  Stream<WorkAmount> download(SpeechModel model) async* {
-    yield const WorkAmount(
-      done: modelBytes ~/ 2,
-      total: modelBytes,
-      unit: WorkUnit.bytes,
-    );
-    missing = false;
-    yield const WorkAmount(
-      done: modelBytes,
-      total: modelBytes,
-      unit: WorkUnit.bytes,
-    );
-  }
+  Future<List<File>> splitAudioCopy(
+    File audio, {
+    int chunkSeconds = 90,
+  }) async => [for (var i = 0; i < pieceCount; i++) File('piece_00$i.m4a')];
 }
 
-/// Splits any audio into [chunkCount] named pieces without FFmpeg.
-class FakeAudioPreparer extends AudioPreparer {
-  FakeAudioPreparer({this.chunkCount = 3}) : super(const FfmpegRunner());
+/// Answers every piece with one line of [text], or none when it is empty.
+class FakeGroqClient extends GroqClient {
+  FakeGroqClient({this.text = 'یہ اچھی بات ہے'}) : super(apiKey: 'gsk_fake');
 
-  final int chunkCount;
-
-  @override
-  Future<File> toWav(File audio) async => File('audio.wav');
+  final String text;
+  final pieces = <String>[];
 
   @override
-  Future<List<File>> splitIntoChunks(File wav, {int chunkSeconds = 90}) async =>
-      [for (var i = 0; i < chunkCount; i++) File('chunk_00$i.wav')];
+  Future<List<GroqSegment>> transcribe(
+    File piece, {
+    required String? languageCode,
+  }) async {
+    pieces.add(piece.path);
+    if (text.isEmpty) {
+      return const [];
+    }
+    return [
+      GroqSegment(
+        from: const Duration(seconds: 1),
+        to: const Duration(seconds: 2),
+        text: text,
+        noSpeechProbability: 0.1,
+      ),
+    ];
+  }
 }
 
 void main() {
   late Directory root;
   late TranscriptStore store;
   late ScriptVideoSource videos;
-  late FakeModelManager models;
-  late FakeWhisperController whisper;
+  late FakeGroqClient groqClient;
+  var hasKey = true;
 
   final key = TranscriptKey(
     videoId: sampleVideo.videoId,
@@ -133,25 +124,28 @@ void main() {
     root = await Directory.systemTemp.createTemp('script_pipeline_test');
     store = TranscriptStore(root, clock: () => savedAt);
     videos = ScriptVideoSource();
-    models = FakeModelManager();
-    whisper = FakeWhisperController(text: 'یہ اچھی بات ہے');
+    groqClient = FakeGroqClient();
+    hasKey = true;
   });
 
   tearDown(() => root.delete(recursive: true));
 
-  RealScriptPipeline pipeline({int chunkCount = 3}) => RealScriptPipeline(
+  RealScriptPipeline pipeline({int pieceCount = 3}) => RealScriptPipeline(
     ScriptPipelineServices(
-      models: models,
       videos: videos,
-      audio: FakeAudioPreparer(chunkCount: chunkCount),
-      whisper: WhisperTranscriber(whisper),
+      audio: FakeAudioPreparer(pieceCount: pieceCount),
       store: Future.value(store),
+      groq: () async {
+        if (!hasKey) {
+          throw const NoGroqKeyException();
+        }
+        return GroqTranscriber(groqClient);
+      },
     ),
-    model: SpeechModel.small,
   );
 
-  Future<List<ScriptProgress>> run({int chunkCount = 3}) =>
-      pipeline(chunkCount: chunkCount)
+  Future<List<ScriptProgress>> run({int pieceCount = 3}) =>
+      pipeline(pieceCount: pieceCount)
           .run(sampleVideo, ScriptLanguage.auto)
           .toList();
 
@@ -159,21 +153,6 @@ void main() {
     for (final event in events)
       if (event.stage == stage) event.step,
   ];
-
-  test('model_download_reports_its_bytes', () async {
-    models.missing = true;
-
-    final events = await run();
-
-    expect(
-      stepsOf(events, ScriptStage.downloadingModel).last,
-      const WorkAmount(
-        done: FakeModelManager.modelBytes,
-        total: FakeModelManager.modelBytes,
-        unit: WorkUnit.bytes,
-      ),
-    );
-  });
 
   test('audio_download_reports_its_bytes', () async {
     final events = await run();
@@ -184,19 +163,10 @@ void main() {
     );
   });
 
-  test('transcribing_starts_at_zero_before_the_first_chunk', () async {
+  test('transcribing_starts_at_zero_before_the_first_piece', () async {
     final events = await run();
 
     expect(stepsOf(events, ScriptStage.transcribing).first!.done, 0);
-  });
-
-  test('transcribing_reports_progress_inside_a_chunk', () async {
-    final events = await run();
-
-    expect(
-      stepsOf(events, ScriptStage.transcribing).map((step) => step!.done),
-      contains(45000),
-    );
   });
 
   test('transcribing_ends_at_the_video_length', () async {
@@ -213,10 +183,7 @@ void main() {
 
     final events = await run();
 
-    expect(
-      (events.last.transcript, whisper.transcribedPaths.length),
-      (captions, 0),
-    );
+    expect((events.last.transcript, groqClient.pieces.length), (captions, 0));
   });
 
   test('captions_need_no_audio_download', () async {
@@ -227,13 +194,22 @@ void main() {
     expect(videos.audioDownloads, 0);
   });
 
-  test('falls_back_to_whisper_without_captions', () async {
+  test('captions_need_no_groq_key', () async {
+    hasKey = false;
+    videos = ScriptVideoSource(hasCaptions: true);
+
+    final events = await run();
+
+    expect(events.last.transcript, captions);
+  });
+
+  test('writes_with_groq_without_captions', () async {
     final events = await run();
 
     expect(events.last.transcript.lines, hasLength(3));
   });
 
-  test('caption_failure_falls_back_to_whisper', () async {
+  test('caption_failure_falls_back_to_groq', () async {
     videos = ScriptVideoSource(
       captionFailure: const OfflineException('captions timed out'),
     );
@@ -243,15 +219,14 @@ void main() {
     expect(events.last.transcript.lines, hasLength(3));
   });
 
-  test('downloads_model_first_when_missing', () async {
-    models.missing = true;
+  test('without_a_key_it_stops_before_downloading_audio', () async {
+    hasKey = false;
 
-    final events = await run();
-
-    expect(events.first.stage, ScriptStage.downloadingModel);
+    await expectLater(run(), throwsA(isA<NoGroqKeyException>()));
+    expect(videos.audioDownloads, 0);
   });
 
-  test('emits_lines_progressively_per_chunk', () async {
+  test('emits_lines_progressively_per_piece', () async {
     final events = await run();
 
     final lineCounts = events
@@ -268,25 +243,9 @@ void main() {
   });
 
   test('empty_transcript_throws_no_speech', () async {
-    whisper = FakeWhisperController(text: '[BLANK_AUDIO]');
+    groqClient = FakeGroqClient(text: '');
 
     await expectLater(run(), throwsA(isA<NoSpeechFoundException>()));
-  });
-
-  test('cancel_releases_model', () async {
-    final firstLines = Completer<void>();
-    final subscription = pipeline(chunkCount: 4)
-        .run(sampleVideo, ScriptLanguage.auto)
-        .listen((event) {
-          if (event.transcript.lines.isNotEmpty && !firstLines.isCompleted) {
-            firstLines.complete();
-          }
-        });
-    await firstLines.future;
-
-    await subscription.cancel();
-
-    expect(whisper.releaseCount, 1);
   });
 
   test('saved_script_skips_download_and_transcription', () async {
@@ -302,11 +261,7 @@ void main() {
     final events = await run();
 
     expect(
-      (
-        events.single.savedAt,
-        videos.audioDownloads,
-        whisper.transcribedPaths.length,
-      ),
+      (events.single.savedAt, videos.audioDownloads, groqClient.pieces.length),
       (savedAt, 0, 0),
     );
   });
@@ -323,13 +278,13 @@ void main() {
 
     await pipeline().writeAgain(sampleVideo, ScriptLanguage.auto).drain<void>();
 
-    expect((await store.load(key)).source, 'whisper-small');
+    expect((await store.load(key)).source, groqSource);
   });
 
   test('resumes_from_partial_progress', () async {
     await store.savePartial(
       key,
-      SpeechModel.small,
+      groqSource,
       const PartialTranscript(
         completedChunks: 2,
         lines: [
@@ -349,24 +304,44 @@ void main() {
       ),
     );
 
-    final events = await run(chunkCount: 4);
+    final events = await run(pieceCount: 4);
 
     expect(
-      (
-        whisper.transcribedPaths.join(','),
-        events.last.transcript.lines.last.index,
-      ),
-      ('chunk_002.wav,chunk_003.wav', 3),
+      (groqClient.pieces.join(','), events.last.transcript.lines.last.index),
+      ('piece_002.m4a,piece_003.m4a', 3),
     );
   });
 
   test('finished_run_saves_script_and_clears_partial', () async {
     await run();
 
-    expect((await store.load(key)).source, 'whisper-small');
+    expect((await store.load(key)).source, groqSource);
     await expectLater(
-      store.loadPartial(key, SpeechModel.small),
+      store.loadPartial(key, groqSource),
       throwsA(isA<NoSavedTranscriptException>()),
     );
+  });
+
+  test('captions_run_keeps_the_video_for_the_recent_list', () async {
+    videos = ScriptVideoSource(hasCaptions: true);
+
+    await run();
+
+    final listed = [for (final script in await store.list()) script.video];
+    expect(listed, [sampleVideo]);
+  });
+
+  test('groq_run_keeps_the_video_for_the_recent_list', () async {
+    await run();
+
+    final listed = [for (final script in await store.list()) script.video];
+    expect(listed, [sampleVideo]);
+  });
+
+  test('write_again_keeps_the_video_for_the_recent_list', () async {
+    await pipeline().writeAgain(sampleVideo, ScriptLanguage.auto).drain<void>();
+
+    final listed = [for (final script in await store.list()) script.video];
+    expect(listed, [sampleVideo]);
   });
 }

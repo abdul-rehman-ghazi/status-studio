@@ -11,13 +11,18 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/features/background/data/background_work_platform.dart';
+import 'package:status_studio/src/features/branding/presentation/launch_splash.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/export/data/reel_actions.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
@@ -28,18 +33,20 @@ import 'package:status_studio/src/features/style/application/clip_frame_size_pro
 import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
-import 'package:status_studio/src/features/transcript/data/model_manager.dart';
+import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import 'fake_background_work_platform.dart';
 import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
-import 'fake_model_manager.dart';
 import 'fake_reel_actions.dart';
 import 'fake_video_player.dart';
 import 'fake_yt_dlp.dart';
+import 'fine_tune_drafts.dart';
 import 'recording_ffmpeg.dart';
+import 'saved_scripts.dart';
 
 /// What a widget test runs the app with. Services that would touch the
 /// network or a platform plugin default to fakes.
@@ -55,9 +62,12 @@ class TestSetup {
     this.translator = const FakeCaptionTranslator(),
     this.reelActions,
     this.recentReels = const [],
-    this.modelManager,
+    this.savedScripts = const [],
     this.ytDlp,
     this.backgroundWork,
+    this.fineTuneSaver,
+    this.fineTunes = const [],
+    this.fineTuneResumer,
   });
 
   final List<Override> overrides;
@@ -80,8 +90,8 @@ class TestSetup {
   /// Stored in preferences, newest first, before the app starts.
   final List<RecentReel> recentReels;
 
-  /// Defaults to a [FakeModelManager] with nothing downloaded.
-  final ModelManager? modelManager;
+  /// The finished scripts Home lists, newest first.
+  final List<SavedScript> savedScripts;
 
   /// Defaults to a fresh [FakeYtDlp]; the video source is faked anyway.
   final YtDlp? ytDlp;
@@ -89,13 +99,21 @@ class TestSetup {
   /// Defaults to a fresh [FakeBackgroundWorkPlatform].
   final BackgroundWorkPlatform? backgroundWork;
 
+  /// Defaults to a fresh [RecordingFineTuneDraftSaver].
+  final FineTuneDraftSaver? fineTuneSaver;
+
+  /// The kept fine-tunes Home lists, newest first.
+  final List<SavedFineTune> fineTunes;
+
+  /// Answers Continue; without one, Continue reads the disk.
+  final FineTuneResumer? fineTuneResumer;
+
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
     captionTranslatorProvider.overrideWithValue(translator),
     reelActionsProvider.overrideWithValue(reelActions ?? FakeReelActions()),
     ffmpegRunnerProvider.overrideWithValue(const SilentFfmpegRunner()),
-    modelManagerProvider.overrideWithValue(modelManager ?? FakeModelManager()),
     ytDlpProvider.overrideWithValue(ytDlp ?? FakeYtDlp()),
     backgroundWorkPlatformProvider.overrideWithValue(
       backgroundWork ?? FakeBackgroundWorkPlatform(),
@@ -105,6 +123,9 @@ class TestSetup {
       (ref, source) async => const OutputSize(1920, 1080),
     ),
     scriptPipelineProvider.overrideWithValue(scriptPipeline),
+    savedScriptsProvider.overrideWith(
+      () => FakeSavedScriptsController(savedScripts),
+    ),
     videoPlayerFactoryProvider.overrideWithValue(playerFactory),
     clipSourcePreparerProvider.overrideWithValue(
       clipPreparer ?? FakeClipSourcePreparer(),
@@ -118,6 +139,15 @@ class TestSetup {
     sourceCacheProvider.overrideWith(
       (ref) async => SourceCache(Directory.systemTemp),
     ),
+    fineTuneDraftSaverProvider.overrideWithValue(
+      fineTuneSaver ?? RecordingFineTuneDraftSaver(),
+    ),
+    fineTuneDraftsProvider.overrideWith(
+      () => FakeFineTuneDraftsController(fineTunes),
+    ),
+    if (fineTuneResumer != null)
+      fineTuneResumerProvider.overrideWithValue(fineTuneResumer!),
+    launchSplashEnabledProvider.overrideWithValue(false),
     ...overrides,
   ];
 }

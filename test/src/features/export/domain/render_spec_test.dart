@@ -5,6 +5,7 @@ import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/export/domain/render_spec.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 Duration at(int minutes, int seconds) =>
@@ -73,6 +74,54 @@ void main() {
     expect(crop['left'], closeTo(-0.315625, 1e-9));
   });
 
+  group('moving crop', () {
+    // The clip starts at 1:00 in video time.
+    final moving = FrameSettings(
+      cropPath: CropPath([
+        CropKeyframe(
+          time: at(1, 0),
+          anchor: const CropAnchor(x: 0, y: 0.5),
+          arrival: CropArrival.glide,
+        ),
+        CropKeyframe(
+          time: at(1, 8),
+          anchor: const CropAnchor(x: 1, y: 0.5),
+          arrival: CropArrival.cut,
+        ),
+      ]),
+    );
+
+    test('keyframes_replace_the_fixed_crop', () {
+      final spec = renderSpecFor(jobWith(moving));
+
+      expect(spec.containsKey('crop'), isFalse);
+      expect(spec['cropKeyframes'], hasLength(2));
+    });
+
+    test('keyframe_times_count_from_the_clip_start', () {
+      final spec = renderSpecFor(jobWith(moving));
+
+      final second =
+          (spec['cropKeyframes']! as List<Object?>)[1]! as Map<String, Object?>;
+      expect((second['timeMs'], second['arrival']), (8000, 'cut'));
+    });
+
+    test('each_keyframe_is_an_ndc_rectangle', () {
+      final spec = renderSpecFor(jobWith(moving));
+
+      final first =
+          (spec['cropKeyframes']! as List<Object?>).first!
+              as Map<String, Object?>;
+      expect(first['left'], -1.0);
+    });
+
+    test('blur_has_no_keyframes', () {
+      final spec = renderSpecFor(jobWith(moving.copyWith(fill: FillMode.blur)));
+
+      expect(spec.containsKey('cropKeyframes'), isFalse);
+    });
+  });
+
   test('spec_names_h264_and_aac', () {
     final spec = renderSpecFor(jobWith(const FrameSettings()));
 
@@ -114,5 +163,27 @@ void main() {
       [spec['sharpScaleX'], spec['sharpScaleY']],
       [closeTo(720 / 1280, 1e-9), 1.0],
     );
+  });
+
+  test('spec_lists_caption_cues_in_milliseconds', () {
+    final job = RenderJob(
+      source: jobWith(const FrameSettings()).source,
+      clip: ClipRange(start: at(1, 0), end: at(1, 20)),
+      frame: const FrameSettings(),
+      sourceSize: const OutputSize(1920, 1080),
+      overlayPath: '/cache/overlay.png',
+      outputPath: '/files/reel.mp4',
+      captionCues: const [
+        RenderCue(
+          start: Duration(seconds: 2),
+          end: Duration(milliseconds: 6500),
+          overlayPath: '/cache/overlay_1.png',
+        ),
+      ],
+    );
+
+    expect(renderSpecFor(job)['captionCues'], [
+      {'startMs': 2000, 'endMs': 6500, 'path': '/cache/overlay_1.png'},
+    ]);
   });
 }

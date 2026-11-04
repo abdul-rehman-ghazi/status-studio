@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 
 @immutable
 class OutputSize {
@@ -110,31 +111,62 @@ class FrameSettings {
   const FrameSettings({
     this.preset = AspectPreset.story9x16,
     this.fill = FillMode.crop,
-    this.focus = CropFocus.center,
+    this.anchor = const CropAnchor(x: 0.5, y: 0.5),
     this.freeCrop = FreeCropRect.initial,
+    this.cropPath = const CropPath(),
   });
 
   final AspectPreset preset;
   final FillMode fill;
-  final CropFocus focus;
+
+  /// Where Crop to fill's window sits in its room; the place a moving crop
+  /// starts from (spec FR-22).
+  final CropAnchor anchor;
   final FreeCropRect freeCrop;
+
+  /// Where the crop window is over time (spec FR-22); empty is a fixed crop.
+  final CropPath cropPath;
 
   bool get offersFill =>
       preset != AspectPreset.landscape16x9 && preset != AspectPreset.free;
 
-  bool get offersFocus => offersFill && fill == FillMode.crop;
+  /// Hidden while the crop moves: its keyframes place the window then.
+  bool get offersFocus =>
+      offersFill && fill == FillMode.crop && cropPath.isEmpty;
+
+  /// The Left, Center or Right chip the anchor sits on, or none.
+  CropFocus? get focus => switch (anchor.x) {
+    0 => CropFocus.left,
+    0.5 => CropFocus.center,
+    1 => CropFocus.right,
+    _ => null,
+  };
+
+  /// Keep in view: sets the anchor's x and leaves its y.
+  FrameSettings withFocus(CropFocus focus) {
+    final x = switch (focus) {
+      CropFocus.left => 0.0,
+      CropFocus.center => 0.5,
+      CropFocus.right => 1.0,
+    };
+    return copyWith(
+      anchor: CropAnchor(x: x, y: anchor.y),
+    );
+  }
 
   FrameSettings copyWith({
     AspectPreset? preset,
     FillMode? fill,
-    CropFocus? focus,
+    CropAnchor? anchor,
     FreeCropRect? freeCrop,
+    CropPath? cropPath,
   }) {
     return FrameSettings(
       preset: preset ?? this.preset,
       fill: fill ?? this.fill,
-      focus: focus ?? this.focus,
+      anchor: anchor ?? this.anchor,
       freeCrop: freeCrop ?? this.freeCrop,
+      cropPath: cropPath ?? this.cropPath,
     );
   }
 
@@ -143,11 +175,12 @@ class FrameSettings {
       other is FrameSettings &&
       other.preset == preset &&
       other.fill == fill &&
-      other.focus == focus &&
-      other.freeCrop == freeCrop;
+      other.anchor == anchor &&
+      other.freeCrop == freeCrop &&
+      other.cropPath == cropPath;
 
   @override
-  int get hashCode => Object.hash(preset, fill, focus, freeCrop);
+  int get hashCode => Object.hash(preset, fill, anchor, freeCrop, cropPath);
 }
 
 const _maximumFreeSide = 1920;

@@ -12,6 +12,7 @@ import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -26,10 +27,6 @@ class ProcessingScreen extends ConsumerStatefulWidget {
 
 class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   var _leaving = false;
-
-  /// Once this run has downloaded the model, its row stays, ticked, so the
-  /// user sees where the time and data went.
-  var _downloadedModel = false;
 
   /// Measures each step's speed from when this screen first saw it.
   final _clock = Stopwatch()..start();
@@ -88,7 +85,6 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     final draft = ref.watch(reelDraftProvider);
     final run = ref.watch(scriptProgressProvider);
     _openScriptIfDone(run);
-    _downloadedModel |= run.value?.stage == ScriptStage.downloadingModel;
     return PopScope(
       // System back leaves the run as surely as Cancel does.
       onPopInvokedWithResult: (didPop, _) {
@@ -116,10 +112,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
               _RunFailed(error: error)
             else
               _RunSteps(
-                steps: [
-                  if (_downloadedModel) _modelStep,
-                  ..._scriptSteps(draft.language, run.value),
-                ],
+                steps: _scriptSteps(draft.language, run.value),
                 progress: run.value,
                 readings: _readings,
               ),
@@ -183,6 +176,33 @@ class _RunSteps extends StatelessWidget {
   }
 }
 
+/// What a failed run offers, spec §8.
+enum _FailureAction {
+  retry('Retry'),
+  settings('Settings'),
+  back('Back'),
+  anotherLanguage('Try another language');
+
+  const _FailureAction(this.label);
+
+  final String label;
+}
+
+List<_FailureAction> _actionsFor(Object error) {
+  return switch (error) {
+    NoSpeechFoundException() => [_FailureAction.anotherLanguage],
+    VideoUnavailableException() || InsufficientStorageException() => const [],
+    NoGroqKeyException() || GroqKeyRejectedException() => const [
+      _FailureAction.settings,
+      _FailureAction.back,
+    ],
+    GroqRateLimitedException() => const [_FailureAction.back],
+    GroqFailedException() ||
+    GroqOfflineException() => const [_FailureAction.retry, _FailureAction.back],
+    _ => const [_FailureAction.retry],
+  };
+}
+
 /// Spec §8 message for a failed run, with the actions it offers.
 class _RunFailed extends ConsumerWidget {
   const _RunFailed({required this.error});
@@ -199,19 +219,27 @@ class _RunFailed extends ConsumerWidget {
           style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
         const SizedBox(height: 16),
-        if (error is NoSpeechFoundException)
-          OutlinedButton(
-            onPressed: () => context.pop(),
-            child: const Text('Try another language'),
-          )
-        else if (error is! VideoUnavailableException &&
-            error is! InsufficientStorageException)
-          OutlinedButton(
-            onPressed: () => _retry(ref),
-            child: const Text('Retry'),
+        for (final action in _actionsFor(error))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: OutlinedButton(
+              onPressed: () => _perform(action, context, ref),
+              child: Text(action.label),
+            ),
           ),
       ],
     );
+  }
+
+  void _perform(_FailureAction action, BuildContext context, WidgetRef ref) {
+    switch (action) {
+      case _FailureAction.retry:
+        _retry(ref);
+      case _FailureAction.settings:
+        context.push(AppRoutes.settings);
+      case _FailureAction.back || _FailureAction.anotherLanguage:
+        context.pop();
+    }
   }
 
   void _retry(WidgetRef ref) {
@@ -230,12 +258,6 @@ typedef _StepAmounts = ({WorkRate rate, WorkAmount latest, Duration latestAt});
 /// How much of a step is done, and how fast, as last measured.
 typedef _StepReading = ({WorkAmount amount, double? perSecond});
 
-final _Step _modelStep = (
-  label: ScriptStage.downloadingModel.label,
-  detail: 'Needed once, then it works offline',
-  stage: ScriptStage.downloadingModel,
-);
-
 List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
   return [
     (
@@ -250,7 +272,7 @@ List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
     ),
     (
       label: ScriptStage.transcribing.label,
-      detail: 'Whisper, on your phone',
+      detail: 'Groq, in the cloud',
       stage: ScriptStage.transcribing,
     ),
     (

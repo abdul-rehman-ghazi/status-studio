@@ -1,23 +1,3 @@
-/// The speech model couldn't be downloaded (spec §8).
-class ModelDownloadException implements Exception {
-  const ModelDownloadException(this.reason);
-
-  final String reason;
-
-  @override
-  String toString() => 'ModelDownloadException: $reason';
-}
-
-/// Whisper failed on a chunk of audio.
-class TranscriptionFailedException implements Exception {
-  const TranscriptionFailedException(this.reason);
-
-  final String reason;
-
-  @override
-  String toString() => 'TranscriptionFailedException: $reason';
-}
-
 /// The whole video produced no lines of speech (spec §8).
 class NoSpeechFoundException implements Exception {
   const NoSpeechFoundException();
@@ -41,4 +21,12 @@ class NoSavedTranscriptException implements Exception {
 
   @override
   String toString() => 'NoSavedTranscriptException';
+}
+
+/// No video details were kept for a video id, or the file is unreadable.
+class NoSavedVideoException implements Exception {
+  const NoSavedVideoException();
+
+  @override
+  String toString() => 'NoSavedVideoException';
 }

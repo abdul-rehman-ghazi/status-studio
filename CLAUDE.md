@@ -4,22 +4,23 @@ Guidance for Claude Code working in this repository.
 
 ## What this is
 
-Status Studio: a general-purpose Flutter app that turns any YouTube video, in any language, into a short status clip. Flow: paste link → on-device transcript (language auto-detected or chosen) → user taps start and end lines → fine-tune ±0.5 s → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share.
+Status Studio: a general-purpose Flutter app that turns any YouTube video, in any language, into a short status clip. Flow: paste link → script (YouTube captions, or Groq with the user's key; language auto-detected or chosen) → user taps start and end lines → fine-tune ±0.5 s → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share.
 
 Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
-## Spec and plans
+## The project document
 
-- Spec: `docs/superpowers/specs/2026-10-29-status-studio-design.md`. It is the source of truth for behaviour, copy, sizes and error messages.
-- Plans: `docs/superpowers/plans/*-m<N>-*.md`, one per milestone, in this order: **M1 → M2 → M2b → M3 → M4 → M5 → M6**. M2b (`2026-10-30-m2b-data-saver.md`) comes after M2 even though its date sorts later. Each task lists files, interfaces and the exact tests to write first.
+- Everything lives in one file: `docs/status-studio.md`. "The spec" means this file. It is the source of truth for behaviour, copy, sizes and error messages.
+- It holds the product spec (§1–§11), milestones and their task lists (§12), behaviour that tests must cover (§13), device checks (§14) and known issues (§15).
+- Code cites its § and FR numbers, so never renumber them; add new sections at the end.
 - Workflow:
-  - Work on one milestone per branch (`m1-app-shell`, …).
-  - Follow the plan's tasks in order and write the failing test first.
-  - Tick each checkbox in the plan as you go, and commit after each task.
-  - Merge when `fvm flutter analyze` and `fvm flutter test` are clean.
-- If the plan and the spec disagree, the spec wins. Fix the plan in the same commit and say so in the commit message.
-- Spikes (M3 Task 1, M5 Task 1) record their results in spec §10 before dependent tasks start.
-- Update the README Roadmap status when a milestone is merged.
+  - Work on one milestone per branch (`m9-groq-transcription`, …).
+  - Write a milestone's tasks as a checklist under it in §12, test first, before coding.
+  - Tick each checkbox as you go, and commit after each task.
+  - Merge when `tool/check.sh` passes.
+- If code and the document disagree, the document wins. Fix whichever is wrong in the same commit and say so in the commit message.
+- Spikes record their results in §10 before dependent tasks start. Device checks go into §14, not onto the phone mid-milestone.
+- Update the milestone's status in §12 when it is merged.
 
 ## Commands
 
@@ -27,11 +28,19 @@ Always go through FVM; the SDK version is pinned in `.fvmrc`.
 
 ```sh
 fvm flutter pub get
-fvm flutter analyze          # must report no issues
-fvm flutter test             # must pass
-fvm dart format lib test     # format before committing
+tool/check.sh                # format + analyze + all tests; must exit 0 before every commit
+fvm flutter test -r failures-only test/path/to/one_test.dart   # while writing a test or its code
 fvm flutter build apk --debug
 ```
+
+## Keeping sessions cheap
+
+Every tool call re-reads the whole conversation, so cost grows with the number of calls and with session length, not with how much a command prints.
+- **Test-first loop:** run only the test file you're working on, with `-r failures-only`. Run `tool/check.sh` once per task, just before the commit, never format, analyze and test as separate calls.
+- **Batch work:** make all of a task's edits before running tests, and put independent reads or searches in one call.
+- **Read narrowly:** read the lines you need (`sed -n` ranges, `grep -n`) rather than whole files, and don't re-read a file you've just edited.
+- **One task per session:** state lives in `docs/status-studio.md` and git, so start a fresh session (`/clear`) for each milestone task instead of carrying a long one.
+- **Subagents:** only for wide searches or an independent review, with a narrow brief.
 
 ## Architecture
 
@@ -47,14 +56,15 @@ fvm flutter build apk --debug
 - **Final render is Media3 Transformer, not FFmpeg.** The bundled FFmpeg is built with `--disable-mediacodec --disable-openssl` and has no libx264: it can't encode H.264 or read https URLs. Android renders through a Kotlin platform channel to Media3 (hardware H.264/AAC). FFmpeg is only for WAV conversion, splitting, stream-copy muxing and thumbnails.
 - **Captions and branding are drawn by Flutter.** Render caption text plus the logo to one transparent PNG at output size with Flutter's text engine; Media3 overlays it. Text rendering elsewhere would break Nastaliq letter joining.
 - **yt-dlp reads YouTube; Dart downloads.** `YouTubeVideoSource` runs yt-dlp (through `youtubedl-android`, on the `status_studio/ytdlp` Kotlin channel) only to get a video's title, length, stream URLs and caption tracks as JSON. The streams are downloaded in byte ranges with Dart `HttpClient`. Read without JavaScript first (`quickVideoInfo`, about 8 s on a mid-range phone) and with QuickJS only when that gives no streams (about 30 s). yt-dlp updates itself weekly and after a failed read. Don't bring back `youtube_explode_dart`: YouTube refused its stream URLs (spec §10 Q4).
-- **One FFmpeg only.** `whisper_ggml` depends on `ffmpeg_kit_flutter_new_min` ^2.x. Use that same package for all video work. Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL. Upgrade `ffmpeg_kit_flutter_new_min` together with `whisper_ggml` when it moves to 3.x.
-- **Heavy work off the UI thread.** Whisper transcription and FFmpeg runs are long. Stream progress to the UI, and stream transcript lines as they're produced so long videos are usable early.
-- **Whisper model is downloaded on first use, not bundled.** Default `small`; `base` as a lighter option.
+- **One FFmpeg only.** Use `ffmpeg_kit_flutter_new_min` for all video work. Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL.
+- **Heavy work off the UI thread.** Groq requests and FFmpeg runs are long. Stream progress to the UI, and stream transcript lines as they're produced so long videos are usable early.
+- **Groq writes every script without captions.** With the user's own free key, by `whisper-large-v3-turbo` (spec FR-12a). There is no on-device Whisper (removed in M10: 0.2× real time on a Redmi Note 11) and no on/off switch: no key means the §8 "needs a free Groq key" error. The same key powers Fix with Groq (spec FR-19): `openai/gpt-oss-120b` with the `browser_search` tool, at most 30 lines, sent only when the user taps the button. Never ship a key in the app. Keep the key in `flutter_secure_storage`, and never log it or put it in saved files, notifications or error text.
+- **Captions show one line at a time** (spec FR-7a). Each line is its own overlay PNG and cue; Kotlin opens each PNG when due, so the PNGs must outlive `start` and be deleted when the render ends.
 - **Save the user's data.**
   - Script audio is the lowest-bitrate stream, or nothing when YouTube captions exist.
   - Video is never downloaded whole when it can be avoided: Fine-tune fetches only the clip window via the MP4 `sidx` index and HTTP range requests (spec FR-15).
   - Network I/O for media is Dart `HttpClient`.
-- **Reuse earlier work.** Finished scripts are saved per video/language/source and reopened without downloading (spec FR-14). Whisper progress is saved per 90-second chunk and resumed.
+- **Reuse earlier work.** Finished scripts are saved per video/language/source and reopened without downloading (spec FR-14). Groq progress is saved per 90-second piece and resumed.
 - **RTL text.** Urdu, Arabic and Persian text needs `TextDirection.rtl` and the Nastaliq or Naskh family. Nastaliq needs a tall line height (about 2.1).
 - **Distribution.** YouTube downloading keeps the app off Google Play and the App Store. Keep YouTube access behind one data-layer class so a store build could swap in local-file input.
 
@@ -75,7 +85,7 @@ fvm flutter build apk --debug
 
 - One assertion concept per test; Arrange-Act-Assert.
 - Test names describe behaviour, e.g. `transcript_line_tap_sets_clip_start`.
-- Override providers to fake YouTube, Whisper and FFmpeg in tests. Never hit the network in tests.
+- Override providers to fake YouTube, Groq and FFmpeg in tests. Never hit the network in tests.
 
 ## Platform notes
 

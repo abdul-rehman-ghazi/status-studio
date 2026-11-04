@@ -39,6 +39,46 @@ class FfmpegRunner {
   Future<void> cancel() => FFmpegKit.cancel();
 }
 
+/// Cancels one run, not every run: [FfmpegRunner.cancel] stops all sessions,
+/// including a waveform's. Created before the run, bound to its session when
+/// it starts; a cancel that comes first stops the run as it starts.
+class FfmpegCancelHandle {
+  int? _sessionId;
+  var _cancelRequested = false;
+
+  bool get isCancelled => _cancelRequested;
+
+  Future<void> cancel() async {
+    _cancelRequested = true;
+    final id = _sessionId;
+    if (id != null) {
+      await FFmpegKit.cancel(id);
+    }
+  }
+
+  Future<void> _bind(int? sessionId) async {
+    _sessionId = sessionId;
+    if (_cancelRequested && sessionId != null) {
+      await FFmpegKit.cancel(sessionId);
+    }
+  }
+}
+
+/// A run that can be cancelled on its own through an [FfmpegCancelHandle].
+class CancellableFfmpegRunner {
+  const CancellableFfmpegRunner();
+
+  Future<void> run(List<String> arguments, FfmpegCancelHandle handle) async {
+    final finished = Completer<void>();
+    final session = await FFmpegKit.executeWithArgumentsAsync(
+      arguments,
+      (session) => unawaited(_complete(session, finished)),
+    );
+    await handle._bind(session.getSessionId());
+    return finished.future;
+  }
+}
+
 Future<void> _complete(FFmpegSession session, Completer<void> finished) async {
   final returnCode = await session.getReturnCode();
   if (ReturnCode.isSuccess(returnCode)) {
@@ -51,4 +91,8 @@ Future<void> _complete(FFmpegSession session, Completer<void> finished) async {
 
 final ffmpegRunnerProvider = Provider<FfmpegRunner>(
   (ref) => const FfmpegRunner(),
+);
+
+final cancellableFfmpegRunnerProvider = Provider<CancellableFfmpegRunner>(
+  (ref) => const CancellableFfmpegRunner(),
 );

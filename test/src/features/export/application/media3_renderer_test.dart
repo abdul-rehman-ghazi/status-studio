@@ -115,6 +115,28 @@ void main() {
     );
   });
 
+  test(
+    'output_file_is_named_after_the_kalam_and_its_first_and_last_lines',
+    () async {
+      final native = FakeNative(finishWithProgress)..install();
+
+      await renderer.render(pickedDraft).drain<void>();
+
+      final spec = native.calls.single.arguments as Map<Object?, Object?>;
+      expect(spec['outputPath'], '${folder.path}/Sample-علم_بڑی-وقت_کی.mp4');
+    },
+  );
+
+  test('a_second_reel_with_the_same_name_gets_a_number', () async {
+    File('${folder.path}/Sample-علم_بڑی-وقت_کی.mp4').writeAsStringSync('x');
+    final native = FakeNative(finishWithProgress)..install();
+
+    await renderer.render(pickedDraft).drain<void>();
+
+    final spec = native.calls.single.arguments as Map<Object?, Object?>;
+    expect(spec['outputPath'], '${folder.path}/Sample-علم_بڑی-وقت_کی-2.mp4');
+  });
+
   test('progress_events_become_render_running', () async {
     FakeNative(finishWithProgress).install();
 
@@ -175,16 +197,40 @@ void main() {
   List<String> overlays() => folder
       .listSync()
       .map((entry) => entry.path)
-      .where((path) => path.endsWith('_overlay.png'))
+      .where((path) => path.contains('_overlay'))
       .toList();
 
-  test('overlay_png_is_deleted_once_started', () async {
+  test('overlay_pngs_are_deleted_when_the_render_ends', () async {
     FakeNative(finishWithProgress).install();
 
     await renderer.render(pickedDraft).drain<void>();
     await pumpEventQueue();
 
     expect(overlays(), isEmpty);
+  });
+
+  test('overlay_pngs_stay_while_the_render_runs', () async {
+    final native = FakeNative((_) {})..install();
+    final run = renderer.render(pickedDraft).listen((_) {});
+    await untilStarted(native);
+
+    expect(overlays(), hasLength(4));
+    await renderer.cancel();
+    await run.cancel();
+  });
+
+  test('start_sends_one_timed_cue_per_caption_line', () async {
+    final native = FakeNative(finishWithProgress)..install();
+
+    await renderer.render(pickedDraft).drain<void>();
+
+    final spec = native.calls.single.arguments as Map<Object?, Object?>;
+    final cues = (spec['captionCues']! as List).cast<Map<Object?, Object?>>();
+    expect(cues.map((cue) => (cue['startMs'], cue['endMs'])).toList(), [
+      (0, 8600),
+      (9400, 18000),
+      (18800, 27400),
+    ]);
   });
 
   test('overlay_png_is_deleted_when_start_is_refused', () async {

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/features/clip/presentation/fine_tune_screen.dart';
+import 'package:status_studio/src/features/clip/presentation/lyrics_screen.dart';
 import 'package:status_studio/src/features/export/presentation/done_screen.dart';
 import 'package:status_studio/src/features/export/presentation/export_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
@@ -17,6 +18,7 @@ abstract final class AppRoutes {
   static const processing = '/processing';
   static const script = '/script';
   static const fineTune = '/fine-tune';
+  static const lyrics = '/fine-tune/lyrics';
   static const style = '/style';
   static const export = '/export';
   static const done = '/done';
@@ -56,6 +58,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.fineTune,
         builder: (context, state) => const FineTuneScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.lyrics,
+        builder: (context, state) => const LyricsScreen(),
       ),
       GoRoute(
         path: AppRoutes.style,

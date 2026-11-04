@@ -20,7 +20,6 @@ import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/domain/roman_urdu.dart';
-import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -54,25 +53,15 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   Widget build(BuildContext context) {
     final draft = ref.watch(reelDraftProvider);
     final controller = ref.read(reelDraftProvider.notifier);
-    final frame = draft.frame;
     final caption = draft.caption;
     return Scaffold(
-      appBar: const FlowAppBar(
-        title: 'Frame & caption',
-        stepLabel: 'Step 4 of 4',
-      ),
+      appBar: const FlowAppBar(title: 'Caption', stepLabel: 'Step 5 of 5'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _framePreview(draft),
-            const SizedBox(height: 20),
-            _FrameControls(
-              frame: frame,
-              sourceSize: previewSourceSize(ref, draft),
-              onChanged: controller.updateFrame,
-            ),
             const SizedBox(height: 24),
             const SectionLabel('Caption'),
             OptionRow<CaptionVariant>(
@@ -100,8 +89,8 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
             ),
             const SizedBox(height: 8),
             const HintText(
-              'Filled from the lines you picked. Translation runs on your '
-              'phone. Edit anything.',
+              'Filled from the lines you picked. Each line shows on its own, '
+              'when it is said. Translation runs on your phone. Edit anything.',
             ),
             const SizedBox(height: 20),
             _CaptionLayoutControls(
@@ -123,14 +112,6 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   }
 
   Widget _framePreview(ReelDraft draft) {
-    if (draft.frame.preset == AspectPreset.free) {
-      return FreeCropEditor(
-        crop: draft.frame.freeCrop,
-        onChanged: (crop) => ref
-            .read(reelDraftProvider.notifier)
-            .updateFrame(draft.frame.copyWith(freeCrop: crop)),
-      );
-    }
     final output = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
     return LayoutBuilder(
       builder: (context, constraints) => Center(
@@ -264,74 +245,6 @@ List<Option<CaptionVariant>> _variantOptions(
     if (translator.supports(languageCode))
       (value: CaptionVariant.english, label: 'English'),
   ];
-}
-
-class _FrameControls extends StatelessWidget {
-  const _FrameControls({
-    required this.frame,
-    required this.sourceSize,
-    required this.onChanged,
-  });
-
-  final FrameSettings frame;
-
-  /// The clip's frame size, for the free crop's output size.
-  final OutputSize sourceSize;
-  final ValueChanged<FrameSettings> onChanged;
-
-  static const _presetHints = {
-    AspectPreset.story9x16: 'Status, Reels, TikTok, Shorts',
-    AspectPreset.portrait4x5: 'Instagram and Facebook posts',
-    AspectPreset.square1x1: 'Square posts',
-    AspectPreset.landscape16x9: 'Original frame, no crop',
-    AspectPreset.free: 'Your own crop',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final output = outputSizeFor(frame, sourceSize);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SectionLabel('Size'),
-        OptionRow<AspectPreset>(
-          options: [
-            for (final preset in AspectPreset.values)
-              (value: preset, label: preset.label),
-          ],
-          selected: frame.preset,
-          onSelected: (preset) => onChanged(frame.copyWith(preset: preset)),
-        ),
-        const SizedBox(height: 8),
-        HintText('${_presetHints[frame.preset]} · $output'),
-        if (frame.offersFill) ...[
-          const SizedBox(height: 20),
-          const SectionLabel('Fill'),
-          OptionRow<FillMode>(
-            options: const [
-              (value: FillMode.crop, label: 'Crop to fill'),
-              (value: FillMode.blur, label: 'Blur background'),
-            ],
-            selected: frame.fill,
-            onSelected: (fill) => onChanged(frame.copyWith(fill: fill)),
-          ),
-        ],
-        if (frame.offersFocus) ...[
-          const SizedBox(height: 20),
-          const SectionLabel('Keep in view'),
-          OptionRow<CropFocus>(
-            options: const [
-              (value: CropFocus.left, label: 'Left'),
-              (value: CropFocus.center, label: 'Center'),
-              (value: CropFocus.right, label: 'Right'),
-            ],
-            selected: frame.focus,
-            onSelected: (focus) => onChanged(frame.copyWith(focus: focus)),
-          ),
-        ],
-      ],
-    );
-  }
 }
 
 class _CaptionLayoutControls extends StatelessWidget {

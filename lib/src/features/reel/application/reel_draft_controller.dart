@@ -4,7 +4,9 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 final reelDraftProvider = NotifierProvider<ReelDraftController, ReelDraft>(
@@ -17,19 +19,34 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void startNew() => state = const ReelDraft();
 
+  /// Continues a kept fine-tune (spec FR-24).
+  void restore(ReelDraft draft) => state = draft;
+
   void setVideo(SourceVideo video) => state = state.copyWith(video: video);
 
   void setLanguage(ScriptLanguage language) =>
       state = state.copyWith(language: language);
 
+  /// A script written again replaces the edited lines, so edits stop
+  /// shielding the lines from it (spec FR-21).
+  void forgetLineEdits() => state = state.copyWith(linesEdited: false);
+
   void setTranscript(Transcript transcript) =>
       state = state.withTranscript(transcript);
+
+  void correctTranscript(Transcript corrected) =>
+      state = state.withCorrectedLines(corrected);
 
   void growTranscript(Transcript transcript) =>
       state = state.withGrowingTranscript(transcript);
 
   void tapLine(int index) =>
       state = state.withSelection(state.selection.tap(index));
+
+  /// Applies [edit] to the picked script as it is now, so a tap that lands
+  /// after another edit never works from stale lines.
+  void editScript(PickedScript Function(PickedScript script) edit) =>
+      state = state.withEditedScript(edit(state.pickedScript));
 
   void nudgeClipStart(Duration delta) {
     final clip = _requireClip();
@@ -44,6 +61,31 @@ class ReelDraftController extends Notifier<ReelDraft> {
       clip: clip.nudgeEnd(delta, videoDuration: _requireVideo().duration),
     );
   }
+
+  void startMovingCrop() => state = state.withMovingCropStarted();
+
+  void stopMovingCrop() => state = state.withMovingCropStopped();
+
+  void moveCropTo(Duration videoTime, CropAnchor anchor) =>
+      state = state.withCropAnchorAt(videoTime, anchor);
+
+  void followCrop(CropPath path) => state = state.withFollowedCrop(path);
+
+  void setCropArrival(int index, CropArrival arrival) =>
+      state = state.withCropArrival(index, arrival);
+
+  void removeCropKeyframe(int index) =>
+      state = state.withoutCropKeyframe(index);
+
+  /// Sets the clip start to [videoTime], rounded to a tenth of a second. The
+  /// nudge rules apply: a start that leaves under 3 s, or passes the video's
+  /// ends, changes nothing (spec FR-5).
+  void setClipStartAt(Duration videoTime) =>
+      nudgeClipStart(_roundedToTenth(videoTime) - _requireClip().start);
+
+  /// Sets the clip end to [videoTime]; see [setClipStartAt].
+  void setClipEndAt(Duration videoTime) =>
+      nudgeClipEnd(_roundedToTenth(videoTime) - _requireClip().end);
 
   void updateFrame(FrameSettings frame) => state = state.copyWith(frame: frame);
 
@@ -66,3 +108,6 @@ class ReelDraftController extends Notifier<ReelDraft> {
     return video;
   }
 }
+
+Duration _roundedToTenth(Duration time) =>
+    Duration(milliseconds: (time.inMilliseconds / 100).round() * 100);

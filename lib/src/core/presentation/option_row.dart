@@ -13,7 +13,9 @@ class OptionRow<T> extends StatelessWidget {
   });
 
   final List<Option<T>> options;
-  final T selected;
+
+  /// None when the current value isn't one of the options.
+  final T? selected;
   final ValueChanged<T> onSelected;
 
   @override

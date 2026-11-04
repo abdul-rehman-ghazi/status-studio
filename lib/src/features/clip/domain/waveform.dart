@@ -56,7 +56,7 @@ ClipWindow waveformWindowFor(
 /// The loudest sample in each of [buckets] equal slices of the request's
 /// window, scaled so the loudest slice is 1. Silence gives all zeros.
 ///
-/// Expects 16 kHz mono 16-bit PCM, as made by `wavArguments`.
+/// Expects 16 kHz mono 16-bit PCM, as made by `excerptWavArguments`.
 List<double> waveformPeaks(
   Uint8List wavBytes,
   WaveformRequest request, {

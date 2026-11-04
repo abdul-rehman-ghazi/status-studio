@@ -13,7 +13,11 @@ Future<void> openSection(
   await pumpRoutes(tester, [
     AppRoutes.settings,
   ], setup: TestSetup(backgroundWork: platform));
-  await tester.scrollUntilVisible(find.text('Open App info'), 200);
+  await tester.scrollUntilVisible(
+    find.text('Open App info'),
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
   await tester.pumpAndSettle();
 }
 

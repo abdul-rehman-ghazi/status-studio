@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,13 +6,13 @@ import 'package:status_studio/src/features/branding/presentation/logo_mark.dart'
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/export/data/overlay_painter.dart';
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
-import 'package:status_studio/src/features/export/domain/render_spec.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
-import 'package:status_studio/src/features/style/domain/crop_rect.dart';
+import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/style/presentation/framed_video.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
@@ -69,17 +68,31 @@ class ReelPreview extends ConsumerWidget {
                       key: ValueKey(source.file.path),
                       source: source,
                       firstFrame: clip.start - source.offset,
+                      videoTime: clip.start,
                       framing: (frame: draft.frame, sourceSize: sourceSize),
                     ),
             ),
-            _OverlayLayer(
-              spec: OverlaySpec(output: output, caption: draft.caption),
+            ReelOverlayLayer(
+              spec: OverlaySpec(
+                output: output,
+                caption: _firstLineCaption(draft),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// The preview is the clip's first frame, so it shows the caption's first
+/// line, as the export does at that moment (spec FR-7a).
+CaptionSettings _firstLineCaption(ReelDraft draft) {
+  if (draft.clip == null) {
+    return draft.caption;
+  }
+  final cues = draft.captionCues;
+  return draft.caption.copyWith(text: cues.isEmpty ? '' : cues.first.text);
 }
 
 typedef _Framing = ({FrameSettings frame, OutputSize sourceSize});
@@ -91,6 +104,7 @@ class _SourceFrame extends ConsumerStatefulWidget {
     super.key,
     required this.source,
     required this.firstFrame,
+    required this.videoTime,
     required this.framing,
   });
 
@@ -98,6 +112,9 @@ class _SourceFrame extends ConsumerStatefulWidget {
 
   /// Where the clip starts inside the file.
   final Duration firstFrame;
+
+  /// The same moment in video time, where a moving crop is read.
+  final Duration videoTime;
   final _Framing framing;
 
   @override
@@ -140,72 +157,11 @@ class _SourceFrameState extends ConsumerState<_SourceFrame> {
     if (!_player.value.isInitialized) {
       return _VideoPlaceholder(frame: widget.framing.frame);
     }
-    return LayoutBuilder(
-      builder: (context, constraints) =>
-          _framed(Size(constraints.maxWidth, constraints.maxHeight)),
-    );
-  }
-
-  Widget _framed(Size preview) {
-    final frame = widget.framing.frame;
-    final source = widget.framing.sourceSize;
-    if (frame.preset == AspectPreset.landscape16x9) {
-      return Center(
-        child: AspectRatio(
-          aspectRatio: source.width / source.height,
-          child: VideoPlayer(_player),
-        ),
-      );
-    }
-    if (frame.preset != AspectPreset.free && frame.fill == FillMode.blur) {
-      return _blurred(preview);
-    }
-    return _cropped(preview, cropRectFor(frame, source));
-  }
-
-  Widget _cropped(Size preview, PixelRect crop) {
-    final source = widget.framing.sourceSize;
-    final scale = preview.width / crop.width;
-    return ClipRect(
-      child: OverflowBox(
-        alignment: Alignment.topLeft,
-        maxWidth: double.infinity,
-        maxHeight: double.infinity,
-        child: Transform.translate(
-          offset: Offset(-crop.x * scale, -crop.y * scale),
-          child: SizedBox(
-            width: source.width * scale,
-            height: source.height * scale,
-            child: VideoPlayer(_player),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Media3's blur: the frame stretched and blurred behind a sharp copy.
-  Widget _blurred(Size preview) {
-    final source = widget.framing.sourceSize;
-    final output = outputSizeFor(widget.framing.frame, source);
-    final sharp = sharpFrameScale(source, output);
-    final sigma = blurSigmaInSourcePixels * preview.width / source.width;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        ClipRect(
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-            child: VideoPlayer(_player),
-          ),
-        ),
-        Center(
-          child: SizedBox(
-            width: preview.width * sharp.x,
-            height: preview.height * sharp.y,
-            child: VideoPlayer(_player),
-          ),
-        ),
-      ],
+    return FramedVideo(
+      video: VideoPlayer(_player),
+      frame: widget.framing.frame,
+      sourceSize: widget.framing.sourceSize,
+      videoTime: widget.videoTime,
     );
   }
 }
@@ -237,8 +193,8 @@ class _VideoPlaceholder extends StatelessWidget {
 /// The caption and branding laid out at full output size by the export's
 /// own layout, then scaled to the preview, so text wraps exactly as in the
 /// exported reel.
-class _OverlayLayer extends StatelessWidget {
-  const _OverlayLayer({required this.spec});
+class ReelOverlayLayer extends StatelessWidget {
+  const ReelOverlayLayer({super.key, required this.spec});
 
   final OverlaySpec spec;
 

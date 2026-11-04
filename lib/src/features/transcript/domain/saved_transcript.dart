@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
-import 'package:status_studio/src/features/transcript/domain/speech_model.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// Source name of a script that came from YouTube captions (FR-14).
 const captionsSource = 'captions';
 
-/// Source name of a script Whisper wrote with [model] (FR-14).
-String whisperSource(SpeechModel model) => 'whisper-${model.name}';
+/// Source name of a script Groq wrote (FR-14).
+const groqSource = 'groq-whisper-large-v3-turbo';
+
+/// Source name of a script whose text was corrected by an AI agent (FR-18).
+const editedSource = 'edited';
 
 /// Which saved scripts belong together: one video, one requested language
 /// (`auto` counts as its own language).
@@ -59,7 +62,7 @@ class SavedTranscript {
 
   final Transcript transcript;
 
-  /// `captions`, `whisper-small` or `whisper-base`.
+  /// `captions` or `groq-whisper-large-v3-turbo`.
   final String source;
   final DateTime savedAt;
 
@@ -80,6 +83,37 @@ class SavedTranscript {
   @override
   int get hashCode =>
       Object.hash(transcript, source, savedAt.microsecondsSinceEpoch);
+}
+
+/// A video's finished script in one language, as the Recent list on Home
+/// shows it (FR-11).
+@immutable
+class SavedScript {
+  const SavedScript({
+    required this.video,
+    required this.language,
+    required this.saved,
+  });
+
+  final SourceVideo video;
+
+  /// The language that was asked for; `auto` scripts carry the detected
+  /// one in [saved].
+  final ScriptLanguage language;
+  final SavedTranscript saved;
+
+  TranscriptKey get key =>
+      TranscriptKey(videoId: video.videoId, language: language);
+
+  @override
+  bool operator ==(Object other) =>
+      other is SavedScript &&
+      other.video == video &&
+      other.language == language &&
+      other.saved == saved;
+
+  @override
+  int get hashCode => Object.hash(video, language, saved);
 }
 
 /// Whisper's progress through an unfinished run: the lines of the first

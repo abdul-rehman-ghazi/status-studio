@@ -31,6 +31,42 @@ class RenderSpecTest {
     }
 
     @Test
+    fun fromMap_parses_moving_crop_keyframes() {
+        val map = specMap(
+            "fill" to "crop",
+            "cropKeyframes" to listOf(
+                mapOf(
+                    "timeMs" to 0, "arrival" to "glide",
+                    "left" to -1.0, "right" to -0.4, "bottom" to -1.0, "top" to 1.0,
+                ),
+                mapOf(
+                    "timeMs" to 8000, "arrival" to "cut",
+                    "left" to 0.4, "right" to 1.0, "bottom" to -1.0, "top" to 1.0,
+                ),
+            ),
+        )
+
+        val spec = RenderSpec.fromMap(map)
+
+        assertEquals(
+            Fill.MovingCrop(
+                listOf(
+                    CropKeyframe(0, true, NdcRect(-1f, -0.4f, -1f, 1f)),
+                    CropKeyframe(8000, false, NdcRect(0.4f, 1f, -1f, 1f)),
+                ),
+            ),
+            spec.fill,
+        )
+    }
+
+    @Test
+    fun fromMap_rejects_an_empty_keyframe_list() {
+        val map = specMap("fill" to "crop", "cropKeyframes" to emptyList<Any>())
+
+        assertThrows(IllegalArgumentException::class.java) { RenderSpec.fromMap(map) }
+    }
+
+    @Test
     fun fromMap_parses_blur_spec_without_crop() {
         val map = specMap(
             "fill" to "blur",
@@ -63,5 +99,52 @@ class RenderSpecTest {
         val map = specMap("fill" to "sepia")
 
         assertThrows(IllegalArgumentException::class.java) { RenderSpec.fromMap(map) }
+    }
+
+    private val cues = listOf(
+        CaptionCue(startMs = 0, endMs = 4000, path = "/cache/overlay_1.png"),
+        CaptionCue(startMs = 4000, endMs = 9000, path = "/cache/overlay_2.png"),
+    )
+
+    @Test
+    fun fromMap_parses_caption_cues() {
+        val map = specMap("fill" to "none") + ("captionCues" to listOf(
+            mapOf("startMs" to 0, "endMs" to 4000L, "path" to "/cache/overlay_1.png"),
+        ))
+
+        val spec = RenderSpec.fromMap(map)
+
+        assertEquals(listOf(cues[0]), spec.captionCues)
+    }
+
+    @Test
+    fun fromMap_without_cues_has_none() {
+        val spec = RenderSpec.fromMap(specMap("fill" to "none"))
+
+        assertEquals(emptyList<CaptionCue>(), spec.captionCues)
+    }
+
+    @Test
+    fun fromMap_rejects_cue_without_path() {
+        val map = specMap("fill" to "none") + ("captionCues" to listOf(
+            mapOf("startMs" to 0, "endMs" to 4000),
+        ))
+
+        assertThrows(IllegalArgumentException::class.java) { RenderSpec.fromMap(map) }
+    }
+
+    @Test
+    fun overlayPathAt_gives_the_line_due() {
+        assertEquals("/cache/overlay_2.png", overlayPathAt("/cache/overlay.png", cues, 4500))
+    }
+
+    @Test
+    fun overlayPathAt_ends_a_cue_exclusively() {
+        assertEquals("/cache/overlay_2.png", overlayPathAt("/cache/overlay.png", cues, 4000))
+    }
+
+    @Test
+    fun overlayPathAt_gives_branding_between_and_after_cues() {
+        assertEquals("/cache/overlay.png", overlayPathAt("/cache/overlay.png", cues, 9000))
     }
 }

@@ -12,6 +12,7 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 import '../../../../helpers/counting_video_source.dart';
@@ -50,7 +51,7 @@ class FailingPipeline extends FakeScriptPipeline {
 }
 
 /// Sends whatever the test adds to [events], so the screen is up before
-/// the run reports anything, as it is while a model downloads on a phone.
+/// the run reports anything, as it is while the audio downloads.
 class ManualPipeline extends FakeScriptPipeline {
   ManualPipeline();
 
@@ -76,32 +77,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.text('Lining up timestamps'), findsOneWidget);
-  });
-
-  testWidgets('downloaded_model_step_stays_listed', (tester) async {
-    final pipeline = ManualPipeline();
-    final empty = sampleTranscript.copyWith(lines: const []);
-    await startProcessing(tester, step: Duration.zero, pipeline: pipeline);
-    await tester.pump(const Duration(seconds: 1));
-    pipeline.events.add(
-      ScriptProgress(
-        stage: ScriptStage.downloadingModel,
-        fraction: 0.1,
-        transcript: empty,
-      ),
-    );
-    await tester.pump();
-
-    pipeline.events.add(
-      ScriptProgress(
-        stage: ScriptStage.downloadingAudio,
-        fraction: 0.15,
-        transcript: empty,
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('Downloading the speech model'), findsOneWidget);
   });
 
   group('step amounts', () {
@@ -276,5 +251,88 @@ void main() {
       ].map((finder) => finder.evaluate().length),
       [1, 1],
     );
+  });
+
+  group('groq_errors', () {
+    Future<void> failWith(WidgetTester tester, Object error) async {
+      await startProcessing(
+        tester,
+        step: Duration.zero,
+        pipeline: FailingPipeline(error),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    List<String> offeredActions() => [
+      for (final label in ['Retry', 'Settings', 'Back'])
+        if (find.widgetWithText(OutlinedButton, label).evaluate().isNotEmpty)
+          label,
+    ];
+
+    testWidgets('rejected_key_offers_settings_and_back', (tester) async {
+      await failWith(tester, const GroqKeyRejectedException());
+
+      expect(offeredActions(), ['Settings', 'Back']);
+    });
+
+    testWidgets('missing_key_offers_settings_and_back', (tester) async {
+      await failWith(tester, const NoGroqKeyException());
+
+      expect(offeredActions(), ['Settings', 'Back']);
+    });
+
+    testWidgets('missing_key_message_is_shown', (tester) async {
+      await failWith(tester, const NoGroqKeyException());
+
+      expect(
+        find.text('Writing a script needs a free Groq key.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('rate_limit_offers_back_only', (tester) async {
+      await failWith(
+        tester,
+        const GroqRateLimitedException(Duration(minutes: 5)),
+      );
+
+      expect(offeredActions(), ['Back']);
+    });
+
+    testWidgets('groq_failure_offers_retry_and_back', (tester) async {
+      await failWith(tester, const GroqFailedException(500));
+
+      expect(offeredActions(), ['Retry', 'Back']);
+    });
+
+    testWidgets('groq_offline_offers_retry_and_back', (tester) async {
+      await failWith(tester, const GroqOfflineException());
+
+      expect(offeredActions(), ['Retry', 'Back']);
+    });
+
+    testWidgets('rejected_key_message_is_shown', (tester) async {
+      await failWith(tester, const GroqKeyRejectedException());
+
+      expect(find.text("Groq didn't accept your API key."), findsOneWidget);
+    });
+
+    testWidgets('settings_action_opens_settings', (tester) async {
+      await failWith(tester, const GroqKeyRejectedException());
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'Settings'), findsOneWidget);
+    });
+
+    testWidgets('back_action_leaves_processing', (tester) async {
+      await failWith(tester, const GroqFailedException(500));
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Back'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Working'), findsNothing);
+    });
   });
 }

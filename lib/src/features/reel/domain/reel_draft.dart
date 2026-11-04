@@ -2,8 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/style/domain/caption_cues.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -18,6 +22,7 @@ class ReelDraft {
     this.clip,
     this.frame = const FrameSettings(),
     this.caption = const CaptionSettings(),
+    this.linesEdited = false,
   });
 
   final SourceVideo? video;
@@ -28,13 +33,17 @@ class ReelDraft {
   final FrameSettings frame;
   final CaptionSettings caption;
 
+  /// Whether lines were edited on Fine-tune (FR-21); lines still being
+  /// written no longer replace the edited ones.
+  final bool linesEdited;
+
   /// A new transcript invalidates the old selection and clip.
   ReelDraft withTranscript(Transcript transcript) {
     return ReelDraft(
       video: video,
       language: language,
       transcript: transcript,
-      frame: frame,
+      frame: _frameWithoutMovingCrop,
       caption: caption,
     );
   }
@@ -43,10 +52,139 @@ class ReelDraft {
   /// being written) keeps the selection and clip; any other replaces it.
   ReelDraft withGrowingTranscript(Transcript transcript) {
     final current = this.transcript;
+    if (linesEdited) {
+      return this;
+    }
     if (current == null || !_extends(transcript, current)) {
       return withTranscript(transcript);
     }
     return copyWith(transcript: transcript);
+  }
+
+  /// [corrected] has the same lines with better text, so the picked range
+  /// and clip stay, and the caption is refilled from the corrected lines.
+  ReelDraft withCorrectedLines(Transcript corrected) {
+    final updated = copyWith(transcript: corrected);
+    final selection = this.selection;
+    return selection is RangeSelected
+        ? updated.withSelection(selection)
+        : updated;
+  }
+
+  /// The script with its picked range, for editing lines (spec FR-21).
+  PickedScript get pickedScript {
+    final transcript = this.transcript;
+    final selection = this.selection;
+    if (transcript == null || selection is! RangeSelected) {
+      throw StateError('Lines were edited before a range was picked.');
+    }
+    return PickedScript(transcript: transcript, selection: selection);
+  }
+
+  /// Applies an edit made on Fine-tune (spec FR-21). The caption is refilled
+  /// from the lines; each clip edge follows its own line only when that
+  /// line's time changed, so a nudge survives an edit elsewhere.
+  ReelDraft withEditedScript(PickedScript edited) {
+    final before = pickedScript;
+    return copyWith(
+      transcript: edited.transcript,
+      selection: edited.selection,
+      clip: _clipAfterEdit(before, edited),
+      caption: caption.copyWith(
+        variant: CaptionVariant.original,
+        text: _selectedText(edited.transcript, edited.selection),
+      ),
+      linesEdited: true,
+    );
+  }
+
+  ClipRange _clipAfterEdit(PickedScript before, PickedScript after) {
+    final clip = this.clip;
+    if (clip == null) {
+      throw StateError('Lines were edited before a clip was set.');
+    }
+    final firstBefore = before.transcript.lines[before.selection.start];
+    final lastBefore = before.transcript.lines[before.selection.end];
+    final firstAfter = after.transcript.lines[after.selection.start];
+    final lastAfter = after.transcript.lines[after.selection.end];
+    return ClipRange(
+      start: firstAfter.start == firstBefore.start
+          ? clip.start
+          : firstAfter.start,
+      end: lastAfter.end == lastBefore.end ? clip.end : lastAfter.end,
+    );
+  }
+
+  /// Starts a moving crop (spec FR-22): one keyframe at the clip start, where
+  /// the fixed crop is.
+  ReelDraft withMovingCropStarted() {
+    final start = _requireClip().start;
+    return _withCropPath(CropPath.startingAt(start, baseAnchorFor(frame)));
+  }
+
+  /// Ends the moving crop and keeps the crop where it was at the clip start.
+  ReelDraft withMovingCropStopped() {
+    _requireClip();
+    return copyWith(frame: _frameWithoutMovingCrop);
+  }
+
+  /// The frame with its keyframes gone and the crop left where it was at the
+  /// clip start (the base anchor for Crop to fill, the rectangle for Free
+  /// crop). Picking other lines or a new script does this, since the
+  /// keyframes belong to the old clip (spec FR-22).
+  FrameSettings get _frameWithoutMovingCrop {
+    if (frame.cropPath.isEmpty) {
+      return frame;
+    }
+    final start = clip?.start;
+    if (start == null) {
+      return frame.copyWith(cropPath: const CropPath());
+    }
+    final atStart = frame.cropPath.anchorAt(start, base: baseAnchorFor(frame));
+    final fixed = frame.preset == AspectPreset.free
+        ? frame.copyWith(freeCrop: _freeCropAt(frame.freeCrop, atStart))
+        : frame.copyWith(anchor: atStart);
+    return fixed.copyWith(cropPath: const CropPath());
+  }
+
+  /// Sets the crop's anchor at [videoTime], moved into the clip.
+  ReelDraft withCropAnchorAt(Duration videoTime, CropAnchor anchor) {
+    final clip = _requireClip();
+    // Snapping happens in the path, so the limits are snapped inwards first:
+    // a keyframe rounded out of the clip would never be reached.
+    final earliest = _roundedUpToTenth(clip.start);
+    final latest = _roundedDownToTenth(clip.end);
+    final inClip = videoTime < earliest
+        ? earliest
+        : (videoTime > latest ? latest : videoTime);
+    return _withCropPath(frame.cropPath.withAnchorAt(inClip, anchor));
+  }
+
+  /// Replaces the crop's keyframes with [path], which followed a person
+  /// (spec FR-23). Throws for an empty path: that would end the moving crop,
+  /// which has its own method.
+  ReelDraft withFollowedCrop(CropPath path) {
+    if (path.isEmpty) {
+      throw ArgumentError.value(path, 'path', 'has no keyframes');
+    }
+    return _withCropPath(path);
+  }
+
+  ReelDraft withCropArrival(int index, CropArrival arrival) =>
+      _withCropPath(frame.cropPath.withArrival(index, arrival));
+
+  ReelDraft withoutCropKeyframe(int index) =>
+      _withCropPath(frame.cropPath.withoutKeyframe(index));
+
+  ReelDraft _withCropPath(CropPath path) =>
+      copyWith(frame: frame.copyWith(cropPath: path));
+
+  ClipRange _requireClip() {
+    final clip = this.clip;
+    if (clip == null) {
+      throw StateError('The crop was moved before a clip was set.');
+    }
+    return clip;
   }
 
   /// Applies [selection]; a full range also sets the clip and fills the
@@ -62,18 +200,42 @@ class ReelDraft {
         language: language,
         transcript: transcript,
         selection: selection,
-        frame: frame,
+        frame: _frameWithoutMovingCrop,
         caption: caption,
       );
     }
     return copyWith(
       selection: selection,
       clip: ClipRange.fromLines(transcript, selection),
+      frame: _frameWithoutMovingCrop,
       caption: caption.copyWith(
         variant: CaptionVariant.original,
         text: _selectedText(transcript, selection),
       ),
     );
+  }
+
+  /// The caption's lines with their times, or none before a clip is set
+  /// (spec FR-7a).
+  List<CaptionCue> get captionCues {
+    final clip = this.clip;
+    if (clip == null) {
+      return const [];
+    }
+    return buildCaptionCues(
+      captionText: caption.text,
+      spokenLines: _selectedLines,
+      clip: clip,
+    );
+  }
+
+  List<TranscriptLine> get _selectedLines {
+    final transcript = this.transcript;
+    final selection = this.selection;
+    if (transcript == null || selection is! RangeSelected) {
+      return const [];
+    }
+    return transcript.lines.sublist(selection.start, selection.end + 1);
   }
 
   ReelDraft copyWith({
@@ -84,6 +246,7 @@ class ReelDraft {
     ClipRange? clip,
     FrameSettings? frame,
     CaptionSettings? caption,
+    bool? linesEdited,
   }) {
     return ReelDraft(
       video: video ?? this.video,
@@ -93,6 +256,7 @@ class ReelDraft {
       clip: clip ?? this.clip,
       frame: frame ?? this.frame,
       caption: caption ?? this.caption,
+      linesEdited: linesEdited ?? this.linesEdited,
     );
   }
 
@@ -105,11 +269,39 @@ class ReelDraft {
       other.selection == selection &&
       other.clip == clip &&
       other.frame == frame &&
-      other.caption == caption;
+      other.caption == caption &&
+      other.linesEdited == linesEdited;
 
   @override
-  int get hashCode =>
-      Object.hash(video, language, transcript, selection, clip, frame, caption);
+  int get hashCode => Object.hash(
+    video,
+    language,
+    transcript,
+    selection,
+    clip,
+    frame,
+    caption,
+    linesEdited,
+  );
+}
+
+const _tenth = Duration(milliseconds: 100);
+
+Duration _roundedUpToTenth(Duration time) {
+  final tenths = (time.inMicroseconds / _tenth.inMicroseconds).ceil();
+  return _tenth * tenths;
+}
+
+Duration _roundedDownToTenth(Duration time) {
+  final tenths = (time.inMicroseconds / _tenth.inMicroseconds).floor();
+  return _tenth * tenths;
+}
+
+FreeCropRect _freeCropAt(FreeCropRect crop, CropAnchor anchor) {
+  return crop.copyWith(
+    left: anchor.x * (1 - crop.width),
+    top: anchor.y * (1 - crop.height),
+  );
 }
 
 bool _extends(Transcript grown, Transcript current) =>

@@ -3,11 +3,15 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
+import 'package:status_studio/src/features/export/presentation/reel_player.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/routing/app_router.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../../helpers/fake_reel_actions.dart';
+import '../../../../helpers/fake_video_player.dart';
 import '../../../../helpers/pump_app.dart';
 import '../../../../helpers/recent_reels.dart';
 
@@ -26,6 +30,79 @@ void main() {
       pumpRoutes(tester, [
         AppRoutes.doneFor(reel.id),
       ], setup: TestSetup(reelActions: actions, recentReels: [reel]));
+
+  Future<void> pumpDoneWithPlayer(
+    WidgetTester tester,
+    VideoPlayerFactory playerFactory,
+  ) => pumpRoutes(
+    tester,
+    [AppRoutes.doneFor(reel.id)],
+    setup: TestSetup(
+      reelActions: FakeReelActions(),
+      recentReels: [reel],
+      playerFactory: playerFactory,
+    ),
+  );
+
+  testWidgets('done_plays_the_exported_file', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpDoneWithPlayer(tester, players.call);
+
+    expect(find.byType(VideoPlayer), findsOneWidget);
+  });
+
+  testWidgets('tapping_the_reel_plays_it', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpDoneWithPlayer(tester, players.call);
+
+    await tester.tap(find.byType(ReelPlayer));
+    await tester.pump();
+
+    expect(players.created.single.value.isPlaying, isTrue);
+  });
+
+  testWidgets('tapping_a_playing_reel_pauses_it', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpDoneWithPlayer(tester, players.call);
+
+    await tester.tap(find.byType(ReelPlayer));
+    await tester.pump();
+    await tester.tap(find.byType(ReelPlayer));
+    await tester.pump();
+
+    expect(players.created.single.value.isPlaying, isFalse);
+  });
+
+  testWidgets('a_finished_reel_goes_back_to_the_start', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpDoneWithPlayer(tester, players.call);
+    final player = players.created.single;
+
+    player.value = player.value.copyWith(
+      position: player.value.duration,
+      isCompleted: true,
+    );
+    await tester.pump();
+
+    expect(player.value.position, Duration.zero);
+  });
+
+  testWidgets('a_file_that_will_not_play_keeps_the_thumbnail', (tester) async {
+    await pumpDoneWithPlayer(tester, brokenPlayerFactory);
+
+    expect(find.byType(VideoPlayer), findsNothing);
+    expect(find.text('Save'), findsOneWidget);
+  });
+
+  testWidgets('leaving_done_disposes_the_player', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpDoneWithPlayer(tester, players.call);
+
+    await tester.tap(find.text('Make another'));
+    await tester.pumpAndSettle();
+
+    expect(players.created.single.disposed, isTrue);
+  });
 
   testWidgets('done_shows_size_length_and_format', (tester) async {
     await pumpDone(tester, FakeReelActions());

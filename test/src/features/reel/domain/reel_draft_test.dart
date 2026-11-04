@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -30,5 +32,73 @@ void main() {
     final replaced = picked.withGrowingTranscript(other);
 
     expect(replaced.selection, const NoSelection());
+  });
+
+  Transcript corrected() => fixture.copyWith(
+    lines: [
+      for (final line in fixture.lines)
+        line.copyWith(text: 'fixed ${line.index}'),
+    ],
+  );
+
+  test('corrected_lines_keep_the_picked_range_and_clip', () {
+    final fixed = pickedDraft.withCorrectedLines(corrected());
+
+    expect(
+      (fixed.selection, fixed.clip),
+      (pickedDraft.selection, pickedDraft.clip),
+    );
+  });
+
+  test('corrected_lines_refill_the_caption', () {
+    final fixed = pickedDraft.withCorrectedLines(corrected());
+
+    expect(fixed.caption.text, 'fixed 1\nfixed 2\nfixed 3');
+  });
+
+  test('corrected_lines_without_a_pick_only_swap_the_transcript', () {
+    final fixed = scriptDraft.withCorrectedLines(corrected());
+
+    expect(
+      (fixed.transcript, fixed.selection),
+      (corrected(), scriptDraft.selection),
+    );
+  });
+
+  group('moving crop keyframe times', () {
+    const anchor = CropAnchor(x: 1, y: 0.5);
+    final oddClip = pickedDraft.copyWith(
+      clip: const ClipRange(
+        start: Duration(milliseconds: 12340),
+        end: Duration(milliseconds: 20060),
+      ),
+    );
+
+    test('a_keyframe_after_the_clip_stays_inside_it_once_snapped', () {
+      final moved = oddClip.withMovingCropStarted().withCropAnchorAt(
+        const Duration(seconds: 30),
+        anchor,
+      );
+
+      expect(
+        moved.frame.cropPath.keyframes.last.time,
+        lessThanOrEqualTo(const Duration(milliseconds: 20060)),
+      );
+    });
+
+    test('a_keyframe_before_the_clip_stays_inside_it_once_snapped', () {
+      final started = oddClip.withMovingCropStarted().withCropAnchorAt(
+        const Duration(seconds: 16),
+        anchor,
+      );
+      final withoutFirst = started.withoutCropKeyframe(0);
+
+      final moved = withoutFirst.withCropAnchorAt(Duration.zero, anchor);
+
+      expect(
+        moved.frame.cropPath.keyframes.first.time,
+        greaterThanOrEqualTo(const Duration(milliseconds: 12340)),
+      );
+    });
   });
 }

@@ -11,6 +11,7 @@ import 'package:status_studio/src/features/background/application/background_wor
 import 'package:status_studio/src/features/export/application/export_notices.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -84,10 +85,14 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   Future<void> _keepAndOpenDone(String videoPath) async {
     final draft = ref.read(reelDraftProvider);
     final size = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
+    // Read before the await: leaving the screen meanwhile disposes its ref.
+    final fineTunes = ref.read(fineTuneDraftSaverProvider);
     try {
       final reel = await ref
           .read(recentReelsProvider.notifier)
           .keep(videoPath, draft, size);
+      // The reel is made, so the kept fine-tune is spent (spec FR-24).
+      unawaited(fineTunes.discard(draft));
       if (mounted) {
         context.pushReplacement(AppRoutes.doneFor(reel.id));
       }

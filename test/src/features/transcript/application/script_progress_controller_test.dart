@@ -16,7 +16,7 @@ import '../../../../helpers/fake_background_work_platform.dart';
 import '../../../../helpers/fixtures.dart';
 
 /// Each run starts, then waits at its gate the way a pipeline waits on a
-/// download or a Whisper chunk.
+/// download or a Groq piece.
 class GatedPipeline implements ScriptPipeline {
   final started = <ScriptLanguage>[];
   final gate = Completer<void>();
