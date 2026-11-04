@@ -2,11 +2,10 @@ import 'dart:math' as math;
 
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/face_tracks.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
-const _leastShareOfLongest = 0.9;
-const _longestGap = Duration(seconds: 2);
 const _smallestRoom = 0.01;
 const _medianWindow = 5;
 const _deadZone = 0.08;
@@ -19,24 +18,36 @@ const _leastFaceFrames = 3;
 const _keyframeSpacing = Duration(milliseconds: 500);
 const _tenth = Duration(milliseconds: 100);
 
-/// The crop path that follows the person in [track] (spec FR-23).
+/// The crop path that follows the person in [track] (spec FR-23): in each
+/// scene, the one seen longest.
 ///
 /// Throws [NoSubjectFoundException] when faces are too rare to follow.
 CropPath followSubject(SubjectTrack track, FollowGeometry geometry) {
-  _requireEnoughFaces(track.samples);
-  final cuts = _cutsInsideClip(
-    _withMissedJumps(
-      track.sceneCuts ?? const [],
-      _cutsFromJumps(track.samples, geometry),
-    ),
-    geometry.clip,
-  );
-  final scenes = _scenesOf(track.samples, cuts, geometry.clip);
-  final paths = [for (final scene in scenes) _scenePoints(scene, geometry)];
+  return _pathFor(track, geometry, (scene, tracks) => mostProminent(tracks));
+}
+
+/// Which person a scene follows, from the people found in it; none keeps the
+/// base anchor.
+typedef _WhomToFollow = FaceTrack? Function(
+  SubjectScene scene,
+  List<FaceTrack> people,
+);
+
+CropPath _pathFor(
+  SubjectTrack track,
+  FollowGeometry geometry,
+  _WhomToFollow whom,
+) {
+  requireEnoughFaces(track.samples);
+  final paths = [
+    for (final scene in scenesOf(track, geometry))
+      _scenePoints(scene, geometry, whom(scene, trackFaces(scene.samples))),
+  ];
   return CropPath(_cappedKeyframes(paths, geometry.clip));
 }
 
-void _requireEnoughFaces(List<SubjectSample> samples) {
+/// Throws [NoSubjectFoundException] when faces are too rare to follow anyone.
+void requireEnoughFaces(List<SubjectSample> samples) {
   final withFaces = samples.where((sample) => sample.faces.isNotEmpty).length;
   final share = samples.isEmpty ? 0 : withFaces / samples.length;
   if (withFaces < _leastFaceFrames || share < _leastFaceShare) {
@@ -46,11 +57,31 @@ void _requireEnoughFaces(List<SubjectSample> samples) {
 
 // --- Scenes -------------------------------------------------------------
 
-class _Scene {
-  const _Scene({required this.start, required this.samples});
+/// A stretch of the clip between cuts, with the samples in it.
+class SubjectScene {
+  const SubjectScene({
+    required this.firstIndex,
+    required this.start,
+    required this.samples,
+  });
 
+  /// Where the scene's first sample is in the whole track's samples.
+  final int firstIndex;
   final Duration start;
   final List<SubjectSample> samples;
+}
+
+/// The scenes of [track]: split at the detected cuts and at the jumps the
+/// detector missed. A stretch with no samples is left out.
+List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
+  final cuts = _cutsInsideClip(
+    _withMissedJumps(
+      track.sceneCuts ?? const [],
+      _cutsFromJumps(track.samples, geometry),
+    ),
+    geometry.clip,
+  );
+  return _scenesBetween(track.samples, cuts, geometry.clip);
 }
 
 List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
@@ -58,23 +89,26 @@ List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
     ..sort();
 }
 
-List<_Scene> _scenesOf(
+List<SubjectScene> _scenesBetween(
   List<SubjectSample> samples,
   List<Duration> cuts,
   ClipRange clip,
 ) {
   final starts = [clip.start, ...cuts];
-  final scenes = <_Scene>[];
+  final scenes = <SubjectScene>[];
   for (final (index, start) in starts.indexed) {
     final end = index + 1 < starts.length ? starts[index + 1] : null;
-    final inScene = samples
-        .where(
-          (sample) =>
-              sample.time >= start && (end == null || sample.time < end),
-        )
-        .toList();
-    if (inScene.isNotEmpty) {
-      scenes.add(_Scene(start: start, samples: inScene));
+    bool isInScene(SubjectSample sample) =>
+        sample.time >= start && (end == null || sample.time < end);
+    final firstIndex = samples.indexWhere(isInScene);
+    if (firstIndex >= 0) {
+      scenes.add(
+        SubjectScene(
+          firstIndex: firstIndex,
+          start: start,
+          samples: samples.where(isInScene).toList(),
+        ),
+      );
     }
   }
   return scenes;
@@ -129,7 +163,7 @@ bool _seenAroundTheBreak(List<SubjectSample> samples, int breakIndex) {
   final before = samples[breakIndex - 1];
   final after = samples[breakIndex];
   for (var i = breakIndex + 1; i < samples.length; i++) {
-    if (samples[i].time - before.time > _longestGap) {
+    if (samples[i].time - before.time > longestFaceGap) {
       break;
     }
     if (_someFaceContinues(before.faces, samples[i].faces)) {
@@ -137,7 +171,7 @@ bool _seenAroundTheBreak(List<SubjectSample> samples, int breakIndex) {
     }
   }
   for (var i = breakIndex - 2; i >= 0; i--) {
-    if (after.time - samples[i].time > _longestGap) {
+    if (after.time - samples[i].time > longestFaceGap) {
       break;
     }
     if (_someFaceContinues(samples[i].faces, after.faces)) {
@@ -162,8 +196,12 @@ class _Point {
   final CropAnchor anchor;
 }
 
-List<_Point> _scenePoints(_Scene scene, FollowGeometry geometry) {
-  final anchors = _filledAnchors(scene.samples, geometry);
+List<_Point> _scenePoints(
+  SubjectScene scene,
+  FollowGeometry geometry,
+  FaceTrack? followed,
+) {
+  final anchors = _filledAnchors(scene.samples, geometry, followed);
   final xs = _followedWithDeadZone(_median([for (final a in anchors) a.x]));
   final ys = _followedWithDeadZone(_median([for (final a in anchors) a.y]));
   final points = [
@@ -183,8 +221,8 @@ List<_Point> _scenePoints(_Scene scene, FollowGeometry geometry) {
 List<CropAnchor> _filledAnchors(
   List<SubjectSample> samples,
   FollowGeometry geometry,
+  FaceTrack? followed,
 ) {
-  final followed = _mostProminent(_trackFaces(samples));
   final found = <CropAnchor?>[];
   for (var i = 0; i < samples.length; i++) {
     final face = followed?.faceAt(i);
@@ -193,89 +231,6 @@ List<CropAnchor> _filledAnchors(
   final first = found.firstWhere((a) => a != null, orElse: () => null);
   var held = first ?? geometry.base;
   return [for (final anchor in found) held = anchor ?? held];
-}
-
-// --- Whom to follow -----------------------------------------------------
-
-/// One person's faces through a scene, by sample index.
-class _FaceTrack {
-  _FaceTrack(int sampleIndex, this._lastTime, SubjectBox face)
-    : _last = face,
-      _areaSeen = face.area,
-      _faces = {sampleIndex: face};
-
-  final Map<int, SubjectBox> _faces;
-  SubjectBox _last;
-  Duration _lastTime;
-  double _areaSeen;
-
-  int get sightings => _faces.length;
-
-  /// The sum of the face's areas, to tell apart people seen about as long.
-  double get areaSeen => _areaSeen;
-
-  SubjectBox? faceAt(int sampleIndex) => _faces[sampleIndex];
-
-  bool canTake(SubjectBox face, Duration time) =>
-      time - _lastTime <= _longestGap && _last.couldBeSameFaceAs(face);
-
-  double distanceTo(SubjectBox face) => math.max(
-    (face.centreX - _last.centreX).abs(),
-    (face.centreY - _last.centreY).abs(),
-  );
-
-  void add(int sampleIndex, Duration time, SubjectBox face) {
-    _faces[sampleIndex] = face;
-    _last = face;
-    _lastTime = time;
-    _areaSeen += face.area;
-  }
-}
-
-/// Joins each frame's faces to the people seen before, so a person is one
-/// track however the others come and go. A person unseen for up to two
-/// seconds (a missed detection, a turned head) is picked up again.
-List<_FaceTrack> _trackFaces(List<SubjectSample> samples) {
-  final tracks = <_FaceTrack>[];
-  for (final (index, sample) in samples.indexed) {
-    final taken = <_FaceTrack>{};
-    final largestFirst = [...sample.faces]
-      ..sort((a, b) => b.area.compareTo(a.area));
-    for (final face in largestFirst) {
-      final open = tracks.where(
-        (track) => !taken.contains(track) && track.canTake(face, sample.time),
-      );
-      if (open.isEmpty) {
-        final started = _FaceTrack(index, sample.time, face);
-        tracks.add(started);
-        taken.add(started);
-        continue;
-      }
-      final nearest = open.reduce(
-        (best, next) =>
-            next.distanceTo(face) < best.distanceTo(face) ? next : best,
-      );
-      nearest.add(index, sample.time, face);
-      taken.add(nearest);
-    }
-  }
-  return tracks;
-}
-
-/// The person to follow: among those on screen for most of the scene, the
-/// biggest. A bigger face that only passes through is not the subject, and
-/// neither is a small one in the background that is always there.
-_FaceTrack? _mostProminent(List<_FaceTrack> tracks) {
-  if (tracks.isEmpty) {
-    return null;
-  }
-  final longest = tracks.map((track) => track.sightings).reduce(math.max);
-  final lastingMost = tracks.where(
-    (track) => track.sightings >= longest * _leastShareOfLongest,
-  );
-  return lastingMost.reduce(
-    (best, next) => next.areaSeen > best.areaSeen ? next : best,
-  );
 }
 
 /// The window centred on the face across, with the face a third of the way
