@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/lyrics/application/lyrics_service.dart';
+import 'package:status_studio/src/features/lyrics/domain/lyrics_match.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fixtures.dart';
@@ -106,6 +110,40 @@ void main() {
     expect(find.text('Tap the line where your clip starts'), findsOneWidget);
   });
 
+  testWidgets('real_lyrics_replace_the_script_lines', (tester) async {
+    await pumpScriptWithLyrics(
+      tester,
+      FakeLyricsService(
+        lines: const [
+          TranscriptLine(
+            index: 0,
+            text: 'Real lyric line',
+            start: Duration(seconds: 5),
+            end: Duration(seconds: 9),
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.text('Get the real lyrics'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Real lyric line'), findsOneWidget);
+  });
+
+  testWidgets('missing_lyrics_keep_the_script_and_say_so', (tester) async {
+    await pumpScriptWithLyrics(
+      tester,
+      FakeLyricsService(failure: const LyricsNotFoundException()),
+    );
+
+    await tester.tap(find.text('Get the real lyrics'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
+    expect(find.textContaining("Couldn't find the lyrics"), findsOneWidget);
+  });
+
   testWidgets('failed_run_shows_message_and_retry', (tester) async {
     await pumpRoutes(
       tester,
@@ -124,6 +162,42 @@ void main() {
     );
   });
 }
+
+/// Answers with [lines], or fails with [failure]; never touches the network.
+class FakeLyricsService implements LyricsService {
+  FakeLyricsService({this.lines, this.failure});
+
+  final List<TranscriptLine>? lines;
+  final Exception? failure;
+
+  @override
+  Future<Transcript> replaceScript(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) async {
+    if (failure case final error?) {
+      throw error;
+    }
+    return Transcript(languageCode: 'en', lines: lines!);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<void> pumpScriptWithLyrics(
+  WidgetTester tester,
+  FakeLyricsService lyrics,
+) => pumpRoutes(
+  tester,
+  [AppRoutes.script],
+  setup: TestSetup(
+    overrides: [
+      draftOverride(scriptDraft),
+      lyricsServiceProvider.overrideWithValue(lyrics),
+    ],
+  ),
+);
 
 /// A finished run that came from the saved scripts.
 class SavedRunController extends ScriptProgressController {

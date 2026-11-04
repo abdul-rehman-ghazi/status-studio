@@ -10,6 +10,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Groq writes scripts:** a video with no YouTube captions is written out by Groq's hosted Whisper, with the user's own free API key (FR-12a). Only then does script audio leave the phone, and only to Groq. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
 - **Saves data:** it downloads the script's audio at low quality (nothing when YouTube has captions), and only the clip's part of the video, once the user has picked it.
 - **Saves work:** scripts are saved, so the same video opens straight to its script next time.
+- **Real lyrics:** for a song, one tap replaces the script with its published, time-synced lyrics from lrclib.net (FR-17). Only the video's cleaned title is sent, to that one service.
 
 ## 2. Screens
 
@@ -152,6 +153,17 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Privacy note** under the heading: "Writes the script when a video has no captions. Your video's audio is sent to Groq, which uses about as much data again as downloading it. Groq's terms apply." There is no switch: a saved key turns Groq on and Remove turns it off.
 - **Key storage:** `flutter_secure_storage` (Android Keystore). The key is never logged, and never written into saved files, notifications or error text. It goes only to `api.groq.com`.
 - **No key:** a script without captions stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is downloaded. Captions and saved scripts need no key.
+
+**FR-17 Real lyrics (M12).** For songs, the script Groq or YouTube wrote is often wrong; the song's published lyrics are right.
+- **Where:** a "Get the real lyrics" button on Script, off while a script is still being written (late lines would overwrite the lyrics) and while a search runs.
+- **Service:** `lrclib.net`, free, no key and no account. One `GET /api/search?q=<query>` with a `StatusStudio/1.0` user agent. Only the cleaned video title leaves the phone (nothing is sent about the user or the audio).
+- **Query:** the video title without brackets (`(Official Video)`, `[HD]`, `【MV】`), words such as official, lyrics, video, audio, HD, 4K, and anything after a `|`.
+- **Which song:** results with synced lyrics only. A song counts when its length is within **10 s** of the video's and at least **60 %** of its title's words are in the video's title; the closest length wins. No match gives the §8 message and keeps the script as it is.
+- **Why a length limit:** synced lyrics are timed to the studio recording. A video with a long intro would put every line in the wrong place, and wrong times are worse than none.
+- **Lines:** each LRC row `[mm:ss.xx] text` is one line. A line ends where the next row starts (an empty row marks the end of singing), at most 10 s after it starts. Metadata tags are ignored.
+- **Result:** replaces the script on screen, clears the selection and clip, and is saved (FR-14) with source `lrclib`, so the video opens with its lyrics next time. The newest saved script wins, so "Write it again" (Groq) replaces lyrics, and lyrics replace it.
+- **After:** "The lyrics from lrclib.net replaced the script. Line times follow the studio song, so check them in Fine-tune."
+- **Captions:** with FR-7a each lyric line shows on its own, when it is sung.
 
 **FR-13 Offline.** Saved scripts, translation (once its ML Kit pack is downloaded) and export work without a network. Writing a new script needs one (Groq).
 
@@ -367,6 +379,8 @@ A rule-based, letter-by-letter transliteration, with a short list of common-word
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |
 | Gallery access refused | Done | Allow Photos access in Settings to save reels. | Open settings |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
+| No synced lyrics match the video | Script | Couldn't find the lyrics for this video. The script stays as it is. | (snackbar) |
+| No network while looking for lyrics | Script | You're offline. Connect and try again. | (snackbar) |
 | Not enough storage | any download or export | Not enough space on your phone. | Back |
 
 Each error is a typed exception from the data layer. Screens map them to these messages, and nothing returns `null` or a sentinel.
@@ -459,6 +473,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M9 Groq | Optional cloud transcription (FR-12a, §8) | Spec done; tasks to write, branch `m9-groq-transcription` |
 | M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–7 done, branch `m10-groq-only` (stacked on M9); device check pending |
 | M11 Timed captions | One caption line at a time (FR-7a) | Done, branch `m11-timed-captions` (stacked on M10); device check pending |
+| M12 Real lyrics | Lyrics from lrclib.net replace the script (FR-17) | Done, branch `m12-online-lyrics` (stacked on M11); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -495,6 +510,17 @@ Request, 2026-11-04: show one line of caption at a time. Each task: test first, 
 - [x] **3. Timed overlay (Kotlin).** `RenderSpec.captionCues`, `overlayPathAt`, and a `BitmapOverlay` that opens each cue's PNG when it is due.
 - [x] **4. Preview and hint.** The Style preview shows the first line; the caption hint explains that lines show one at a time.
 - [x] **5. Docs.** FR-7a, §13, §14.
+
+### M12 tasks (branch `m12-online-lyrics`)
+
+Request, 2026-11-04: lyrics have many issues; get the correct lyrics online. Each task: test first, tick it, commit.
+
+- [x] **1. LRC parsing (domain).** `parseSyncedLyrics`: rows to lines, ends from the next row, empty rows, metadata tags, repeated timestamps, track-end cap.
+- [x] **2. Query and matching (domain).** `lyricsQueryFor`, `bestLyricsFor`: length within 10 s, title overlap, synced only, closest length wins; `LyricsNotFoundException`.
+- [x] **3. `LrclibClient` (data).** `GET /api/search`; instrumentals skipped; failures become `OfflineException`.
+- [x] **4. `LyricsService` (application).** Search, match, parse, infer language, save as source `lrclib`.
+- [x] **5. Script screen.** "Get the real lyrics" button, results and §8 messages in a snackbar.
+- [x] **6. Docs.** FR-17, §8, §13, §14.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -537,6 +563,11 @@ Request, 2026-11-04: show one line of caption at a time. Each task: test first, 
   - Cancel posts no result, and results post only when the app is hidden.
   - The service outlives the first of two jobs.
   - Platform calls stay in order.
+- **Lyrics (M12):**
+  - Rows with fractions of 1 to 3 digits, empty rows, metadata and repeated timestamps parse into lines.
+  - A song whose length is over 10 s off, or whose title the video doesn't name, never matches.
+  - Failed or unreachable lookups become `OfflineException`; a missing match leaves the script as it was.
+  - Lyrics saved after a Groq script are the one that reopens.
 - **Groq (M9):**
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
@@ -613,6 +644,12 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Cue times line up with the video (Media3 hands the overlay times counted from the clip start; if the first line is early or late by the clip's lead-in, fix the offset in `TimedCaptionOverlay`).
   - [ ] A 60 s clip with ~20 lines renders without running out of memory.
   - [ ] Cancel mid-render leaves no overlay PNGs in the reels folder.
+- **Lyrics (M12):**
+  - [ ] "Get the real lyrics" on a well-known song (official audio and official video) fills the script; lines match what is sung.
+  - [ ] Line times are right against the video; on a video with a long intro they are not offered (no match) or are off by the intro (note which).
+  - [ ] A song LRCLIB lacks (a naat or regional song) gives the "Couldn't find the lyrics" message and keeps the script.
+  - [ ] Offline gives the offline message.
+  - [ ] Reopening the same link opens the lyrics, not the Groq script.
 - **Groq (M9):**
   - [ ] The key check, help sheet and Copy link.
   - [ ] A 10-minute video's script time.

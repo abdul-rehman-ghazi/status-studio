@@ -9,6 +9,9 @@ const captionsSource = 'captions';
 /// Source name of a script Groq wrote (FR-14).
 const groqSource = 'groq-whisper-large-v3-turbo';
 
+/// Source name of a script made from published lyrics (FR-17).
+const lyricsSource = 'lrclib';
+
 /// Which saved scripts belong together: one video, one requested language
 /// (`auto` counts as its own language).
 @immutable

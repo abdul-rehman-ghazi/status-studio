@@ -8,6 +8,7 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/lyrics/application/lyrics_service.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -50,6 +51,12 @@ class ScriptScreen extends ConsumerWidget {
               savedAt: savedAt,
               onWriteAgain: () => _writeAgain(context, ref),
             ),
+          _LyricsAction(
+            draft: draft,
+            scriptIsBeingWritten: _isBeingWritten(
+              ref.watch(scriptProgressProvider),
+            ),
+          ),
           _PickHint(text: _pickHint(draft)),
           Expanded(
             child: ListView.builder(
@@ -112,6 +119,11 @@ class ScriptScreen extends ConsumerWidget {
   }
 }
 
+bool _isBeingWritten(AsyncValue<ScriptProgress> run) {
+  final progress = run.value;
+  return progress != null && progress.stage != ScriptStage.done;
+}
+
 String _pickHint(ReelDraft draft) {
   return switch ((draft.selection, draft.clip)) {
     (RangeSelected(), final ClipRange clip) =>
@@ -150,6 +162,74 @@ class _LanguagePicker extends StatelessWidget {
   String _labelFor(ScriptLanguage language) =>
       scriptLanguageLabel(language, draft.transcript?.languageCode);
 }
+
+/// FR-17: swaps the script for the song's published lyrics.
+class _LyricsAction extends ConsumerStatefulWidget {
+  const _LyricsAction({
+    required this.draft,
+    required this.scriptIsBeingWritten,
+  });
+
+  final ReelDraft draft;
+
+  /// Lines still arriving would overwrite the lyrics, so wait for them.
+  final bool scriptIsBeingWritten;
+
+  @override
+  ConsumerState<_LyricsAction> createState() => _LyricsActionState();
+}
+
+class _LyricsActionState extends ConsumerState<_LyricsAction> {
+  bool _searching = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final canSearch =
+        !_searching &&
+        !widget.scriptIsBeingWritten &&
+        widget.draft.video != null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: TextButton.icon(
+          onPressed: canSearch ? _replaceWithLyrics : null,
+          icon: const Icon(Icons.lyrics_outlined),
+          label: Text(
+            _searching ? 'Looking for lyrics…' : 'Get the real lyrics',
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _replaceWithLyrics() async {
+    final video = widget.draft.video;
+    if (video == null) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final controller = ref.read(reelDraftProvider.notifier);
+    setState(() => _searching = true);
+    try {
+      final transcript = await ref
+          .read(lyricsServiceProvider)
+          .replaceScript(video, widget.draft.language);
+      controller.setTranscript(transcript);
+      messenger.showSnackBar(const SnackBar(content: Text(_lyricsFound)));
+    } on Exception catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
+    } finally {
+      if (mounted) {
+        setState(() => _searching = false);
+      }
+    }
+  }
+}
+
+const _lyricsFound =
+    'The lyrics from lrclib.net replaced the script. Line times follow the '
+    'studio song, so check them in Fine-tune.';
 
 /// FR-14: the script came from the saved scripts, not written just now.
 class _SavedScriptBanner extends StatelessWidget {

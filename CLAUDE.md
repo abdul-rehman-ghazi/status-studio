@@ -59,6 +59,8 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 - **One FFmpeg only.** Use `ffmpeg_kit_flutter_new_min` for all video work. Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL.
 - **Heavy work off the UI thread.** Groq requests and FFmpeg runs are long. Stream progress to the UI, and stream transcript lines as they're produced so long videos are usable early.
 - **Groq writes every script without captions.** With the user's own free key, by `whisper-large-v3-turbo` (spec FR-12a). There is no on-device Whisper (removed in M10: 0.2× real time on a Redmi Note 11) and no on/off switch: no key means the §8 "needs a free Groq key" error. Never ship a key in the app. Keep the key in `flutter_secure_storage`, and never log it or put it in saved files, notifications or error text.
+- **Lyrics come from lrclib.net, never from Groq or captions** (spec FR-17). No key. Behind `LrclibClient` in the lyrics feature; send only the cleaned title. Reject songs whose length is more than 10 s off the video's: their times would be wrong.
+- **Captions show one line at a time** (spec FR-7a). Each line is its own overlay PNG and cue; Kotlin opens each PNG when due, so the PNGs must outlive `start` and be deleted when the render ends.
 - **Save the user's data.**
   - Script audio is the lowest-bitrate stream, or nothing when YouTube captions exist.
   - Video is never downloaded whole when it can be avoided: Fine-tune fetches only the clip window via the MP4 `sidx` index and HTTP range requests (spec FR-15).
