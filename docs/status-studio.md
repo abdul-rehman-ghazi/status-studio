@@ -468,6 +468,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Saved scripts in Recent | Script rows in Recent (FR-11) | Done, branch `saved-scripts-in-recent` |
 | Model download controls | Pause, resume, cancel (FR-12) | Done, branch `model-download-controls` |
 | M9 Groq | Optional cloud transcription (FR-12a, §8) | Spec done; tasks to write, branch `m9-groq-transcription` |
+| M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Branch `m10-groq-only` (stacked on M9) |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -482,6 +483,16 @@ Each task: test first, tick it, commit.
 - [x] **7. Errors and Use on-device.** §8 messages and actions on Processing; Use on-device keeps Groq's lines and continues from the next piece on the phone.
 - [ ] **8. Settings section.** Key field (Paste, Show, Remove, check result), ⓘ help sheet with Copy link, switch with subtext.
 - [ ] **9. Docs.** §13 tests list, §14 device checks, milestone status.
+
+### M10 tasks (branch `m10-groq-only`)
+
+Decision, 2026-11-04: on this phone class (Redmi Note 11, Snapdragon 680) Whisper medium runs at 0.2× real time, so on-device Whisper is dropped. Scripts without YouTube captions are written by Groq with the user's own key. This replaces FR-12 (models), FR-13 (offline scripts), the on-device engine and Use on-device; the spec text is rewritten in task 5. Each task: test first, tick it, commit.
+
+- [ ] **1. Remove on-device Whisper.** Delete `WhisperTranscriber`, `ModelManager`, `SpeechModel`, `WhisperEngine`/`ScriptEngine`, the WAV conversion, the "Downloading the speech model" step and the Settings models section. `ChunkEvent` moves next to `GroqTranscriber`. With no saved key, a script without captions stops with `NoGroqKeyException` ("Writing a script needs a free Groq key.", actions Settings and Back).
+- [ ] **2. Drop Use on-device and the switch.** A saved key is the only switch; Remove turns it off. §8 actions: key rejected → Settings, Back; limit → Back; failed or offline → Retry, Back.
+- [ ] **3. Settings: Groq key section.** Key field (Paste, Show, Save, Remove, check result) and the ⓘ help sheet with Copy link. (M9 task 8, without the switch.)
+- [ ] **4. Remove `whisper_ggml`.** Drop the dependency and its Android settings (NDK note), WAV-only FFmpeg arguments and dead test helpers.
+- [ ] **5. Docs.** Rewrite the affected FR text, §6, §8, §10, §13, §14; update `CLAUDE.md`; merge status.
 
 ## 13. Behaviour that must stay covered by tests
 
