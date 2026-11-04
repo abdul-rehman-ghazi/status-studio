@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
 
+import '../../../../helpers/fine_tune_drafts.dart';
 import '../../../../helpers/pump_app.dart';
 import '../../../../helpers/recent_reels.dart';
 import '../../../../helpers/saved_scripts.dart';
@@ -199,6 +201,86 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Processed video'), findsNothing);
+    });
+  });
+
+  group('fine-tunes to continue', () {
+    final savedAt = DateTime(2026, 11, 4, 10);
+
+    testWidgets('a_kept_fine_tune_shows_title_clip_length_and_date', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          fineTunes: [savedFineTune(title: 'Kept song', savedAt: savedAt)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Kept song'), findsOneWidget);
+      expect(find.text('Fine-tune · 6.0 s · 4 Nov'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
+    });
+
+    testWidgets('a_kept_fine_tune_hides_its_script_row', (tester) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          savedScripts: [savedScript(title: 'Processed video', minutesOld: 1)],
+          fineTunes: [
+            savedFineTune(
+              videoId: 'video_1',
+              title: 'Kept song',
+              language: ScriptLanguage.auto,
+              savedAt: savedAt,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Processed video'), findsNothing);
+      expect(find.text('Kept song'), findsOneWidget);
+    });
+
+    testWidgets('long_press_offers_delete_progress', (tester) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(fineTunes: [savedFineTune(title: 'Kept song')]),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('Kept song'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete progress'), findsOneWidget);
+    });
+
+    testWidgets('delete_progress_brings_back_the_script_row', (tester) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          savedScripts: [savedScript(title: 'Processed video', minutesOld: 1)],
+          fineTunes: [
+            savedFineTune(
+              videoId: 'video_1',
+              title: 'Kept song',
+              language: ScriptLanguage.auto,
+              savedAt: savedAt,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.longPress(find.text('Kept song'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete progress'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Processed video'), findsOneWidget);
+      expect(find.text('Kept song'), findsNothing);
     });
   });
 }

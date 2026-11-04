@@ -8,8 +8,11 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
+import 'package:status_studio/src/features/library/domain/recent_entries.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
@@ -141,6 +144,7 @@ class _RecentSection extends ConsumerWidget {
     final rows = _newestFirst(
       reels: ref.watch(recentReelsProvider).value ?? const [],
       scripts: ref.watch(savedScriptsProvider).value ?? const [],
+      fineTunes: ref.watch(fineTuneDraftsProvider).value ?? const [],
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,18 +160,26 @@ class _RecentSection extends ConsumerWidget {
   }
 }
 
-/// Finished reels and processed videos' scripts in one list, newest first.
+/// Finished reels, scripts and fine-tunes to continue in one list, newest
+/// first.
 List<Widget> _newestFirst({
   required List<RecentReel> reels,
   required List<SavedScript> scripts,
+  required List<SavedFineTune> fineTunes,
 }) {
-  final dated = <({DateTime at, Widget row})>[
-    for (final reel in reels)
-      (at: reel.createdAt, row: _RecentReelRow(reel: reel)),
-    for (final script in scripts)
-      (at: script.saved.savedAt, row: _SavedScriptRow(script: script)),
-  ]..sort((a, b) => b.at.compareTo(a.at));
-  return [for (final entry in dated) entry.row];
+  final entries = recentEntries(
+    reels: reels,
+    scripts: scripts,
+    fineTunes: fineTunes,
+  );
+  return [
+    for (final entry in entries)
+      switch (entry) {
+        ReelEntry(:final reel) => _RecentReelRow(reel: reel),
+        ScriptEntry(:final script) => _SavedScriptRow(script: script),
+        FineTuneEntry(:final fineTune) => _FineTuneRow(fineTune: fineTune),
+      },
+  ];
 }
 
 class _EmptyRecent extends StatelessWidget {
@@ -227,7 +239,7 @@ class _RecentReelRow extends ConsumerWidget {
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
-    if (await _confirmDelete(context)) {
+    if (await _confirmAction(context, 'Delete')) {
       await ref.read(recentReelsProvider.notifier).delete(reel.id);
     }
   }
@@ -273,7 +285,7 @@ class _SavedScriptRow extends ConsumerWidget {
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
-    if (await _confirmDelete(context)) {
+    if (await _confirmAction(context, 'Delete')) {
       await ref.read(savedScriptsProvider.notifier).delete(script);
     }
   }
@@ -298,14 +310,67 @@ class _ScriptThumbnail extends StatelessWidget {
   }
 }
 
+/// A fine-tune kept at Fine-tune, to continue later (FR-24). Long-press
+/// offers Delete progress, which leaves the video's script.
+class _FineTuneRow extends ConsumerWidget {
+  const _FineTuneRow({required this.fineTune});
+
+  final SavedFineTune fineTune;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clipLength = fineTune.draft.clip.length;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const _FineTuneThumbnail(),
+      title: ScriptText(fineTune.video.title, maxLines: 1),
+      subtitle: Text(
+        'Fine-tune · ${formatSeconds(clipLength)} · '
+        '${formatDayMonth(fineTune.draft.savedAt.toLocal())}',
+      ),
+      trailing: Text(
+        'Continue',
+        style: Theme.of(context).textTheme.labelLarge
+            ?.copyWith(color: AppColors.accent, fontWeight: FontWeight.w600),
+      ),
+      onLongPress: () => unawaited(_offerDeleteProgress(context, ref)),
+    );
+  }
+
+  Future<void> _offerDeleteProgress(BuildContext context, WidgetRef ref) async {
+    if (await _confirmAction(context, 'Delete progress')) {
+      await ref.read(fineTuneDraftsProvider.notifier).delete(fineTune);
+    }
+  }
+}
+
+class _FineTuneThumbnail extends StatelessWidget {
+  const _FineTuneThumbnail();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: const SizedBox(
+        width: 48,
+        height: 64,
+        child: ColoredBox(
+          color: AppColors.surface,
+          child: Icon(Icons.tune, color: AppColors.textMuted),
+        ),
+      ),
+    );
+  }
+}
+
 /// Asks with a one-item sheet, as long-press menus do on Android.
-Future<bool> _confirmDelete(BuildContext context) async {
+Future<bool> _confirmAction(BuildContext context, String label) async {
   final delete = await showModalBottomSheet<bool>(
     context: context,
     builder: (context) => SafeArea(
       child: ListTile(
         leading: const Icon(Icons.delete_outline),
-        title: const Text('Delete'),
+        title: Text(label),
         onTap: () => Navigator.of(context).pop(true),
       ),
     ),
