@@ -101,4 +101,55 @@ void main() {
 
     expect(written(events).single.lines.single.index, 5);
   });
+
+  group('hallucination_guard', () {
+    Future<List<String>> linesOf(List<GroqSegment> segments) async {
+      final client = _FakeGroqClient({'a.m4a': segments});
+      final events = await GroqTranscriber(client)
+          .transcribePieces(
+            GroqTranscription(
+              pieces: [pieces.first],
+              language: ScriptLanguage.english,
+            ),
+          )
+          .toList();
+      return [for (final line in written(events).single.lines) line.text];
+    }
+
+    test('piece_of_only_thank_you_gives_no_lines', () async {
+      final texts = await linesOf([
+        _segment('Thank you.'),
+        _segment('Thank you.'),
+      ]);
+
+      expect(texts, isEmpty);
+    });
+
+    test('known_phrase_is_matched_ignoring_case_and_punctuation', () async {
+      final texts = await linesOf([_segment('  THANK YOU!  ')]);
+
+      expect(texts, isEmpty);
+    });
+
+    test('thanks_for_watching_alone_gives_no_lines', () async {
+      final texts = await linesOf([_segment('Thanks for watching.')]);
+
+      expect(texts, isEmpty);
+    });
+
+    test('thank_you_beside_real_speech_is_kept', () async {
+      final texts = await linesOf([
+        _segment('Welcome, everyone.'),
+        _segment('Thank you.'),
+      ]);
+
+      expect(texts, ['Welcome, everyone.', 'Thank you.']);
+    });
+
+    test('lines_that_are_not_known_phrases_are_kept', () async {
+      final texts = await linesOf([_segment('علم بڑی دولت ہے')]);
+
+      expect(texts, ['علم بڑی دولت ہے']);
+    });
+  });
 }

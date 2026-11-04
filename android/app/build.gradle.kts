@@ -18,9 +18,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.hotmail.arehmananis.statusstudio"
     compileSdk = flutter.compileSdkVersion
-    // Pinned when whisper_ggml needed NDK 29; drop once a clean build confirms
-    // nothing else does.
-    ndkVersion = "29.0.13113456"
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         // flutter_local_notifications needs java.time on older Android.

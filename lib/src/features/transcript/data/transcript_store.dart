@@ -14,6 +14,10 @@ const _lastUsedFile = 'last_used';
 const _videoFile = 'video.json';
 const _partialSuffix = '.partial.json';
 
+/// `<language>-whisper-<model>.json` and its `.partial.json`; the language
+/// code never contains a dash, so Groq's `ur-groq-whisper-…` doesn't match.
+final _whisperFile = RegExp(r'^[^-]+-whisper-.*\.json$');
+
 /// Saved scripts and Whisper progress under `transcripts/<videoId>/`
 /// (FR-14). Files are written as `.part` and renamed, so a crash never
 /// leaves a half-written script that looks whole.
@@ -58,6 +62,22 @@ class TranscriptStore {
     }
     scripts.sort((a, b) => b.saved.savedAt.compareTo(a.saved.savedAt));
     return scripts;
+  }
+
+  /// Deletes every script and unfinished run saved under `whisper-<model>`,
+  /// written before on-device Whisper was removed (M10). Captions, Groq
+  /// scripts and the saved videos stay.
+  Future<void> removeWhisperScripts() async {
+    if (!await root.exists()) {
+      return;
+    }
+    await for (final folder in root.list().where((e) => e is Directory)) {
+      await for (final file in (folder as Directory).list()) {
+        if (file is File && _whisperFile.hasMatch(file.path.split('/').last)) {
+          await file.delete();
+        }
+      }
+    }
   }
 
   /// Removes [key]'s scripts and unfinished progress; the video's other
@@ -236,8 +256,10 @@ class TranscriptStore {
 
 final transcriptStoreProvider = FutureProvider<TranscriptStore>((ref) async {
   final support = await getApplicationSupportDirectory();
-  return TranscriptStore(
+  final store = TranscriptStore(
     Directory('${support.path}/transcripts'),
     clock: DateTime.now,
   );
+  await store.removeWhisperScripts();
+  return store;
 });

@@ -59,7 +59,7 @@ class SavedTranscript {
 
   final Transcript transcript;
 
-  /// `captions`, `whisper-small` or `whisper-base`.
+  /// `captions` or `groq-whisper-large-v3-turbo`.
   final String source;
   final DateTime savedAt;
 

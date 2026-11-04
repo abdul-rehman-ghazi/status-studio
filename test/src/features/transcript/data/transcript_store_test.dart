@@ -274,4 +274,53 @@ void main() {
       expect((await store.load(english)).source, 'captions');
     });
   });
+
+  group('removeWhisperScripts', () {
+    Future<void> touch(String videoId, String name) async {
+      final file = File('${root.path}/$videoId/$name');
+      await file.create(recursive: true);
+      await file.writeAsString('{}');
+    }
+
+    Future<List<String>> namesIn(String videoId) async => [
+      for (final entry in Directory('${root.path}/$videoId').listSync())
+        entry.path.split('/').last,
+    ]..sort();
+
+    test('removes_whisper_scripts_and_progress_of_every_video', () async {
+      await touch('a', 'ur-whisper-small.json');
+      await touch('a', 'ur-whisper-small.partial.json');
+      await touch('b', 'auto-whisper-medium.json');
+
+      await store.removeWhisperScripts();
+
+      expect(await namesIn('a'), isEmpty);
+      expect(await namesIn('b'), isEmpty);
+    });
+
+    test('keeps_captions_groq_scripts_and_the_video_file', () async {
+      await touch('a', 'ur-captions.json');
+      await touch('a', 'ur-groq-whisper-large-v3-turbo.json');
+      await touch('a', 'ur-groq-whisper-large-v3-turbo.partial.json');
+      await touch('a', 'video.json');
+      await touch('a', 'ur-whisper-base.json');
+
+      await store.removeWhisperScripts();
+
+      expect(await namesIn('a'), [
+        'ur-captions.json',
+        'ur-groq-whisper-large-v3-turbo.json',
+        'ur-groq-whisper-large-v3-turbo.partial.json',
+        'video.json',
+      ]);
+    });
+
+    test('does_nothing_before_anything_is_saved', () async {
+      final missing = Directory('${root.path}/never_made');
+
+      await TranscriptStore(missing, clock: () => now).removeWhisperScripts();
+
+      expect(await missing.exists(), isFalse);
+    });
+  });
 }

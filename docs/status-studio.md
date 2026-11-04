@@ -50,7 +50,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
    - **Groq** (`whisper-large-v3-turbo`):
      - **Pieces:** stream-copied `.m4a` pieces, without WAV, about 0.5 MB each. Stream copy cuts at audio frame boundaries, so each offset is the piece's real start from FFmpeg's segment list.
      - **Request:** one multipart `POST https://api.groq.com/openai/v1/audio/transcriptions` per piece, in order, with `Authorization: Bearer <key>`. Fields: `file`, `model`, `response_format=verbose_json`, `timestamp_granularities[]=segment`, `temperature=0`, and `language=<whisperCode>` unless automatic.
-     - **Lines:** segments with empty text, or `no_speech_prob` above 0.8, are dropped (cut-off to confirm, §10 Q5).
+     - **Lines:** segments with empty text are dropped. `no_speech_prob` is 0 on turbo (§10 Q5), so a piece whose segments are all known invented phrases ("Thank you.", "Thanks for watching.", "you", "bye") gives no lines; the same phrase beside real speech is kept.
      - **HTTP 429:** wait `retry-after` and resend when it's 60 s or less, showing "Waiting for Groq · 0:42 left"; otherwise the §8 error.
      - **HTTP 5xx or 498:** resend once after 2 s, then the §8 error.
      - **Cancel** stops before the next piece.
@@ -147,7 +147,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 **FR-13 Offline.** Saved scripts, translation (once its ML Kit pack is downloaded) and export work without a network. Writing a new script needs one (Groq).
 
 **FR-14 Saved scripts.**
-- **Key:** video ID, requested language (`auto` or a code) and source: `captions` or `groq-whisper-large-v3-turbo`. Scripts saved by earlier versions under `whisper-<model>` still open. The entry holds the transcript (with the inferred language), the source and the save date.
+- **Key:** video ID, requested language (`auto` or a code) and source: `captions` or `groq-whisper-large-v3-turbo`. Scripts and progress saved by earlier versions under `whisper-<model>` are deleted when the app starts (M10). The entry holds the transcript (with the inferred language), the source and the save date.
 - **Files:** `transcripts/<videoId>/<requested>-<source>.json` in the app support directory. The video's folder also keeps `video.json` (title, channel, length) for Recent.
 - **Same link again:** skips Processing and downloads. Script shows "Using the saved script from <d MMM> · Write it again".
 - **Write it again:** runs speech to text with Groq and replaces the saved script.
@@ -265,7 +265,7 @@ enum CaptionVariant { original, roman, english }  enum CaptionPosition { top, bo
 class CaptionSettings { CaptionVariant variant; String text; CaptionPosition position; CaptionSize size; }
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: first caption line
-class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // captions | groq-whisper-large-v3-turbo (older: whisper-<model>)
+class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // captions | groq-whisper-large-v3-turbo 
 class SavedScript { SourceVideo video; ScriptLanguage language; SavedTranscript saved; } // a Recent row
 enum SpeechEngine { onDevice, groq }
 class CloudTranscriptionSettings { bool enabled; bool keyChecked; } // the key itself lives only in secure storage
@@ -411,7 +411,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
    - **Speed:** about 1.4–2.2 s per piece (0.55 MB up), roughly 45× real time. Mobile data and the phone are still to measure (§14).
    - **Automatic language:** detected "Urdu" correctly; forcing `ur` gave the same lines, with segment times differing by under 0.1 s.
    - **Segments:** sung audio comes back in long segments (up to 30 s) with the same text repeated across the chorus; speech comes back as sentence-sized lines.
-   - **`no_speech_prob` does not work on `whisper-large-v3-turbo`.** It is 0.000 on every segment, including a 90 s piano-only piece and 60 s of digital silence. Both came back as invented text ("Thank you." in 30 s segments, with `avg_logprob` −0.3 to −0.6 and `compression_ratio` 0.58). Those values overlap real sung Urdu (0.74–0.88), so no cut-off on them separates the two. `whisper-large-v3` (not turbo) does report it: 0.701 on silence. So the 0.6 cut-off in `groqNoSpeechCutoff` does nothing today. **Decision needed:** (a) drop segments that are known hallucinations ("Thank you.", "you", "Thanks for watching.") or identical text repeated over 30 s segments, keeping turbo; or (b) use `whisper-large-v3`, which costs more per audio hour (check Groq's pricing page) and has a working `no_speech_prob`.
+   - **`no_speech_prob` does not work on `whisper-large-v3-turbo`.** It is 0.000 on every segment, including a 90 s piano-only piece and 60 s of digital silence. Both came back as invented text ("Thank you." in 30 s segments, with `avg_logprob` −0.3 to −0.6 and `compression_ratio` 0.58). Those values overlap real sung Urdu (0.74–0.88), so no cut-off on them separates the two. `whisper-large-v3` (not turbo) does report it: 0.701 on silence. So the 0.6 cut-off in `groqNoSpeechCutoff` does nothing today. **Decided 2026-11-04 (M10 task 6): (a), keeping turbo.** Options were: (a) drop segments that are known hallucinations ("Thank you.", "you", "Thanks for watching.") or identical text repeated over 30 s segments, keeping turbo; or (b) use `whisper-large-v3`, which costs more per audio hour (check Groq's pricing page) and has a working `no_speech_prob`.
    - **Limits from the response headers (free plan):** 7,200 audio seconds per hour (`x-ratelimit-limit-audio-seconds`) and 2,000 requests (`x-ratelimit-limit-requests`, reset in about 2 min, so the daily/minute split in Groq's docs isn't visible). One 90 s piece uses 90 s of the hour budget. The reset time is a duration string such as `2m12s`; `retry-after` is only sent with a 429.
    - **Still to do on a phone:** timing on mobile data, and the FR-12a help-sheet button names (depends on task 8).
 
@@ -448,7 +448,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Saved scripts in Recent | Script rows in Recent (FR-11) | Done, branch `saved-scripts-in-recent` |
 | Model download controls | Pause, resume, cancel (FR-12) | Done, branch `model-download-controls` |
 | M9 Groq | Optional cloud transcription (FR-12a, §8) | Spec done; tasks to write, branch `m9-groq-transcription` |
-| M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–5 done, branch `m10-groq-only` (stacked on M9); device check pending |
+| M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–7 done, branch `m10-groq-only` (stacked on M9); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -473,6 +473,8 @@ Decision, 2026-11-04: on this phone class (Redmi Note 11, Snapdragon 680) Whispe
 - [x] **3. Settings: Groq key section.** Key field (Paste, Show, Save, Remove, check result) and the ⓘ help sheet with Copy link. (M9 task 8, without the switch.)
 - [x] **4. Remove `whisper_ggml`.** Drop the dependency and its Android settings (NDK note), WAV-only FFmpeg arguments and dead test helpers.
 - [x] **5. Docs.** Rewrite the affected FR text, §6, §8, §10, §13, §14; update `CLAUDE.md`; merge status.
+- [x] **6. Turbo hallucination guard.** Turbo reports `no_speech_prob` 0 and invents "Thank you." on silence and music (§10 Q5). A piece whose segments are all known phrases gives no lines; the same phrase beside real speech is kept.
+- [x] **7. Clean-up.** Delete scripts and progress saved under `whisper-*` on startup; unpin the NDK; install the new build on the Redmi.
 
 ## 13. Behaviour that must stay covered by tests
 

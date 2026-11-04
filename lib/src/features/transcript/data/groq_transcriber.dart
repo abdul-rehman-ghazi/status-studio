@@ -37,8 +37,8 @@ class ChunkWritten extends ChunkEvent {
   final List<TranscriptLine> lines;
 }
 
-/// Segments Groq is this sure hold no speech are dropped. Provisional until
-/// the M9 spike (§10 Q5) measures it on a music-only piece.
+/// Segments Groq is this sure hold no speech are dropped. Turbo always
+/// reports 0 (§10 Q5), so this only matters if the model changes.
 const groqNoSpeechCutoff = 0.6;
 
 /// One Groq run over a video's `.m4a` pieces, possibly resuming after
@@ -97,9 +97,37 @@ class GroqTranscriber {
   /// Stops before the next piece.
   Future<void> cancel() async => _cancelled = true;
 
-  List<SpeechSegment> _speech(List<GroqSegment> segments) => [
-    for (final segment in segments)
-      if (segment.noSpeechProbability < groqNoSpeechCutoff)
-        SpeechSegment(from: segment.from, to: segment.to, text: segment.text),
-  ];
+  List<SpeechSegment> _speech(List<GroqSegment> segments) {
+    final spoken = [
+      for (final segment in segments)
+        if (segment.noSpeechProbability < groqNoSpeechCutoff)
+          SpeechSegment(from: segment.from, to: segment.to, text: segment.text),
+    ];
+    return _isOnlyHallucination(spoken) ? const [] : spoken;
+  }
 }
+
+/// What turbo writes for silence and music, which it also scores as 0
+/// `no_speech_prob` (spike, §10 Q5). Compared in [_normalised] form.
+const _knownHallucinations = {
+  'thank you',
+  'thank you for watching',
+  'thanks',
+  'thanks for watching',
+  'you',
+  'bye',
+};
+
+/// Only a piece made entirely of known phrases is dropped: the same words
+/// beside real speech, like a talk ending in "Thank you.", are kept.
+bool _isOnlyHallucination(List<SpeechSegment> segments) =>
+    segments.isNotEmpty &&
+    segments.every(
+      (segment) => _knownHallucinations.contains(_normalised(segment.text)),
+    );
+
+String _normalised(String text) => text
+    .toLowerCase()
+    .replaceAll(RegExp(r'[^\p{L}\p{N}\s]', unicode: true), '')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
