@@ -160,6 +160,16 @@ class ReelDraft {
     return _withCropPath(frame.cropPath.withAnchorAt(inClip, anchor));
   }
 
+  /// Replaces the crop's keyframes with [path], which followed a person
+  /// (spec FR-23). Throws for an empty path: that would end the moving crop,
+  /// which has its own method.
+  ReelDraft withFollowedCrop(CropPath path) {
+    if (path.isEmpty) {
+      throw ArgumentError.value(path, 'path', 'has no keyframes');
+    }
+    return _withCropPath(path);
+  }
+
   ReelDraft withCropArrival(int index, CropArrival arrival) =>
       _withCropPath(frame.cropPath.withArrival(index, arrival));
 

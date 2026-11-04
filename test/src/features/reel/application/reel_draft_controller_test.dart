@@ -348,6 +348,47 @@ void main() {
       expect(draft().frame.cropPath.isEmpty, isTrue);
     });
 
+    test('a_followed_path_replaces_the_keyframes', () {
+      pickLinesOneToThree();
+      controller
+        ..startMovingCrop()
+        ..moveCropTo(clipStart() + const Duration(seconds: 5), centre);
+      final followed = CropPath([
+        CropKeyframe(
+          time: clipStart(),
+          anchor: farRight,
+          arrival: CropArrival.glide,
+        ),
+      ]);
+
+      controller.followCrop(followed);
+
+      expect(draft().frame.cropPath, followed);
+    });
+
+    test('a_followed_path_leaves_the_rest_of_the_frame_alone', () {
+      pickLinesOneToThree();
+      controller.startMovingCrop();
+      final before = draft().frame;
+
+      controller.followCrop(
+        CropPath.startingAt(clipStart(), const CropAnchor(x: 0, y: 0.5)),
+      );
+
+      expect(draft().frame.anchor, before.anchor);
+      expect(draft().frame.preset, before.preset);
+    });
+
+    test('a_followed_path_cannot_be_empty', () {
+      pickLinesOneToThree();
+      controller.startMovingCrop();
+
+      expect(
+        () => controller.followCrop(const CropPath()),
+        throwsArgumentError,
+      );
+    });
+
     test('starting_without_a_clip_fails', () {
       expect(() => controller.startMovingCrop(), throwsStateError);
     });

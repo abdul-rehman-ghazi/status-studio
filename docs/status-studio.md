@@ -729,8 +729,8 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
 - [ ] **1. Spike (device).** §10 item 7, on a scratch branch that is never merged. Pending: the phone is not available in this session.
 - [x] **2. Frame arguments.** `lib/src/core/ffmpeg/frame_arguments.dart`: the sampling arguments (file time = video time minus the clip file's offset) and the scene-cut parser.
 - [x] **3. Subject path (domain).** `followSubject`: boxes to anchors, smoothing, dead zone, simplification, cuts, the 12-keyframe cap, `NoSubjectFoundException`; with the cases in §13.
-- [ ] **4. Apply.** `ReelDraft.withFollowedCrop` and the controller method.
-- [ ] **5. Extractor and detector.** `FrameExtractor` (FFmpeg) and `SubjectDetector` (ML Kit) behind interfaces; the dependency; cancel the FFmpeg run by its own session, not all sessions.
+- [x] **4. Apply.** `ReelDraft.withFollowedCrop` and the controller method.
+- [x] **5. Extractor and detector.** `FrameExtractor` (FFmpeg) and `SubjectDetector` (ML Kit) behind interfaces; the dependency; cancel the FFmpeg run by its own session, not all sessions.
 - [ ] **6. Controller.** `FollowSubjectController`: progress, cancel, cancel on change, clean-up, errors, with fakes.
 - [ ] **7. UI.** The button, progress, Cancel, the replace question and the snackbars.
 - [ ] **8. Docs and review.** §13, §14, §12 status; reviewer pass; push. CLAUDE.md's FFmpeg line needs "and frame sampling" (left for the user to approve).

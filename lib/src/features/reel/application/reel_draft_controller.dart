@@ -62,6 +62,8 @@ class ReelDraftController extends Notifier<ReelDraft> {
   void moveCropTo(Duration videoTime, CropAnchor anchor) =>
       state = state.withCropAnchorAt(videoTime, anchor);
 
+  void followCrop(CropPath path) => state = state.withFollowedCrop(path);
+
   void setCropArrival(int index, CropArrival arrival) =>
       state = state.withCropArrival(index, arrival);
 
