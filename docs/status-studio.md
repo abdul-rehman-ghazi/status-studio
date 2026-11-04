@@ -232,7 +232,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 
 **FR-21 Fine-tune lines (M18).** The lines under the player are the script's lines, and they are editable here.
 - **Window:** the download stays as FR-15 says (5 s either side). Fine-tune lists every line that overlaps the window; lines outside the picked range are dimmed.
-- **Player:** play and pause, plus a seek bar over the whole window with the clip range marked. Playback does not stop at the clip end. A "Play clip" button seeks to the clip start and plays.
+- **Player:** pinned above the scrolling rest of the screen, so the lines can be tapped with the video in view. Play and pause, plus a seek bar over the whole window with the clip range marked. Playback does not stop at the clip end. A "Play clip" button seeks to the clip start and plays.
 - **Tap a line:**
   - **While paused:** seeks to the line's start.
   - **While playing (tap to time):** the line's start becomes the playhead. The line that was highlighted at that moment ends there, so the new highlight replaces it. The tapped line keeps its length (at least 1 s), cut at the next line's start. A tap earlier than the previous line's start is ignored.
@@ -634,7 +634,7 @@ Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, 
 - [x] **1. Line edits (domain).** Pure functions on a script and its picked range: edit text, reorder (text moves, times stay), add at the playhead, delete, sync a line to the playhead, and which line is highlighted at a time.
 - [x] **2. Draft.** Applying an edit keeps the range on the same lines, refills the caption, and moves the clip only when the range or its first or last line's times change.
 - [x] **3. Player.** Play, pause and seek over the window; no stop at the clip end; a playhead that Fine-tune can read and seek.
-- [ ] **4. Lines list.** All lines in the window, dimmed outside the range, highlight, tap to seek or to time, edit, reorder, add, delete.
+- [x] **4. Lines list.** All lines in the window, dimmed outside the range, highlight, tap to seek or to time, edit, reorder, add, delete.
 - [ ] **5. Save.** The edited script is saved as `edited` after 1 s idle and when the screen closes.
 - [ ] **6. Docs.** §13 and §14 entries; mark M18 done.
 

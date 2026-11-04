@@ -7,22 +7,21 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
-import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
+import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/clip/domain/waveform.dart';
+import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
-import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
-import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -53,40 +52,19 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     final controller = ref.read(reelDraftProvider.notifier);
     return Scaffold(
       appBar: const FlowAppBar(title: 'Fine-tune', stepLabel: 'Step 3 of 4'),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      // The player stays put while the rest scrolls, so the lines can be
+      // tapped with the video in view.
+      body: Column(
         children: [
-          _SourcePreview(video: video, clip: clip, playhead: _playhead),
-          const SizedBox(height: 16),
-          _ClipSummary(clip: clip),
-          if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
-          const SizedBox(height: 16),
-          _ClipWaveform(video: video, clip: clip),
-          const SizedBox(height: 16),
-          _WholeVideoBar(clip: clip, videoDuration: video.duration),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _NudgeCard(
-                  edge: _ClipEdge.start,
-                  time: clip.start,
-                  onNudge: controller.nudgeClipStart,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _NudgeCard(
-                  edge: _ClipEdge.end,
-                  time: clip.end,
-                  onNudge: controller.nudgeClipEnd,
-                ),
-              ),
-            ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: _SourcePreview(
+              video: video,
+              clip: clip,
+              playhead: _playhead,
+            ),
           ),
-          const SizedBox(height: 24),
-          const SectionLabel('Lines in this clip'),
-          for (final line in _selectedLines(draft)) _ClipLine(line: line),
+          Expanded(child: _scrollingBody(draft, video, clip, controller)),
         ],
       ),
       bottomNavigationBar: BottomAction(
@@ -97,14 +75,56 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       ),
     );
   }
-}
 
-List<TranscriptLine> _selectedLines(ReelDraft draft) {
-  final lines = draft.transcript?.lines ?? const <TranscriptLine>[];
-  return switch (draft.selection) {
-    RangeSelected(:final start, :final end) => lines.sublist(start, end + 1),
-    _ => const [],
-  };
+  Widget _scrollingBody(
+    ReelDraft draft,
+    SourceVideo video,
+    ClipRange clip,
+    ReelDraftController controller,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        _ClipSummary(clip: clip),
+        if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
+        const SizedBox(height: 16),
+        _ClipWaveform(video: video, clip: clip),
+        const SizedBox(height: 16),
+        _WholeVideoBar(clip: clip, videoDuration: video.duration),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: _NudgeCard(
+                edge: _ClipEdge.start,
+                time: clip.start,
+                onNudge: controller.nudgeClipStart,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NudgeCard(
+                edge: _ClipEdge.end,
+                time: clip.end,
+                onNudge: controller.nudgeClipEnd,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const SectionLabel('Lines'),
+        const HintText(
+          'Tap a line to jump to it. While the clip plays, tap a line '
+          'when it starts to time it.',
+        ),
+        ClipLinesList(
+          script: draft.pickedScript,
+          window: clipWindowFor(clip, video.duration),
+          playhead: _playhead,
+        ),
+      ],
+    );
+  }
 }
 
 /// The clip player once the clip's window is downloaded (FR-15); until
@@ -408,30 +428,6 @@ class _NudgeButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
         onPressed: onPressed,
         child: Text(text),
-      ),
-    );
-  }
-}
-
-class _ClipLine extends StatelessWidget {
-  const _ClipLine({required this.line});
-
-  final TranscriptLine line;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: HintText(formatTimestamp(line.start)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: ScriptText(line.text)),
-        ],
       ),
     );
   }

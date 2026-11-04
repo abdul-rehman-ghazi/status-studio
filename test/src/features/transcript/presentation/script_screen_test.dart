@@ -88,7 +88,7 @@ void main() {
     await tester.tap(find.text('Next: fine-tune'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Lines in this clip'), findsOneWidget);
+    expect(find.text('Next: frame & caption'), findsOneWidget);
   });
 
   testWidgets('saved_script_shows_banner', (tester) async {

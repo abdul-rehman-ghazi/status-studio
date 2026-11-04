@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
+import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
@@ -201,5 +205,161 @@ void main() {
     await pumpFineTune(tester, waveformPeaks: List.filled(60, 0.5));
 
     expect(find.byType(WaveformView), findsOneWidget);
+  });
+
+  group('lines', () {
+    String textOf(int index) => sampleTranscript.lines[index].text;
+
+    ReelDraft draftNow(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
+            .read(reelDraftProvider);
+
+    Future<void> reveal(WidgetTester tester, int index) async {
+      final line = find.text(textOf(index));
+      await tester.scrollUntilVisible(line, 200);
+      await tester.ensureVisible(line);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> playAt(
+      WidgetTester tester,
+      FakeVideoPlayerController player,
+      Duration videoTime,
+    ) async {
+      player.value = player.value.copyWith(
+        isPlaying: true,
+        position: fileTime(videoTime),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('lists_lines_around_the_clip_and_no_others', (tester) async {
+      await pumpFineTune(tester);
+      await reveal(tester, 4);
+
+      expect(find.text(textOf(5)), findsNothing);
+    });
+
+    testWidgets('lists_a_line_before_the_clip', (tester) async {
+      await pumpFineTune(tester);
+
+      await reveal(tester, 0);
+
+      expect(find.text(textOf(0)), findsOneWidget);
+    });
+
+    testWidgets('tap_while_paused_seeks_to_the_line', (tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpFineTune(tester, playerFactory: players.call);
+      await reveal(tester, 2);
+
+      await tester.tap(find.text(textOf(2)));
+      await tester.pump();
+
+      expect(
+        players.created.single.value.position,
+        fileTime(sampleTranscript.lines[2].start),
+      );
+    });
+
+    testWidgets('tap_while_playing_starts_the_line_at_the_playhead', (
+      tester,
+    ) async {
+      final players = RecordingPlayerFactory();
+      await pumpFineTune(tester, playerFactory: players.call);
+      await reveal(tester, 2);
+      await playAt(tester, players.created.single, const Duration(seconds: 33));
+
+      await tester.tap(find.text(textOf(2)));
+      await tester.pump();
+
+      expect(
+        draftNow(tester).transcript!.lines[2].start.inMilliseconds,
+        closeTo(33000, 300),
+      );
+    });
+
+    testWidgets('highlight_marks_the_playing_line', (tester) async {
+      final handle = tester.ensureSemantics();
+      final players = RecordingPlayerFactory();
+      await pumpFineTune(tester, playerFactory: players.call);
+      await reveal(tester, 1);
+
+      await playAt(tester, players.created.single, const Duration(seconds: 25));
+
+      expect(
+        tester.getSemantics(find.byKey(const ValueKey('line-1'))),
+        isSemantics(isSelected: true),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('edit_changes_the_lines_text', (tester) async {
+      await pumpFineTune(tester);
+      await reveal(tester, 2);
+
+      await tester.tap(find.byTooltip('Edit line').at(2));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'نیا مصرعہ');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(draftNow(tester).transcript!.lines[2].text, 'نیا مصرعہ');
+    });
+
+    testWidgets('delete_removes_the_line', (tester) async {
+      await pumpFineTune(tester);
+      await reveal(tester, 2);
+
+      await tester.tap(find.byTooltip('Delete line').at(2));
+      await tester.pump();
+
+      expect(draftNow(tester).transcript!.lines.length, 8);
+    });
+
+    testWidgets('delete_is_off_for_the_only_picked_line', (tester) async {
+      final onePicked = pickedDraft.withSelection(const RangeSelected(2, 2));
+      await pumpFineTune(tester, draft: onePicked);
+      await reveal(tester, 2);
+
+      // Line 2's window starts at line 1, so line 2 is the second row.
+      final button = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.delete_outline).at(1),
+      );
+
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('add_line_inserts_at_the_playhead', (tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpFineTune(tester, playerFactory: players.call);
+      await tester.scrollUntilVisible(find.text('Add line'), 200);
+      await tester.ensureVisible(find.text('Add line'));
+      await tester.pumpAndSettle();
+      players.created.single.value = players.created.single.value.copyWith(
+        position: fileTime(const Duration(seconds: 35)),
+      );
+
+      await tester.tap(find.text('Add line'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'نئی سطر');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(draftNow(tester).transcript!.lines[3].text, 'نئی سطر');
+    });
+
+    testWidgets('dragging_a_line_down_moves_the_next_text_up', (tester) async {
+      await pumpFineTune(tester);
+      await reveal(tester, 2);
+
+      await tester.drag(
+        find.byTooltip('Move line').at(1),
+        const Offset(0, 150),
+      );
+      await tester.pumpAndSettle();
+
+      expect(draftNow(tester).transcript!.lines[1].text, textOf(2));
+    });
   });
 }
