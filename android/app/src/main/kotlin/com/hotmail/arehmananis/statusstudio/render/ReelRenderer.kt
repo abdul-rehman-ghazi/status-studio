@@ -147,6 +147,15 @@ class ReelRenderer(private val context: Context) {
                     Presentation.LAYOUT_STRETCH_TO_FIT,
                 ),
             )
+            // The window moves, but keeps one size, so the same near-1:1 stretch applies.
+            is Fill.MovingCrop -> listOf(
+                MovingCrop(fill.keyframes),
+                Presentation.createForWidthAndHeight(
+                    spec.outputWidth,
+                    spec.outputHeight,
+                    Presentation.LAYOUT_STRETCH_TO_FIT,
+                ),
+            )
             // The blur runs on the source frame: it draws that whole frame sharp at the given
             // scale, and its output already has the output's aspect.
             is Fill.Blur -> listOf(
@@ -178,7 +187,7 @@ private class TimedCaptionOverlay(
     }
 
     override fun getBitmap(presentationTimeUs: Long): Bitmap =
-        bitmapAt(overlayPathAt(brandingPath, cues, presentationTimeUs / MICROS_PER_MILLI))
+        bitmapAt(overlayPathAt(brandingPath, cues, clipTimeMs(presentationTimeUs)))
 
     private fun bitmapAt(path: String): Bitmap {
         val current = shown
@@ -192,5 +201,3 @@ private class TimedCaptionOverlay(
         return decoded
     }
 }
-
-private const val MICROS_PER_MILLI = 1000L

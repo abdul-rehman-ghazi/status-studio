@@ -684,7 +684,7 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
 
 - [x] **1. Crop path (domain).** Anchor, keyframes with Glide or Cut, the anchor at a time, set a keyframe at a time (snap, replace within 0.25 s), change how one arrives, remove one.
 - [x] **2. Frame carries the path.** `FrameSettings.cropPath`; the pixel crop at a time (`cropRectAt`), equal to `cropRectFor` with no keyframes; keyframes in the render spec as NDC rectangles from the clip start.
-- [ ] **3. Kotlin.** `RenderSpec` reads `cropKeyframes`; pure `ndcRectAt` with the boundary cases the Dart tests use; the matrix transformation with `configure` and one `clipTimeMs` helper shared with the caption overlay. Before any UI can make keyframes, because Kotlin refuses a spec with keyframes today.
+- [x] **3. Kotlin.** `RenderSpec` reads `cropKeyframes`; pure `ndcRectAt` with the boundary cases the Dart tests use; the matrix transformation with `configure` and one `clipTimeMs` helper shared with the caption overlay. Before any UI can make keyframes, because Kotlin refuses a spec with keyframes today.
 - [ ] **4. Base anchor.** `FrameSettings.anchor` replaces `focus` (Keep in view sets it); keyframes can be removed unless the last one; a new keyframe time is clamped into the clip.
 - [ ] **5. Two steps.** Routes, step labels for all screens ("of 5") and buttons; the Video step keeps the player, nudges and warnings and takes size, fill and crop from Style; the Lyrics step takes the lines (only the clip's); Style keeps the caption.
 - [ ] **6. Moving crop on Video.** The crop window over the player, with the switch (hidden without room); drag writes one keyframe on release; chips in the pinned part with Glide, Cut and Delete; a ticker for the playhead.

@@ -5,6 +5,9 @@ sealed interface Fill {
     /** A crop in normalised device coordinates, then scaled to the output. */
     data class Crop(val left: Float, val right: Float, val bottom: Float, val top: Float) : Fill
 
+    /** A crop window that moves over the clip (spec §6.3.2), times counted from the clip start. */
+    data class MovingCrop(val keyframes: List<CropKeyframe>) : Fill
+
     /** The whole frame sharp at this share of the output, over a blurred copy. */
     data class Blur(val sigma: Float, val sharpScaleX: Float, val sharpScaleY: Float) : Fill
 
@@ -55,7 +58,11 @@ data class RenderSpec(
 
         private fun fillFrom(map: Map<String, Any?>): Fill =
             when (val fill = map.string("fill")) {
-                "crop" -> cropFrom(map.submap("crop"))
+                "crop" -> if (map.containsKey("cropKeyframes")) {
+                    Fill.MovingCrop(keyframesFrom(map))
+                } else {
+                    cropFrom(map.submap("crop"))
+                }
                 "blur" -> Fill.Blur(
                     sigma = map.number("blurSigma").toFloat(),
                     sharpScaleX = map.number("sharpScaleX").toFloat(),
@@ -78,6 +85,28 @@ data class RenderSpec(
                     startMs = cue.number("startMs").toLong(),
                     endMs = cue.number("endMs").toLong(),
                     path = cue.string("path"),
+                )
+            }
+        }
+
+        private fun keyframesFrom(map: Map<String, Any?>): List<CropKeyframe> {
+            val entries = map["cropKeyframes"] as? List<*>
+                ?: throw IllegalArgumentException("'cropKeyframes' must be a list.")
+            require(entries.isNotEmpty()) { "'cropKeyframes' must not be empty." }
+            return entries.map { entry ->
+                val keyframe = (entry as? Map<*, *>)
+                    ?.entries
+                    ?.associate { (key, value) -> key.toString() to value }
+                    ?: throw IllegalArgumentException("A crop keyframe must be a map.")
+                CropKeyframe(
+                    timeMs = keyframe.number("timeMs").toLong(),
+                    glide = keyframe.string("arrival") == "glide",
+                    rect = NdcRect(
+                        left = keyframe.number("left").toFloat(),
+                        right = keyframe.number("right").toFloat(),
+                        bottom = keyframe.number("bottom").toFloat(),
+                        top = keyframe.number("top").toFloat(),
+                    ),
                 )
             }
         }

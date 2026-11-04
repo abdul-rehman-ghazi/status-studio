@@ -31,6 +31,42 @@ class RenderSpecTest {
     }
 
     @Test
+    fun fromMap_parses_moving_crop_keyframes() {
+        val map = specMap(
+            "fill" to "crop",
+            "cropKeyframes" to listOf(
+                mapOf(
+                    "timeMs" to 0, "arrival" to "glide",
+                    "left" to -1.0, "right" to -0.4, "bottom" to -1.0, "top" to 1.0,
+                ),
+                mapOf(
+                    "timeMs" to 8000, "arrival" to "cut",
+                    "left" to 0.4, "right" to 1.0, "bottom" to -1.0, "top" to 1.0,
+                ),
+            ),
+        )
+
+        val spec = RenderSpec.fromMap(map)
+
+        assertEquals(
+            Fill.MovingCrop(
+                listOf(
+                    CropKeyframe(0, true, NdcRect(-1f, -0.4f, -1f, 1f)),
+                    CropKeyframe(8000, false, NdcRect(0.4f, 1f, -1f, 1f)),
+                ),
+            ),
+            spec.fill,
+        )
+    }
+
+    @Test
+    fun fromMap_rejects_an_empty_keyframe_list() {
+        val map = specMap("fill" to "crop", "cropKeyframes" to emptyList<Any>())
+
+        assertThrows(IllegalArgumentException::class.java) { RenderSpec.fromMap(map) }
+    }
+
+    @Test
     fun fromMap_parses_blur_spec_without_crop() {
         val map = specMap(
             "fill" to "blur",
