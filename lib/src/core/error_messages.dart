@@ -3,6 +3,7 @@ import 'package:status_studio/src/features/lyrics/domain/lyrics_match.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/style/domain/translation_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
+import 'package:status_studio/src/features/transcript/domain/script_exchange.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 /// Spec §8 copy for a failure from the data layer.
@@ -23,6 +24,9 @@ String errorMessageFor(Object error) {
     GroqFailedException() => "Groq couldn't write this script.",
     LyricsNotFoundException() =>
       "Couldn't find the lyrics for this video. The script stays as it is.",
+    NoScriptRowsException() =>
+      "Couldn't find script lines in what you pasted. Copy the AI's whole "
+          'reply and try again.',
     RenderFailedException() => "Couldn't make the reel.",
     TranslationPackMissingException() => 'English needs a one-time download.',
     _ => 'Something went wrong. Try again.',

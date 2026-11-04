@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
@@ -12,9 +13,11 @@ import 'package:status_studio/src/features/lyrics/application/lyrics_service.dar
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
+import 'package:status_studio/src/features/transcript/domain/script_exchange.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -51,7 +54,7 @@ class ScriptScreen extends ConsumerWidget {
               savedAt: savedAt,
               onWriteAgain: () => _writeAgain(context, ref),
             ),
-          _LyricsAction(
+          _ScriptTools(
             draft: draft,
             scriptIsBeingWritten: _isBeingWritten(
               ref.watch(scriptProgressProvider),
@@ -163,6 +166,39 @@ class _LanguagePicker extends StatelessWidget {
       scriptLanguageLabel(language, draft.transcript?.languageCode);
 }
 
+/// Compact, so the three tools fit one row and the lines keep their room.
+final _toolButtonStyle = TextButton.styleFrom(
+  visualDensity: VisualDensity.compact,
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
+
+/// The script's fixing tools on one row, so the lines keep their room.
+class _ScriptTools extends StatelessWidget {
+  const _ScriptTools({required this.draft, required this.scriptIsBeingWritten});
+
+  final ReelDraft draft;
+  final bool scriptIsBeingWritten;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Wrap(
+        children: [
+          _LyricsAction(
+            draft: draft,
+            scriptIsBeingWritten: scriptIsBeingWritten,
+          ),
+          _AiFixActions(
+            draft: draft,
+            scriptIsBeingWritten: scriptIsBeingWritten,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// FR-17: swaps the script for the song's published lyrics.
 class _LyricsAction extends ConsumerStatefulWidget {
   const _LyricsAction({
@@ -188,18 +224,10 @@ class _LyricsActionState extends ConsumerState<_LyricsAction> {
         !_searching &&
         !widget.scriptIsBeingWritten &&
         widget.draft.video != null;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: TextButton.icon(
-          onPressed: canSearch ? _replaceWithLyrics : null,
-          icon: const Icon(Icons.lyrics_outlined),
-          label: Text(
-            _searching ? 'Looking for lyrics…' : 'Get the real lyrics',
-          ),
-        ),
-      ),
+    return TextButton(
+      style: _toolButtonStyle,
+      onPressed: canSearch ? _replaceWithLyrics : null,
+      child: Text(_searching ? 'Searching…' : 'Real lyrics'),
     );
   }
 
@@ -230,6 +258,92 @@ class _LyricsActionState extends ConsumerState<_LyricsAction> {
 const _lyricsFound =
     'The lyrics from lrclib.net replaced the script. Line times follow the '
     'studio song, so check them in Fine-tune.';
+
+/// FR-18: copy the script with a ready prompt for an AI agent, then paste
+/// its corrected reply back.
+class _AiFixActions extends ConsumerWidget {
+  const _AiFixActions({
+    required this.draft,
+    required this.scriptIsBeingWritten,
+  });
+
+  final ReelDraft draft;
+  final bool scriptIsBeingWritten;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canUse = !scriptIsBeingWritten && draft.video != null;
+    return Wrap(
+      children: [
+        TextButton(
+          style: _toolButtonStyle,
+          onPressed: canUse ? () => _copyForAi(context) : null,
+          child: const Text('Copy for AI'),
+        ),
+        TextButton(
+          style: _toolButtonStyle,
+          onPressed: canUse ? () => _pasteFixed(context, ref) : null,
+          child: const Text('Paste AI reply'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _copyForAi(BuildContext context) async {
+    final video = draft.video;
+    final transcript = draft.transcript;
+    if (video == null || transcript == null) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(
+      ClipboardData(
+        text: scriptPromptFor(
+          videoTitle: video.title,
+          videoUrl: 'https://youtu.be/${video.videoId}',
+          transcript: transcript,
+        ),
+      ),
+    );
+    messenger.showSnackBar(const SnackBar(content: Text(_copied)));
+  }
+
+  Future<void> _pasteFixed(BuildContext context, WidgetRef ref) async {
+    final video = draft.video;
+    final transcript = draft.transcript;
+    if (video == null || transcript == null) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final controller = ref.read(reelDraftProvider.notifier);
+    final editing = ref.read(scriptEditingServiceProvider);
+    try {
+      final pasted =
+          (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
+      final corrected = applyCorrectedScript(transcript, pasted);
+      controller.correctTranscript(corrected.transcript);
+      await editing.saveCorrected(video, draft.language, corrected.transcript);
+      messenger.showSnackBar(
+        SnackBar(content: Text(_pastedMessage(corrected))),
+      );
+    } on Exception catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
+    }
+  }
+}
+
+const _copied =
+    'Copied. Paste it into ChatGPT (or any AI that can search the web), copy '
+    'its reply, then tap Paste AI reply.';
+
+String _pastedMessage(CorrectedScript corrected) {
+  final updated = 'Updated ${corrected.changedLines} lines.';
+  if (corrected.uncertainRows.isEmpty) {
+    return updated;
+  }
+  return '$updated The AI found no source for line '
+      '${corrected.uncertainRows.join(', ')}: read it before you use it.';
+}
 
 /// FR-14: the script came from the saved scripts, not written just now.
 class _SavedScriptBanner extends StatelessWidget {

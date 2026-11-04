@@ -50,6 +50,16 @@ class ReelDraft {
     return copyWith(transcript: transcript);
   }
 
+  /// [corrected] has the same lines with better text, so the picked range
+  /// and clip stay, and the caption is refilled from the corrected lines.
+  ReelDraft withCorrectedLines(Transcript corrected) {
+    final updated = copyWith(transcript: corrected);
+    final selection = this.selection;
+    return selection is RangeSelected
+        ? updated.withSelection(selection)
+        : updated;
+  }
+
   /// Applies [selection]; a full range also sets the clip and fills the
   /// caption with the selected lines.
   ReelDraft withSelection(LineSelection selection) {

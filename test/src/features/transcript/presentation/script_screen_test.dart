@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/lyrics/application/lyrics_service.dart';
@@ -6,8 +9,10 @@ import 'package:status_studio/src/features/lyrics/domain/lyrics_match.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
+import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
@@ -125,7 +130,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Get the real lyrics'));
+    await tester.tap(find.text('Real lyrics'));
     await tester.pumpAndSettle();
 
     expect(find.text('Real lyric line'), findsOneWidget);
@@ -137,11 +142,67 @@ void main() {
       FakeLyricsService(failure: const LyricsNotFoundException()),
     );
 
-    await tester.tap(find.text('Get the real lyrics'));
+    await tester.tap(find.text('Real lyrics'));
     await tester.pumpAndSettle();
 
     expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
     expect(find.textContaining("Couldn't find the lyrics"), findsOneWidget);
+  });
+
+  testWidgets('copy_for_ai_puts_the_prompt_and_rows_on_the_clipboard', (
+    tester,
+  ) async {
+    final clipboard = FakeClipboard('')..install();
+    await pumpScript(tester);
+
+    await tester.tap(find.text('Copy for AI'));
+    await tester.pump();
+
+    expect(
+      clipboard.text,
+      contains('1 | 00:12.00 | 00:20.60 | صبر کا پھل میٹھا ہوتا ہے'),
+    );
+  });
+
+  testWidgets('paste_fixed_script_replaces_line_text', (tester) async {
+    FakeClipboard('1 | 00:12.00 | 00:20.60 | درست متن').install();
+    await pumpRoutes(
+      tester,
+      [AppRoutes.script],
+      setup: TestSetup(
+        overrides: [
+          draftOverride(scriptDraft),
+          scriptEditingServiceProvider.overrideWithValue(
+            ScriptEditingService(
+              store: Future.value(
+                TranscriptStore(
+                  Directory.systemTemp.createTempSync('paste_fixed'),
+                  clock: DateTime.now,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.text('Paste AI reply'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('درست متن'), findsOneWidget);
+  });
+
+  testWidgets('paste_without_script_rows_keeps_the_script_and_says_so', (
+    tester,
+  ) async {
+    FakeClipboard('Sorry, I cannot help.').install();
+    await pumpScript(tester);
+
+    await tester.tap(find.text('Paste AI reply'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining("Couldn't find script lines"), findsOneWidget);
+    expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
   });
 
   testWidgets('failed_run_shows_message_and_retry', (tester) async {
@@ -198,6 +259,27 @@ Future<void> pumpScriptWithLyrics(
     ],
   ),
 );
+
+/// Stands in for the system clipboard; returns what was last copied.
+class FakeClipboard {
+  FakeClipboard(this.text);
+
+  String text;
+
+  void install() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          if (call.method == 'Clipboard.setData') {
+            text = (call.arguments as Map)['text'] as String;
+          }
+          return call.method == 'Clipboard.getData' ? {'text': text} : null;
+        });
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+  }
+}
 
 /// A finished run that came from the saved scripts.
 class SavedRunController extends ScriptProgressController {

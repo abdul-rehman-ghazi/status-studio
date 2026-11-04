@@ -25,6 +25,9 @@ class ReelDraftController extends Notifier<ReelDraft> {
   void setTranscript(Transcript transcript) =>
       state = state.withTranscript(transcript);
 
+  void correctTranscript(Transcript corrected) =>
+      state = state.withCorrectedLines(corrected);
+
   void growTranscript(Transcript transcript) =>
       state = state.withGrowingTranscript(transcript);
 

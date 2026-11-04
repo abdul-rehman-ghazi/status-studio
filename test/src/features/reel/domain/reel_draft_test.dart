@@ -31,4 +31,35 @@ void main() {
 
     expect(replaced.selection, const NoSelection());
   });
+
+  Transcript corrected() => fixture.copyWith(
+    lines: [
+      for (final line in fixture.lines)
+        line.copyWith(text: 'fixed ${line.index}'),
+    ],
+  );
+
+  test('corrected_lines_keep_the_picked_range_and_clip', () {
+    final fixed = pickedDraft.withCorrectedLines(corrected());
+
+    expect(
+      (fixed.selection, fixed.clip),
+      (pickedDraft.selection, pickedDraft.clip),
+    );
+  });
+
+  test('corrected_lines_refill_the_caption', () {
+    final fixed = pickedDraft.withCorrectedLines(corrected());
+
+    expect(fixed.caption.text, 'fixed 1\nfixed 2\nfixed 3');
+  });
+
+  test('corrected_lines_without_a_pick_only_swap_the_transcript', () {
+    final fixed = scriptDraft.withCorrectedLines(corrected());
+
+    expect(
+      (fixed.transcript, fixed.selection),
+      (corrected(), scriptDraft.selection),
+    );
+  });
 }

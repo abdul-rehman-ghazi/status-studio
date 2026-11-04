@@ -155,7 +155,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **No key:** a script without captions stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is downloaded. Captions and saved scripts need no key.
 
 **FR-17 Real lyrics (M12).** For songs, the script Groq or YouTube wrote is often wrong; the song's published lyrics are right.
-- **Where:** a "Get the real lyrics" button on Script, off while a script is still being written (late lines would overwrite the lyrics) and while a search runs.
+- **Where:** a "Real lyrics" button on Script, off while a script is still being written (late lines would overwrite the lyrics) and while a search runs.
 - **Service:** `lrclib.net`, free, no key and no account. One `GET /api/search?q=<query>` with a `StatusStudio/1.0` user agent. Only the cleaned video title leaves the phone (nothing is sent about the user or the audio).
 - **Query:** the video title without brackets (`(Official Video)`, `[HD]`, `【MV】`), words such as official, lyrics, video, audio, HD, 4K, and anything after a `|`.
 - **Which song:** results with synced lyrics only. A song counts when its length is within **10 s** of the video's and at least **60 %** of its title's words are in the video's title; the closest length wins. No match gives the §8 message and keeps the script as it is.
@@ -164,6 +164,16 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Result:** replaces the script on screen, clears the selection and clip, and is saved (FR-14) with source `lrclib`, so the video opens with its lyrics next time. The newest saved script wins, so "Write it again" (Groq) replaces lyrics, and lyrics replace it.
 - **After:** "The lyrics from lrclib.net replaced the script. Line times follow the studio song, so check them in Fine-tune."
 - **Captions:** with FR-7a each lyric line shows on its own, when it is sung.
+
+**FR-18 Fix the script with an AI agent (M13).** For text the lyrics service lacks (a naat with verses from another poem), the user takes the script to any AI chat that can search the web and brings the corrected text back. Two buttons on Script, next to "Real lyrics", both off while a script is still being written.
+- **Copy for AI:** copies one block to the clipboard: a ready prompt (video title, `https://youtu.be/<id>`, rules) followed by every script line as `<number> | <mm:ss.xx> | <mm:ss.xx> | <text>`. Row numbers are line index + 1. The user pastes it into the chat unchanged. Snackbar: "Copied. Paste it into ChatGPT (or any AI that can search the web), copy its reply, then tap Paste AI reply."
+- **The prompt asks the agent to:** search for the real lyrics and never invent words; keep numbers and times and change only the text; correct rows that belong to a different poem from that poem; keep the script (no Roman, no translation); mark rows with no source by ` [?]`; reply with the rows in one code block, then list changed rows with source links.
+- **Paste AI reply:** reads the clipboard and takes every row that matches the format, from anywhere in the reply (code fences, links and chatter are ignored).
+  - **Matched by row number, text only.** Times always stay as they were, so an agent that changes a time can't move a line. Rows missing from the reply, empty, or with unknown numbers keep their text or are ignored.
+  - **`[?]`:** the mark is removed from the text; the snackbar names those lines: "Updated 12 lines. The AI found no source for line 3, 7: read it before you use it."
+  - **No rows found:** the §8 message, and the script is unchanged.
+- **After:** the lines keep the picked range and clip; the caption is refilled from the corrected lines. The script is saved as the newest script (source `edited`, FR-14), so the video reopens corrected.
+- **Privacy:** nothing is sent by the app. The user chooses what to paste into which chat.
 
 **FR-13 Offline.** Saved scripts, translation (once its ML Kit pack is downloaded) and export work without a network. Writing a new script needs one (Groq).
 
@@ -379,6 +389,7 @@ A rule-based, letter-by-letter transliteration, with a short list of common-word
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |
 | Gallery access refused | Done | Allow Photos access in Settings to save reels. | Open settings |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
+| Pasted AI reply has no script rows | Script | Couldn't find script lines in what you pasted. Copy the AI's whole reply and try again. | (snackbar) |
 | No synced lyrics match the video | Script | Couldn't find the lyrics for this video. The script stays as it is. | (snackbar) |
 | No network while looking for lyrics | Script | You're offline. Connect and try again. | (snackbar) |
 | Not enough storage | any download or export | Not enough space on your phone. | Back |
@@ -474,6 +485,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–7 done, branch `m10-groq-only` (stacked on M9); device check pending |
 | M11 Timed captions | One caption line at a time (FR-7a) | Done, branch `m11-timed-captions` (stacked on M10); device check pending |
 | M12 Real lyrics | Lyrics from lrclib.net replace the script (FR-17) | Done, branch `m12-online-lyrics` (stacked on M11); device check pending |
+| M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -519,8 +531,18 @@ Request, 2026-11-04: lyrics have many issues; get the correct lyrics online. Eac
 - [x] **2. Query and matching (domain).** `lyricsQueryFor`, `bestLyricsFor`: length within 10 s, title overlap, synced only, closest length wins; `LyricsNotFoundException`.
 - [x] **3. `LrclibClient` (data).** `GET /api/search`; instrumentals skipped; failures become `OfflineException`.
 - [x] **4. `LyricsService` (application).** Search, match, parse, infer language, save as source `lrclib`.
-- [x] **5. Script screen.** "Get the real lyrics" button, results and §8 messages in a snackbar.
+- [x] **5. Script screen.** "Real lyrics" button, results and §8 messages in a snackbar.
 - [x] **6. Docs.** FR-17, §8, §13, §14.
+
+### M13 tasks (branch `m13-ai-script-fix`)
+
+Request, 2026-11-04: export the script with timing for an AI agent and paste the fixed script back, with the least work from the user. Each task: test first, tick it, commit.
+
+- [x] **1. Prompt and reply parsing (domain).** `scriptPromptFor`, `applyCorrectedScript`: rows matched by number, text only, `[?]` marks, tolerant of fences and chatter, `NoScriptRowsException`.
+- [x] **2. Corrected lines in the draft.** `ReelDraft.withCorrectedLines` keeps the picked range and clip and refills the caption.
+- [x] **3. Saving.** `ScriptEditingService` saves source `edited` as the newest script.
+- [x] **4. Script screen.** Copy for AI and Paste AI reply on one compact row with Real lyrics; snackbars; §8 message.
+- [x] **5. Docs.** FR-18, §8, §13, §14.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -568,6 +590,12 @@ Request, 2026-11-04: lyrics have many issues; get the correct lyrics online. Eac
   - A song whose length is over 10 s off, or whose title the video doesn't name, never matches.
   - Failed or unreachable lookups become `OfflineException`; a missing match leaves the script as it was.
   - Lyrics saved after a Groq script are the one that reopens.
+- **AI script fix (M13):**
+  - The prompt holds the title, link and every row with its time.
+  - A reply's text replaces lines by row number; its times are never used.
+  - Fences and chatter around rows are ignored; rows with bars in the text stay whole.
+  - Missing rows keep their text; `[?]` rows are kept and named; a reply with no rows is rejected and changes nothing.
+  - Corrected lines keep the picked range and clip, and the corrected script is the one that reopens.
 - **Groq (M9):**
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
@@ -645,11 +673,16 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] A 60 s clip with ~20 lines renders without running out of memory.
   - [ ] Cancel mid-render leaves no overlay PNGs in the reels folder.
 - **Lyrics (M12):**
-  - [ ] "Get the real lyrics" on a well-known song (official audio and official video) fills the script; lines match what is sung.
+  - [ ] "Real lyrics" on a well-known song (official audio and official video) fills the script; lines match what is sung.
   - [ ] Line times are right against the video; on a video with a long intro they are not offered (no match) or are off by the intro (note which).
   - [ ] A song LRCLIB lacks (a naat or regional song) gives the "Couldn't find the lyrics" message and keeps the script.
   - [ ] Offline gives the offline message.
   - [ ] Reopening the same link opens the lyrics, not the Groq script.
+- **AI script fix (M13):**
+  - [ ] Copy for AI, paste into ChatGPT with web search on, copy its whole reply, Paste AI reply: lines update, and the right lines are named as unchecked.
+  - [ ] A real Urdu reply (RTL text, Urdu digits or a table the agent chose) still parses; if not, note the format the agent used.
+  - [ ] The clipboard holds a ~100-line script without trimming.
+  - [ ] Reopening the same link opens the corrected script.
 - **Groq (M9):**
   - [ ] The key check, help sheet and Copy link.
   - [ ] A 10-minute video's script time.
