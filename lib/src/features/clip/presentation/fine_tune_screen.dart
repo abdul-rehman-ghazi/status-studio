@@ -1,31 +1,30 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
-import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
-import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/clip/domain/waveform.dart';
-import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
-import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
+import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
-import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/style/presentation/frame_controls.dart';
+import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
+import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
+/// Step 1 of Fine-tune: the clip's start and end, and how the video is
+/// framed (spec FR-5, FR-6, FR-22).
 class FineTuneScreen extends ConsumerStatefulWidget {
   const FineTuneScreen({super.key});
 
@@ -34,54 +33,12 @@ class FineTuneScreen extends ConsumerStatefulWidget {
 }
 
 class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
-  static const _saveDelay = Duration(seconds: 1);
-
   final _playhead = ClipPlayhead();
-  late final ScriptEditingService _scriptEditing;
-  Timer? _saveTimer;
-  Future<void> Function()? _pendingSave;
-
-  @override
-  void initState() {
-    super.initState();
-    // Read now: dispose saves a pending edit and can't use ref.
-    _scriptEditing = ref.read(scriptEditingServiceProvider);
-  }
 
   @override
   void dispose() {
-    _saveTimer?.cancel();
-    unawaited(_savePending());
     _playhead.dispose();
     super.dispose();
-  }
-
-  /// Saves after a pause in editing, so a run of taps is one write (FR-21).
-  void _scheduleSave() {
-    final draft = ref.read(reelDraftProvider);
-    final video = draft.video;
-    final edited = draft.transcript;
-    if (video == null || edited == null) {
-      return;
-    }
-    _pendingSave = () =>
-        _scriptEditing.saveCorrected(video, draft.language, edited);
-    _saveTimer?.cancel();
-    _saveTimer = Timer(_saveDelay, () => unawaited(_savePending()));
-  }
-
-  Future<void> _savePending() async {
-    final save = _pendingSave;
-    _pendingSave = null;
-    if (save == null) {
-      return;
-    }
-    try {
-      await save();
-    } on Object {
-      // The edits are still in the draft and reach the reel; a full disk
-      // must not interrupt timing lines.
-    }
   }
 
   @override
@@ -94,14 +51,17 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
     final controller = ref.read(reelDraftProvider.notifier);
     return Scaffold(
-      appBar: const FlowAppBar(title: 'Fine-tune', stepLabel: 'Step 3 of 4'),
+      appBar: const FlowAppBar(
+        title: 'Fine-tune · Video',
+        stepLabel: 'Step 3 of 5',
+      ),
       // The player stays put while the rest scrolls, so the lines can be
       // tapped with the video in view.
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: _SourcePreview(
+            child: ClipSourcePlayer(
               video: video,
               clip: clip,
               playhead: _playhead,
@@ -112,8 +72,8 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       ),
       bottomNavigationBar: BottomAction(
         child: FilledButton(
-          onPressed: () => context.push(AppRoutes.style),
-          child: const Text('Next: frame & caption'),
+          onPressed: () => context.push(AppRoutes.lyrics),
+          child: const Text('Next: lyrics'),
         ),
       ),
     );
@@ -155,113 +115,20 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
           ],
         ),
         const SizedBox(height: 24),
-        const SectionLabel('Lines'),
-        const HintText(
-          'Tap a line to jump to it. While the clip plays, tap a line '
-          'when it starts to time it.',
+        FrameControls(
+          frame: draft.frame,
+          sourceSize: previewSourceSize(ref, draft),
+          onChanged: controller.updateFrame,
         ),
-        ClipLinesList(
-          script: draft.pickedScript,
-          window: clipWindowFor(clip, video.duration),
-          playhead: _playhead,
-          onEdited: _scheduleSave,
-        ),
+        if (draft.frame.preset == AspectPreset.free) ...[
+          const SizedBox(height: 16),
+          FreeCropEditor(
+            crop: draft.frame.freeCrop,
+            onChanged: (crop) =>
+                controller.updateFrame(draft.frame.copyWith(freeCrop: crop)),
+          ),
+        ],
       ],
-    );
-  }
-}
-
-/// The clip player once the clip's window is downloaded (FR-15); until
-/// then, how far the download has got.
-class _SourcePreview extends ConsumerStatefulWidget {
-  const _SourcePreview({
-    required this.video,
-    required this.clip,
-    required this.playhead,
-  });
-
-  final SourceVideo video;
-  final ClipRange clip;
-  final ClipPlayhead playhead;
-
-  @override
-  ConsumerState<_SourcePreview> createState() => _SourcePreviewState();
-}
-
-class _SourcePreviewState extends ConsumerState<_SourcePreview> {
-  @override
-  void initState() {
-    super.initState();
-    // Providers can't change during build, so the first download waits for
-    // the first frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _prepareFor(widget.clip);
-      }
-    });
-  }
-
-  @override
-  void didUpdateWidget(_SourcePreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.clip != oldWidget.clip) {
-      // A nudge past the downloaded window needs a new one; inside it this
-      // does nothing.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _prepareFor(widget.clip);
-        }
-      });
-    }
-  }
-
-  void _prepareFor(ClipRange clip) {
-    unawaited(
-      ref
-          .read(clipSourceProvider(widget.video.videoId).notifier)
-          .prepareFor(widget.video, clip),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final videoId = widget.video.videoId;
-    // unwrapPrevious: a new window or a retry shows progress, not the
-    // earlier file or failure.
-    final source = ref.watch(clipSourceProvider(videoId)).unwrapPrevious();
-    if (source.value case final clipSource?) {
-      return ClipPlayer(
-        key: ValueKey(clipSource.file.path),
-        source: clipSource,
-        clip: widget.clip,
-        playhead: widget.playhead,
-      );
-    }
-    if (source.error case final error?) {
-      return _PreviewMessage(text: errorMessageFor(error));
-    }
-    final fraction = ref.watch(clipSourceProgressProvider(videoId));
-    final percent = (fraction * 100).round();
-    return _PreviewMessage(text: 'Downloading clip… $percent %');
-  }
-}
-
-class _PreviewMessage extends StatelessWidget {
-  const _PreviewMessage({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Center(child: HintText(text)),
-      ),
     );
   }
 }

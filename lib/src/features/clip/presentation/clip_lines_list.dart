@@ -8,31 +8,27 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
-import 'package:status_studio/src/features/clip/domain/clip_window.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
-import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-const _outsideRangeOpacity = 0.45;
-
-/// The script's lines around the clip, editable, with the one playing
-/// highlighted (spec FR-21). A tap seeks while paused and times the line
+/// The clip's lines, editable, with the one playing highlighted (spec FR-21). A tap seeks while paused and times the line
 /// while playing.
 class ClipLinesList extends ConsumerStatefulWidget {
   const ClipLinesList({
     super.key,
     required this.script,
-    required this.window,
+    required this.clip,
     required this.playhead,
     required this.onEdited,
   });
 
   final PickedScript script;
 
-  /// Only lines that overlap it are listed.
-  final ClipWindow window;
+  /// Add line is on only while the playhead is inside it.
+  final ClipRange clip;
   final ClipPlayhead playhead;
 
   /// Called after every edit, so the screen can save the script.
@@ -140,9 +136,9 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
   @override
   Widget build(BuildContext context) {
     final lines = widget.script.transcript.lines;
-    final shown = lines.where(_overlapsWindow).toList();
-    final highlighted = highlightedLineIndex(lines, widget.playhead.position);
     final selection = widget.script.selection;
+    final shown = lines.sublist(selection.start, selection.end + 1);
+    final highlighted = highlightedLineIndex(lines, widget.playhead.position);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -160,11 +156,8 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
                   line: line,
                   dragPosition: position,
                   highlighted: line.index == highlighted,
-                  inRange: selection.isHighlighted(line.index),
-                  canRemove: !_isOnlyPickedLine(selection, line.index),
-                  onTap: selection.isHighlighted(line.index)
-                      ? () => _tapLine(line)
-                      : null,
+                  canRemove: shown.length > 1,
+                  onTap: () => _tapLine(line),
                   onEdit: () => unawaited(_editLine(line)),
                   onRemove: () => _removeLine(line),
                 ),
@@ -173,9 +166,7 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: widget.playhead.isReady
-                ? () => unawaited(_addLine())
-                : null,
+            onPressed: _canAddLine ? () => unawaited(_addLine()) : null,
             icon: const Icon(Icons.add),
             label: const Text('Add line'),
           ),
@@ -184,12 +175,14 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     );
   }
 
-  bool _overlapsWindow(TranscriptLine line) =>
-      line.end > widget.window.start && line.start < widget.window.end;
+  bool get _canAddLine {
+    final playhead = widget.playhead;
+    final position = playhead.position;
+    return playhead.isReady &&
+        position >= widget.clip.start &&
+        position <= widget.clip.end;
+  }
 }
-
-bool _isOnlyPickedLine(RangeSelected selection, int index) =>
-    selection.start == selection.end && selection.start == index;
 
 class _LineRow extends StatelessWidget {
   const _LineRow({
@@ -197,7 +190,6 @@ class _LineRow extends StatelessWidget {
     required this.line,
     required this.dragPosition,
     required this.highlighted,
-    required this.inRange,
     required this.canRemove,
     required this.onTap,
     required this.onEdit,
@@ -207,7 +199,6 @@ class _LineRow extends StatelessWidget {
   final TranscriptLine line;
   final int dragPosition;
   final bool highlighted;
-  final bool inRange;
   final bool canRemove;
   final VoidCallback? onTap;
   final VoidCallback onEdit;
@@ -217,48 +208,43 @@ class _LineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       selected: highlighted,
-      child: Opacity(
-        opacity: inRange ? 1 : _outsideRangeOpacity,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          decoration: BoxDecoration(
-            color: highlighted
-                ? AppColors.accent.withValues(alpha: 0.25)
-                : null,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Row(
-                children: [
-                  HintText(formatTimestamp(line.start)),
-                  const SizedBox(width: 12),
-                  Expanded(child: ScriptText(line.text)),
-                  _LineButton(
-                    tooltip: 'Edit line',
-                    icon: Icons.edit_outlined,
-                    onPressed: onEdit,
-                  ),
-                  _LineButton(
-                    tooltip: 'Delete line',
-                    icon: Icons.delete_outline,
-                    onPressed: canRemove ? onRemove : null,
-                  ),
-                  ReorderableDragStartListener(
-                    index: dragPosition,
-                    child: const Tooltip(
-                      message: 'Move line',
-                      child: Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(Icons.drag_handle, size: 20),
-                      ),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        decoration: BoxDecoration(
+          color: highlighted ? AppColors.accent.withValues(alpha: 0.25) : null,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Row(
+              children: [
+                HintText(formatTimestamp(line.start)),
+                const SizedBox(width: 12),
+                Expanded(child: ScriptText(line.text)),
+                _LineButton(
+                  tooltip: 'Edit line',
+                  icon: Icons.edit_outlined,
+                  onPressed: onEdit,
+                ),
+                _LineButton(
+                  tooltip: 'Delete line',
+                  icon: Icons.delete_outline,
+                  onPressed: canRemove ? onRemove : null,
+                ),
+                ReorderableDragStartListener(
+                  index: dragPosition,
+                  child: const Tooltip(
+                    message: 'Move line',
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(Icons.drag_handle, size: 20),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

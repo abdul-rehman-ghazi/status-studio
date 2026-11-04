@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// App bar for the four numbered steps: title on the left, step on the right.
+/// App bar for the numbered steps: title on the left, step on the right.
 class FlowAppBar extends StatelessWidget implements PreferredSizeWidget {
   const FlowAppBar({super.key, required this.title, required this.stepLabel});
 

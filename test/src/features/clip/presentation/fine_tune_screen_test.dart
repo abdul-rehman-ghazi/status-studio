@@ -1,48 +1,15 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
-import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
-import 'package:status_studio/src/features/source/domain/script_language.dart';
-import 'package:status_studio/src/features/source/domain/source_video.dart';
-import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
-import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
-import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
-import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
-import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
 import '../../../../helpers/fake_video_player.dart';
+import '../../../../helpers/fine_tune_pump.dart';
 import '../../../../helpers/fixtures.dart';
-import '../../../../helpers/pump_app.dart';
-
-/// Remembers what Fine-tune saves instead of writing files.
-class RecordingScriptEditingService extends ScriptEditingService {
-  RecordingScriptEditingService()
-    : super(
-        store: Future.value(
-          TranscriptStore(
-            Directory.systemTemp.createTempSync('fine_tune'),
-            clock: DateTime.now,
-          ),
-        ),
-      );
-
-  final saved = <Transcript>[];
-
-  @override
-  Future<void> saveCorrected(
-    SourceVideo video,
-    ScriptLanguage language,
-    Transcript corrected,
-  ) async => saved.add(corrected);
-}
 
 Future<void> pumpFineTune(
   WidgetTester tester, {
@@ -50,27 +17,23 @@ Future<void> pumpFineTune(
   FakeClipSourcePreparer? clipPreparer,
   ReelDraft? draft,
   List<double>? waveformPeaks,
-  ScriptEditingService? scriptEditing,
-}) => pumpRoutes(
+}) => pumpFineTuneStep(
   tester,
-  [AppRoutes.fineTune],
-  setup: TestSetup(
-    overrides: [
-      draftOverride(draft ?? pickedDraft),
-      scriptEditingServiceProvider.overrideWithValue(
-        scriptEditing ?? RecordingScriptEditingService(),
-      ),
-    ],
-    playerFactory: playerFactory,
-    clipPreparer: clipPreparer,
-    waveformPeaks: waveformPeaks,
-  ),
+  AppRoutes.fineTune,
+  playerFactory: playerFactory,
+  clipPreparer: clipPreparer,
+  draft: draft,
+  waveformPeaks: waveformPeaks,
 );
 
-/// The fake clip's window starts 5 s before the clip, so its file time is
-/// video time minus that start.
-Duration fileTime(Duration videoTime) =>
-    videoTime - (pickedDraft.clip!.start - const Duration(seconds: 5));
+/// Scrolls [label] into view, then taps it.
+Future<void> tapText(WidgetTester tester, String label) async {
+  await tester.scrollUntilVisible(find.text(label), 200);
+  await tester.ensureVisible(find.text(label));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label));
+  await tester.pump();
+}
 
 void main() {
   testWidgets('nudge_start_updates_label', (tester) async {
@@ -95,14 +58,6 @@ void main() {
     await pumpFineTune(tester);
 
     expect(find.text('27.4 s'), findsOneWidget);
-  });
-
-  testWidgets('lists_the_lines_in_the_clip', (tester) async {
-    await pumpFineTune(tester);
-
-    await tester.scrollUntilVisible(find.text('محنت کامیابی کی کنجی ہے'), 200);
-
-    expect(find.text('محنت کامیابی کی کنجی ہے'), findsOneWidget);
   });
 
   testWidgets('downloading_clip_shows_progress', (tester) async {
@@ -201,16 +156,16 @@ void main() {
     expect(players.created.single.disposed, isTrue);
   });
 
-  testWidgets('playback_pauses_when_style_opens', (tester) async {
+  testWidgets('playback_pauses_when_lyrics_opens', (tester) async {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);
     await tester.tap(find.text('Play clip'));
     await tester.pump();
 
-    await tester.tap(find.text('Next: frame & caption'));
+    await tester.tap(find.text('Next: lyrics'));
     await tester.pumpAndSettle();
 
-    // Style's preview makes its own player; Fine-tune's was the first.
+    // Lyrics makes its own player; this step's was the first.
     expect(players.created.first.value.isPlaying, isFalse);
   });
 
@@ -242,241 +197,43 @@ void main() {
     expect(find.byType(WaveformView), findsOneWidget);
   });
 
-  group('lines', () {
-    String textOf(int index) => sampleTranscript.lines[index].text;
-
-    ReelDraft draftNow(WidgetTester tester) =>
-        ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
-            .read(reelDraftProvider);
-
-    Future<void> reveal(WidgetTester tester, int index) async {
-      final line = find.text(textOf(index));
-      await tester.scrollUntilVisible(line, 200);
-      await tester.ensureVisible(line);
-      await tester.pumpAndSettle();
-    }
-
-    Future<void> playAt(
-      WidgetTester tester,
-      FakeVideoPlayerController player,
-      Duration videoTime,
-    ) async {
-      player.value = player.value.copyWith(
-        isPlaying: true,
-        position: fileTime(videoTime),
-      );
-      await tester.pump();
-    }
-
-    testWidgets('lists_lines_around_the_clip_and_no_others', (tester) async {
-      await pumpFineTune(tester);
-      await reveal(tester, 4);
-
-      expect(find.text(textOf(5)), findsNothing);
-    });
-
-    testWidgets('lists_a_line_before_the_clip', (tester) async {
+  group('frame', () {
+    testWidgets('fill_options_hidden_for_16_9', (tester) async {
       await pumpFineTune(tester);
 
-      await reveal(tester, 0);
+      await tapText(tester, '16:9');
 
-      expect(find.text(textOf(0)), findsOneWidget);
+      expect(find.text('Blur background'), findsNothing);
     });
 
-    testWidgets('tap_while_paused_seeks_to_the_line', (tester) async {
-      final players = RecordingPlayerFactory();
-      await pumpFineTune(tester, playerFactory: players.call);
-      await reveal(tester, 2);
+    testWidgets('free_preset_shows_crop_editor', (tester) async {
+      await pumpFineTune(tester);
 
-      await tester.tap(find.text(textOf(2)));
-      await tester.pump();
+      await tapText(tester, 'Free');
 
       expect(
-        players.created.single.value.position,
-        fileTime(sampleTranscript.lines[2].start),
+        find.text('Drag to move. Drag the corner to resize.'),
+        findsOneWidget,
       );
     });
 
-    testWidgets('tap_on_a_line_outside_the_clip_does_nothing', (tester) async {
-      final players = RecordingPlayerFactory();
-      await pumpFineTune(tester, playerFactory: players.call);
-      await reveal(tester, 4);
+    testWidgets('size_hint_shows_output_size', (tester) async {
+      await pumpFineTune(tester);
 
-      await tester.tap(find.text(textOf(4)));
-      await tester.pump();
-
-      expect(players.created.single.value.position, Duration.zero);
-    });
-
-    testWidgets('tap_while_playing_starts_the_line_at_the_playhead', (
-      tester,
-    ) async {
-      final players = RecordingPlayerFactory();
-      await pumpFineTune(tester, playerFactory: players.call);
-      await reveal(tester, 2);
-      await playAt(tester, players.created.single, const Duration(seconds: 33));
-
-      await tester.tap(find.text(textOf(2)));
-      await tester.pump();
+      await tapText(tester, '4:5');
 
       expect(
-        draftNow(tester).transcript!.lines[2].start.inMilliseconds,
-        closeTo(33000, 300),
+        find.text('Instagram and Facebook posts · 1080 × 1350'),
+        findsOneWidget,
       );
     });
 
-    testWidgets('highlight_marks_the_playing_line', (tester) async {
-      final handle = tester.ensureSemantics();
-      final players = RecordingPlayerFactory();
-      await pumpFineTune(tester, playerFactory: players.call);
-      await reveal(tester, 1);
-
-      await playAt(tester, players.created.single, const Duration(seconds: 25));
-
-      expect(
-        tester.getSemantics(find.byKey(const ValueKey('line-1'))),
-        isSemantics(isSelected: true),
-      );
-      handle.dispose();
-    });
-
-    testWidgets('edit_changes_the_lines_text', (tester) async {
+    testWidgets('blur_background_hides_keep_in_view', (tester) async {
       await pumpFineTune(tester);
-      await reveal(tester, 2);
 
-      await tester.tap(find.byTooltip('Edit line').at(2));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'نیا مصرعہ');
-      await tester.tap(find.text('Save'));
-      await tester.pumpAndSettle();
+      await tapText(tester, 'Blur background');
 
-      expect(draftNow(tester).transcript!.lines[2].text, 'نیا مصرعہ');
-    });
-
-    testWidgets('delete_removes_the_line', (tester) async {
-      await pumpFineTune(tester);
-      await reveal(tester, 2);
-
-      await tester.tap(find.byTooltip('Delete line').at(2));
-      await tester.pump();
-
-      expect(draftNow(tester).transcript!.lines.length, 8);
-    });
-
-    testWidgets('delete_is_off_for_the_only_picked_line', (tester) async {
-      final onePicked = pickedDraft.withSelection(const RangeSelected(2, 2));
-      await pumpFineTune(tester, draft: onePicked);
-      await reveal(tester, 2);
-
-      // Line 2's window starts at line 1, so line 2 is the second row.
-      final button = tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, Icons.delete_outline).at(1),
-      );
-
-      expect(button.onPressed, isNull);
-    });
-
-    testWidgets('add_line_inserts_at_the_playhead', (tester) async {
-      final players = RecordingPlayerFactory();
-      await pumpFineTune(tester, playerFactory: players.call);
-      await tester.scrollUntilVisible(find.text('Add line'), 200);
-      await tester.ensureVisible(find.text('Add line'));
-      await tester.pumpAndSettle();
-      players.created.single.value = players.created.single.value.copyWith(
-        position: fileTime(const Duration(seconds: 35)),
-      );
-
-      await tester.tap(find.text('Add line'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'نئی سطر');
-      await tester.tap(find.text('Save'));
-      await tester.pumpAndSettle();
-
-      expect(draftNow(tester).transcript!.lines[3].text, 'نئی سطر');
-    });
-
-    testWidgets('dragging_a_line_down_moves_the_next_text_up', (tester) async {
-      await pumpFineTune(tester);
-      await reveal(tester, 2);
-
-      await tester.drag(
-        find.byTooltip('Move line').at(1),
-        const Offset(0, 150),
-      );
-      await tester.pumpAndSettle();
-
-      expect(draftNow(tester).transcript!.lines[1].text, textOf(2));
-    });
-  });
-
-  group('saving edits', () {
-    Future<void> editFirstShownLine(WidgetTester tester) async {
-      final line = find.text(sampleTranscript.lines[2].text);
-      await tester.scrollUntilVisible(line, 200);
-      await tester.ensureVisible(line);
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Delete line').at(2));
-      await tester.pump();
-    }
-
-    testWidgets('an_edit_is_saved_after_a_second_without_edits', (
-      tester,
-    ) async {
-      final editing = RecordingScriptEditingService();
-      await pumpFineTune(tester, scriptEditing: editing);
-      await editFirstShownLine(tester);
-
-      await tester.pump(const Duration(seconds: 1));
-
-      expect(editing.saved.single.lines.length, 8);
-    });
-
-    testWidgets('nothing_is_saved_before_the_pause', (tester) async {
-      final editing = RecordingScriptEditingService();
-      await pumpFineTune(tester, scriptEditing: editing);
-      await editFirstShownLine(tester);
-
-      await tester.pump(const Duration(milliseconds: 900));
-
-      expect(editing.saved, isEmpty);
-    });
-
-    testWidgets('leaving_the_screen_saves_a_pending_edit', (tester) async {
-      final editing = RecordingScriptEditingService();
-      await pumpFineTune(tester, scriptEditing: editing);
-      await editFirstShownLine(tester);
-
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-
-      expect(editing.saved.single.lines.length, 8);
-    });
-
-    testWidgets('lines_still_streaming_in_save_nothing', (tester) async {
-      final editing = RecordingScriptEditingService();
-      await pumpFineTune(tester, scriptEditing: editing);
-      ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
-          .read(reelDraftProvider.notifier)
-          .growTranscript(
-            sampleTranscript.copyWith(
-              lines: [...sampleTranscript.lines, sampleTranscript.lines.last],
-            ),
-          );
-
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-
-      expect(editing.saved, isEmpty);
-    });
-
-    testWidgets('leaving_without_edits_saves_nothing', (tester) async {
-      final editing = RecordingScriptEditingService();
-      await pumpFineTune(tester, scriptEditing: editing);
-
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-
-      expect(editing.saved, isEmpty);
+      expect(find.text('Keep in view'), findsNothing);
     });
   });
 }

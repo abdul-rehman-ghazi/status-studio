@@ -37,7 +37,7 @@ class ScriptScreen extends ConsumerWidget {
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Pick the lines',
-        stepLabel: 'Step 2 of 4',
+        stepLabel: 'Step 2 of 5',
       ),
       body: Column(
         children: [
