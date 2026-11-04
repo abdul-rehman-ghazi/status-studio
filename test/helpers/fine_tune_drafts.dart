@@ -2,12 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_stores.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
@@ -115,4 +118,42 @@ SavedFineTune savedFineTune({
       savedAt: savedAt,
     ),
   );
+}
+
+/// Answers every Continue with [outcome] instead of reading the disk.
+class FakeFineTuneResumer implements FineTuneResumer {
+  FakeFineTuneResumer(this.outcome);
+
+  final FineTuneResume outcome;
+
+  @override
+  FineTuneStores get stores => throw UnimplementedError();
+
+  @override
+  Future<FineTuneResume> resume(SavedFineTune saved) async => outcome;
+}
+
+/// Finds [transcript] saved already, as the real pipeline does (FR-14):
+/// one finished event, with no writing before it.
+class SavedScriptPipeline implements ScriptPipeline {
+  const SavedScriptPipeline(this.transcript);
+
+  final Transcript transcript;
+
+  @override
+  Stream<ScriptProgress> run(SourceVideo video, ScriptLanguage language) =>
+      Stream.value(
+        ScriptProgress(
+          stage: ScriptStage.done,
+          fraction: 1,
+          transcript: transcript,
+          savedAt: DateTime.utc(2026, 11, 4),
+        ),
+      );
+
+  @override
+  Stream<ScriptProgress> writeAgain(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) => run(video, language);
 }

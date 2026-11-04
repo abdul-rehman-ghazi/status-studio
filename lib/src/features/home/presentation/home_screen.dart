@@ -11,10 +11,12 @@ import 'package:status_studio/src/features/library/application/recent_reels_cont
 import 'package:status_studio/src/features/library/domain/recent_entries.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
+import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -42,6 +44,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   void _startNewReel(BuildContext context, WidgetRef ref) {
+    ref.read(scriptOpeningNoticeProvider.notifier).clear();
     ref.read(reelDraftProvider.notifier).startNew();
     context.push(AppRoutes.source);
   }
@@ -274,6 +277,7 @@ class _SavedScriptRow extends ConsumerWidget {
   /// The same path as pasting the link again: Processing finds the saved
   /// script and goes straight on to Script.
   void _openScript(BuildContext context, WidgetRef ref) {
+    ref.read(scriptOpeningNoticeProvider.notifier).clear();
     ref.read(reelDraftProvider.notifier)
       ..startNew()
       ..setVideo(script.video)
@@ -333,9 +337,51 @@ class _FineTuneRow extends ConsumerWidget {
         style: Theme.of(context).textTheme.labelLarge
             ?.copyWith(color: AppColors.accent, fontWeight: FontWeight.w600),
       ),
+      onTap: () => unawaited(_continue(context, ref)),
       onLongPress: () => unawaited(_offerDeleteProgress(context, ref)),
     );
   }
+
+  Future<void> _continue(BuildContext context, WidgetRef ref) async {
+    final outcome = await ref.read(fineTuneResumerProvider).resume(fineTune);
+    if (!context.mounted) {
+      return;
+    }
+    _open(context, ref, outcome);
+    if (outcome is! FineTuneReady) {
+      // The resumer deleted the kept fine-tune.
+      ref.invalidate(fineTuneDraftsProvider);
+    }
+  }
+
+  void _open(BuildContext context, WidgetRef ref, FineTuneResume outcome) {
+    final video = fineTune.video;
+    final notices = ref.read(scriptOpeningNoticeProvider.notifier);
+    final draft = ref.read(reelDraftProvider.notifier);
+    notices.clear();
+    switch (outcome) {
+      case FineTuneReady(draft: final restored):
+        draft.restore(restored);
+        _startScript(ref);
+        context
+          ..push(AppRoutes.script)
+          ..push(AppRoutes.fineTune);
+      case FineTuneScriptGone(:final startOver):
+        draft.restore(startOver);
+        notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptGone);
+        _startScript(ref);
+        context.push(AppRoutes.processing);
+      case FineTuneScriptChanged(:final startOver):
+        draft.restore(startOver);
+        notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptChanged);
+        _startScript(ref);
+        context.push(AppRoutes.script);
+    }
+  }
+
+  void _startScript(WidgetRef ref) => ref
+      .read(scriptProgressProvider.notifier)
+      .start(fineTune.video, fineTune.draft.script.language);
 
   Future<void> _offerDeleteProgress(BuildContext context, WidgetRef ref) async {
     if (await _confirmAction(context, 'Delete progress')) {

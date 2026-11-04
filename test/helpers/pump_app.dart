@@ -20,6 +20,7 @@ import 'package:status_studio/src/features/export/data/reel_actions.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
@@ -66,6 +67,7 @@ class TestSetup {
     this.backgroundWork,
     this.fineTuneSaver,
     this.fineTunes = const [],
+    this.fineTuneResumer,
   });
 
   final List<Override> overrides;
@@ -102,6 +104,9 @@ class TestSetup {
 
   /// The kept fine-tunes Home lists, newest first.
   final List<SavedFineTune> fineTunes;
+
+  /// Answers Continue; without one, Continue reads the disk.
+  final FineTuneResumer? fineTuneResumer;
 
   List<Override> get allOverrides => [
     videoSourceProvider.overrideWithValue(videoSource),
@@ -140,6 +145,8 @@ class TestSetup {
     fineTuneDraftsProvider.overrideWith(
       () => FakeFineTuneDraftsController(fineTunes),
     ),
+    if (fineTuneResumer != null)
+      fineTuneResumerProvider.overrideWithValue(fineTuneResumer!),
     launchSplashEnabledProvider.overrideWithValue(false),
     ...overrides,
   ];

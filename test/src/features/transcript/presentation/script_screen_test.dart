@@ -8,6 +8,7 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/application/groq_script_fix_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
+import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
@@ -248,6 +249,43 @@ void main() {
       findsOneWidget,
     );
   });
+
+  group('opening notice', () {
+    Future<void> pumpWithNotice(WidgetTester tester, String videoId) async {
+      await pumpRoutes(
+        tester,
+        [AppRoutes.script],
+        setup: TestSetup(
+          overrides: [
+            draftOverride(scriptDraft),
+            scriptOpeningNoticeProvider.overrideWith(
+              () => _PresetNotice((
+                videoId: videoId,
+                notice: ScriptOpeningNotice.fineTuneScriptChanged,
+              )),
+            ),
+          ],
+        ),
+      );
+    }
+
+    testWidgets('a_notice_for_this_video_shows_once', (tester) async {
+      await pumpWithNotice(tester, sampleVideo.videoId);
+
+      expect(find.textContaining('The script changed'), findsOneWidget);
+      expect(
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold).last))
+            .read(scriptOpeningNoticeProvider),
+        isNull,
+      );
+    });
+
+    testWidgets('a_notice_for_another_video_is_not_shown', (tester) async {
+      await pumpWithNotice(tester, 'another_video');
+
+      expect(find.textContaining('The script changed'), findsNothing);
+    });
+  });
 }
 
 /// A finished run that came from the saved scripts.
@@ -268,4 +306,13 @@ class FailedRunController extends ScriptProgressController {
   @override
   AsyncValue<ScriptProgress> build() =>
       const AsyncError(OfflineException('lost'), StackTrace.empty);
+}
+
+class _PresetNotice extends ScriptOpeningNoticeController {
+  _PresetNotice(this.initial);
+
+  final PendingScriptNotice initial;
+
+  @override
+  PendingScriptNotice? build() => initial;
 }

@@ -3,9 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 
 import '../../../../helpers/fine_tune_drafts.dart';
+import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 import '../../../../helpers/recent_reels.dart';
 import '../../../../helpers/saved_scripts.dart';
@@ -281,6 +286,68 @@ void main() {
 
       expect(find.text('Processed video'), findsOneWidget);
       expect(find.text('Kept song'), findsNothing);
+    });
+  });
+
+  group('continuing a fine-tune', () {
+    final kept = savedFineTune(
+      videoId: sampleVideo.videoId,
+      title: 'Kept song',
+    );
+
+    Future<void> tapContinue(
+      WidgetTester tester,
+      FineTuneResume outcome, {
+      ScriptPipeline? scriptPipeline,
+    }) async {
+      await pumpApp(
+        tester,
+        setup: TestSetup(
+          fineTunes: [kept],
+          fineTuneResumer: FakeFineTuneResumer(outcome),
+          scriptPipeline:
+              scriptPipeline ?? SavedScriptPipeline(sampleTranscript),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kept song'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('continue_opens_fine_tune_with_the_kept_clip', (tester) async {
+      await tapContinue(tester, FineTuneReady(pickedDraft));
+
+      expect(find.text('Fine-tune · Video'), findsOneWidget);
+    });
+
+    testWidgets('back_from_a_continued_fine_tune_shows_script', (tester) async {
+      await tapContinue(tester, FineTuneReady(pickedDraft));
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Next: fine-tune'), findsOneWidget);
+    });
+
+    testWidgets('continue_with_the_script_gone_says_it_was_written_again', (
+      tester,
+    ) async {
+      await tapContinue(
+        tester,
+        FineTuneScriptGone(pickedDraft.withSelection(const NoSelection())),
+        scriptPipeline: const FakeScriptPipeline(step: Duration.zero),
+      );
+
+      expect(find.textContaining('had to be written again'), findsOneWidget);
+    });
+
+    testWidgets('continue_with_a_changed_script_opens_script_with_the_notice', (
+      tester,
+    ) async {
+      await tapContinue(tester, FineTuneScriptChanged(scriptDraft));
+
+      expect(find.textContaining('The script changed'), findsOneWidget);
+      expect(find.text('Tap the line where your clip starts'), findsOneWidget);
     });
   });
 }

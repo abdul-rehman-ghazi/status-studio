@@ -13,6 +13,7 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/application/groq_script_fix_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
+import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
@@ -41,6 +42,7 @@ class ScriptScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
+          const _OpeningNotice(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: _LanguagePicker(
@@ -141,6 +143,39 @@ String _pickHint(ReelDraft draft) {
     (StartSelected(), _) => 'Now tap the line where it ends',
     _ => 'Tap the line where your clip starts',
   };
+}
+
+/// Shows, once, why Script opened instead of a kept fine-tune (spec FR-24).
+class _OpeningNotice extends ConsumerStatefulWidget {
+  const _OpeningNotice();
+
+  @override
+  ConsumerState<_OpeningNotice> createState() => _OpeningNoticeState();
+}
+
+class _OpeningNoticeState extends ConsumerState<_OpeningNotice> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showPendingNotice());
+  }
+
+  void _showPendingNotice() {
+    final pending = ref.read(scriptOpeningNoticeProvider);
+    if (!mounted || pending == null) {
+      return;
+    }
+    ref.read(scriptOpeningNoticeProvider.notifier).clear();
+    final videoId = ref.read(reelDraftProvider).video?.videoId;
+    if (pending.videoId != videoId) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(pending.notice.message)));
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 class _LanguagePicker extends StatelessWidget {
