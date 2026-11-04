@@ -10,6 +10,7 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
@@ -25,11 +26,24 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-class FineTuneScreen extends ConsumerWidget {
+class FineTuneScreen extends ConsumerStatefulWidget {
   const FineTuneScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FineTuneScreen> createState() => _FineTuneScreenState();
+}
+
+class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
+  final _playhead = ClipPlayhead();
+
+  @override
+  void dispose() {
+    _playhead.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final draft = ref.watch(reelDraftProvider);
     final clip = draft.clip;
     final video = draft.video;
@@ -42,7 +56,7 @@ class FineTuneScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          _SourcePreview(video: video, clip: clip),
+          _SourcePreview(video: video, clip: clip, playhead: _playhead),
           const SizedBox(height: 16),
           _ClipSummary(clip: clip),
           if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
@@ -96,10 +110,15 @@ List<TranscriptLine> _selectedLines(ReelDraft draft) {
 /// The clip player once the clip's window is downloaded (FR-15); until
 /// then, how far the download has got.
 class _SourcePreview extends ConsumerStatefulWidget {
-  const _SourcePreview({required this.video, required this.clip});
+  const _SourcePreview({
+    required this.video,
+    required this.clip,
+    required this.playhead,
+  });
 
   final SourceVideo video;
   final ClipRange clip;
+  final ClipPlayhead playhead;
 
   @override
   ConsumerState<_SourcePreview> createState() => _SourcePreviewState();
@@ -151,6 +170,7 @@ class _SourcePreviewState extends ConsumerState<_SourcePreview> {
         key: ValueKey(clipSource.file.path),
         source: clipSource,
         clip: widget.clip,
+        playhead: widget.playhead,
       );
     }
     if (source.error case final error?) {

@@ -201,9 +201,7 @@ void main() {
             for (final line in base.transcript.lines)
               line.index == 2
                   ? line.copyWith(
-                      end:
-                          line.start +
-                          const Duration(seconds: 0, milliseconds: 500),
+                      end: line.start + const Duration(milliseconds: 500),
                     )
                   : line,
           ],

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
@@ -60,6 +61,8 @@ void main() {
   testWidgets('lists_the_lines_in_the_clip', (tester) async {
     await pumpFineTune(tester);
 
+    await tester.scrollUntilVisible(find.text('محنت کامیابی کی کنجی ہے'), 200);
+
     expect(find.text('محنت کامیابی کی کنجی ہے'), findsOneWidget);
   });
 
@@ -94,16 +97,16 @@ void main() {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);
 
-    await tester.tap(find.byTooltip('Play clip'));
+    await tester.tap(find.text('Play clip'));
     await tester.pump();
 
     expect(players.created.single.value.position, const Duration(seconds: 5));
   });
 
-  testWidgets('playback_pauses_at_clip_end', (tester) async {
+  testWidgets('playback_continues_past_clip_end', (tester) async {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);
-    await tester.tap(find.byTooltip('Play clip'));
+    await tester.tap(find.text('Play clip'));
     await tester.pump();
     final player = players.created.single;
 
@@ -112,7 +115,41 @@ void main() {
     );
     await tester.pump();
 
-    expect(player.value.isPlaying, isFalse);
+    expect(player.value.isPlaying, isTrue);
+  });
+
+  testWidgets('play_button_pauses_a_playing_clip', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pump();
+
+    expect(players.created.single.value.isPlaying, isFalse);
+  });
+
+  testWidgets('play_button_resumes_where_it_paused', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+    final player = players.created.single;
+    player.value = player.value.copyWith(position: const Duration(seconds: 12));
+
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+
+    expect(player.value.position, const Duration(seconds: 12));
+  });
+
+  testWidgets('seek_bar_moves_the_player', (tester) async {
+    final players = RecordingPlayerFactory();
+    await pumpFineTune(tester, playerFactory: players.call);
+
+    await tester.tap(find.byType(Slider));
+    await tester.pump();
+
+    expect(players.created.single.value.position, greaterThan(Duration.zero));
   });
 
   testWidgets('player_disposed_when_screen_closes', (tester) async {
@@ -128,7 +165,7 @@ void main() {
   testWidgets('playback_pauses_when_style_opens', (tester) async {
     final players = RecordingPlayerFactory();
     await pumpFineTune(tester, playerFactory: players.call);
-    await tester.tap(find.byTooltip('Play clip'));
+    await tester.tap(find.text('Play clip'));
     await tester.pump();
 
     await tester.tap(find.text('Next: frame & caption'));

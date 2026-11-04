@@ -633,7 +633,7 @@ Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, 
 
 - [x] **1. Line edits (domain).** Pure functions on a script and its picked range: edit text, reorder (text moves, times stay), add at the playhead, delete, sync a line to the playhead, and which line is highlighted at a time.
 - [x] **2. Draft.** Applying an edit keeps the range on the same lines, refills the caption, and moves the clip only when the range or its first or last line's times change.
-- [ ] **3. Player.** Play, pause and seek over the window; no stop at the clip end; a playhead that Fine-tune can read and seek.
+- [x] **3. Player.** Play, pause and seek over the window; no stop at the clip end; a playhead that Fine-tune can read and seek.
 - [ ] **4. Lines list.** All lines in the window, dimmed outside the range, highlight, tap to seek or to time, edit, reorder, add, delete.
 - [ ] **5. Save.** The edited script is saved as `edited` after 1 s idle and when the screen closes.
 - [ ] **6. Docs.** §13 and §14 entries; mark M18 done.
