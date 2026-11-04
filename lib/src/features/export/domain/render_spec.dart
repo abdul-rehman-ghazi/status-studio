@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
@@ -102,7 +103,9 @@ Map<String, Object?> renderSpecFor(RenderJob job) {
     'outputWidth': output.width,
     'outputHeight': output.height,
     'fill': fill,
-    if (fill == 'crop') 'crop': _ndcCrop(job),
+    if (fill == 'crop' && job.frame.cropPath.isEmpty) 'crop': _ndcCrop(job),
+    if (fill == 'crop' && !job.frame.cropPath.isEmpty)
+      'cropKeyframes': _cropKeyframes(job),
     if (fill == 'blur') ..._blurSettings(job.sourceSize, output),
     'videoMimeType': 'video/avc',
     'audioMimeType': 'audio/mp4a-latm',
@@ -149,6 +152,30 @@ const blurSigmaInSourcePixels = _blurSigma;
 
 Map<String, double> _ndcCrop(RenderJob job) {
   final ndc = toNdc(cropRectFor(job.frame, job.sourceSize), job.sourceSize);
+  return {
+    'left': ndc.left,
+    'right': ndc.right,
+    'bottom': ndc.bottom,
+    'top': ndc.top,
+  };
+}
+
+/// The moving crop (spec §6.3.2): each keyframe's rectangle with its time
+/// counted from the clip start.
+List<Map<String, Object?>> _cropKeyframes(RenderJob job) {
+  return [
+    for (final keyframe in job.frame.cropPath.keyframes)
+      {
+        'timeMs': (keyframe.time - job.clip.start).inMilliseconds,
+        'arrival': keyframe.arrival == CropArrival.cut ? 'cut' : 'glide',
+        ..._ndcRectAt(job, keyframe.time),
+      },
+  ];
+}
+
+Map<String, double> _ndcRectAt(RenderJob job, Duration videoTime) {
+  final rect = cropRectAt(job.frame, job.sourceSize, videoTime);
+  final ndc = toNdc(rect, job.sourceSize);
   return {
     'left': ndc.left,
     'right': ndc.right,

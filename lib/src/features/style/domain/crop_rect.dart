@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 // The epsilon stops values like 575.9999999 (from 1920 × 0.3) losing a pixel.
@@ -76,6 +77,49 @@ PixelRect cropRectFor(FrameSettings frame, OutputSize source) {
   }
   return _fillCrop(frame, source);
 }
+
+/// Where the crop window is at [videoTime] (spec FR-22). With no keyframes
+/// it is [cropRectFor]. The window keeps its size and its place moves in the
+/// room around it.
+PixelRect cropRectAt(
+  FrameSettings frame,
+  OutputSize source,
+  Duration videoTime,
+) {
+  final fixed = cropRectFor(frame, source);
+  if (frame.cropPath.isEmpty) {
+    return fixed;
+  }
+  final anchor = frame.cropPath.anchorAt(videoTime, base: baseAnchorFor(frame));
+  return PixelRect(
+    x: _floor(anchor.x * (source.width - fixed.width)),
+    y: _floor(anchor.y * (source.height - fixed.height)),
+    width: fixed.width,
+    height: fixed.height,
+  );
+}
+
+/// The anchor of the fixed crop, where a moving crop starts (spec FR-22).
+CropAnchor baseAnchorFor(FrameSettings frame) {
+  if (frame.preset == AspectPreset.free) {
+    final crop = frame.freeCrop;
+    return CropAnchor(
+      x: _placeInRoom(crop.left, crop.width),
+      y: _placeInRoom(crop.top, crop.height),
+    );
+  }
+  return CropAnchor(
+    x: switch (frame.focus) {
+      CropFocus.left => 0,
+      CropFocus.center => 0.5,
+      CropFocus.right => 1,
+    },
+    y: 0.5,
+  );
+}
+
+double _placeInRoom(double start, double size) =>
+    size >= 1 ? 0 : start / (1 - size);
 
 PixelRect _freeCrop(FreeCropRect crop, OutputSize source) {
   return PixelRect(

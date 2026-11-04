@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 
 @immutable
 class OutputSize {
@@ -112,12 +113,16 @@ class FrameSettings {
     this.fill = FillMode.crop,
     this.focus = CropFocus.center,
     this.freeCrop = FreeCropRect.initial,
+    this.cropPath = const CropPath(),
   });
 
   final AspectPreset preset;
   final FillMode fill;
   final CropFocus focus;
   final FreeCropRect freeCrop;
+
+  /// Where the crop window is over time (spec FR-22); empty is a fixed crop.
+  final CropPath cropPath;
 
   bool get offersFill =>
       preset != AspectPreset.landscape16x9 && preset != AspectPreset.free;
@@ -129,12 +134,14 @@ class FrameSettings {
     FillMode? fill,
     CropFocus? focus,
     FreeCropRect? freeCrop,
+    CropPath? cropPath,
   }) {
     return FrameSettings(
       preset: preset ?? this.preset,
       fill: fill ?? this.fill,
       focus: focus ?? this.focus,
       freeCrop: freeCrop ?? this.freeCrop,
+      cropPath: cropPath ?? this.cropPath,
     );
   }
 
@@ -144,10 +151,11 @@ class FrameSettings {
       other.preset == preset &&
       other.fill == fill &&
       other.focus == focus &&
-      other.freeCrop == freeCrop;
+      other.freeCrop == freeCrop &&
+      other.cropPath == cropPath;
 
   @override
-  int get hashCode => Object.hash(preset, fill, focus, freeCrop);
+  int get hashCode => Object.hash(preset, fill, focus, freeCrop, cropPath);
 }
 
 const _maximumFreeSide = 1920;
