@@ -11,6 +11,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/features/background/data/background_work_platform.dart';
+import 'package:status_studio/src/features/branding/presentation/launch_splash.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/export/application/fake_renderer.dart';
@@ -121,6 +122,7 @@ class TestSetup {
     sourceCacheProvider.overrideWith(
       (ref) async => SourceCache(Directory.systemTemp),
     ),
+    launchSplashEnabledProvider.overrideWithValue(false),
     ...overrides,
   ];
 }
