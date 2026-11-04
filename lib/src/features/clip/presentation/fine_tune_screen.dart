@@ -22,6 +22,7 @@ import 'package:status_studio/src/features/reel/application/reel_draft_controlle
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -33,12 +34,53 @@ class FineTuneScreen extends ConsumerStatefulWidget {
 }
 
 class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
+  static const _saveDelay = Duration(seconds: 1);
+
   final _playhead = ClipPlayhead();
+  late final ScriptEditingService _scriptEditing;
+  Timer? _saveTimer;
+  Future<void> Function()? _pendingSave;
+
+  @override
+  void initState() {
+    super.initState();
+    // Read now: dispose saves a pending edit and can't use ref.
+    _scriptEditing = ref.read(scriptEditingServiceProvider);
+  }
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
+    unawaited(_savePending());
     _playhead.dispose();
     super.dispose();
+  }
+
+  /// Saves after a pause in editing, so a run of taps is one write (FR-21).
+  void _scheduleSave(ReelDraft draft) {
+    final video = draft.video;
+    final edited = draft.transcript;
+    if (video == null || edited == null) {
+      return;
+    }
+    _pendingSave = () =>
+        _scriptEditing.saveCorrected(video, draft.language, edited);
+    _saveTimer?.cancel();
+    _saveTimer = Timer(_saveDelay, () => unawaited(_savePending()));
+  }
+
+  Future<void> _savePending() async {
+    final save = _pendingSave;
+    _pendingSave = null;
+    if (save == null) {
+      return;
+    }
+    try {
+      await save();
+    } on Object {
+      // The edits are still in the draft and reach the reel; a full disk
+      // must not interrupt timing lines.
+    }
   }
 
   @override
@@ -50,6 +92,12 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       throw StateError('Fine-tune opened without a video and a clip.');
     }
     final controller = ref.read(reelDraftProvider.notifier);
+    ref.listen(reelDraftProvider.select((draft) => draft.transcript), (
+      before,
+      after,
+    ) {
+      _scheduleSave(ref.read(reelDraftProvider));
+    });
     return Scaffold(
       appBar: const FlowAppBar(title: 'Fine-tune', stepLabel: 'Step 3 of 4'),
       // The player stays put while the rest scrolls, so the lines can be

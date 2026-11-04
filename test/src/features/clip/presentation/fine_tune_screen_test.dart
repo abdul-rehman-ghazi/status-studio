@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,8 +8,13 @@ import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
+import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
@@ -15,17 +22,45 @@ import '../../../../helpers/fake_video_player.dart';
 import '../../../../helpers/fixtures.dart';
 import '../../../../helpers/pump_app.dart';
 
+/// Remembers what Fine-tune saves instead of writing files.
+class RecordingScriptEditingService extends ScriptEditingService {
+  RecordingScriptEditingService()
+    : super(
+        store: Future.value(
+          TranscriptStore(
+            Directory.systemTemp.createTempSync('fine_tune'),
+            clock: DateTime.now,
+          ),
+        ),
+      );
+
+  final saved = <Transcript>[];
+
+  @override
+  Future<void> saveCorrected(
+    SourceVideo video,
+    ScriptLanguage language,
+    Transcript corrected,
+  ) async => saved.add(corrected);
+}
+
 Future<void> pumpFineTune(
   WidgetTester tester, {
   VideoPlayerFactory playerFactory = fakePlayerFactory,
   FakeClipSourcePreparer? clipPreparer,
   ReelDraft? draft,
   List<double>? waveformPeaks,
+  ScriptEditingService? scriptEditing,
 }) => pumpRoutes(
   tester,
   [AppRoutes.fineTune],
   setup: TestSetup(
-    overrides: [draftOverride(draft ?? pickedDraft)],
+    overrides: [
+      draftOverride(draft ?? pickedDraft),
+      scriptEditingServiceProvider.overrideWithValue(
+        scriptEditing ?? RecordingScriptEditingService(),
+      ),
+    ],
     playerFactory: playerFactory,
     clipPreparer: clipPreparer,
     waveformPeaks: waveformPeaks,
@@ -360,6 +395,60 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(draftNow(tester).transcript!.lines[1].text, textOf(2));
+    });
+  });
+
+  group('saving edits', () {
+    Future<void> editFirstShownLine(WidgetTester tester) async {
+      final line = find.text(sampleTranscript.lines[2].text);
+      await tester.scrollUntilVisible(line, 200);
+      await tester.ensureVisible(line);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Delete line').at(2));
+      await tester.pump();
+    }
+
+    testWidgets('an_edit_is_saved_after_a_second_without_edits', (
+      tester,
+    ) async {
+      final editing = RecordingScriptEditingService();
+      await pumpFineTune(tester, scriptEditing: editing);
+      await editFirstShownLine(tester);
+
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(editing.saved.single.lines.length, 8);
+    });
+
+    testWidgets('nothing_is_saved_before_the_pause', (tester) async {
+      final editing = RecordingScriptEditingService();
+      await pumpFineTune(tester, scriptEditing: editing);
+      await editFirstShownLine(tester);
+
+      await tester.pump(const Duration(milliseconds: 900));
+
+      expect(editing.saved, isEmpty);
+    });
+
+    testWidgets('leaving_the_screen_saves_a_pending_edit', (tester) async {
+      final editing = RecordingScriptEditingService();
+      await pumpFineTune(tester, scriptEditing: editing);
+      await editFirstShownLine(tester);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(editing.saved.single.lines.length, 8);
+    });
+
+    testWidgets('leaving_without_edits_saves_nothing', (tester) async {
+      final editing = RecordingScriptEditingService();
+      await pumpFineTune(tester, scriptEditing: editing);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(editing.saved, isEmpty);
     });
   });
 }

@@ -531,7 +531,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Done, branch `m15-groq-script-fix` (stacked on M14); device check pending |
 | M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main`; device check pending |
 | M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only`; device check pending |
-| M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | In progress, branch `m18-fine-tune-lines` (stacked on M17) |
+| M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -635,8 +635,8 @@ Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, 
 - [x] **2. Draft.** Applying an edit keeps the range on the same lines, refills the caption, and moves the clip only when the range or its first or last line's times change.
 - [x] **3. Player.** Play, pause and seek over the window; no stop at the clip end; a playhead that Fine-tune can read and seek.
 - [x] **4. Lines list.** All lines in the window, dimmed outside the range, highlight, tap to seek or to time, edit, reorder, add, delete.
-- [ ] **5. Save.** The edited script is saved as `edited` after 1 s idle and when the screen closes.
-- [ ] **6. Docs.** §13 and §14 entries; mark M18 done.
+- [x] **5. Save.** The edited script is saved as `edited` after 1 s idle and when the screen closes.
+- [x] **6. Docs.** §13 and §14 entries; mark M18 done.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -681,6 +681,7 @@ Request, 2026-11-04: Fine-tune gets play, pause and seek, editable lines (edit, 
   - Delete refuses the last picked line, and the range keeps the same lines.
   - The clip follows the range's end lines, and a plain nudge survives an edit elsewhere.
   - Highlight lasts from a line's start to its end, and nothing between lines.
+  - An edit is saved after 1 s without edits and when the screen closes; closing with no edit saves nothing.
 - **Library:**
   - The 51st reel drops the oldest and its files.
   - Reels with missing files are skipped, and corrupt preferences give an empty list.
