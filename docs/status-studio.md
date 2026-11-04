@@ -817,4 +817,4 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 
 - Processing says "Downloading audio" even when the audio is cached.
 - The language list shows both "English (detected)" and "English".
-- **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) Timing a line past the clip end past the downloaded window starts a new download (FR-15) and replaces the player in the middle of playing. (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
+- **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) Timing a line beyond the downloaded window starts a new download (FR-15) and replaces the player in the middle of playing. (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
