@@ -66,17 +66,26 @@ class _Progress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sampling the frames has no progress to show; the percent starts with
+    // the first look at a frame.
+    final measured = fraction > 0;
     final percent = (fraction * 100).round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Expanded(child: Text('Finding the person… $percent %')),
+            Expanded(
+              child: Text(
+                measured
+                    ? 'Finding the person… $percent %'
+                    : 'Finding the person…',
+              ),
+            ),
             TextButton(onPressed: onCancel, child: const Text('Cancel')),
           ],
         ),
-        LinearProgressIndicator(value: fraction),
+        LinearProgressIndicator(value: measured ? fraction : null),
       ],
     );
   }

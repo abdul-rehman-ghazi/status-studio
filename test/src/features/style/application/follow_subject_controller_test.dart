@@ -40,7 +40,7 @@ void main() {
           (ref, source) async => const OutputSize(1920, 1080),
         ),
         frameExtractorProvider.overrideWithValue(extractor),
-        subjectDetectorProvider.overrideWithValue(detector),
+        subjectDetectorProvider.overrideWithValue(() => detector),
       ],
     );
     container
@@ -216,17 +216,63 @@ void main() {
       expect(stateNow(), isA<FollowIdle>());
     });
 
-    test('moving_the_crop_by_hand_does_not_cancel_the_run', () async {
+    test('a_hand_edit_during_the_run_wins_over_its_result', () async {
       arrange();
       final finish = await startAndHoldAtFirstFrame();
 
       container
           .read(reelDraftProvider.notifier)
           .moveCropTo(pickedDraft.clip!.start, const CropAnchor(x: 0, y: 0.5));
+      final edited = pathNow();
       detector.gate!.complete();
       await finish();
 
-      expect(stateNow(), isA<FollowDone>());
+      expect(pathNow(), edited);
+      expect(stateNow(), isA<FollowIdle>());
+    });
+
+    test('turning_the_move_off_cancels_the_run', () async {
+      arrange();
+      final finish = await startAndHoldAtFirstFrame();
+
+      container.read(reelDraftProvider.notifier).stopMovingCrop();
+      detector.gate!.complete();
+      await finish();
+
+      expect(stateNow(), isA<FollowIdle>());
+      expect(pathNow().isEmpty, isTrue);
+    });
+  });
+
+  group('the detector', () {
+    test('is_closed_when_a_run_ends', () async {
+      arrange();
+
+      await start();
+
+      expect(detector.closed, isTrue);
+    });
+
+    test('is_closed_when_a_run_is_cancelled', () async {
+      arrange();
+      detector.gate = Completer<void>();
+      await downloadClip();
+      final run = container.read(followSubjectProvider.notifier).start();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      container.read(followSubjectProvider.notifier).cancel();
+      detector.gate!.complete();
+      await run;
+
+      expect(detector.closed, isTrue);
+    });
+
+    test('is_closed_when_it_fails', () async {
+      arrange(faces: FakeSubjectDetector(failure: Exception('model')));
+
+      await start();
+
+      expect(detector.closed, isTrue);
     });
   });
 

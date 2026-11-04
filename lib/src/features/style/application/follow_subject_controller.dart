@@ -85,6 +85,7 @@ class FollowSubjectController extends Notifier<FollowState> {
     if (source == null) {
       throw StateError('Follow the person started before the clip downloaded.');
     }
+    final pathAtStart = draft.frame.cropPath;
     final generation = ++_generation;
     final cancelFfmpeg = _cancelFfmpeg = FfmpegCancelHandle();
     state = const FollowRunning(0);
@@ -110,6 +111,11 @@ class FollowSubjectController extends Notifier<FollowState> {
           clip: clip,
         ),
       );
+      if (ref.read(reelDraftProvider).frame.cropPath != pathAtStart) {
+        // The user moved the crop by hand meanwhile; that wins.
+        state = const FollowIdle();
+        return;
+      }
       ref.read(reelDraftProvider.notifier).followCrop(path);
       state = FollowDone(path.keyframes.length);
     } on NoSubjectFoundException {
@@ -157,7 +163,20 @@ class FollowSubjectController extends Notifier<FollowState> {
     Duration clipStart,
     int generation,
   ) async {
-    final detector = ref.read(subjectDetectorProvider);
+    final detector = ref.read(subjectDetectorProvider)();
+    try {
+      return await _look(detector, frames, clipStart, generation);
+    } finally {
+      await detector.close();
+    }
+  }
+
+  Future<List<SubjectSample>> _look(
+    SubjectDetector detector,
+    SampledFrames frames,
+    Duration clipStart,
+    int generation,
+  ) async {
     final samples = <SubjectSample>[];
     for (final (index, frame) in frames.frames.indexed) {
       if (_isStale(generation)) {
@@ -192,4 +211,6 @@ Object _whatTheRunDependsOn(ReelDraft draft) => (
   draft.frame.fill,
   draft.frame.freeCrop.width,
   draft.frame.freeCrop.height,
+  // Turning the move off ends the run; the section is gone with it.
+  draft.frame.cropPath.isEmpty,
 );

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,8 +42,8 @@ class MlKitFaceDetector implements SubjectDetector {
   Future<void> close() => _detector.close();
 }
 
-final subjectDetectorProvider = Provider<SubjectDetector>((ref) {
-  final detector = MlKitFaceDetector();
-  ref.onDispose(() => unawaited(detector.close()));
-  return detector;
-});
+/// Makes a detector for one run. The run closes it, so the native model is
+/// not held between runs.
+final subjectDetectorProvider = Provider<SubjectDetector Function()>(
+  (ref) => MlKitFaceDetector.new,
+);

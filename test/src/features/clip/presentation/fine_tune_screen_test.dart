@@ -571,7 +571,7 @@ void main() {
         playerFactory: players.call,
         overrides: [
           frameExtractorProvider.overrideWithValue(extractor),
-          subjectDetectorProvider.overrideWithValue(detector),
+          subjectDetectorProvider.overrideWithValue(() => detector),
         ],
       );
       if (moving) {

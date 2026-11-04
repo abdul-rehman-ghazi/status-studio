@@ -280,16 +280,16 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 **FR-23 Follow the person (M20).** On Fine-tune · Video, with "Move the crop during the clip" on and the crop able to move (FR-22), a button makes the crop follow a person in the clip by writing its keyframes. Nothing is uploaded and no key is needed.
 - **Button:** "Follow the person" under the switch, with the hint "Runs on your phone; nothing is uploaded."
 - **Detector:** ML Kit face detection, on the phone, with the bundled model (fast mode, small faces allowed, no landmarks or contours). Pose detection is only a fallback if the spike (§10 item 7) shows faces are missed too often. Other detectors were rejected: selfie segmentation (made for close-ups) and object detection (it has no person class).
-- **Frames:** sampled by FFmpeg from the already downloaded clip file, clip range only, with no new download: 4 per second, or fewer for a long clip so there are at most 240 (never below 2 per second), as JPEG scaled to fit 640 × 640. Frame k is at video time `clip.start + k / rate`. The same run lists scene cuts (`scdet`) with their times. The frames are in a cache folder that is deleted when the run ends, is cancelled or fails.
+- **Frames:** sampled by FFmpeg from the already downloaded clip file, clip range only, with no new download: 4 per second, or fewer for a long clip so there are at most 240 (never below 2 per second), as JPEG scaled to fit 640 × 640. Frame k is at video time `clip.start + k / rate`. The same run lists scene cuts (`scdet`) with their times; a build without that filter fails the run, so it is run again without it and the jump rule below covers the cuts. The frames are in a cache folder that is deleted when the run ends, is cancelled or fails.
 - **Which face:** the face that overlaps the previous pick most (IoU of 0.3 or more, within one scene); otherwise the largest.
 - **Where the window goes:** its x centres the window on the face; its y puts the face a third of the way down the window. The anchor is the window's left over `1 − window width`, clamped to 0..1. An axis with under 1 % room keeps the base anchor.
 - **Gaps:** a frame with no face holds the last anchor. Before the first face, that face's anchor is used; in a scene with no face at all, the base anchor.
 - **No person:** with faces in fewer than 20 % of the frames, or in fewer than 3 frames, nothing changes and the §8 message shows.
 - **Smoothing:** a centred median over 5 samples (1.25 s), restarted at each scene cut; then a dead zone: the anchor holds until the target is 0.08 of the room away.
-- **Keyframes:** Ramer–Douglas–Peucker with a tolerance of 0.03 of the room. A scene cut is a Cut keyframe at the cut time; with no cut data, a jump of more than 0.3 of the room between neighbouring samples counts as a cut. Everything else glides. Times snap to 0.1 s and stay inside the clip (FR-22); the first keyframe is at the clip start, rounded inwards to 0.1 s; keyframes are at least 0.5 s apart; at most **12**: above that the tolerance grows by 1.5× until it fits.
+- **Keyframes:** Ramer–Douglas–Peucker with a tolerance of 0.03 of the room. A scene cut is a Cut keyframe at the cut time. A jump of more than 0.3 of the room between neighbouring samples is a cut too, unless a detected cut is within half a second of it (so a soft cut the detector missed still cuts). A cut within half a second of the clip start gives the first keyframe the new shot's anchor. Everything else glides. Times snap to 0.1 s and stay inside the clip (FR-22); the first keyframe is at the clip start, rounded inwards to 0.1 s; keyframes are at least 0.5 s apart; at most **12**: above that the tolerance grows by 1.5× until it fits, and if many scenes still leave more, the keyframes that change the crop least are dropped (never the first), so the end of the clip is not cut off.
 - **Replacing:** the result replaces the keyframes. When more than one exists, the app asks first: "Replace your crop keyframes?" with Replace and Keep.
 - **After:** a snackbar "The crop follows the person (6 keyframes). Drag or tap a chip to adjust." The first chip is selected and the player seeks to the clip start. Everything stays editable as FR-22 says.
-- **While it runs:** a bar, "Finding the person… 45 %", with Cancel. Cancel, leaving the step, opening Lyrics, or any change of the clip, size, fill or the free crop's size stops it and changes nothing. It doesn't use the player, and takes no foreground service (about 20 s at most).
+- **While it runs:** a bar, "Finding the person… 45 %", with Cancel. Sampling the frames has no progress to show, so until the first frame is looked at the bar is indeterminate and has no percent. The detector is made for the run and closed when it ends, fails or is cancelled. Cancel, leaving the step, opening Lyrics, turning "Move the crop" off, or any change of the clip, size, fill or the free crop's size stops it and changes nothing. If the user moves the crop by hand meanwhile, that wins and the result is dropped. It doesn't use the player, and takes no foreground service (about 20 s at most).
 - **Several people:** it follows the largest, with continuity. Choosing by tapping is out of scope (§11).
 
 ## 4. Non-functional requirements
@@ -554,7 +554,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 7. **Person detection on the phone (M20 task 1, device only, not yet run).** Question: can ML Kit face detection find the person in a clip fast enough and often enough on a Redmi Note 11 (profile build) to make Follow the person (FR-23) worth shipping? Clips: three of 30 s, a naat singer facing the camera, a wide shot with two people, and calligraphy only. Sampled at 4 fps, long side 640.
    - **Measure:** frame extraction time, detector ms per frame, recall against a hand count, false-positive frames, arm64 APK growth.
    - **Go** if all hold: ≤ 15 s in total per 30 s clip, recall ≥ 80 %, false positives ≤ 5 % (the calligraphy clip gives no keyframes), APK growth ≤ 8 MB. If recall is under 80 %, try face plus pose; if that still misses, no-go.
-   - **Not checked yet:** which face-detection plugin version resolves against `google_mlkit_commons` ^0.13.0, whether AV1 clips decode in software, whether `scdet` with `metadata=file=` behaves as FR-23 assumes (the jump rule stands in if not).
+   - **Not checked yet:** which face-detection plugin version resolves against `google_mlkit_commons` ^0.13.0, whether AV1 clips decode in software, whether `scdet` with `metadata=file=` behaves as FR-23 assumes (if the build lacks the filter the run is repeated without it; the jump rule applies either way).
 
 
 ## 11. Out of scope for v1
@@ -774,12 +774,14 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
 - **Follow the person (FR-23):**
   - A steady face gives one keyframe. A face drifting left to right gives at most four keyframes, all glides, and ends near the right. Jitter of ±0.03 of the room gives one keyframe.
   - Two faces: the larger is followed, and a larger one appearing beside the followed one doesn't take over.
-  - A scene cut gives a Cut at the cut time; a jump of more than 0.3 of the room with no cut data gives a Cut.
+  - A scene cut gives a Cut at the cut time; a jump of more than 0.3 of the room that the detector missed gives a Cut too, but not a second one beside a detected cut. A cut right after the clip start moves the first keyframe.
+  - Sixty seconds with a cut every three seconds gives at most 12 keyframes and still reaches past 40 s.
   - A gap of one second holds the last anchor. With room on x only, y keeps the base anchor.
   - A clip of 90 s of busy movement gives at most 12 keyframes, at least 0.5 s apart, all inside the clip; a clip starting at 12.34 s gets its first keyframe at 12.4 s.
   - Faces in fewer than 20 % of the frames change nothing and give "No person found".
   - The frame arguments use file time (the offset subtracted), the sampling rate falls for long clips and never below 2, and the cut parser reads FFmpeg's times.
-  - Replace is asked only when more than one keyframe exists. Cancel, leaving, and a clip or size change stop the run, delete the frames and change nothing.
+  - Replace is asked only when more than one keyframe exists. Cancel, leaving, turning the move off, and a clip or size change stop the run, delete the frames and change nothing; a hand edit during the run wins. The detector is closed after every run.
+  - A build without the scene filter is run again without it. The cuts file path is escaped for the filter graph. Until the first frame is looked at the bar is indeterminate.
 - **Moving crop (FR-22):**
   - A glide moves in a straight line and arrives at its keyframe's time; a cut holds the earlier anchor until then and has jumped at exactly that time. Dart and Kotlin share their boundary cases.
   - Before the first keyframe the first anchor holds, and after the last the last.

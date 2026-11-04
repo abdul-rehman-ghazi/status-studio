@@ -11,11 +11,20 @@ import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 /// Writes what FFmpeg would: [frameCount] JPEGs and, unless [cutsText] is
 /// null, the scene-cut file.
 class FakeFrameRunner implements CancellableFfmpegRunner {
-  FakeFrameRunner({this.frameCount = 3, this.cutsText = '', this.failure});
+  FakeFrameRunner({
+    this.frameCount = 3,
+    this.cutsText = '',
+    this.failure,
+    this.lacksSceneFilter = false,
+  });
 
   final int frameCount;
   final String? cutsText;
   final Exception? failure;
+
+  /// Fails any run that asks for scene detection, as a build without the
+  /// filter would.
+  final bool lacksSceneFilter;
   final runs = <List<String>>[];
 
   @override
@@ -24,12 +33,16 @@ class FakeFrameRunner implements CancellableFfmpegRunner {
     if (failure case final failure?) {
       throw failure;
     }
+    if (lacksSceneFilter && arguments.any((a) => a.contains('scdet'))) {
+      throw const FfmpegFailedException('No such filter: scdet');
+    }
     final directory = File(arguments.last).parent.path;
     for (var frame = 0; frame < frameCount; frame++) {
       final name = 'frame${frame.toString().padLeft(4, '0')}.jpg';
       await File('$directory/$name').writeAsBytes(const [1]);
     }
-    if (cutsText case final text?) {
+    final detectsScenes = arguments.any((a) => a.contains('scdet'));
+    if (cutsText case final text? when detectsScenes) {
       await File('$directory/cuts.txt').writeAsString(text);
     }
   }
@@ -107,6 +120,26 @@ void main() {
         .extract(source, clip, FfmpegCancelHandle());
 
     expect(frames.sceneCuts, isNull);
+  });
+
+  group('a build without the scene filter', () {
+    test('is_tried_again_without_scene_detection', () async {
+      final runner = FakeFrameRunner(lacksSceneFilter: true);
+
+      final frames = await extractorWith(runner)
+          .extract(source, clip, FfmpegCancelHandle());
+
+      expect(runner.runs.length, 2);
+      expect(frames.frames, isNotEmpty);
+    });
+
+    test('has_no_scene_cuts_known', () async {
+      final frames = await extractorWith(
+        FakeFrameRunner(lacksSceneFilter: true),
+      ).extract(source, clip, FfmpegCancelHandle());
+
+      expect(frames.sceneCuts, isNull);
+    });
   });
 
   test('delete_removes_the_frames', () async {

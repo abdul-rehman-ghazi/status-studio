@@ -24,7 +24,10 @@ const _tenth = Duration(milliseconds: 100);
 CropPath followSubject(SubjectTrack track, FollowGeometry geometry) {
   _requireEnoughFaces(track.samples);
   final cuts = _cutsInsideClip(
-    track.sceneCuts ?? _cutsFromJumps(track.samples, geometry),
+    _withMissedJumps(
+      track.sceneCuts ?? const [],
+      _cutsFromJumps(track.samples, geometry),
+    ),
     geometry.clip,
   );
   final scenes = _scenesOf(track.samples, cuts, geometry.clip);
@@ -76,8 +79,17 @@ List<_Scene> _scenesOf(
   return scenes;
 }
 
-/// With no scene-cut data, a face that jumps far between two neighbouring
-/// frames is taken to be a cut.
+/// The detected cuts, and any jump the detector missed (a soft cut): one
+/// that is not within a keyframe's spacing of a detected cut.
+List<Duration> _withMissedJumps(List<Duration> detected, List<Duration> jumps) {
+  final missed = jumps.where(
+    (jump) => !detected.any((cut) => (cut - jump).abs() < _keyframeSpacing),
+  );
+  return [...detected, ...missed];
+}
+
+/// A face that jumps far between two neighbouring frames is taken to be a
+/// cut, whether or not the scene detector saw one.
 List<Duration> _cutsFromJumps(
   List<SubjectSample> samples,
   FollowGeometry geometry,
@@ -265,7 +277,7 @@ List<CropKeyframe> _cappedKeyframes(
     tolerance *= _toleranceGrowth;
     attempts++;
   } while (keyframes.length > _mostKeyframes && attempts < 20);
-  return keyframes.take(_mostKeyframes).toList();
+  return _mergedDownToTheMost(keyframes);
 }
 
 /// A scene's last point that sits where the one before it is adds nothing:
@@ -281,6 +293,29 @@ List<_Point> _withoutIdleEnd(List<_Point> points, double tolerance) {
     (last.anchor.y - before.anchor.y).abs(),
   );
   return moved <= tolerance ? points.sublist(0, points.length - 1) : points;
+}
+
+/// Many scenes can leave more keyframes than any tolerance removes, so the
+/// ones that change the crop least go, wherever they are: the end of the clip
+/// is never simply cut off. The first keyframe stays.
+List<CropKeyframe> _mergedDownToTheMost(List<CropKeyframe> keyframes) {
+  final kept = [...keyframes];
+  while (kept.length > _mostKeyframes) {
+    var leastIndex = 1;
+    var least = double.infinity;
+    for (var i = 1; i < kept.length; i++) {
+      final change = math.max(
+        (kept[i].anchor.x - kept[i - 1].anchor.x).abs(),
+        (kept[i].anchor.y - kept[i - 1].anchor.y).abs(),
+      );
+      if (change < least) {
+        least = change;
+        leastIndex = i;
+      }
+    }
+    kept.removeAt(leastIndex);
+  }
+  return kept;
 }
 
 List<CropKeyframe> _keyframesFrom(
@@ -316,11 +351,18 @@ void _addWithSpacing(List<CropKeyframe> keyframes, CropKeyframe next) {
     keyframes.add(next);
     return;
   }
-  if (next.arrival == CropArrival.cut && keyframes.length > 1) {
+  if (next.arrival != CropArrival.cut) {
+    return;
+  }
+  if (keyframes.length > 1) {
     keyframes
       ..removeLast()
       ..add(next);
+    return;
   }
+  // The only keyframe so far is the clip's start: the cut came right after
+  // it, so the start takes the new shot's anchor and keeps its time.
+  keyframes[0] = keyframes[0].copyWith(anchor: next.anchor);
 }
 
 Duration _snapped(Duration time) =>

@@ -181,7 +181,7 @@ void main() {
       );
     });
 
-    test('a_big_jump_is_not_a_cut_when_the_cuts_are_known_to_be_none', () {
+    test('a_big_jump_the_scene_detector_missed_is_still_a_cut', () {
       final path = followSubject(
         trackOf(
           tenSeconds,
@@ -193,8 +193,40 @@ void main() {
 
       expect(
         path.keyframes.where((keyframe) => keyframe.arrival == CropArrival.cut),
-        isEmpty,
+        hasLength(1),
       );
+    });
+
+    test('a_jump_beside_a_known_cut_is_not_a_second_cut', () {
+      final path = followSubject(
+        trackOf(
+          tenSeconds,
+          (frame) => [faceAt(frame < 20 ? 0.25 : 0.75)],
+          sceneCuts: [const Duration(milliseconds: 25100)],
+        ),
+        geometryFor(tenSeconds),
+      );
+
+      expect(
+        path.keyframes.where((keyframe) => keyframe.arrival == CropArrival.cut),
+        hasLength(1),
+      );
+    });
+
+    test('a_cut_just_after_the_clip_start_moves_the_first_keyframe', () {
+      final clip = clipOfSeconds(10, 40);
+
+      final path = followSubject(
+        trackOf(
+          clip,
+          (frame) => [faceAt(frame < 2 ? 0.25 : 0.75)],
+          sceneCuts: [const Duration(milliseconds: 10300)],
+        ),
+        geometryFor(clip),
+      );
+
+      // The second shot's face is at 0.75: (0.75 − 0.158) / 0.684.
+      expect(path.keyframes.first.anchor.x, closeTo(0.8655, 0.01));
     });
 
     test('a_second_without_a_face_holds_the_last_anchor', () {
@@ -294,6 +326,33 @@ void main() {
               keyframe.time <= ninetySeconds.end,
         ),
         isTrue,
+      );
+    });
+  });
+
+  group('followSubject with quick cuts', () {
+    final minute = clipOfSeconds(0, 60);
+    final quickCuts = trackOf(
+      minute,
+      (frame) => [faceAt((frame ~/ 12).isEven ? 0.2 : 0.8)],
+      sceneCuts: [
+        for (var second = 3; second < 60; second += 3)
+          Duration(seconds: second),
+      ],
+    );
+
+    test('stays_within_twelve_keyframes', () {
+      final path = followSubject(quickCuts, geometryFor(minute));
+
+      expect(path.keyframes.length, lessThanOrEqualTo(12));
+    });
+
+    test('still_follows_to_the_end_of_the_clip', () {
+      final path = followSubject(quickCuts, geometryFor(minute));
+
+      expect(
+        path.keyframes.last.time,
+        greaterThanOrEqualTo(const Duration(seconds: 40)),
       );
     });
   });

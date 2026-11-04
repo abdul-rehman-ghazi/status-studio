@@ -65,30 +65,57 @@ class FfmpegFrameExtractor implements FrameExtractor {
   ) async {
     final directory = _makeDirectory();
     final rate = samplingRateFor(clip.length);
+    try {
+      try {
+        await _sample(source, clip, directory, rate, cancel, findCuts: true);
+      } on FfmpegFailedException {
+        if (cancel.isCancelled) {
+          rethrow;
+        }
+        // A build without the scene filter fails the whole run; the frames
+        // matter more, and a face that jumps stands in for a cut.
+        await _emptied(directory);
+        await _sample(source, clip, directory, rate, cancel, findCuts: false);
+      }
+      return await _read(directory, rate, clip.start);
+    } on FfmpegFailedException catch (failure) {
+      await _deleted(directory);
+      throw FollowFailedException(failure.log);
+    } on Object {
+      await _deleted(directory);
+      rethrow;
+    }
+  }
+
+  Future<void> _sample(
+    ClipSource source,
+    ClipRange clip,
+    Directory directory,
+    double rate,
+    FfmpegCancelHandle cancel, {
+    required bool findCuts,
+  }) {
     final sampling = FrameSampling(
       inputPath: source.file.path,
       outputDirectory: directory.path,
-      cutsPath: '${directory.path}/cuts.txt',
+      cutsPath: findCuts ? '${directory.path}/cuts.txt' : null,
       // The clip file's own time zero is `offset` into the video.
       start: clip.start - source.offset,
       end: clip.end - source.offset,
       framesPerSecond: rate,
     );
-    final sampled = SampledFrames(
-      directory: directory,
-      frames: const [],
-      framesPerSecond: rate,
-      sceneCuts: null,
-    );
-    try {
-      await runner.run(sampledFramesArguments(sampling), cancel);
-      return await _read(directory, rate, clip.start);
-    } on FfmpegFailedException catch (failure) {
-      await sampled.delete();
-      throw FollowFailedException(failure.log);
-    } on Object {
-      await sampled.delete();
-      rethrow;
+    return runner.run(sampledFramesArguments(sampling), cancel);
+  }
+
+  Future<void> _emptied(Directory directory) async {
+    await for (final entry in directory.list()) {
+      await entry.delete(recursive: true);
+    }
+  }
+
+  Future<void> _deleted(Directory directory) async {
+    if (await directory.exists()) {
+      await directory.delete(recursive: true);
     }
   }
 

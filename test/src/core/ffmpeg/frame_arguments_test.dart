@@ -92,7 +92,26 @@ void main() {
 
       expect(
         filters[filters.indexOf('-vf') + 1],
-        contains(r'file=C\:\\cache\\cuts.txt'),
+        contains(r'file=C\\:\\\\cache\\\\cuts.txt'),
+      );
+    });
+  });
+
+  group('without scene cuts', () {
+    test('there_is_no_scene_filter', () {
+      final arguments = sampledFramesArguments(
+        const FrameSampling(
+          inputPath: '/cache/clip.mp4',
+          outputDirectory: '/cache/frames',
+          start: Duration.zero,
+          end: Duration(seconds: 10),
+          framesPerSecond: 4,
+        ),
+      );
+
+      expect(
+        arguments[arguments.indexOf('-vf') + 1],
+        'scale=640:640:force_original_aspect_ratio=decrease,fps=4',
       );
     });
   });

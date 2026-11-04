@@ -33,17 +33,18 @@ class FrameSampling {
   const FrameSampling({
     required this.inputPath,
     required this.outputDirectory,
-    required this.cutsPath,
     required this.start,
     required this.end,
     required this.framesPerSecond,
+    this.cutsPath,
   });
 
   final String inputPath;
   final String outputDirectory;
 
-  /// Where FFmpeg writes the times of scene cuts, one per line.
-  final String cutsPath;
+  /// Where FFmpeg writes the times of scene cuts, one per line; none means
+  /// no scene detection (the build may lack the filter).
+  final String? cutsPath;
   final Duration start;
   final Duration end;
   final double framesPerSecond;
@@ -54,11 +55,14 @@ class FrameSampling {
 /// one the bundled build has; it has no PNG encoder. The scene detector looks
 /// at every frame, and only then are frames dropped to the sampling rate.
 List<String> sampledFramesArguments(FrameSampling sampling) {
+  final cutsPath = sampling.cutsPath;
   final filters = [
     'scale=640:640:force_original_aspect_ratio=decrease',
-    'scdet=threshold=10',
-    'metadata=mode=print:key=lavfi.scd.time:file='
-        '${_escapedFilterValue(sampling.cutsPath)}',
+    if (cutsPath != null) ...[
+      'scdet=threshold=10',
+      'metadata=mode=print:key=lavfi.scd.time:file='
+          '${_escapedInFilterGraph(cutsPath)}',
+    ],
     'fps=${_plainNumber(sampling.framesPerSecond)}',
   ].join(',');
   return [
@@ -103,9 +107,22 @@ List<Duration> parseSceneCuts(String text) {
   return cuts;
 }
 
-/// A value inside a filter chain: backslashes and colons need escaping.
-String _escapedFilterValue(String value) =>
-    value.replaceAll(r'\', r'\\').replaceAll(':', r'\:');
+/// A path inside a filter chain, escaped twice as FFmpeg reads it twice: the
+/// filter takes the value up to the next `:`, and before that the graph
+/// parser has taken the chain apart at `,` `;` `[` and `]`.
+String _escapedInFilterGraph(String value) {
+  final forTheFilter = value
+      .replaceAll(r'\', r'\\')
+      .replaceAll(':', r'\:')
+      .replaceAll("'", r"\'");
+  return forTheFilter
+      .replaceAll(r'\', r'\\')
+      .replaceAll("'", r"\'")
+      .replaceAll(',', r'\,')
+      .replaceAll(';', r'\;')
+      .replaceAll('[', r'\[')
+      .replaceAll(']', r'\]');
+}
 
 String _plainNumber(double value) =>
     value == value.roundToDouble() ? value.toInt().toString() : '$value';

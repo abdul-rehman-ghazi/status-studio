@@ -49,6 +49,7 @@ class FakeSubjectDetector implements SubjectDetector {
   /// When set, each look waits for it.
   Completer<void>? gate;
   var calls = 0;
+  var closed = false;
 
   @override
   Future<List<SubjectBox>> facesIn(File frame) async {
@@ -61,7 +62,7 @@ class FakeSubjectDetector implements SubjectDetector {
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async => closed = true;
 }
 
 const centredFace = SubjectBox(left: 0.45, top: 0.35, width: 0.1, height: 0.1);
