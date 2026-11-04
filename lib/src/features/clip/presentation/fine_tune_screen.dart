@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,11 +13,15 @@ import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
 import 'package:status_studio/src/features/clip/domain/waveform.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
+import 'package:status_studio/src/features/clip/presentation/crop_keyframe_chips.dart';
+import 'package:status_studio/src/features/clip/presentation/crop_window_overlay.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/frame_controls.dart';
 import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
@@ -34,6 +40,7 @@ class FineTuneScreen extends ConsumerStatefulWidget {
 
 class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   final _playhead = ClipPlayhead();
+  var _selectedKeyframe = 0;
 
   @override
   void dispose() {
@@ -50,13 +57,15 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       throw StateError('Fine-tune opened without a video and a clip.');
     }
     final controller = ref.read(reelDraftProvider.notifier);
+    final sourceSize = previewSourceSize(ref, draft);
+    final path = draft.frame.cropPath;
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Fine-tune · Video',
         stepLabel: 'Step 3 of 5',
       ),
-      // The player stays put while the rest scrolls, so the lines can be
-      // tapped with the video in view.
+      // The player and the crop keyframes stay put while the rest scrolls,
+      // so the crop can be moved with the video in view.
       body: Column(
         children: [
           Padding(
@@ -65,9 +74,33 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
               video: video,
               clip: clip,
               playhead: _playhead,
+              videoOverlay: canMoveCrop(draft.frame, sourceSize)
+                  ? CropWindowOverlay(
+                      frame: draft.frame,
+                      sourceSize: sourceSize,
+                      playhead: _playhead,
+                      editable: !path.isEmpty,
+                      onMoved: (time, anchor) =>
+                          _moveCropTo(controller, time, anchor),
+                    )
+                  : null,
             ),
           ),
-          Expanded(child: _scrollingBody(draft, video, clip, controller)),
+          if (!path.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: CropKeyframeChips(
+                path: path,
+                clip: clip,
+                selected: _selectedKeyframe,
+                onSelected: (index) => _selectKeyframe(path, index),
+                onArrival: controller.setCropArrival,
+                onDelete: controller.removeCropKeyframe,
+              ),
+            ),
+          Expanded(
+            child: _scrollingBody(draft, video, clip, controller, sourceSize),
+          ),
         ],
       ),
       bottomNavigationBar: BottomAction(
@@ -79,11 +112,35 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     );
   }
 
+  /// One keyframe is written when a drag ends; it becomes the selected one.
+  void _moveCropTo(
+    ReelDraftController controller,
+    Duration time,
+    CropAnchor anchor,
+  ) {
+    controller.moveCropTo(time, anchor);
+    final keyframes = ref.read(reelDraftProvider).frame.cropPath.keyframes;
+    final nearest = keyframes.indexed.reduce(
+      (best, next) => (next.$2.time - time).abs() < (best.$2.time - time).abs()
+          ? next
+          : best,
+    );
+    setState(() => _selectedKeyframe = nearest.$1);
+  }
+
+  void _selectKeyframe(CropPath path, int index) {
+    setState(() => _selectedKeyframe = index);
+    if (_playhead.isReady) {
+      unawaited(_playhead.seekTo(path.keyframes[index].time));
+    }
+  }
+
   Widget _scrollingBody(
     ReelDraft draft,
     SourceVideo video,
     ClipRange clip,
     ReelDraftController controller,
+    OutputSize sourceSize,
   ) {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -117,9 +174,21 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
         const SizedBox(height: 24),
         FrameControls(
           frame: draft.frame,
-          sourceSize: previewSourceSize(ref, draft),
+          sourceSize: sourceSize,
           onChanged: controller.updateFrame,
         ),
+        if (canMoveCrop(draft.frame, sourceSize))
+          _MovingCropSwitch(
+            moving: !draft.frame.cropPath.isEmpty,
+            onChanged: (moving) {
+              setState(() => _selectedKeyframe = 0);
+              if (moving) {
+                controller.startMovingCrop();
+              } else {
+                controller.stopMovingCrop();
+              }
+            },
+          ),
         if (draft.frame.preset == AspectPreset.free) ...[
           const SizedBox(height: 16),
           FreeCropEditor(
@@ -339,6 +408,30 @@ class _NudgeButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
         onPressed: onPressed,
         child: Text(text),
+      ),
+    );
+  }
+}
+
+class _MovingCropSwitch extends StatelessWidget {
+  const _MovingCropSwitch({required this.moving, required this.onChanged});
+
+  final bool moving;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Move the crop during the clip'),
+        subtitle: const HintText(
+          'Play the video and drag the crop window to where it should be at '
+          'that moment. It glides or cuts to each new place.',
+        ),
+        value: moving,
+        onChanged: onChanged,
       ),
     );
   }

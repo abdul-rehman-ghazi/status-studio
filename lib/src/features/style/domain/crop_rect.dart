@@ -86,17 +86,41 @@ PixelRect cropRectAt(
   OutputSize source,
   Duration videoTime,
 ) {
-  final fixed = cropRectFor(frame, source);
   if (frame.cropPath.isEmpty) {
-    return fixed;
+    return cropRectFor(frame, source);
   }
   final anchor = frame.cropPath.anchorAt(videoTime, base: baseAnchorFor(frame));
+  return cropRectForAnchor(frame, source, anchor);
+}
+
+/// The window of [frame]'s size with its place set by [anchor] in the room
+/// around it (spec FR-22).
+PixelRect cropRectForAnchor(
+  FrameSettings frame,
+  OutputSize source,
+  CropAnchor anchor,
+) {
+  final fixed = cropRectFor(frame, source);
   return PixelRect(
     x: _floor(anchor.x * (source.width - fixed.width)),
     y: _floor(anchor.y * (source.height - fixed.height)),
     width: fixed.width,
     height: fixed.height,
   );
+}
+
+/// Whether [frame] crops at all and the window has room to move on some
+/// axis (spec FR-22).
+bool canMoveCrop(FrameSettings frame, OutputSize source) {
+  final cropsToFill =
+      frame.preset == AspectPreset.free ||
+      (frame.preset != AspectPreset.landscape16x9 &&
+          frame.fill == FillMode.crop);
+  if (!cropsToFill) {
+    return false;
+  }
+  final window = cropRectFor(frame, source);
+  return window.width < source.width || window.height < source.height;
 }
 
 /// The anchor of the fixed crop, where a moving crop starts (spec FR-22).

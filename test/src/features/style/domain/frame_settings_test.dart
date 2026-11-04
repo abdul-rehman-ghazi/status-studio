@@ -114,4 +114,15 @@ void main() {
       expect(frame.focus, isNull);
     });
   });
+
+  test('keep_in_view_is_hidden_while_the_crop_moves', () {
+    final frame = const FrameSettings().copyWith(
+      cropPath: CropPath.startingAt(
+        Duration.zero,
+        const CropAnchor(x: 0, y: 0),
+      ),
+    );
+
+    expect(frame.offersFocus, isFalse);
+  });
 }

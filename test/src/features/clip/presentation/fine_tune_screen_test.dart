@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
+import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
@@ -28,7 +31,11 @@ Future<void> pumpFineTune(
 
 /// Scrolls [label] into view, then taps it.
 Future<void> tapText(WidgetTester tester, String label) async {
-  await tester.scrollUntilVisible(find.text(label), 200);
+  await tester.scrollUntilVisible(
+    find.text(label),
+    200,
+    scrollable: find.byType(Scrollable).last,
+  );
   await tester.ensureVisible(find.text(label));
   await tester.pumpAndSettle();
   await tester.tap(find.text(label));
@@ -234,6 +241,150 @@ void main() {
       await tapText(tester, 'Blur background');
 
       expect(find.text('Keep in view'), findsNothing);
+    });
+  });
+
+  group('moving crop', () {
+    const movingSwitch = 'Move the crop during the clip';
+
+    ReelDraft draftNow(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
+            .read(reelDraftProvider);
+
+    CropPath pathNow(WidgetTester tester) => draftNow(tester).frame.cropPath;
+
+    Future<FakeVideoPlayerController> turnOn(WidgetTester tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpFineTune(tester, playerFactory: players.call);
+      await tapText(tester, movingSwitch);
+      return players.created.single;
+    }
+
+    Future<void> dragCropAt(
+      WidgetTester tester,
+      FakeVideoPlayerController player,
+      Duration videoTime,
+    ) async {
+      player.value = player.value.copyWith(position: fileTime(videoTime));
+      await tester.pump();
+      await tester.drag(
+        find.byKey(const ValueKey('crop-window')),
+        const Offset(40, 0),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the_switch_is_offered_for_a_cropped_frame', (tester) async {
+      await pumpFineTune(tester);
+      await tester.scrollUntilVisible(
+        find.text(movingSwitch),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      expect(find.text(movingSwitch), findsOneWidget);
+    });
+
+    testWidgets('the_switch_is_hidden_for_16_9', (tester) async {
+      await pumpFineTune(tester);
+      await tapText(tester, '16:9');
+
+      expect(find.text(movingSwitch), findsNothing);
+    });
+
+    testWidgets('turning_it_on_makes_a_keyframe_at_the_clip_start', (
+      tester,
+    ) async {
+      await turnOn(tester);
+
+      expect(pathNow(tester).keyframes.single.time, pickedDraft.clip!.start);
+    });
+
+    testWidgets('turning_it_on_shows_the_keyframe_chip', (tester) async {
+      await turnOn(tester);
+
+      expect(find.widgetWithText(ChoiceChip, '0:21.4'), findsOneWidget);
+    });
+
+    testWidgets('keep_in_view_is_hidden_while_it_moves', (tester) async {
+      await turnOn(tester);
+
+      expect(find.text('Keep in view'), findsNothing);
+    });
+
+    testWidgets('a_drag_writes_one_keyframe_at_the_playhead', (tester) async {
+      final player = await turnOn(tester);
+
+      await dragCropAt(tester, player, const Duration(seconds: 35));
+
+      expect(pathNow(tester).keyframes.map((keyframe) => keyframe.time), [
+        pickedDraft.clip!.start,
+        const Duration(seconds: 35),
+      ]);
+    });
+
+    testWidgets('a_drag_moves_the_window_to_the_right', (tester) async {
+      final player = await turnOn(tester);
+
+      await dragCropAt(tester, player, const Duration(seconds: 35));
+
+      expect(pathNow(tester).keyframes.last.anchor.x, greaterThan(0.5));
+    });
+
+    testWidgets('cut_changes_how_the_keyframe_arrives', (tester) async {
+      final player = await turnOn(tester);
+      await dragCropAt(tester, player, const Duration(seconds: 35));
+
+      await tester.tap(find.text('Cut'));
+      await tester.pumpAndSettle();
+
+      expect(pathNow(tester).keyframes.last.arrival, CropArrival.cut);
+    });
+
+    testWidgets('the_first_keyframe_has_no_glide_or_cut', (tester) async {
+      await turnOn(tester);
+
+      expect(find.text('Glide'), findsNothing);
+    });
+
+    testWidgets('delete_removes_the_selected_keyframe', (tester) async {
+      final player = await turnOn(tester);
+      await dragCropAt(tester, player, const Duration(seconds: 35));
+
+      await tester.tap(find.byTooltip('Delete keyframe'));
+      await tester.pumpAndSettle();
+
+      expect(pathNow(tester).keyframes.length, 1);
+    });
+
+    testWidgets('the_only_keyframe_cannot_be_deleted', (tester) async {
+      await turnOn(tester);
+
+      final button = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.delete_outline),
+      );
+
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('a_chip_jumps_the_video_to_its_keyframe', (tester) async {
+      final player = await turnOn(tester);
+      await dragCropAt(tester, player, const Duration(seconds: 35));
+      player.value = player.value.copyWith(position: Duration.zero);
+
+      await tester.tap(find.widgetWithText(ChoiceChip, '0:35.0'));
+      await tester.pump();
+
+      expect(player.value.position, fileTime(const Duration(seconds: 35)));
+    });
+
+    testWidgets('turning_it_off_removes_the_keyframes', (tester) async {
+      final player = await turnOn(tester);
+      await dragCropAt(tester, player, const Duration(seconds: 35));
+
+      await tapText(tester, movingSwitch);
+
+      expect(pathNow(tester).isEmpty, isTrue);
     });
   });
 }

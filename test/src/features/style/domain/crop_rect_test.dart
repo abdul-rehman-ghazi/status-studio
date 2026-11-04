@@ -165,4 +165,61 @@ void main() {
       expect(anchor.y, closeTo(0.5, 1e-9));
     });
   });
+
+  group('canMoveCrop', () {
+    const portraitSource = OutputSize(1080, 1920);
+
+    test('a_story_crop_of_a_wide_video_can_move', () {
+      expect(canMoveCrop(story, fullHd), isTrue);
+    });
+
+    test('16_9_keeps_the_whole_frame', () {
+      final frame = story.copyWith(preset: AspectPreset.landscape16x9);
+
+      expect(canMoveCrop(frame, fullHd), isFalse);
+    });
+
+    test('blur_keeps_the_whole_frame', () {
+      final frame = story.copyWith(fill: FillMode.blur);
+
+      expect(canMoveCrop(frame, fullHd), isFalse);
+    });
+
+    test('a_source_already_at_the_presets_aspect_has_no_room', () {
+      expect(canMoveCrop(story, portraitSource), isFalse);
+    });
+
+    test('a_4_5_crop_of_a_tall_video_can_move_up_and_down', () {
+      final frame = story.copyWith(preset: AspectPreset.portrait4x5);
+
+      expect(canMoveCrop(frame, portraitSource), isTrue);
+    });
+
+    test('a_free_crop_smaller_than_the_frame_can_move', () {
+      expect(
+        canMoveCrop(const FrameSettings(preset: AspectPreset.free), fullHd),
+        isTrue,
+      );
+    });
+
+    test('a_free_crop_of_the_whole_frame_has_no_room', () {
+      final frame = const FrameSettings(preset: AspectPreset.free).copyWith(
+        freeCrop: const FreeCropRect(left: 0, top: 0, width: 1, height: 1),
+      );
+
+      expect(canMoveCrop(frame, fullHd), isFalse);
+    });
+  });
+
+  group('cropRectForAnchor', () {
+    test('places_the_window_by_the_anchor', () {
+      final crop = cropRectForAnchor(
+        story,
+        fullHd,
+        const CropAnchor(x: 0.25, y: 0.5),
+      );
+
+      expect(crop.x, 328);
+    });
+  });
 }

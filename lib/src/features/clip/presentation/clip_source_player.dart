@@ -19,11 +19,15 @@ class ClipSourcePlayer extends ConsumerStatefulWidget {
     required this.video,
     required this.clip,
     required this.playhead,
+    this.videoOverlay,
   });
 
   final SourceVideo video;
   final ClipRange clip;
   final ClipPlayhead playhead;
+
+  /// Drawn over the video once it plays.
+  final Widget? videoOverlay;
 
   @override
   ConsumerState<ClipSourcePlayer> createState() => ClipSourcePlayerState();
@@ -76,6 +80,7 @@ class ClipSourcePlayerState extends ConsumerState<ClipSourcePlayer> {
         source: clipSource,
         clip: widget.clip,
         playhead: widget.playhead,
+        videoOverlay: widget.videoOverlay,
       );
     }
     if (source.error case final error?) {

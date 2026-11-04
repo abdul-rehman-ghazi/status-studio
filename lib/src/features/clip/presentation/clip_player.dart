@@ -27,9 +27,13 @@ class ClipPlayer extends ConsumerStatefulWidget {
     required this.source,
     required this.clip,
     required this.playhead,
+    this.videoOverlay,
   });
 
   final ClipSource source;
+
+  /// Drawn over the video, under the play button.
+  final Widget? videoOverlay;
   final ClipPlayhead playhead;
 
   /// In video time; the player works in the clip file's time.
@@ -151,11 +155,24 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
                   child: ColoredBox(color: AppColors.surface),
                 ),
                 if (value.isInitialized) VideoPlayer(_player),
-                ValueListenableBuilder<VideoPlayerValue>(
-                  valueListenable: _player,
-                  builder: (context, value, _) => _PlayButton(
-                    playing: value.isPlaying,
-                    onPressed: value.isInitialized ? _togglePlayback : null,
+                if (value.isInitialized && widget.videoOverlay != null)
+                  Positioned.fill(child: widget.videoOverlay!),
+                // Over a crop window the middle belongs to dragging it.
+                Align(
+                  alignment: widget.videoOverlay == null
+                      ? Alignment.center
+                      : Alignment.bottomLeft,
+                  child: Padding(
+                    padding: EdgeInsets.all(
+                      widget.videoOverlay == null ? 0 : 8,
+                    ),
+                    child: ValueListenableBuilder<VideoPlayerValue>(
+                      valueListenable: _player,
+                      builder: (context, value, _) => _PlayButton(
+                        playing: value.isPlaying,
+                        onPressed: value.isInitialized ? _togglePlayback : null,
+                      ),
+                    ),
                   ),
                 ),
               ],

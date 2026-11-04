@@ -130,7 +130,9 @@ class FrameSettings {
   bool get offersFill =>
       preset != AspectPreset.landscape16x9 && preset != AspectPreset.free;
 
-  bool get offersFocus => offersFill && fill == FillMode.crop;
+  /// Hidden while the crop moves: its keyframes place the window then.
+  bool get offersFocus =>
+      offersFill && fill == FillMode.crop && cropPath.isEmpty;
 
   /// The Left, Center or Right chip the anchor sits on, or none.
   CropFocus? get focus => switch (anchor.x) {

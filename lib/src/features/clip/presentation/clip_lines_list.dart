@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
@@ -9,6 +8,7 @@ import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
@@ -40,45 +40,23 @@ class ClipLinesList extends ConsumerStatefulWidget {
 
 class _ClipLinesListState extends ConsumerState<ClipLinesList>
     with SingleTickerProviderStateMixin {
-  late final Ticker _ticker;
+  late final PlayheadRedraw _redraw;
 
   @override
   void initState() {
     super.initState();
-    _ticker = createTicker((_) => _followPlayhead());
-    widget.playhead.addListener(_followPlayhead);
+    _redraw = PlayheadRedraw(
+      vsync: this,
+      playhead: widget.playhead,
+      isMounted: () => mounted,
+      redraw: () => setState(() {}),
+    );
   }
 
   @override
   void dispose() {
-    widget.playhead.removeListener(_followPlayhead);
-    _ticker.dispose();
+    _redraw.dispose();
     super.dispose();
-  }
-
-  // The player reports about twice a second; the ticker redraws the
-  // highlight between reports while playing.
-  void _followPlayhead() {
-    final playing = widget.playhead.isPlaying;
-    if (playing && !_ticker.isActive) {
-      unawaited(_ticker.start());
-    } else if (!playing && _ticker.isActive) {
-      _ticker.stop();
-    }
-    _redraw();
-  }
-
-  // A report can arrive while the tree is building; draw after it then.
-  void _redraw() {
-    if (!mounted) {
-      return;
-    }
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) => _redraw());
-      return;
-    }
-    setState(() {});
   }
 
   void _edit(PickedScript Function(PickedScript script) edit) {
