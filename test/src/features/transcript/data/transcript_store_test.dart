@@ -323,4 +323,68 @@ void main() {
       expect(await missing.exists(), isFalse);
     });
   });
+
+  group('fine-tune support', () {
+    test('load_from_source_ignores_a_newer_other_source', () async {
+      await store.save(keyFor('a'), savedAt(start, source: editedSource));
+      await store.save(
+        keyFor('a'),
+        savedAt(start.add(const Duration(hours: 1))),
+      );
+
+      final loaded = await store.loadFromSource(keyFor('a'), editedSource);
+
+      expect(loaded.source, editedSource);
+    });
+
+    test('load_from_source_without_it_throws_no_saved_transcript', () async {
+      await store.save(keyFor('a'), savedAt(start));
+
+      await expectLater(
+        store.loadFromSource(keyFor('a'), editedSource),
+        throwsA(isA<NoSavedTranscriptException>()),
+      );
+    });
+
+    test('load_video_returns_the_kept_video', () async {
+      await store.saveVideo(videoWithId('a'));
+
+      expect(await store.loadVideo('a'), videoWithId('a'));
+    });
+
+    test('load_video_without_one_throws_no_saved_video', () async {
+      await expectLater(
+        store.loadVideo('missing'),
+        throwsA(isA<NoSavedVideoException>()),
+      );
+    });
+
+    test('a_draft_file_beside_the_scripts_is_not_listed_as_a_script', () async {
+      await store.saveVideo(videoWithId('a'));
+      await File('${root.path}/a/draft-auto.json').writeAsString('{}');
+
+      expect(await store.list(), isEmpty);
+    });
+
+    test('deleting_a_script_leaves_its_fine_tune', () async {
+      await store.save(keyFor('a'), savedAt(start));
+      final draft = File('${root.path}/a/draft-auto.json');
+      await draft.writeAsString('{}');
+
+      await store.delete(keyFor('a'));
+
+      expect(draft.existsSync(), isTrue);
+    });
+
+    test('mark_used_keeps_the_video_through_pruning', () async {
+      await store.save(keyFor('a'), savedAt(start));
+      now = start.add(const Duration(days: 80));
+      await store.markUsed('a');
+      now = start.add(const Duration(days: 120));
+
+      await store.prune();
+
+      expect(Directory('${root.path}/a').existsSync(), isTrue);
+    });
+  });
 }

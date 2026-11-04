@@ -22,3 +22,11 @@ class NoSavedTranscriptException implements Exception {
   @override
   String toString() => 'NoSavedTranscriptException';
 }
+
+/// No video details were kept for a video id, or the file is unreadable.
+class NoSavedVideoException implements Exception {
+  const NoSavedVideoException();
+
+  @override
+  String toString() => 'NoSavedVideoException';
+}

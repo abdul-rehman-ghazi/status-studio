@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:status_studio/src/core/json_files.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
@@ -33,18 +33,43 @@ class TranscriptStore {
     if (saved.isEmpty) {
       throw const NoSavedTranscriptException();
     }
-    await _touch(key.videoId);
+    await markUsed(key.videoId);
     return _newest(saved);
   }
 
+  /// [key]'s script saved from [source], even when another source is newer.
+  /// Counts as a use.
+  Future<SavedTranscript> loadFromSource(
+    TranscriptKey key,
+    String source,
+  ) async {
+    final saved = await _readScript(_scriptFile(key, source));
+    if (saved.isEmpty) {
+      throw const NoSavedTranscriptException();
+    }
+    await markUsed(key.videoId);
+    return saved.single;
+  }
+
+  /// The title, channel and length kept for [videoId] (see [saveVideo]).
+  Future<SourceVideo> loadVideo(String videoId) async {
+    try {
+      return SourceVideo.fromJson(
+        await readJsonObject(File('${_folder(videoId).path}/$_videoFile')),
+      );
+    } on Exception {
+      throw const NoSavedVideoException();
+    }
+  }
+
   Future<void> save(TranscriptKey key, SavedTranscript saved) async {
-    await _write(_scriptFile(key, saved.source), saved.toJson());
-    await _touch(key.videoId);
+    await writeJsonAtomically(_scriptFile(key, saved.source), saved.toJson());
+    await markUsed(key.videoId);
   }
 
   /// Keeps [video]'s title, channel and length beside its scripts, so the
   /// Recent list can show and reopen them (FR-11).
-  Future<void> saveVideo(SourceVideo video) => _write(
+  Future<void> saveVideo(SourceVideo video) => writeJsonAtomically(
     File('${_folder(video.videoId).path}/$_videoFile'),
     video.toJson(),
   );
@@ -93,7 +118,7 @@ class TranscriptStore {
     String source,
   ) async {
     try {
-      final json = await _readJson(_partialFile(key, source));
+      final json = await readJsonObject(_partialFile(key, source));
       return PartialTranscript.fromJson(json);
     } on Exception {
       throw const NoSavedTranscriptException();
@@ -105,9 +130,9 @@ class TranscriptStore {
     String source,
     PartialTranscript partial,
   ) async {
-    await _write(_partialFile(key, source), partial.toJson());
+    await writeJsonAtomically(_partialFile(key, source), partial.toJson());
     // Counts as a use, or pruning would drop progress the user can resume.
-    await _touch(key.videoId);
+    await markUsed(key.videoId);
   }
 
   Future<void> clearPartial(TranscriptKey key, String source) async {
@@ -161,7 +186,7 @@ class TranscriptStore {
     final SourceVideo video;
     try {
       video = SourceVideo.fromJson(
-        await _readJson(File('${folder.path}/$_videoFile')),
+        await readJsonObject(File('${folder.path}/$_videoFile')),
       );
     } on Exception {
       return const [];
@@ -218,28 +243,14 @@ class TranscriptStore {
   /// counts as missing rather than breaking the app.
   Future<List<SavedTranscript>> _readScript(File file) async {
     try {
-      return [SavedTranscript.fromJson(await _readJson(file))];
+      return [SavedTranscript.fromJson(await readJsonObject(file))];
     } on Exception {
       return const [];
     }
   }
 
-  Future<Map<String, Object?>> _readJson(File file) async {
-    final decoded = jsonDecode(await file.readAsString());
-    if (decoded is Map<String, Object?>) {
-      return decoded;
-    }
-    throw const FormatException('Not a JSON object.');
-  }
-
-  Future<void> _write(File target, Map<String, Object?> json) async {
-    await target.parent.create(recursive: true);
-    final part = File('${target.path}.part');
-    await part.writeAsString(jsonEncode(json), flush: true);
-    await part.rename(target.path);
-  }
-
-  Future<void> _touch(String videoId) =>
+  /// Counts as a use of [videoId], so pruning keeps it.
+  Future<void> markUsed(String videoId) =>
       File('${_folder(videoId).path}/$_lastUsedFile')
           .writeAsString(clock().toUtc().toIso8601String());
 

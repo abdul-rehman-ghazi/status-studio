@@ -773,7 +773,7 @@ Request, 2026-11-04: save Fine-tune progress and continue later. The plan was wr
 - [x] **1. Spec.** FR-24 and the edits it needs in §2, FR-5, FR-9, FR-11, §4, §6.1, §8, §12.
 - [x] **2. Draft type and JSON (domain).** `FineTuneDraft`, `SavedFineTune`; `fineTuneDraftToJson` and `fineTuneDraftFromJson` (version 1; a damaged or newer file throws `FormatException`).
 - [x] **3. Draft rules (domain).** `canKeep`, `FineTuneDraft.of`, `fits`, `restoredOnto`, `startOver`, and the stable script fingerprint.
-- [ ] **4. Shared JSON files and script-store additions.** `core/json_files.dart` (atomic write) moved out of `TranscriptStore`; `loadFromSource`, `loadVideo`, `markUsed`.
+- [x] **4. Shared JSON files and script-store additions.** `core/json_files.dart` (atomic write) moved out of `TranscriptStore`; `loadFromSource`, `loadVideo`, `markUsed`.
 - [ ] **5. Draft store (data).** `FineTuneDraftStore`: save, list (skips unreadable), delete; provider.
 - [ ] **6. Saver and list (application).** `FineTuneDraftSaver` (serial, no repeat writes, discard after export) and `fineTuneDraftsProvider`.
 - [ ] **7. Wiring the saves.** Fine-tune screen (1 s debounce, close, background), Lyrics background flush, Export discards; test helpers and default overrides.
