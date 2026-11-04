@@ -464,4 +464,77 @@ void main() {
       expect(groqClient!.pieces, hasLength(3));
     });
   });
+
+  group('use_on_device', () {
+    const groqLine = TranscriptLine(
+      index: 0,
+      text: 'from groq',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 2),
+    );
+
+    setUp(() async {
+      groqClient = FakeGroqClient();
+      await store.savePartial(
+        key,
+        groqSource,
+        const PartialTranscript(completedChunks: 1, lines: [groqLine]),
+      );
+    });
+
+    Future<void> continueOnDevice() => pipeline()
+        .continueOnDevice(sampleVideo, ScriptLanguage.auto)
+        .drain<void>();
+
+    test('use_on_device_keeps_groqs_lines', () async {
+      await continueOnDevice();
+
+      final texts = (await store.load(key)).transcript.lines
+          .map((line) => line.text);
+      expect(texts.first, 'from groq');
+    });
+
+    test('use_on_device_continues_from_the_next_piece', () async {
+      await continueOnDevice();
+
+      expect(whisper.transcribedPaths, hasLength(2));
+    });
+
+    test('use_on_device_does_not_call_groq', () async {
+      await continueOnDevice();
+
+      expect(groqClient!.pieces, isEmpty);
+    });
+
+    test('use_on_device_saves_under_the_on_device_source', () async {
+      await continueOnDevice();
+
+      expect((await store.load(key)).source, whisperSource(SpeechModel.small));
+    });
+
+    test('use_on_device_numbers_new_lines_after_groqs', () async {
+      await continueOnDevice();
+
+      final indexes = (await store.load(key)).transcript.lines
+          .map((line) => line.index);
+      expect(indexes, [for (var i = 0; i < indexes.length; i++) i]);
+    });
+
+    test('use_on_device_clears_groqs_partial_progress', () async {
+      await continueOnDevice();
+
+      expect(
+        store.loadPartial(key, groqSource),
+        throwsA(isA<NoSavedTranscriptException>()),
+      );
+    });
+
+    test('use_on_device_without_groq_lines_writes_from_the_start', () async {
+      await store.clearPartial(key, groqSource);
+
+      await continueOnDevice();
+
+      expect(whisper.transcribedPaths, hasLength(3));
+    });
+  });
 }

@@ -12,6 +12,7 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 import '../../../../helpers/counting_video_source.dart';
@@ -43,6 +44,12 @@ class FailingPipeline extends FakeScriptPipeline {
   const FailingPipeline(this.error);
 
   final Object error;
+
+  @override
+  Stream<ScriptProgress> continueOnDevice(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) => super.run(video, language);
 
   @override
   Stream<ScriptProgress> run(SourceVideo video, ScriptLanguage language) =>
@@ -276,5 +283,87 @@ void main() {
       ].map((finder) => finder.evaluate().length),
       [1, 1],
     );
+  });
+
+  group('groq_errors', () {
+    Future<void> failWith(WidgetTester tester, Object error) async {
+      await startProcessing(
+        tester,
+        step: Duration.zero,
+        pipeline: FailingPipeline(error),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    List<String> offeredActions() => [
+      for (final label in ['Retry', 'Settings', 'Use on-device', 'Back'])
+        if (find.widgetWithText(OutlinedButton, label).evaluate().isNotEmpty)
+          label,
+    ];
+
+    testWidgets('rejected_key_offers_settings_on_device_and_back', (
+      tester,
+    ) async {
+      await failWith(tester, const GroqKeyRejectedException());
+
+      expect(offeredActions(), ['Settings', 'Use on-device', 'Back']);
+    });
+
+    testWidgets('rate_limit_offers_on_device_and_back', (tester) async {
+      await failWith(
+        tester,
+        const GroqRateLimitedException(Duration(minutes: 5)),
+      );
+
+      expect(offeredActions(), ['Use on-device', 'Back']);
+    });
+
+    testWidgets('groq_failure_offers_retry_on_device_and_back', (tester) async {
+      await failWith(tester, const GroqFailedException(500));
+
+      expect(offeredActions(), ['Retry', 'Use on-device', 'Back']);
+    });
+
+    testWidgets('groq_offline_offers_retry_on_device_and_back', (tester) async {
+      await failWith(tester, const GroqOfflineException());
+
+      expect(offeredActions(), ['Retry', 'Use on-device', 'Back']);
+    });
+
+    testWidgets('rejected_key_message_is_shown', (tester) async {
+      await failWith(tester, const GroqKeyRejectedException());
+
+      expect(find.text("Groq didn't accept your API key."), findsOneWidget);
+    });
+
+    testWidgets('settings_action_opens_settings', (tester) async {
+      await failWith(tester, const GroqKeyRejectedException());
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Settings'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'Settings'), findsOneWidget);
+    });
+
+    testWidgets('use_on_device_action_continues_the_run', (tester) async {
+      await failWith(tester, const GroqFailedException(500));
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Use on-device'));
+      // The cancelled run's subscription only finishes cancelling on real
+      // microtasks, not on fake-async pumps.
+      await tester.runAsync(pumpEventQueue);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pick the lines'), findsOneWidget);
+    });
+
+    testWidgets('back_action_leaves_processing', (tester) async {
+      await failWith(tester, const GroqFailedException(500));
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Back'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Working'), findsNothing);
+    });
   });
 }

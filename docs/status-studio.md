@@ -476,7 +476,7 @@ Each task: test first, tick it, commit.
 - [x] **4. `GroqTranscriber`.** Emits the same `ChunkEvent`s as `WhisperTranscriber`; offsets segments by piece start; drops segments over the `no_speech_prob` cut-off.
 - [x] **5. Stream-copied `.m4a` pieces.** `AudioPreparer.splitAudioCopy` (FFmpeg `-c copy`, 90 s pieces).
 - [x] **6. Pipeline engine choice.** Groq when on and a key is saved, else Whisper; skip the model step; save under `groq-whisper-large-v3-turbo`; partial progress per piece.
-- [ ] **7. Errors and Use on-device.** §8 messages and actions on Processing; Use on-device keeps Groq's lines and continues from the next piece on the phone.
+- [x] **7. Errors and Use on-device.** §8 messages and actions on Processing; Use on-device keeps Groq's lines and continues from the next piece on the phone.
 - [ ] **8. Settings section.** Key field (Paste, Show, Remove, check result), ⓘ help sheet with Copy link, switch with subtext.
 - [ ] **9. Docs.** §13 tests list, §14 device checks, milestone status.
 

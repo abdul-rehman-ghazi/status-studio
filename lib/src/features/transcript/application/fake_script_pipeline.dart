@@ -48,6 +48,12 @@ class FakeScriptPipeline implements ScriptPipeline {
     SourceVideo video,
     ScriptLanguage language,
   ) => run(video, language);
+
+  @override
+  Stream<ScriptProgress> continueOnDevice(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) => run(video, language);
 }
 
 List<ScriptProgress> _progressEvents() {

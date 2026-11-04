@@ -54,6 +54,13 @@ abstract interface class ScriptPipeline {
 
   /// Whisper only, replacing any saved script ("Write it again", FR-14).
   Stream<ScriptProgress> writeAgain(SourceVideo video, ScriptLanguage language);
+
+  /// Whisper on the phone, continuing after the lines Groq has already
+  /// written (FR-12a "Use on-device").
+  Stream<ScriptProgress> continueOnDevice(
+    SourceVideo video,
+    ScriptLanguage language,
+  );
 }
 
 /// The app's pipeline; tests override it with [FakeScriptPipeline].

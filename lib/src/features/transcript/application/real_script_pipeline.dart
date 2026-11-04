@@ -88,7 +88,7 @@ class RealScriptPipeline implements ScriptPipeline {
       yield* _finishWithCaptions(store, key, captions);
       return;
     }
-    yield* _write(video, key);
+    yield* _write(video, key, await _engine());
   }
 
   @override
@@ -101,7 +101,22 @@ class RealScriptPipeline implements ScriptPipeline {
     yield* _write(
       video,
       TranscriptKey(videoId: video.videoId, language: language),
+      await _engine(),
     );
+  }
+
+  @override
+  Stream<ScriptProgress> continueOnDevice(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) async* {
+    final store = await services.store;
+    final key = TranscriptKey(videoId: video.videoId, language: language);
+    final groqLines = await _partial(store, key, groqSource);
+    yield* _write(video, key, _whisperEngine(), carried: groqLines);
+    // Left behind, a later Groq run would resume into a script the phone
+    // has already finished.
+    await store.clearPartial(key, groqSource);
   }
 
   /// The saved script for [key], if any.
@@ -155,10 +170,16 @@ class RealScriptPipeline implements ScriptPipeline {
     );
   }
 
-  Stream<ScriptProgress> _write(SourceVideo video, TranscriptKey key) async* {
+  /// Writes with [engine], resuming from [carried] lines when given and
+  /// else from the engine's own saved progress.
+  Stream<ScriptProgress> _write(
+    SourceVideo video,
+    TranscriptKey key,
+    ScriptEngine engine, {
+    PartialTranscript? carried,
+  }) async* {
     final store = await services.store;
     final requested = key.language.whisperCode;
-    final engine = await _engine();
     yield* engine.prepare(requested);
     final audio = _ScriptAudio();
     yield* _downloadAudio(video, requested, audio);
@@ -168,7 +189,7 @@ class RealScriptPipeline implements ScriptPipeline {
       fraction: _languageStage,
       transcript: _empty(requested),
     );
-    final partial = await _partial(store, key, engine);
+    final partial = carried ?? await _partial(store, key, engine.source);
     final lines = [...partial.lines];
     var completed = partial.completedChunks;
     // The language is detected inside the first piece, so writing starts
@@ -219,13 +240,15 @@ class RealScriptPipeline implements ScriptPipeline {
     if (groq != null) {
       return GroqEngine(audio: services.audio, groq: groq);
     }
-    return WhisperEngine(
-      models: services.models,
-      audio: services.audio,
-      whisper: services.whisper,
-      model: model,
-    );
+    return _whisperEngine();
   }
+
+  WhisperEngine _whisperEngine() => WhisperEngine(
+    models: services.models,
+    audio: services.audio,
+    whisper: services.whisper,
+    model: model,
+  );
 
   /// The [transcript] so far, [chunks.done] of [chunks.of] chunks in; a
   /// fraction while Whisper is inside a chunk.
@@ -274,10 +297,10 @@ class RealScriptPipeline implements ScriptPipeline {
   Future<PartialTranscript> _partial(
     TranscriptStore store,
     TranscriptKey key,
-    ScriptEngine engine,
+    String source,
   ) async {
     try {
-      return await store.loadPartial(key, engine.source);
+      return await store.loadPartial(key, source);
     } on NoSavedTranscriptException {
       return const PartialTranscript(completedChunks: 0, lines: []);
     }

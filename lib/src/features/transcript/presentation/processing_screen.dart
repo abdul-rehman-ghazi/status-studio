@@ -12,6 +12,7 @@ import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -183,6 +184,41 @@ class _RunSteps extends StatelessWidget {
   }
 }
 
+/// What a failed run offers, spec §8.
+enum _FailureAction {
+  retry('Retry'),
+  settings('Settings'),
+  useOnDevice('Use on-device'),
+  back('Back'),
+  anotherLanguage('Try another language');
+
+  const _FailureAction(this.label);
+
+  final String label;
+}
+
+List<_FailureAction> _actionsFor(Object error) {
+  return switch (error) {
+    NoSpeechFoundException() => [_FailureAction.anotherLanguage],
+    VideoUnavailableException() || InsufficientStorageException() => const [],
+    GroqKeyRejectedException() => const [
+      _FailureAction.settings,
+      _FailureAction.useOnDevice,
+      _FailureAction.back,
+    ],
+    GroqRateLimitedException() => const [
+      _FailureAction.useOnDevice,
+      _FailureAction.back,
+    ],
+    GroqFailedException() || GroqOfflineException() => const [
+      _FailureAction.retry,
+      _FailureAction.useOnDevice,
+      _FailureAction.back,
+    ],
+    _ => const [_FailureAction.retry],
+  };
+}
+
 /// Spec §8 message for a failed run, with the actions it offers.
 class _RunFailed extends ConsumerWidget {
   const _RunFailed({required this.error});
@@ -199,25 +235,41 @@ class _RunFailed extends ConsumerWidget {
           style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
         const SizedBox(height: 16),
-        if (error is NoSpeechFoundException)
-          OutlinedButton(
-            onPressed: () => context.pop(),
-            child: const Text('Try another language'),
-          )
-        else if (error is! VideoUnavailableException &&
-            error is! InsufficientStorageException)
-          OutlinedButton(
-            onPressed: () => _retry(ref),
-            child: const Text('Retry'),
+        for (final action in _actionsFor(error))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: OutlinedButton(
+              onPressed: () => _perform(action, context, ref),
+              child: Text(action.label),
+            ),
           ),
       ],
     );
   }
 
-  void _retry(WidgetRef ref) {
+  void _perform(_FailureAction action, BuildContext context, WidgetRef ref) {
+    switch (action) {
+      case _FailureAction.retry:
+        _restart(ref, (run, video, language) => run.start(video, language));
+      case _FailureAction.useOnDevice:
+        _restart(
+          ref,
+          (run, video, language) => run.useOnDevice(video, language),
+        );
+      case _FailureAction.settings:
+        context.push(AppRoutes.settings);
+      case _FailureAction.back || _FailureAction.anotherLanguage:
+        context.pop();
+    }
+  }
+
+  void _restart(
+    WidgetRef ref,
+    void Function(ScriptProgressController, SourceVideo, ScriptLanguage) run,
+  ) {
     final draft = ref.read(reelDraftProvider);
     if (draft.video case final video?) {
-      ref.read(scriptProgressProvider.notifier).start(video, draft.language);
+      run(ref.read(scriptProgressProvider.notifier), video, draft.language);
     }
   }
 }

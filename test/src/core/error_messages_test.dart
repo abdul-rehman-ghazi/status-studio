@@ -3,6 +3,7 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/style/domain/translation_errors.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 void main() {
@@ -66,6 +67,41 @@ void main() {
     expect(
       errorMessageFor(const TranslationPackMissingException('ur')),
       'English needs a one-time download.',
+    );
+  });
+
+  test('maps_groq_key_rejected', () {
+    expect(
+      errorMessageFor(const GroqKeyRejectedException()),
+      "Groq didn't accept your API key.",
+    );
+  });
+
+  test('maps_groq_rate_limit_to_minutes_rounded_up', () {
+    expect(
+      errorMessageFor(const GroqRateLimitedException(Duration(seconds: 250))),
+      "Groq's free limit is used up for now. Try again in 5 min.",
+    );
+  });
+
+  test('maps_groq_rate_limit_under_a_minute_to_one_minute', () {
+    expect(
+      errorMessageFor(const GroqRateLimitedException(Duration(seconds: 61))),
+      "Groq's free limit is used up for now. Try again in 2 min.",
+    );
+  });
+
+  test('maps_groq_failed', () {
+    expect(
+      errorMessageFor(const GroqFailedException(500)),
+      "Groq couldn't write this script.",
+    );
+  });
+
+  test('maps_groq_offline', () {
+    expect(
+      errorMessageFor(const GroqOfflineException()),
+      "You're offline. Connect and try again.",
     );
   });
 }

@@ -50,6 +50,14 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
     ),
   );
 
+  /// Whisper on the phone, after the lines Groq already wrote (FR-12a).
+  void useOnDevice(SourceVideo video, ScriptLanguage language) => _follow(
+    _keptRunning(
+      ref.read(scriptPipelineProvider).continueOnDevice(video, language),
+      video,
+    ),
+  );
+
   /// Stops the run; Whisper releases its model as the stream closes.
   void cancel() {
     _generation++;

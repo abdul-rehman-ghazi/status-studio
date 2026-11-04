@@ -38,6 +38,12 @@ class ControlledPipeline implements ScriptPipeline {
     SourceVideo video,
     ScriptLanguage language,
   ) => events.stream;
+
+  @override
+  Stream<ScriptProgress> continueOnDevice(
+    SourceVideo video,
+    ScriptLanguage language,
+  ) => events.stream;
 }
 
 void main() {
