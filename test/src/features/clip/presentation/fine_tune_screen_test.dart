@@ -441,6 +441,23 @@ void main() {
       expect(editing.saved.single.lines.length, 8);
     });
 
+    testWidgets('lines_still_streaming_in_save_nothing', (tester) async {
+      final editing = RecordingScriptEditingService();
+      await pumpFineTune(tester, scriptEditing: editing);
+      ProviderScope.containerOf(tester.element(find.byType(Scaffold)))
+          .read(reelDraftProvider.notifier)
+          .growTranscript(
+            sampleTranscript.copyWith(
+              lines: [...sampleTranscript.lines, sampleTranscript.lines.last],
+            ),
+          );
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(editing.saved, isEmpty);
+    });
+
     testWidgets('leaving_without_edits_saves_nothing', (tester) async {
       final editing = RecordingScriptEditingService();
       await pumpFineTune(tester, scriptEditing: editing);

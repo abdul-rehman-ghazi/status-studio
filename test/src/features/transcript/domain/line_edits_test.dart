@@ -39,6 +39,12 @@ void main() {
       expect(edited.transcript.lines[2], lineAt(2, 'new'));
     });
 
+    test('turns_a_line_break_into_a_space', () {
+      final edited = withLineText(scriptOfFive(), 2, 'one\ntwo');
+
+      expect(edited.transcript.lines[2].text, 'one two');
+    });
+
     test('keeps_the_old_text_when_the_new_one_is_blank', () {
       final script = scriptOfFive();
 
@@ -144,6 +150,69 @@ void main() {
     });
   });
 
+  group('withLineAdded at a line start or inside the last picked line', () {
+    test('at_a_lines_start_splits_that_lines_time', () {
+      final added = withLineAdded(
+        scriptOfFive(),
+        text: 'x',
+        playhead: seconds(8),
+      );
+
+      expect(
+        [
+          for (final line in added.transcript.lines.sublist(2, 4))
+            (line.text, line.start, line.end),
+        ],
+        [('x', seconds(8), seconds(10)), ('c', seconds(10), seconds(12))],
+      );
+    });
+
+    test('at_the_start_of_a_short_line_takes_half_of_it', () {
+      final base = scriptOfFive();
+      final shortLine = base.transcript.lines[2].copyWith(end: seconds(9));
+      final script = PickedScript(
+        transcript: base.transcript.copyWith(
+          lines: [...base.transcript.lines]..[2] = shortLine,
+        ),
+        selection: base.selection,
+      );
+
+      final added = withLineAdded(script, text: 'x', playhead: seconds(8));
+
+      expect(added.transcript.lines[2].end, const Duration(milliseconds: 8500));
+    });
+
+    test('at_the_first_picked_lines_start_it_joins_the_range', () {
+      final added = withLineAdded(
+        scriptOfFive(),
+        text: 'x',
+        playhead: seconds(4),
+      );
+
+      expect(added.selection, const RangeSelected(1, 4));
+    });
+
+    test('inside_the_last_picked_line_it_joins_the_range', () {
+      final added = withLineAdded(
+        scriptOfFive(),
+        text: 'x',
+        playhead: seconds(13),
+      );
+
+      expect(added.selection, const RangeSelected(1, 4));
+    });
+
+    test('a_line_break_in_the_text_becomes_a_space', () {
+      final added = withLineAdded(
+        scriptOfFive(),
+        text: 'x\ny',
+        playhead: seconds(9),
+      );
+
+      expect(added.transcript.lines[3].text, 'x y');
+    });
+  });
+
   group('withLineRemoved', () {
     test('removes_the_line_and_renumbers', () {
       final removed = withLineRemoved(scriptOfFive(), 2);
@@ -224,6 +293,12 @@ void main() {
       final timed = withLineTimedAt(scriptOfFive(), 2, seconds(6));
 
       expect(timed.transcript.lines[1].end, seconds(6));
+    });
+
+    test('ignores_a_tap_on_an_earlier_line_than_the_one_playing', () {
+      final script = scriptOfFive();
+
+      expect(withLineTimedAt(script, 2, seconds(14)), script);
     });
 
     test('ignores_a_tap_before_the_previous_lines_start', () {

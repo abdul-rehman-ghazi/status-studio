@@ -57,7 +57,8 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   }
 
   /// Saves after a pause in editing, so a run of taps is one write (FR-21).
-  void _scheduleSave(ReelDraft draft) {
+  void _scheduleSave() {
+    final draft = ref.read(reelDraftProvider);
     final video = draft.video;
     final edited = draft.transcript;
     if (video == null || edited == null) {
@@ -92,12 +93,6 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       throw StateError('Fine-tune opened without a video and a clip.');
     }
     final controller = ref.read(reelDraftProvider.notifier);
-    ref.listen(reelDraftProvider.select((draft) => draft.transcript), (
-      before,
-      after,
-    ) {
-      _scheduleSave(ref.read(reelDraftProvider));
-    });
     return Scaffold(
       appBar: const FlowAppBar(title: 'Fine-tune', stepLabel: 'Step 3 of 4'),
       // The player stays put while the rest scrolls, so the lines can be
@@ -169,6 +164,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
           script: draft.pickedScript,
           window: clipWindowFor(clip, video.duration),
           playhead: _playhead,
+          onEdited: _scheduleSave,
         ),
       ],
     );

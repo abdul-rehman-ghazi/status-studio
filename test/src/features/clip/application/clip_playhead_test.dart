@@ -46,4 +46,13 @@ void main() {
 
     expect(playhead.isReady, isFalse);
   });
+
+  test('is_not_playing_after_the_player_detaches', () {
+    playhead
+      ..attach((videoTime) async {})
+      ..report(position: Duration.zero, isPlaying: true)
+      ..detach();
+
+    expect(playhead.isPlaying, isFalse);
+  });
 }

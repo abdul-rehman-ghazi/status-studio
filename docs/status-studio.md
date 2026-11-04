@@ -234,15 +234,17 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Window:** the download stays as FR-15 says (5 s either side). Fine-tune lists every line that overlaps the window; lines outside the picked range are dimmed.
 - **Player:** pinned above the scrolling rest of the screen, so the lines can be tapped with the video in view. Play and pause, plus a seek bar over the whole window with the clip range marked. Playback does not stop at the clip end. A "Play clip" button seeks to the clip start and plays.
 - **Tap a line:**
-  - **While paused:** seeks to the line's start.
-  - **While playing (tap to time):** the line's start becomes the playhead. The line that was highlighted at that moment ends there, so the new highlight replaces it. The tapped line keeps its length (at least 1 s), cut at the next line's start. A tap earlier than the previous line's start is ignored.
-  - **A tapped line outside the picked range** is added to the range, with every line between.
+  - **While paused:** seeks to the line's start. Nothing else changes.
+  - **While playing (tap to time):** the line's start becomes the playhead. The line that was highlighted at that moment ends there, so the new highlight replaces it. The tapped line keeps its length (at least 1 s), cut at the next line's start.
+  - **Ignored:** a tap earlier than the previous line's start, or on a line earlier than the one playing, so lines stay in time order.
+  - **A line tapped while playing outside the picked range** is added to the range, with every line between.
 - **Highlight:** the line whose start ≤ playhead < end is highlighted, only while it lasts; between lines nothing is.
-- **Edit:** a pencil opens a text field with the line's text. Saving an empty text keeps the old one.
+- **Edit:** a pencil opens a text field with the line's text. Saving an empty text keeps the old one. A line break becomes a space, so a line stays one caption line.
 - **Reorder:** a drag handle moves a line's text to another place. Times stay where they are, so lines stay in time order: reordering swaps which text sits at which time.
-- **Add:** "Add line" asks for text and inserts a line at the playhead, 2 s long (cut at the next line's start; the line it lands in ends there).
+- **Add:** "Add line" asks for text and inserts a line at the playhead, 2 s long (cut at the next line's start; the line it lands in ends there). When a line starts exactly at the playhead (right after tapping it while paused), that line's time is shared: the new line takes the first half, at most 2 s. A new line that lands in a picked line is picked.
 - **Delete:** removes a line. The last picked line can't be deleted.
-- **After an edit:** the picked range keeps covering the same lines. The clip follows the range's first and last lines when their times or the range change; a nudge on its own is kept. The caption is refilled from the lines (as FR-18 does), and the script is saved as the newest script (source `edited`, FR-14) after 1 s without edits and when the screen closes.
+- **After an edit:** the picked range keeps covering the same lines. Each clip edge follows its own line only when that line's time changes (or another line becomes the first or last); a nudge on the other edge is kept. The caption is refilled from the lines (as FR-18 does), and the script is saved as the newest script (source `edited`, FR-14) after 1 s without edits and when the screen closes.
+- **Script still being written:** once any line is edited, lines that arrive later are not added to this reel (the edited lines win).
 
 ## 4. Non-functional requirements
 
@@ -815,3 +817,4 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 
 - Processing says "Downloading audio" even when the audio is cached.
 - The language list shows both "English (detected)" and "English".
+- **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) Timing a line past the clip end past the downloaded window starts a new download (FR-15) and replaces the player in the middle of playing. (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.

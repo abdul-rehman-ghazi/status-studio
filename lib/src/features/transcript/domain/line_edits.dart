@@ -26,7 +26,7 @@ class PickedScript {
 
 /// A blank [text] keeps the line as it was.
 PickedScript withLineText(PickedScript script, int index, String text) {
-  final trimmed = text.trim();
+  final trimmed = _singleLine(text);
   if (trimmed.isEmpty) {
     return script;
   }
@@ -47,41 +47,75 @@ PickedScript withLineTextMoved(PickedScript script, int from, int to) {
   ], script.selection);
 }
 
-/// Inserts a line at [playhead]; the line it lands in ends there. A blank
-/// [text] adds nothing.
+/// Inserts a line at [playhead]. The line it lands in ends there; a line
+/// that starts exactly there shares its time with the new one, which takes
+/// the first part. A new line that lands in a picked line is picked too. A
+/// blank [text] adds nothing.
 PickedScript withLineAdded(
   PickedScript script, {
   required String text,
   required Duration playhead,
 }) {
-  final trimmed = text.trim();
+  final trimmed = _singleLine(text);
   if (trimmed.isEmpty) {
     return script;
   }
   final lines = [...script.transcript.lines];
-  final position = lines.indexWhere((line) => line.start > playhead);
-  final insertAt = position < 0 ? lines.length : position;
-  if (insertAt > 0) {
-    lines[insertAt - 1] = _endedAt(lines[insertAt - 1], playhead);
+  final sameStart = lines.indexWhere((line) => line.start == playhead);
+  final splitLength = sameStart < 0
+      ? Duration.zero
+      : _splitLength(lines[sameStart]);
+  final int insertAt;
+  final int? landingIndex;
+  final Duration end;
+  if (splitLength > Duration.zero) {
+    insertAt = sameStart;
+    landingIndex = sameStart;
+    end = playhead + splitLength;
+    lines[sameStart] = lines[sameStart].copyWith(start: end);
+  } else {
+    final position = lines.indexWhere((line) => line.start > playhead);
+    insertAt = position < 0 ? lines.length : position;
+    landingIndex = insertAt > 0 && lines[insertAt - 1].end > playhead
+        ? insertAt - 1
+        : null;
+    if (landingIndex != null) {
+      lines[landingIndex] = _endedAt(lines[landingIndex], playhead);
+    }
+    end = _addedLineEnd(lines, insertAt, playhead);
   }
   lines.insert(
     insertAt,
-    TranscriptLine(
-      index: insertAt,
-      text: trimmed,
-      start: playhead,
-      end: _addedLineEnd(lines, insertAt, playhead),
-    ),
+    TranscriptLine(index: insertAt, text: trimmed, start: playhead, end: end),
   );
-  final selection = script.selection;
   return _withLines(
     script,
     lines,
-    RangeSelected(
-      insertAt <= selection.start ? selection.start + 1 : selection.start,
-      insertAt <= selection.end ? selection.end + 1 : selection.end,
-    ),
+    _rangeAfterInsert(script.selection, insertAt, landingIndex),
   );
+}
+
+RangeSelected _rangeAfterInsert(
+  RangeSelected selection,
+  int insertAt,
+  int? landingIndex,
+) {
+  final landsInPickedLine =
+      landingIndex != null &&
+      landingIndex >= selection.start &&
+      landingIndex <= selection.end;
+  if (landsInPickedLine) {
+    return RangeSelected(selection.start, selection.end + 1);
+  }
+  return RangeSelected(
+    insertAt <= selection.start ? selection.start + 1 : selection.start,
+    insertAt <= selection.end ? selection.end + 1 : selection.end,
+  );
+}
+
+Duration _splitLength(TranscriptLine line) {
+  final half = (line.end - line.start) ~/ 2;
+  return half < _addedLineLength ? half : _addedLineLength;
 }
 
 TranscriptLine _endedAt(TranscriptLine line, Duration end) {
@@ -102,6 +136,9 @@ Duration _addedLineEnd(
   return end;
 }
 
+String _singleLine(String text) =>
+    text.replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();
+
 /// Throws when [index] is the only picked line: the clip needs a line.
 PickedScript withLineRemoved(PickedScript script, int index) {
   final selection = script.selection;
@@ -120,8 +157,8 @@ PickedScript withLineRemoved(PickedScript script, int index) {
 }
 
 /// Tap to time (spec FR-21): the line starts at [playhead] and the line that
-/// was highlighted there ends there. A tap before the previous line's start
-/// changes nothing.
+/// was highlighted there ends there. A tap before the previous line's start,
+/// or on a line earlier than the one playing, changes nothing.
 PickedScript withLineTimedAt(
   PickedScript script,
   int index,
@@ -132,6 +169,9 @@ PickedScript withLineTimedAt(
     return script;
   }
   final highlighted = highlightedLineIndex(lines, playhead);
+  if (highlighted != null && highlighted > index) {
+    return script;
+  }
   if (highlighted != null &&
       highlighted != index &&
       lines[highlighted].start < playhead) {

@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
+import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
@@ -25,6 +26,7 @@ class ClipLinesList extends ConsumerStatefulWidget {
     required this.script,
     required this.window,
     required this.playhead,
+    required this.onEdited,
   });
 
   final PickedScript script;
@@ -33,17 +35,21 @@ class ClipLinesList extends ConsumerStatefulWidget {
   final ClipWindow window;
   final ClipPlayhead playhead;
 
+  /// Called after every edit, so the screen can save the script.
+  final VoidCallback onEdited;
+
   @override
   ConsumerState<ClipLinesList> createState() => _ClipLinesListState();
 }
 
 class _ClipLinesListState extends ConsumerState<ClipLinesList>
     with SingleTickerProviderStateMixin {
-  late final Ticker _ticker = createTicker((_) => _redraw());
+  late final Ticker _ticker;
 
   @override
   void initState() {
     super.initState();
+    _ticker = createTicker((_) => _followPlayhead());
     widget.playhead.addListener(_followPlayhead);
   }
 
@@ -79,7 +85,10 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     setState(() {});
   }
 
-  ReelDraftController get _draft => ref.read(reelDraftProvider.notifier);
+  void _edit(PickedScript Function(PickedScript script) edit) {
+    ref.read(reelDraftProvider.notifier).editScript(edit);
+    widget.onEdited();
+  }
 
   void _tapLine(TranscriptLine line) {
     final playhead = widget.playhead;
@@ -88,9 +97,7 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     }
     if (playhead.isPlaying) {
       final timedAt = playhead.position;
-      _draft.editScript(
-        (script) => withLineTimedAt(script, line.index, timedAt),
-      );
+      _edit((script) => withLineTimedAt(script, line.index, timedAt));
       return;
     }
     unawaited(playhead.seekTo(line.start));
@@ -105,7 +112,7 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     if (text == null) {
       return;
     }
-    _draft.editScript((script) => withLineText(script, line.index, text));
+    _edit((script) => withLineText(script, line.index, text));
   }
 
   Future<void> _addLine() async {
@@ -114,16 +121,14 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     if (text == null) {
       return;
     }
-    _draft.editScript(
-      (script) => withLineAdded(script, text: text, playhead: playhead),
-    );
+    _edit((script) => withLineAdded(script, text: text, playhead: playhead));
   }
 
   void _removeLine(TranscriptLine line) =>
-      _draft.editScript((script) => withLineRemoved(script, line.index));
+      _edit((script) => withLineRemoved(script, line.index));
 
   void _moveLine(int firstShown, int oldPosition, int newPosition) {
-    _draft.editScript(
+    _edit(
       (script) => withLineTextMoved(
         script,
         firstShown + oldPosition,
@@ -321,13 +326,18 @@ class _LineTextDialogState extends State<_LineTextDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.title),
-      content: TextField(
-        controller: _text,
-        autofocus: true,
-        minLines: 1,
-        maxLines: 4,
-        textDirection: TextDirection.rtl,
-        style: scriptTextStyle(widget.initialText),
+      content: ListenableBuilder(
+        listenable: _text,
+        builder: (context, _) => TextField(
+          controller: _text,
+          autofocus: true,
+          minLines: 1,
+          maxLines: 4,
+          textDirection: isArabicScript(_text.text)
+              ? TextDirection.rtl
+              : TextDirection.ltr,
+          style: scriptTextStyle(_text.text),
+        ),
       ),
       actions: [
         TextButton(

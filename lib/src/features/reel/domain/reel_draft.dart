@@ -20,6 +20,7 @@ class ReelDraft {
     this.clip,
     this.frame = const FrameSettings(),
     this.caption = const CaptionSettings(),
+    this.linesEdited = false,
   });
 
   final SourceVideo? video;
@@ -29,6 +30,10 @@ class ReelDraft {
   final ClipRange? clip;
   final FrameSettings frame;
   final CaptionSettings caption;
+
+  /// Whether lines were edited on Fine-tune (FR-21); lines still being
+  /// written no longer replace the edited ones.
+  final bool linesEdited;
 
   /// A new transcript invalidates the old selection and clip.
   ReelDraft withTranscript(Transcript transcript) {
@@ -45,6 +50,9 @@ class ReelDraft {
   /// being written) keeps the selection and clip; any other replaces it.
   ReelDraft withGrowingTranscript(Transcript transcript) {
     final current = this.transcript;
+    if (linesEdited) {
+      return this;
+    }
     if (current == null || !_extends(transcript, current)) {
       return withTranscript(transcript);
     }
@@ -72,23 +80,36 @@ class ReelDraft {
   }
 
   /// Applies an edit made on Fine-tune (spec FR-21). The caption is refilled
-  /// from the lines; the clip follows the range's end lines only when their
-  /// times or the range changed, so a nudge survives an edit elsewhere.
+  /// from the lines; each clip edge follows its own line only when that
+  /// line's time changed, so a nudge survives an edit elsewhere.
   ReelDraft withEditedScript(PickedScript edited) {
     final before = pickedScript;
-    final refilled = copyWith(
+    return copyWith(
       transcript: edited.transcript,
       selection: edited.selection,
+      clip: _clipAfterEdit(before, edited),
       caption: caption.copyWith(
         variant: CaptionVariant.original,
         text: _selectedText(edited.transcript, edited.selection),
       ),
+      linesEdited: true,
     );
-    if (_sameEdges(before, edited)) {
-      return refilled;
+  }
+
+  ClipRange _clipAfterEdit(PickedScript before, PickedScript after) {
+    final clip = this.clip;
+    if (clip == null) {
+      throw StateError('Lines were edited before a clip was set.');
     }
-    return refilled.copyWith(
-      clip: ClipRange.fromLines(edited.transcript, edited.selection),
+    final firstBefore = before.transcript.lines[before.selection.start];
+    final lastBefore = before.transcript.lines[before.selection.end];
+    final firstAfter = after.transcript.lines[after.selection.start];
+    final lastAfter = after.transcript.lines[after.selection.end];
+    return ClipRange(
+      start: firstAfter.start == firstBefore.start
+          ? clip.start
+          : firstAfter.start,
+      end: lastAfter.end == lastBefore.end ? clip.end : lastAfter.end,
     );
   }
 
@@ -150,6 +171,7 @@ class ReelDraft {
     ClipRange? clip,
     FrameSettings? frame,
     CaptionSettings? caption,
+    bool? linesEdited,
   }) {
     return ReelDraft(
       video: video ?? this.video,
@@ -159,6 +181,7 @@ class ReelDraft {
       clip: clip ?? this.clip,
       frame: frame ?? this.frame,
       caption: caption ?? this.caption,
+      linesEdited: linesEdited ?? this.linesEdited,
     );
   }
 
@@ -171,20 +194,20 @@ class ReelDraft {
       other.selection == selection &&
       other.clip == clip &&
       other.frame == frame &&
-      other.caption == caption;
+      other.caption == caption &&
+      other.linesEdited == linesEdited;
 
   @override
-  int get hashCode =>
-      Object.hash(video, language, transcript, selection, clip, frame, caption);
-}
-
-bool _sameEdges(PickedScript before, PickedScript after) {
-  final firstBefore = before.transcript.lines[before.selection.start];
-  final lastBefore = before.transcript.lines[before.selection.end];
-  final firstAfter = after.transcript.lines[after.selection.start];
-  final lastAfter = after.transcript.lines[after.selection.end];
-  return firstBefore.start == firstAfter.start &&
-      lastBefore.end == lastAfter.end;
+  int get hashCode => Object.hash(
+    video,
+    language,
+    transcript,
+    selection,
+    clip,
+    frame,
+    caption,
+    linesEdited,
+  );
 }
 
 bool _extends(Transcript grown, Transcript current) =>

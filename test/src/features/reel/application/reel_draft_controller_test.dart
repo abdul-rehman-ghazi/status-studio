@@ -157,6 +157,28 @@ void main() {
       expect(draft().clip!.end, const Duration(milliseconds: 58600));
     });
 
+    test('keeps_a_nudge_of_the_other_edge_when_one_edge_is_timed', () {
+      pickLinesOneToThree();
+      controller.nudgeClipEnd(ClipRange.nudgeStep);
+
+      controller.editScript(
+        (script) => withLineTimedAt(script, 1, const Duration(seconds: 23)),
+      );
+
+      expect(draft().clip!.end, const Duration(milliseconds: 49300));
+    });
+
+    test('ignores_lines_still_being_written_after_an_edit', () {
+      pickLinesOneToThree();
+      controller.editScript((script) => withLineText(script, 2, 'new'));
+
+      controller.growTranscript(
+        fixture.copyWith(lines: [...fixture.lines, fixture.lines.last]),
+      );
+
+      expect(draft().transcript!.lines[2].text, 'new');
+    });
+
     test('fails_when_no_lines_are_picked', () {
       controller
         ..setVideo(sampleVideo)

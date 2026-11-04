@@ -39,6 +39,8 @@ class ClipPlayhead extends ChangeNotifier {
   /// players are created while the tree builds.
   void attach(Future<void> Function(Duration videoTime) seek) => _seek = seek;
 
+  /// Does not notify: players go away while the tree is torn down. Readers
+  /// see [isPlaying] and [isReady] change the next time they look.
   void detach() {
     _seek = null;
     _isPlaying = false;
