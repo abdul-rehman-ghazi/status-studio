@@ -63,6 +63,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     final controller = ref.read(reelDraftProvider.notifier);
     final sourceSize = previewSourceSize(ref, draft);
     final path = draft.frame.cropPath;
+    final canMove = canMoveCrop(draft.frame, sourceSize);
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Fine-tune · Video',
@@ -80,7 +81,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
                     video: video,
                     clip: clip,
                     playhead: _playhead,
-                    videoOverlay: canMoveCrop(draft.frame, sourceSize)
+                    videoOverlay: canMove
                         ? CropWindowOverlay(
                             frame: draft.frame,
                             sourceSize: sourceSize,
@@ -92,7 +93,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
                         : null,
                   ),
           ),
-          if (!path.isEmpty)
+          if (!path.isEmpty && canMove)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: CropKeyframeChips(
@@ -118,11 +119,41 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     );
   }
 
+  /// Lyrics starts its own player only once this step's is gone, and this
+  /// step makes its player again only once Lyrics has slid away: never two
+  /// decoders at a time (spec FR-22).
   Future<void> _openLyrics() async {
     setState(() => _playerReleased = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    final covered = ModalRoute.of(context)?.secondaryAnimation;
     await context.push(AppRoutes.lyrics);
+    await _untilDismissed(covered);
     if (mounted) {
       setState(() => _playerReleased = false);
+    }
+  }
+
+  Future<void> _untilDismissed(Animation<double>? animation) async {
+    if (animation == null || animation.isDismissed) {
+      return;
+    }
+    final dismissed = Completer<void>();
+    void onStatus(AnimationStatus status) {
+      if (status == AnimationStatus.dismissed && !dismissed.isCompleted) {
+        dismissed.complete();
+      }
+    }
+
+    animation.addStatusListener(onStatus);
+    try {
+      await dismissed.future.timeout(const Duration(seconds: 1));
+    } on TimeoutException {
+      // A route that never finishes sliding must not leave a blank player.
+    } finally {
+      animation.removeStatusListener(onStatus);
     }
   }
 
@@ -191,7 +222,10 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
           sourceSize: sourceSize,
           onChanged: controller.updateFrame,
         ),
-        if (canMoveCrop(draft.frame, sourceSize))
+        // Kept while moving, so a crop that can no longer move (Blur, 16:9)
+        // can still be turned off.
+        if (canMoveCrop(draft.frame, sourceSize) ||
+            !draft.frame.cropPath.isEmpty)
           _MovingCropSwitch(
             moving: !draft.frame.cropPath.isEmpty,
             onChanged: (moving) {
@@ -207,8 +241,18 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
           const SizedBox(height: 16),
           FreeCropEditor(
             crop: draft.frame.freeCrop,
-            onChanged: (crop) =>
-                controller.updateFrame(draft.frame.copyWith(freeCrop: crop)),
+            // While the crop moves its keyframes place the window, so a drag
+            // may only change its size.
+            onChanged: (crop) => controller.updateFrame(
+              draft.frame.copyWith(
+                freeCrop: draft.frame.cropPath.isEmpty
+                    ? crop
+                    : draft.frame.freeCrop.copyWith(
+                        width: crop.width,
+                        height: crop.height,
+                      ),
+              ),
+            ),
           ),
         ],
       ],

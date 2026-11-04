@@ -256,20 +256,25 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - **Glide:** the anchor moves in a straight line from the previous keyframe's anchor to this one, arriving at this keyframe's time.
   - **Cut:** the anchor holds the previous keyframe's value until this keyframe's time, then jumps. At exactly that time it has jumped (Dart and Kotlin agree).
   - Before the first keyframe the anchor is the first keyframe's; after the last it holds. The first keyframe's way of arriving has no effect, so its Glide and Cut choice is hidden.
-  - Keyframes are kept in video time, so nudging the clip does not move them. A new keyframe's time is inside the clip; it snaps to 0.1 s, and one within 0.25 s of another replaces it.
+  - Keyframes are kept in video time, so nudging the clip does not move them. A new keyframe's time is inside the clip, with the clip's ends rounded inwards to 0.1 s first so a snapped time never falls outside; it snaps to 0.1 s, and one within 0.25 s of another replaces it.
   - A keyframe outside the clip (after a nudge or a line edit) has no effect on the reel except as the position the crop starts from or holds. Its chip is dimmed, and it can still be deleted.
+- **New lines:** picking other lines on Script, or getting a new script, stops the moving crop and keeps the crop where it was at the old clip start, since the keyframes belonged to that clip.
 - **Off by default:** "Move the crop during the clip" is a switch on step 1. Off, the crop is as FR-6 says. Turning it on creates a first keyframe at the clip start from the current crop. Turning it off removes the keyframes and keeps the crop where it was at the clip start: Crop to fill stores it as the base anchor, Free crop writes it into its rectangle.
 - **Editing (on):**
   - **Drag:** dragging the crop window over the player moves it with the finger and writes one keyframe, at the playhead where the drag started, when the finger lifts: it replaces the one there or adds one that glides in. Keep in view is hidden while the switch is on.
   - **Chips:** a row under the player, in the pinned part, shows each keyframe's time. Tap one to jump to it. The selected keyframe offers Glide or Cut (not on the first) and Delete. Any keyframe can be deleted except the only one left.
-  - **Touch:** the window can be dragged from anywhere inside it, and from a margin around its outline.
+  - **Touch:** the window can be dragged from anywhere inside it, and from a margin around its outline. A cancelled drag (a system gesture, a call) writes nothing and the window goes back to following the playhead.
+  - **Free crop editor:** while the crop moves, its drag changes only the rectangle's size; keyframes place the window.
+  - **Only while it can move:** the window outline and the chips show only while the crop can move (not for Blur or 16:9, or a source with no room). The switch stays while keyframes exist, so they can be turned off.
 - **Changing the size or fill:** keyframes stay but have no effect while Blur or 16:9 is chosen, and come back when a crop is chosen again. Changing the free crop's size keeps them.
 - **Rounding:** each keyframe's pixel rectangle is rounded as §6.3 says. The preview moves in whole pixels; the render moves in fractions of one.
 - **Render:** the keyframes go to Kotlin as rectangles (§6.3.1) with their times counted from the clip start; the crop between them is computed per frame (§6.3.2). A reel with the switch off renders exactly as before.
 - **Previews:**
   - Both Fine-tune steps follow the playhead frame by frame while playing (the player reports its position every 100 ms or so, so a ticker adds the time since the last report).
   - Fine-tune · Lyrics shows the moving crop and the lyric line due (FR-21), by extending `reel_preview.dart`. Style shows the crop at the clip start.
-- **One decoder at a time:** when Lyrics opens, the Video step's player is released, and it is made again when Lyrics closes.
+- **One decoder at a time:** when Lyrics opens, the Video step's player is released first (Lyrics opens after the frame that disposes it), and it is made again once Lyrics has slid away.
+- **Height:** every player on Fine-tune is at most 260 dp high, so a vertical video leaves room for the controls; the crop outline stays on the video.
+- **Frame rate:** Lyrics lays out the caption again only when the line due, the look or the size changes, not every frame.
 
 ## 4. Non-functional requirements
 
@@ -689,7 +694,7 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
 - [x] **5. Two steps.** Routes, step labels for all screens ("of 5") and buttons; the Video step keeps the player, nudges and warnings and takes size, fill and crop from Style; the Lyrics step takes the lines (only the clip's); Style keeps the caption.
 - [x] **6. Moving crop on Video.** The crop window over the player, with the switch (hidden without room); drag writes one keyframe on release; chips in the pinned part with Glide, Cut and Delete; a ticker for the playhead.
 - [x] **7. Lyrics preview.** `ReelPreview` follows the playhead (moving crop and the due cue); the Video step's player is released while Lyrics is open.
-- [ ] **8. Docs and review.** §13, §14, §15; reviewer pass; push.
+- [x] **8. Docs and review.** §13, §14, §15; reviewer pass (Opus; eight findings, all fixed except a test for a cancelled drag); push.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -734,6 +739,8 @@ Request, 2026-11-04: crop position that changes while the video plays (glide or 
   - Keyframes go to the render spec as NDC rectangles with times from the clip start, in place of the fixed crop; Blur and 16:9 send none.
   - The switch is hidden without room to move. A drag writes one keyframe, at the playhead where it began. The first keyframe has no Glide or Cut. Keep in view is hidden while the crop moves.
   - The Video step's player is released while Lyrics is open and made again on Back.
+  - Snapping never puts a keyframe outside the clip. Picking other lines or a new script stops the moving crop and keeps the crop at the old start.
+  - A vertical video's player is at most 260 dp high. Chips and the crop outline show only while the crop can move, and the switch stays while keyframes exist. The free crop editor changes only the size while the crop moves.
 - **Fine-tune lyrics (FR-21):**
   - Only the clip's lines are listed. The line due shows on the video, and nothing shows between lines. Add line is off outside the clip.
 - **Fine-tune lines (FR-21):**
@@ -883,4 +890,4 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - Processing says "Downloading audio" even when the audio is cached.
 - The language list shows both "English (detected)" and "English".
 - **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) Timing a line beyond the downloaded window starts a new download (FR-15) and replaces the player in the middle of playing. (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
-- **Moving crop (M19):** (a) The free-crop editor still moves the fixed rectangle while keyframes exist; that has no effect until the switch is turned off. (b) Style's preview shows the first caption line whatever the time. (c) Jumping to a keyframe outside the downloaded window (after a nudge) can't show it, because the clip file doesn't hold that moment.
+- **Moving crop (M19):** (a) Style's preview shows the first caption line whatever the time. (b) Jumping to a keyframe outside the downloaded window (after a nudge) can't show it, because the clip file doesn't hold that moment.

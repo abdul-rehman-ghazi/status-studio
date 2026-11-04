@@ -43,7 +43,7 @@ class ReelDraft {
       video: video,
       language: language,
       transcript: transcript,
-      frame: frame,
+      frame: _frameWithoutMovingCrop,
       caption: caption,
     );
   }
@@ -124,22 +124,39 @@ class ReelDraft {
 
   /// Ends the moving crop and keeps the crop where it was at the clip start.
   ReelDraft withMovingCropStopped() {
-    final atStart = frame.cropPath.anchorAt(
-      _requireClip().start,
-      base: baseAnchorFor(frame),
-    );
+    _requireClip();
+    return copyWith(frame: _frameWithoutMovingCrop);
+  }
+
+  /// The frame with its keyframes gone and the crop left where it was at the
+  /// clip start (the base anchor for Crop to fill, the rectangle for Free
+  /// crop). Picking other lines or a new script does this, since the
+  /// keyframes belong to the old clip (spec FR-22).
+  FrameSettings get _frameWithoutMovingCrop {
+    if (frame.cropPath.isEmpty) {
+      return frame;
+    }
+    final start = clip?.start;
+    if (start == null) {
+      return frame.copyWith(cropPath: const CropPath());
+    }
+    final atStart = frame.cropPath.anchorAt(start, base: baseAnchorFor(frame));
     final fixed = frame.preset == AspectPreset.free
         ? frame.copyWith(freeCrop: _freeCropAt(frame.freeCrop, atStart))
         : frame.copyWith(anchor: atStart);
-    return copyWith(frame: fixed.copyWith(cropPath: const CropPath()));
+    return fixed.copyWith(cropPath: const CropPath());
   }
 
   /// Sets the crop's anchor at [videoTime], moved into the clip.
   ReelDraft withCropAnchorAt(Duration videoTime, CropAnchor anchor) {
     final clip = _requireClip();
-    final inClip = videoTime < clip.start
-        ? clip.start
-        : (videoTime > clip.end ? clip.end : videoTime);
+    // Snapping happens in the path, so the limits are snapped inwards first:
+    // a keyframe rounded out of the clip would never be reached.
+    final earliest = _roundedUpToTenth(clip.start);
+    final latest = _roundedDownToTenth(clip.end);
+    final inClip = videoTime < earliest
+        ? earliest
+        : (videoTime > latest ? latest : videoTime);
     return _withCropPath(frame.cropPath.withAnchorAt(inClip, anchor));
   }
 
@@ -173,13 +190,14 @@ class ReelDraft {
         language: language,
         transcript: transcript,
         selection: selection,
-        frame: frame,
+        frame: _frameWithoutMovingCrop,
         caption: caption,
       );
     }
     return copyWith(
       selection: selection,
       clip: ClipRange.fromLines(transcript, selection),
+      frame: _frameWithoutMovingCrop,
       caption: caption.copyWith(
         variant: CaptionVariant.original,
         text: _selectedText(transcript, selection),
@@ -255,6 +273,18 @@ class ReelDraft {
     caption,
     linesEdited,
   );
+}
+
+const _tenth = Duration(milliseconds: 100);
+
+Duration _roundedUpToTenth(Duration time) {
+  final tenths = (time.inMicroseconds / _tenth.inMicroseconds).ceil();
+  return _tenth * tenths;
+}
+
+Duration _roundedDownToTenth(Duration time) {
+  final tenths = (time.inMicroseconds / _tenth.inMicroseconds).floor();
+  return _tenth * tenths;
 }
 
 FreeCropRect _freeCropAt(FreeCropRect crop, CropAnchor anchor) {

@@ -33,6 +33,12 @@ class _ReelStageState extends State<ReelStage>
     with SingleTickerProviderStateMixin {
   late final PlayheadRedraw _redraw;
 
+  // Laying out the caption measures text several times; the same widget
+  // object is kept while the line, the look and the size stay as they were,
+  // so the per-frame redraw only moves the video.
+  OverlaySpec? _overlaySpec;
+  Widget? _overlay;
+
   @override
   void initState() {
     super.initState();
@@ -72,8 +78,8 @@ class _ReelStageState extends State<ReelStage>
               videoTime: time,
             ),
           ),
-          ReelOverlayLayer(
-            spec: OverlaySpec(
+          _overlayFor(
+            OverlaySpec(
               output: output,
               caption: draft.caption.copyWith(text: due?.text ?? ''),
             ),
@@ -81,5 +87,14 @@ class _ReelStageState extends State<ReelStage>
         ],
       ),
     );
+  }
+
+  Widget _overlayFor(OverlaySpec spec) {
+    final kept = _overlay;
+    if (kept != null && spec == _overlaySpec) {
+      return kept;
+    }
+    _overlaySpec = spec;
+    return _overlay = ReelOverlayLayer(spec: spec);
   }
 }

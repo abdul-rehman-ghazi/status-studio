@@ -92,6 +92,7 @@ class _FreeCropEditorState extends State<FreeCropEditor> {
           child: Semantics(
             label: 'Crop area. Drag to move.',
             child: GestureDetector(
+              key: const ValueKey('free-crop-area'),
               onPanStart: _startDrag,
               onPanUpdate: (details) => _move(details, frame),
               child: _CropRectangle(

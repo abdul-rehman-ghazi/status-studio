@@ -11,8 +11,8 @@ import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
-/// The tallest a reel-shaped player gets: a 9:16 reel at full width would
-/// fill the screen.
+/// The tallest the player gets: a vertical video or a 9:16 reel at full width
+/// would fill the screen and push the controls off it.
 const _framedMaxHeight = 260.0;
 
 typedef VideoPlayerFactory = VideoPlayerController Function(File source);
@@ -145,51 +145,58 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     await _player.play();
   }
 
-  /// The video, or the reel built around it by [ClipPlayer.frame], with the
-  /// overlay and the play button over it.
+  /// The video, or the reel built around it by [ClipPlayer.frame], at most
+  /// [_framedMaxHeight] high, with the overlay and the play button over it.
   Widget _stage(VideoPlayerValue value) {
     final video = VideoPlayer(_player);
     final frame = widget.frame;
-    final Widget sized;
-    if (frame != null && value.isInitialized) {
-      sized = SizedBox(
-        width: double.infinity,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: _framedMaxHeight),
-            child: frame(context, video),
+    final Widget picture;
+    if (!value.isInitialized) {
+      picture = const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: SizedBox.shrink(),
+      );
+    } else if (frame != null) {
+      picture = frame(context, video);
+    } else {
+      picture = AspectRatio(aspectRatio: value.aspectRatio, child: video);
+    }
+    final stage = Stack(
+      children: [
+        picture,
+        if (value.isInitialized && widget.videoOverlay != null)
+          Positioned.fill(child: widget.videoOverlay!),
+        // Over a crop window the middle belongs to dragging it.
+        Positioned.fill(
+          child: Align(
+            alignment: widget.videoOverlay == null
+                ? Alignment.center
+                : Alignment.bottomLeft,
+            child: Padding(
+              padding: EdgeInsets.all(widget.videoOverlay == null ? 0 : 8),
+              child: ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: _player,
+                builder: (context, value, _) => _PlayButton(
+                  playing: value.isPlaying,
+                  onPressed: value.isInitialized ? _togglePlayback : null,
+                ),
+              ),
+            ),
           ),
         ),
-      );
-    } else {
-      sized = AspectRatio(
-        aspectRatio: value.isInitialized ? value.aspectRatio : 16 / 9,
-        child: value.isInitialized ? video : const SizedBox.shrink(),
-      );
-    }
+      ],
+    );
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Stack(
         children: [
           const Positioned.fill(child: ColoredBox(color: AppColors.surface)),
-          sized,
-          if (value.isInitialized && widget.videoOverlay != null)
-            Positioned.fill(child: widget.videoOverlay!),
-          // Over a crop window the middle belongs to dragging it.
-          Positioned.fill(
-            child: Align(
-              alignment: widget.videoOverlay == null
-                  ? Alignment.center
-                  : Alignment.bottomLeft,
-              child: Padding(
-                padding: EdgeInsets.all(widget.videoOverlay == null ? 0 : 8),
-                child: ValueListenableBuilder<VideoPlayerValue>(
-                  valueListenable: _player,
-                  builder: (context, value, _) => _PlayButton(
-                    playing: value.isPlaying,
-                    onPressed: value.isInitialized ? _togglePlayback : null,
-                  ),
-                ),
+          SizedBox(
+            width: double.infinity,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: _framedMaxHeight),
+                child: stage,
               ),
             ),
           ),

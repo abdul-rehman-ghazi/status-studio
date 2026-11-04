@@ -7,7 +7,9 @@ import 'package:status_studio/src/features/clip/presentation/waveform_view.dart'
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/routing/app_router.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../../helpers/fake_clip_preparer.dart';
 import '../../../../helpers/fake_video_player.dart';
@@ -187,6 +189,15 @@ void main() {
     expect(players.created.length, 3);
   });
 
+  testWidgets('a_vertical_video_is_capped_in_height', (tester) async {
+    await pumpFineTune(tester, playerFactory: portraitPlayerFactory);
+
+    expect(
+      tester.getSize(find.byType(VideoPlayer)).height,
+      lessThanOrEqualTo(260),
+    );
+  });
+
   testWidgets('unplayable_source_shows_message', (tester) async {
     await pumpFineTune(tester, playerFactory: brokenPlayerFactory);
 
@@ -322,6 +333,41 @@ void main() {
 
       expect(find.text('Keep in view'), findsNothing);
     });
+
+    testWidgets('chips_are_hidden_when_nothing_can_move', (tester) async {
+      await turnOn(tester);
+
+      await tapText(tester, '16:9');
+
+      expect(find.widgetWithText(ChoiceChip, '0:21.4'), findsNothing);
+    });
+
+    testWidgets('the_switch_stays_so_a_hidden_move_can_be_turned_off', (
+      tester,
+    ) async {
+      await turnOn(tester);
+
+      await tapText(tester, '16:9');
+
+      expect(find.text(movingSwitch), findsOneWidget);
+    });
+
+    testWidgets(
+      'the_free_crop_editor_cannot_move_the_rectangle_while_it_moves',
+      (tester) async {
+        await pumpFineTune(tester);
+        await tapText(tester, 'Free');
+        await tapText(tester, movingSwitch);
+
+        await tester.drag(
+          find.byKey(const ValueKey('free-crop-area')),
+          const Offset(30, 0),
+        );
+        await tester.pump();
+
+        expect(draftNow(tester).frame.freeCrop.left, FreeCropRect.initial.left);
+      },
+    );
 
     testWidgets('a_drag_writes_one_keyframe_at_the_playhead', (tester) async {
       final player = await turnOn(tester);

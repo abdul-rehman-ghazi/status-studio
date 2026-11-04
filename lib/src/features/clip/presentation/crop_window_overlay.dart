@@ -134,6 +134,7 @@ class _CropWindowOverlayState extends State<CropWindowOverlay>
                     onPanStart: _startDrag,
                     onPanUpdate: (details) => _drag(details, shown),
                     onPanEnd: _endDrag,
+                    onPanCancel: () => setState(() => _dragAnchor = null),
                   ),
                 ),
               ),

@@ -276,6 +276,28 @@ void main() {
       expect(draft().frame.cropPath.keyframes.length, 1);
     });
 
+    test('picking_other_lines_stops_the_moving_crop', () {
+      pickLinesOneToThree();
+      controller
+        ..startMovingCrop()
+        ..moveCropTo(clipStart(), farRight)
+        ..tapLine(2);
+
+      expect(
+        (draft().frame.cropPath.isEmpty, draft().frame.anchor),
+        (true, farRight),
+      );
+    });
+
+    test('a_new_script_stops_the_moving_crop', () {
+      pickLinesOneToThree();
+      controller
+        ..startMovingCrop()
+        ..setTranscript(fixture);
+
+      expect(draft().frame.cropPath.isEmpty, isTrue);
+    });
+
     test('starting_without_a_clip_fails', () {
       expect(() => controller.startMovingCrop(), throwsStateError);
     });

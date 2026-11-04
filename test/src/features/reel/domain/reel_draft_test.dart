@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -61,5 +63,42 @@ void main() {
       (fixed.transcript, fixed.selection),
       (corrected(), scriptDraft.selection),
     );
+  });
+
+  group('moving crop keyframe times', () {
+    const anchor = CropAnchor(x: 1, y: 0.5);
+    final oddClip = pickedDraft.copyWith(
+      clip: const ClipRange(
+        start: Duration(milliseconds: 12340),
+        end: Duration(milliseconds: 20060),
+      ),
+    );
+
+    test('a_keyframe_after_the_clip_stays_inside_it_once_snapped', () {
+      final moved = oddClip.withMovingCropStarted().withCropAnchorAt(
+        const Duration(seconds: 30),
+        anchor,
+      );
+
+      expect(
+        moved.frame.cropPath.keyframes.last.time,
+        lessThanOrEqualTo(const Duration(milliseconds: 20060)),
+      );
+    });
+
+    test('a_keyframe_before_the_clip_stays_inside_it_once_snapped', () {
+      final started = oddClip.withMovingCropStarted().withCropAnchorAt(
+        const Duration(seconds: 16),
+        anchor,
+      );
+      final withoutFirst = started.withoutCropKeyframe(0);
+
+      final moved = withoutFirst.withCropAnchorAt(Duration.zero, anchor);
+
+      expect(
+        moved.frame.cropPath.keyframes.first.time,
+        greaterThanOrEqualTo(const Duration(milliseconds: 12340)),
+      );
+    });
   });
 }
