@@ -29,6 +29,8 @@ class FollowSubjectSection extends StatelessWidget {
           fraction: fraction,
           onCancel: onCancel,
         ),
+        // The question is open in a sheet; the button comes back with its end.
+        FollowChoosing() => _StartButton(canStart: false, onStart: onStart),
         _ => _StartButton(canStart: canStart, onStart: onStart),
       },
     );

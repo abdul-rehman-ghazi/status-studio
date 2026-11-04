@@ -2,10 +2,10 @@ import 'dart:math' as math;
 
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/face_tracks.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
-const _sameFaceOverlap = 0.3;
 const _smallestRoom = 0.01;
 const _medianWindow = 5;
 const _deadZone = 0.08;
@@ -18,24 +18,143 @@ const _leastFaceFrames = 3;
 const _keyframeSpacing = Duration(milliseconds: 500);
 const _tenth = Duration(milliseconds: 100);
 
-/// The crop path that follows the person in [track] (spec FR-23).
+/// The crop path that follows the person in [track] (spec FR-23): in each
+/// scene, the one seen longest.
 ///
 /// Throws [NoSubjectFoundException] when faces are too rare to follow.
 CropPath followSubject(SubjectTrack track, FollowGeometry geometry) {
-  _requireEnoughFaces(track.samples);
-  final cuts = _cutsInsideClip(
-    _withMissedJumps(
-      track.sceneCuts ?? const [],
-      _cutsFromJumps(track.samples, geometry),
-    ),
-    geometry.clip,
+  requireEnoughFaces(track.samples);
+  final scenes = scenesOf(track, geometry);
+  return _pathOfScenes(scenes, geometry, [
+    for (final scene in scenes) mostProminent(trackFaces(scene.samples)),
+  ]);
+}
+
+/// The crop path that follows the person who was [choice]d (spec FR-25): in
+/// the scene of the picture, that person; in the other scenes, the face about
+/// the same size and in the same place, else the one seen longest.
+///
+/// Throws [NoSubjectFoundException] when faces are too rare to follow, and
+/// [ArgumentError] when [choice]'s face is not in its sample.
+CropPath followPerson(
+  SubjectTrack track,
+  FollowGeometry geometry,
+  PersonChoice choice,
+) {
+  requireEnoughFaces(track.samples);
+  final scenes = scenesOf(track, geometry);
+  final people = [for (final scene in scenes) trackFaces(scene.samples)];
+  final lasting = [
+    for (final (index, scene) in scenes.indexed)
+      lastingPeople(people[index], scene.samples.length),
+  ];
+  final chosenScene = scenes.indexWhere(
+    (scene) =>
+        choice.sampleIndex >= scene.firstIndex &&
+        choice.sampleIndex < scene.firstIndex + scene.samples.length,
   );
-  final scenes = _scenesOf(track.samples, cuts, geometry.clip);
-  final paths = [for (final scene in scenes) _scenePoints(scene, geometry)];
+  if (chosenScene < 0) {
+    throw ArgumentError.value(choice.sampleIndex, 'choice', 'is not a sample');
+  }
+  final chosen = _withTheirOtherSightings(
+    _thePersonIn(
+      people[chosenScene],
+      choice.face,
+      choice.sampleIndex - scenes[chosenScene].firstIndex,
+    ),
+    lasting[chosenScene],
+  );
+  return _pathOfScenes(scenes, geometry, [
+    for (final (index, scenePeople) in people.indexed)
+      index == chosenScene
+          ? chosen
+          : _followedInAnotherScene(chosen, scenePeople, lasting[index]),
+  ]);
+}
+
+/// Faces can't be recognised across cuts, so the person is the one of
+/// [lasting] who looks like [chosen]; when no one does, the one seen longest.
+FaceTrack? _followedInAnotherScene(
+  FaceTrack chosen,
+  List<FaceTrack> scenePeople,
+  List<FaceTrack> lasting,
+) {
+  final alike = _likeThe(chosen, lasting);
+  if (alike == null) {
+    return mostProminent(scenePeople);
+  }
+  return _withTheirOtherSightings(alike, lasting);
+}
+
+/// [person] with the later or earlier stretches in which the same person was
+/// picked up again as a new track after being missed for long: not seen in the
+/// same frame as them, and in about the same place and size.
+FaceTrack _withTheirOtherSightings(FaceTrack person, List<FaceTrack> lasting) {
+  final usual = person.typicalFace;
+  final others = lasting.where((track) => !identical(track, person)).toList()
+    ..sort((a, b) => a.firstIndex.compareTo(b.firstIndex));
+  var joined = person;
+  for (final other in others) {
+    if (!joined.sharesASampleWith(other) &&
+        usual.couldBeSameFaceAs(other.typicalFace)) {
+      joined = joined.joinedWith(other);
+    }
+  }
+  return joined;
+}
+
+FaceTrack _thePersonIn(
+  List<FaceTrack> people,
+  SubjectBox face,
+  int sceneSampleIndex,
+) {
+  return people.firstWhere(
+    (person) => person.faceAt(sceneSampleIndex) == face,
+    orElse: () => throw ArgumentError.value(
+      face,
+      'choice',
+      'is not a face in its sample',
+    ),
+  );
+}
+
+/// The person of another scene who sits about where [chosen] usually does and
+/// is about as big; the nearest when several do. Faces can't be recognised
+/// across cuts, so place and size stand in: right for a repeated camera angle.
+FaceTrack? _likeThe(FaceTrack chosen, List<FaceTrack> people) {
+  final usual = chosen.typicalFace;
+  final alike = people.where(
+    (person) => usual.couldBeSameFaceAs(person.typicalFace),
+  );
+  if (alike.isEmpty) {
+    return null;
+  }
+  return alike.reduce(
+    (best, next) =>
+        _centresApart(usual, next.typicalFace) <
+            _centresApart(usual, best.typicalFace)
+        ? next
+        : best,
+  );
+}
+
+double _centresApart(SubjectBox a, SubjectBox b) =>
+    math.max((a.centreX - b.centreX).abs(), (a.centreY - b.centreY).abs());
+
+CropPath _pathOfScenes(
+  List<SubjectScene> scenes,
+  FollowGeometry geometry,
+  List<FaceTrack?> followed,
+) {
+  final paths = [
+    for (final (index, scene) in scenes.indexed)
+      _scenePoints(scene, geometry, followed[index]),
+  ];
   return CropPath(_cappedKeyframes(paths, geometry.clip));
 }
 
-void _requireEnoughFaces(List<SubjectSample> samples) {
+/// Throws [NoSubjectFoundException] when faces are too rare to follow anyone.
+void requireEnoughFaces(List<SubjectSample> samples) {
   final withFaces = samples.where((sample) => sample.faces.isNotEmpty).length;
   final share = samples.isEmpty ? 0 : withFaces / samples.length;
   if (withFaces < _leastFaceFrames || share < _leastFaceShare) {
@@ -45,11 +164,31 @@ void _requireEnoughFaces(List<SubjectSample> samples) {
 
 // --- Scenes -------------------------------------------------------------
 
-class _Scene {
-  const _Scene({required this.start, required this.samples});
+/// A stretch of the clip between cuts, with the samples in it.
+class SubjectScene {
+  const SubjectScene({
+    required this.firstIndex,
+    required this.start,
+    required this.samples,
+  });
 
+  /// Where the scene's first sample is in the whole track's samples.
+  final int firstIndex;
   final Duration start;
   final List<SubjectSample> samples;
+}
+
+/// The scenes of [track]: split at the detected cuts and at the jumps the
+/// detector missed. A stretch with no samples is left out.
+List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
+  final cuts = _cutsInsideClip(
+    _withMissedJumps(
+      track.sceneCuts ?? const [],
+      _cutsFromJumps(track.samples, geometry),
+    ),
+    geometry.clip,
+  );
+  return _scenesBetween(track.samples, cuts, geometry.clip);
 }
 
 List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
@@ -57,23 +196,26 @@ List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
     ..sort();
 }
 
-List<_Scene> _scenesOf(
+List<SubjectScene> _scenesBetween(
   List<SubjectSample> samples,
   List<Duration> cuts,
   ClipRange clip,
 ) {
   final starts = [clip.start, ...cuts];
-  final scenes = <_Scene>[];
+  final scenes = <SubjectScene>[];
   for (final (index, start) in starts.indexed) {
     final end = index + 1 < starts.length ? starts[index + 1] : null;
-    final inScene = samples
-        .where(
-          (sample) =>
-              sample.time >= start && (end == null || sample.time < end),
-        )
-        .toList();
-    if (inScene.isNotEmpty) {
-      scenes.add(_Scene(start: start, samples: inScene));
+    bool isInScene(SubjectSample sample) =>
+        sample.time >= start && (end == null || sample.time < end);
+    final firstIndex = samples.indexWhere(isInScene);
+    if (firstIndex >= 0) {
+      scenes.add(
+        SubjectScene(
+          firstIndex: firstIndex,
+          start: start,
+          samples: samples.where(isInScene).toList(),
+        ),
+      );
     }
   }
   return scenes;
@@ -88,34 +230,69 @@ List<Duration> _withMissedJumps(List<Duration> detected, List<Duration> jumps) {
   return [...detected, ...missed];
 }
 
-/// A face that jumps far between two neighbouring frames is taken to be a
-/// cut, whether or not the scene detector saw one.
+/// Where no face of a frame is a face of the frame before, and the picture's
+/// centre of attention jumps far: a cut, whether or not the scene detector
+/// saw one. A bystander coming or going does not count, since the followed
+/// person is still there; nor does a person missed for a moment.
 List<Duration> _cutsFromJumps(
   List<SubjectSample> samples,
   FollowGeometry geometry,
 ) {
   final cuts = <Duration>[];
-  SubjectBox? previousFace;
-  CropAnchor? previousAnchor;
-  for (final sample in samples) {
-    final face = _pickFace(sample.faces, previousFace);
-    if (face == null) {
-      previousFace = null;
-      previousAnchor = null;
+  for (var i = 1; i < samples.length; i++) {
+    final before = samples[i - 1].faces;
+    final after = samples[i].faces;
+    if (before.isEmpty || after.isEmpty || _someFaceContinues(before, after)) {
       continue;
     }
-    final anchor = _anchorFor(face, geometry);
-    final before = previousAnchor;
-    if (before != null &&
-        math.max((anchor.x - before.x).abs(), (anchor.y - before.y).abs()) >
-            _jumpIsACut) {
-      cuts.add(sample.time);
+    if (_seenAroundTheBreak(samples, i)) {
+      continue;
     }
-    previousFace = face;
-    previousAnchor = anchor;
+    final jump = _distanceBetween(
+      _anchorFor(_largest(before), geometry),
+      _anchorFor(_largest(after), geometry),
+    );
+    if (jump > _jumpIsACut) {
+      cuts.add(samples[i].time);
+    }
   }
   return cuts;
 }
+
+bool _someFaceContinues(List<SubjectBox> before, List<SubjectBox> after) {
+  return after.any((face) => before.any((b) => b.couldBeSameFaceAs(face)));
+}
+
+/// A face from before [breakIndex] is back within two seconds, or one after
+/// it was there that recently: the person was only missed for a moment, or
+/// someone stood in front. The picture did not cut.
+bool _seenAroundTheBreak(List<SubjectSample> samples, int breakIndex) {
+  final before = samples[breakIndex - 1];
+  final after = samples[breakIndex];
+  for (var i = breakIndex + 1; i < samples.length; i++) {
+    if (samples[i].time - before.time > longestFaceGap) {
+      break;
+    }
+    if (_someFaceContinues(before.faces, samples[i].faces)) {
+      return true;
+    }
+  }
+  for (var i = breakIndex - 2; i >= 0; i--) {
+    if (after.time - samples[i].time > longestFaceGap) {
+      break;
+    }
+    if (_someFaceContinues(samples[i].faces, after.faces)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+SubjectBox _largest(List<SubjectBox> faces) =>
+    faces.reduce((best, next) => next.area > best.area ? next : best);
+
+double _distanceBetween(CropAnchor from, CropAnchor to) =>
+    math.max((to.x - from.x).abs(), (to.y - from.y).abs());
 
 // --- One scene's anchors ------------------------------------------------
 
@@ -126,8 +303,12 @@ class _Point {
   final CropAnchor anchor;
 }
 
-List<_Point> _scenePoints(_Scene scene, FollowGeometry geometry) {
-  final anchors = _filledAnchors(scene.samples, geometry);
+List<_Point> _scenePoints(
+  SubjectScene scene,
+  FollowGeometry geometry,
+  FaceTrack? followed,
+) {
+  final anchors = _filledAnchors(scene.samples, geometry, followed);
   final xs = _followedWithDeadZone(_median([for (final a in anchors) a.x]));
   final ys = _followedWithDeadZone(_median([for (final a in anchors) a.y]));
   final points = [
@@ -141,41 +322,22 @@ List<_Point> _scenePoints(_Scene scene, FollowGeometry geometry) {
   return _simplified(points, _tolerance);
 }
 
-/// The anchor for every sample: a frame with no face holds the last one;
-/// the frames before the first face take that face's; a scene with no face
-/// keeps the base.
+/// The anchor for every sample: a frame where the followed person is not seen
+/// holds the last one; the frames before the first sighting take that one; a
+/// scene with no face keeps the base.
 List<CropAnchor> _filledAnchors(
   List<SubjectSample> samples,
   FollowGeometry geometry,
+  FaceTrack? followed,
 ) {
   final found = <CropAnchor?>[];
-  SubjectBox? previousFace;
-  for (final sample in samples) {
-    final face = _pickFace(sample.faces, previousFace);
+  for (var i = 0; i < samples.length; i++) {
+    final face = followed?.faceAt(i);
     found.add(face == null ? null : _anchorFor(face, geometry));
-    previousFace = face ?? previousFace;
   }
   final first = found.firstWhere((a) => a != null, orElse: () => null);
   var held = first ?? geometry.base;
   return [for (final anchor in found) held = anchor ?? held];
-}
-
-/// The face to follow: the one that overlaps the previous pick, else the
-/// largest.
-SubjectBox? _pickFace(List<SubjectBox> faces, SubjectBox? previous) {
-  if (faces.isEmpty) {
-    return null;
-  }
-  if (previous != null) {
-    final closest = faces.reduce(
-      (best, next) =>
-          next.overlapWith(previous) > best.overlapWith(previous) ? next : best,
-    );
-    if (closest.overlapWith(previous) >= _sameFaceOverlap) {
-      return closest;
-    }
-  }
-  return faces.reduce((best, next) => next.area > best.area ? next : best);
 }
 
 /// The window centred on the face across, with the face a third of the way
@@ -334,15 +496,20 @@ List<CropKeyframe> _keyframesFrom(
         anchor: point.anchor,
         arrival: startsScene ? CropArrival.cut : CropArrival.glide,
       );
-      _addWithSpacing(keyframes, keyframe);
+      _addWithSpacing(keyframes, keyframe, latest);
     }
   }
   return keyframes;
 }
 
 /// Keyframes closer than half a second to the one before are dropped, unless
-/// the new one is a cut, which replaces the one before it instead.
-void _addWithSpacing(List<CropKeyframe> keyframes, CropKeyframe next) {
+/// the new one is a cut, which replaces the one before it instead, or a move
+/// the dead zone would not hide (see [_addAfterThePause]).
+void _addWithSpacing(
+  List<CropKeyframe> keyframes,
+  CropKeyframe next,
+  Duration latest,
+) {
   if (keyframes.isEmpty) {
     keyframes.add(next);
     return;
@@ -352,6 +519,7 @@ void _addWithSpacing(List<CropKeyframe> keyframes, CropKeyframe next) {
     return;
   }
   if (next.arrival != CropArrival.cut) {
+    _addAfterThePause(keyframes, next, latest);
     return;
   }
   if (keyframes.length > 1) {
@@ -363,6 +531,23 @@ void _addWithSpacing(List<CropKeyframe> keyframes, CropKeyframe next) {
   // The only keyframe so far is the clip's start: the cut came right after
   // it, so the start takes the new shot's anchor and keeps its time.
   keyframes[0] = keyframes[0].copyWith(anchor: next.anchor);
+}
+
+/// A big move right after a hold (the person was missed for a while and is
+/// back elsewhere) is the one thing that must not be dropped, or the crop
+/// would never leave the old place. It starts the hold's half second later.
+void _addAfterThePause(
+  List<CropKeyframe> keyframes,
+  CropKeyframe next,
+  Duration latest,
+) {
+  final previous = keyframes.last;
+  final moved = _distanceBetween(previous.anchor, next.anchor);
+  final arrives = previous.time + _keyframeSpacing;
+  if (moved <= _deadZone || arrives > latest) {
+    return;
+  }
+  keyframes.add(next.copyWith(time: arrives));
 }
 
 Duration _snapped(Duration time) =>

@@ -17,6 +17,7 @@ import 'package:status_studio/src/features/clip/presentation/clip_source_player.
 import 'package:status_studio/src/features/clip/presentation/crop_keyframe_chips.dart';
 import 'package:status_studio/src/features/clip/presentation/crop_window_overlay.dart';
 import 'package:status_studio/src/features/clip/presentation/follow_subject_section.dart';
+import 'package:status_studio/src/features/clip/presentation/person_chooser_sheet.dart';
 import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
@@ -192,8 +193,38 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     return replace ?? false;
   }
 
+  /// Asks whom to follow (spec FR-25). Leaving the sheet any other way than
+  /// by answering is a cancel.
+  Future<void> _askWhom(FollowChoosing choosing) async {
+    final follow = ref.read(followSubjectProvider.notifier);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => PersonChooserSheet(
+        choosing: choosing,
+        onChosen: (choice) {
+          Navigator.of(sheet).pop();
+          follow.choose(choice);
+        },
+        onChooseForMe: () {
+          Navigator.of(sheet).pop();
+          follow.chooseForMe();
+        },
+        onCancel: () => Navigator.of(sheet).pop(),
+      ),
+    );
+    if (mounted && ref.read(followSubjectProvider) is FollowChoosing) {
+      follow.cancel();
+    }
+  }
+
   /// Says how a run ended (spec FR-23), then clears it.
   void _showHowFollowEnded(FollowState? before, FollowState after) {
+    if (after is FollowChoosing) {
+      unawaited(_askWhom(after));
+      return;
+    }
     final message = switch (after) {
       FollowDone(:final keyframeCount) =>
         'The crop follows the person ($keyframeCount '

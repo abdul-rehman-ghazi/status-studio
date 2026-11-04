@@ -66,3 +66,8 @@ class FakeSubjectDetector implements SubjectDetector {
 }
 
 const centredFace = SubjectBox(left: 0.45, top: 0.35, width: 0.1, height: 0.1);
+
+/// Two people side by side; the left one is a little bigger, so it is the
+/// automatic pick.
+const leftFace = SubjectBox(left: 0.19, top: 0.34, width: 0.12, height: 0.12);
+const rightFace = SubjectBox(left: 0.7, top: 0.35, width: 0.1, height: 0.1);

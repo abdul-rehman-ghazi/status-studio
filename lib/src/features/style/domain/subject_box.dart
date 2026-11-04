@@ -6,6 +6,9 @@ import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
+const _smallestSizeRatio = 0.4;
+const _mostFaceWidthsAway = 2.0;
+
 /// Where a face is in a frame, as fractions of the frame (spec FR-23).
 @immutable
 class SubjectBox {
@@ -25,19 +28,22 @@ class SubjectBox {
   double get centreY => top + height / 2;
   double get area => width * height;
 
-  /// Intersection over union with [other], from 0 (apart) to 1 (the same).
-  double overlapWith(SubjectBox other) {
-    final overlapWidth =
-        math.min(left + width, other.left + other.width) -
-        math.max(left, other.left);
-    final overlapHeight =
-        math.min(top + height, other.top + other.height) -
-        math.max(top, other.top);
-    if (overlapWidth <= 0 || overlapHeight <= 0) {
-      return 0;
+  /// Whether [other], a moment later, could be this same face: about the same
+  /// size and within two face-widths (and heights) of it. Distance rather than
+  /// overlap, because a person who moves quickly leaves no overlap between
+  /// frames a quarter of a second apart.
+  bool couldBeSameFaceAs(SubjectBox other) {
+    if (area <= 0 || other.area <= 0) {
+      return false;
     }
-    final shared = overlapWidth * overlapHeight;
-    return shared / (area + other.area - shared);
+    final sizeRatio = other.area / area;
+    if (sizeRatio < _smallestSizeRatio || sizeRatio > 1 / _smallestSizeRatio) {
+      return false;
+    }
+    return (other.centreX - centreX).abs() <=
+            _mostFaceWidthsAway * math.max(width, other.width) &&
+        (other.centreY - centreY).abs() <=
+            _mostFaceWidthsAway * math.max(height, other.height);
   }
 
   @override
@@ -59,6 +65,28 @@ class SubjectSample {
 
   final Duration time;
   final List<SubjectBox> faces;
+}
+
+/// One person to choose, as a face in one sampled frame (spec FR-25).
+///
+/// [face] is found in the samples by equality, so it must be the very object
+/// from [sampleIndex]'s sample, never rebuilt from screen coordinates.
+@immutable
+class PersonChoice {
+  const PersonChoice({required this.sampleIndex, required this.face});
+
+  /// The frame's place in the whole track's samples.
+  final int sampleIndex;
+  final SubjectBox face;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PersonChoice &&
+      other.sampleIndex == sampleIndex &&
+      other.face == face;
+
+  @override
+  int get hashCode => Object.hash(sampleIndex, face);
 }
 
 /// What detection found over the clip, in time order (spec FR-23).
