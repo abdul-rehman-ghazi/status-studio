@@ -165,4 +165,56 @@ void main() {
 
     expect(error.toString(), isNot(contains('gsk_secret')));
   });
+
+  group('fix_script', () {
+    const chatReply =
+        '{"choices":[{"message":{"role":"assistant","content":"1 | a | b | ok"}}]}';
+
+    test('sends_the_prompt_to_the_web_search_model_with_the_key', () async {
+      replies = [_ok(chatReply)];
+
+      await client().fixScript('fix these rows');
+
+      final sent = jsonDecode(bodies.single) as Map<String, dynamic>;
+      expect(seen.single.uri.path, '/openai/v1/chat/completions');
+      expect(seen.single.headers.value('authorization'), 'Bearer gsk_secret');
+      expect(sent['model'], 'openai/gpt-oss-120b');
+      expect(sent['tools'], [
+        {'type': 'browser_search'},
+      ]);
+      expect((sent['messages'] as List).single, {
+        'role': 'user',
+        'content': 'fix these rows',
+      });
+    });
+
+    test('returns_the_text_of_the_reply', () async {
+      replies = [_ok(chatReply)];
+
+      final text = await client().fixScript('fix these rows');
+
+      expect(text, '1 | a | b | ok');
+    });
+
+    test('waits_out_a_short_rate_limit_and_asks_again', () async {
+      replies = [
+        _status(429, {'retry-after': '2'}),
+        _ok(chatReply),
+      ];
+
+      final text = await client().fixScript('fix these rows');
+
+      expect(text, '1 | a | b | ok');
+      expect(waits, [const Duration(seconds: 2)]);
+    });
+
+    test('throws_key_rejected_on_401', () async {
+      replies = [_status(401)];
+
+      expect(
+        client().fixScript('fix these rows'),
+        throwsA(isA<GroqKeyRejectedException>()),
+      );
+    });
+  });
 }
