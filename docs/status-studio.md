@@ -229,6 +229,17 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Lifetime:** the service survives Home and lock, and stops when the task is swiped away (manifest `android:stopWithTask`), because the work's Flutter engine ends with the task. The plugin's own `stopWithTask` option isn't used: it stops whenever the app leaves the screen.
 - **Limits:** Android 15+ gives `dataSync` 6 hours a day. After that the service stops, and work continues only while the app is open.
 
+**FR-20 Launch animation (M16).** Opening the app never shows a white screen.
+- **Native splash:** Android's launch window is the app background `#0E1311` with the §7 logo (light variant) centred at 144 dp. Android 12+ shows the same logo through its splash API (`windowSplashScreenAnimatedIcon`, a 288 dp icon with the 144 dp logo in the middle). iOS's launch screen has the same background.
+- **Animation:** Flutter's first frame matches the native splash exactly, then plays for 1.7 s over Home, which is already built underneath:
+  - the five bars move like a voice waveform and settle back;
+  - the brackets close in on the bars and open again, like trimming a clip;
+  - "Status Studio" fades in under the logo;
+  - the splash fades out while the logo grows slightly.
+- **No overlap:** bars never reach the bracket arms and brackets never touch the bars.
+- **Reduce motion:** when the system asks for no animations, Home shows straight away.
+- **Taps:** taps don't reach Home while the splash covers it.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android first (minSdk 24, sideloaded APK). iOS later (deployment target 15.5, needed by ML Kit translation).
@@ -385,6 +396,8 @@ A rule-based, letter-by-letter transliteration, with a short list of common-word
 | Bars | x = 38, 44, 50, 56, 62 spanning y 42–58, 35–65, 30–70, 37–63, 43–57, stroke 4.5, round caps |
 | Colours | tile `#3DD68C`, ink `#06140D`; dark variant tile `#18201C`, ink `#3DD68C` |
 
+The Android launch screen (FR-20) draws the same shapes as vector drawables (`launch_logo.xml`, `splash_icon.xml`), since it shows before Flutter starts; keep them in step with `LogoPainter`. `LogoPainter` also takes a `LogoPose` (bracket inset, bar half-lengths) for the launch animation; the rest pose is the table above.
+
 ## 8. Error states
 
 | Condition | Where | Message | Actions |
@@ -515,6 +528,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12); device check pending |
 | M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13); device check pending |
 | M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Done, branch `m15-groq-script-fix` (stacked on M14); device check pending |
+| M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main`; device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -593,6 +607,15 @@ Request, 2026-11-04: merge the script fix (FR-18) and Groq transcription into on
 - [x] **5. Help text.** The Settings note says the key also fixes scripts and that the picked lines, title and link go to Groq on tap. (The help sheet only explains how to get a key, so it is unchanged.)
 - [x] **6. Docs.** FR-12a and FR-18 cross-links, §1 summary line, §8 rows for Groq failing during a fix, §13, §14 device check (a real naat on the phone, mobile data), and `CLAUDE.md`'s "Groq writes every script" bullet.
 
+### M16 tasks (branch `m16-launch-animation`)
+
+Request, 2026-11-04: the app opens on a white screen; make a launch animation from the logo. Each task: test first, tick it, commit.
+
+- [x] **1. Logo pose and timeline.** `LogoPose` (bracket inset, bar half-lengths) and `LogoPainter(pose:)`; `launchFrameAt(progress)`: rest pose at 0 and from the exit on, bars within their limits, brackets clear of the bars, wordmark shown before the exit, splash gone at 1.
+- [x] **2. `LaunchSplash` widget.** Over the app from the first frame, removed when the animation ends, skipped with reduce motion, blocks taps; wired in `StatusStudioApp` behind `launchSplashEnabledProvider`, which app tests turn off.
+- [x] **3. Native splash.** Android launch window and Android 12+ splash: background `#0E1311` and the logo; dark `NormalTheme` background; iOS launch screen background.
+- [x] **4. Docs.** FR-20, §7, §13, §14.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links:** a link with whitespace, `si=` parameters or the `m.` host parses.
@@ -658,6 +681,11 @@ Request, 2026-11-04: merge the script fix (FR-18) and Groq transcription into on
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
   - A script without captions and without a key stops before downloading audio.
+
+- **Launch animation (M16):**
+  - The first frame is the logo's rest pose, the same as the native splash.
+  - Outer bars stay under y 31 and the brackets move in at most 7 units, so nothing overlaps.
+  - The splash covers Home, blocks taps, and goes when the animation ends; reduce motion skips it.
 
 ## 14. Device checks
 
@@ -758,6 +786,12 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Data used.
   - [ ] A revoked key, the rate limit, and no key at all (Settings opens).
   - [ ] Settings: Paste, Show, Save and Remove; help sheet and Copy link.
+
+**Launch animation (M16), on both phones:**
+- [ ] Cold start from the launcher: dark background with the logo from the first moment, no white flash.
+- [ ] The native logo hands over to Flutter's without a jump in size or position (Android 13 splash API on the Redmi, and with three-button navigation if possible).
+- [ ] The animation plays once and Home is usable straight after; with "Remove animations" on, Home shows at once.
+- [ ] Returning to the app from Recents doesn't replay it.
 
 ## 15. Known issues (found on the phone, not fixed)
 

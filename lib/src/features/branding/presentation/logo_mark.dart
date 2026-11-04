@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:status_studio/src/features/branding/domain/logo_pose.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// The "Trim" logo: brackets around a five-bar waveform on a rounded tile.
@@ -27,18 +28,18 @@ class LogoMark extends StatelessWidget {
 
 /// Paints the logo from spec §7's 100-unit box, scaled to the canvas width.
 class LogoPainter extends CustomPainter {
-  LogoPainter({required this.tile, required this.ink});
+  LogoPainter({
+    required this.tile,
+    required this.ink,
+    this.pose = LogoPose.rest,
+  });
 
   final Color tile;
   final Color ink;
+  final LogoPose pose;
 
-  static const _bars = [
-    (x: 38.0, top: 42.0, bottom: 58.0),
-    (x: 44.0, top: 35.0, bottom: 65.0),
-    (x: 50.0, top: 30.0, bottom: 70.0),
-    (x: 56.0, top: 37.0, bottom: 63.0),
-    (x: 62.0, top: 43.0, bottom: 57.0),
-  ];
+  static const _barXs = [38.0, 44.0, 50.0, 56.0, 62.0];
+  static const _barCentreY = 50.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -58,16 +59,17 @@ class LogoPainter extends CustomPainter {
 
   void _paintBrackets(Canvas canvas) {
     final stroke = _inkStroke(6)..strokeJoin = StrokeJoin.round;
+    final inset = pose.bracketInset;
     final left = Path()
-      ..moveTo(33, 24)
-      ..lineTo(24, 24)
-      ..lineTo(24, 76)
-      ..lineTo(33, 76);
+      ..moveTo(33 + inset, 24)
+      ..lineTo(24 + inset, 24)
+      ..lineTo(24 + inset, 76)
+      ..lineTo(33 + inset, 76);
     final right = Path()
-      ..moveTo(67, 24)
-      ..lineTo(76, 24)
-      ..lineTo(76, 76)
-      ..lineTo(67, 76);
+      ..moveTo(67 - inset, 24)
+      ..lineTo(76 - inset, 24)
+      ..lineTo(76 - inset, 76)
+      ..lineTo(67 - inset, 76);
     canvas
       ..drawPath(left, stroke)
       ..drawPath(right, stroke);
@@ -75,10 +77,11 @@ class LogoPainter extends CustomPainter {
 
   void _paintBars(Canvas canvas) {
     final stroke = _inkStroke(4.5);
-    for (final bar in _bars) {
+    for (final (index, x) in _barXs.indexed) {
+      final halfLength = pose.barHalfLengths[index];
       canvas.drawLine(
-        Offset(bar.x, bar.top),
-        Offset(bar.x, bar.bottom),
+        Offset(x, _barCentreY - halfLength),
+        Offset(x, _barCentreY + halfLength),
         stroke,
       );
     }
@@ -92,5 +95,7 @@ class LogoPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(LogoPainter oldDelegate) =>
-      oldDelegate.tile != tile || oldDelegate.ink != ink;
+      oldDelegate.tile != tile ||
+      oldDelegate.ink != ink ||
+      oldDelegate.pose != pose;
 }
