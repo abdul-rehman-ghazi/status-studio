@@ -96,7 +96,7 @@ void main() {
   });
 
   test('a_cuts_file_with_no_cuts_means_there_are_none', () async {
-    final frames = await extractorWith(FakeFrameRunner(cutsText: ''))
+    final frames = await extractorWith(FakeFrameRunner())
         .extract(source, clip, FfmpegCancelHandle());
 
     expect(frames.sceneCuts, isEmpty);
