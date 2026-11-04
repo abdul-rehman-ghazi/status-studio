@@ -7,7 +7,7 @@
 Status Studio turns any YouTube video, in any language, into a short clip for WhatsApp Status, Reels, TikTok or Shorts. The user pastes a link and the app writes out the video's script. The user taps the line where the clip starts and the line where it ends, then picks a size and caption. The export is an MP4 with the Status Studio name and logo.
 
 - **On the phone:** translation (ML Kit) and rendering (Media3 Transformer). No accounts, no servers, no analytics.
-- **Groq writes scripts:** a video with no YouTube captions is written out by Groq's hosted Whisper, with the user's own free API key (FR-12a). Only then does script audio leave the phone, and only to Groq. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
+- **Groq writes scripts:** a video with no YouTube captions is written out by Groq's hosted Whisper, with the user's own free API key (FR-12a). Script audio leaves the phone only then, and only to Groq. The same key also powers Fix with Groq (FR-19), which sends the picked lines, the title and the link when the user taps it. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
 - **Saves data:** it downloads the script's audio at low quality (nothing when YouTube has captions), and only the clip's part of the video, once the user has picked it.
 - **Saves work:** scripts are saved, so the same video opens straight to its script next time.
 - **Real lyrics:** for a song, one tap replaces the script with its published, time-synced lyrics from lrclib.net (FR-17). Only the video's cleaned title is sent, to that one service.
@@ -155,7 +155,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   5. Come back here, tap **Paste**, then **Save**.
 
   Below the steps: "Free plan: about 2 hours of audio every hour, and 8 hours a day." and "Keep the key private, like a password. You can delete it any time on the same Groq page." The sheet has Copy link and Done buttons. Copy link puts the link on the clipboard and shows "Link copied"; the app doesn't open a browser itself.
-- **Privacy note** under the heading: "Writes the script when a video has no captions. Your video's audio is sent to Groq, which uses about as much data again as downloading it. Groq's terms apply." There is no switch: a saved key turns Groq on and Remove turns it off.
+- **Privacy note** under the heading: "Writes the script when a video has no captions. Your video's audio is sent to Groq, which uses about as much data again as downloading it. Tapping Fix with Groq on the Script screen also sends the lines you picked, the title and the link. Groq's terms apply." (FR-19) There is no switch: a saved key turns Groq on and Remove turns it off.
 - **Key storage:** `flutter_secure_storage` (Android Keystore). The key is never logged, and never written into saved files, notifications or error text. It goes only to `api.groq.com`.
 - **No key:** a script without captions stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is downloaded. Captions and saved scripts need no key.
 
@@ -173,8 +173,8 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 **FR-18 Fix the script with an AI agent (M13).** For text the lyrics service lacks (a naat with verses from another poem), the user takes the script to any AI chat that can search the web and brings the corrected text back. Two buttons on Script, next to "Real lyrics", both off while a script is still being written.
 - **Copy for AI:** copies one block to the clipboard: a ready prompt (video title, `https://youtu.be/<id>`, rules) followed by the lines as `<number> | <mm:ss.xx> | <mm:ss.xx> | <text>`. Row numbers are the line's index in the whole script + 1. The user pastes it into the chat unchanged. Snackbar: "Copied <n> lines. Paste them into ChatGPT (or any AI that can search the web), copy its reply, then tap Paste AI reply."
   - **Which lines:** the picked clip's lines when a range is picked; otherwise the whole script if it has at most **60** lines. More than 60 lines, picked or not, gives the §8 message instead. Why: a chat refuses or skims a long script (a 225-row script made ChatGPT ask for it in sections, and no rows came back), and only the clip's lines matter.
-- **The prompt asks the agent to:** search for the real lyrics and never invent words; keep numbers and times and change only the text; correct rows that belong to a different poem from that poem; keep the script (no Roman, no translation); mark rows with no source by ` [?]`; never ask for fewer rows or for sections; reply with the rows in one code block, then list changed rows with source links.
-- **Paste AI reply:** reads the clipboard and takes every row that matches the format, from anywhere in the reply (code fences, links and chatter are ignored).
+- **The prompt asks the agent to:** search for the real lyrics and never invent words; keep numbers and times and change only the text; correct rows that belong to a different poem from that poem; keep the script (no Roman, no translation); mark rows with no source by ` [?]`; never ask for fewer rows or for sections; never move a line from another part of the poem into a row (M15); reply with the rows in one code block, then list changed rows with source links.
+- **Paste AI reply:** reads the clipboard and takes every row that matches the format, from anywhere in the reply (code fences, links and chatter are ignored). Citation marks such as `【1†L10-L12】` are removed from the text (M15). FR-19 does the same through Groq, with no copying.
   - **Matched by row number, text only.** Times always stay as they were, so an agent that changes a time can't move a line. Rows missing from the reply, empty, or with unknown numbers keep their text or are ignored.
   - **`[?]`:** the mark is removed from the text; the snackbar names those lines: "Updated 12 lines. The AI found no source for line 3, 7: read it before you use it."
   - **No rows found:** the §8 message, and the script is unchanged.
@@ -239,7 +239,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - Exports: `reels/` in app documents.
   - Downloads go to `.part` files and are renamed when complete. Whole streams download in 10 MB ranges.
 - **Data caps:** script audio is the lowest-bitrate MP4 audio. The clip is ≤ 720p H.264 plus the highest-bitrate MP4 audio, for the clip window only.
-- **Privacy:** nothing leaves the device except YouTube, language-pack downloads and, when a video has no captions (FR-12a), script audio pieces sent to Groq with the user's key.
+- **Privacy:** nothing leaves the device except YouTube, language-pack downloads and, when a video has no captions (FR-12a), script audio pieces sent to Groq with the user's key, and, when the user taps Fix with Groq (FR-19), the picked lines, the video title and its link.
 
 ## 5. Architecture
 
@@ -394,17 +394,20 @@ A rule-based, letter-by-letter transliteration, with a short list of common-word
 | No network during download | Processing | You're offline. Connect and try again. | Retry, Back |
 | yt-dlp can't read the video, even after updating | Source / Processing | Couldn't read this video from YouTube. Try again later. | Retry, Back |
 | No Groq key saved, script has no captions | Processing | Writing a script needs a free Groq key. | Settings, Back |
-| Groq rejected the key (401/403) | Processing | Groq didn't accept your API key. | Settings, Back |
-| Groq limit (429, wait over 60 s) | Processing | Groq's free limit is used up for now. Try again in <n> min. | Back |
+| Groq rejected the key (401/403) | Processing / Script | Groq didn't accept your API key. | Settings, Back |
+| Groq limit (429, wait over 60 s) | Processing / Script | Groq's free limit is used up for now. Try again in <n> min. | Back |
 | Groq failed (other error, or 5xx/498 twice) | Processing | Groq couldn't write this script. | Retry, Back |
-| Network lost while Groq writes | Processing | You're offline. Connect and try again. | Retry, Back |
+| Network lost while Groq writes | Processing / Script | You're offline. Connect and try again. | Retry, Back |
 | Key check failed | Settings | Groq didn't accept this key. | Edit |
 | No speech found | Processing | No speech found in this video. | Try another language, Back |
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |
 | Gallery access refused | Done | Allow Photos access in Settings to save reels. | Open settings |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
-| More than 60 lines to send to an AI | Script | Too many lines for an AI to check. Tap the start and end lines of your clip first. | (snackbar) |
+| More than 60 lines to copy for an AI, or more than 30 for Fix with Groq | Script | Too many lines for an AI to check. Tap the start and end lines of your clip first. | (snackbar) |
 | Pasted AI reply has no script rows | Script | Couldn't find script lines in what you pasted. Copy the AI's whole reply and try again. | (snackbar) |
+| No Groq key, Fix with Groq | Script | Fixing a script needs a free Groq key. | Settings (snackbar action) |
+| Groq failed while fixing (other error, or 5xx/498 twice) | Script | Groq couldn't fix this script. | (snackbar) |
+| Groq's reply to Fix with Groq has no script rows | Script | Groq's reply had no script lines. Try again. | (snackbar) |
 | No synced lyrics match the video | Script | Couldn't find the lyrics for this video. The script stays as it is. | (snackbar) |
 | No network while looking for lyrics | Script | You're offline. Connect and try again. | (snackbar) |
 | Not enough storage | any download or export | Not enough space on your phone. | Back |
@@ -511,7 +514,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M12 Real lyrics | Lyrics from lrclib.net replace the script (FR-17) | Done, branch `m12-online-lyrics` (stacked on M11); device check pending |
 | M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12); device check pending |
 | M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13); device check pending |
-| M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Planned, branch `m15-groq-script-fix` (stacked on M14); starts with spike §10 #6 |
+| M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Done, branch `m15-groq-script-fix` (stacked on M14); device check pending |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -586,9 +589,9 @@ Request, 2026-11-04: merge the script fix (FR-18) and Groq transcription into on
 - [x] **1. Spike §10 #6.** Find the web-search models the key can call and test them on the FR-18 prompt; record the results and the go or stop decision in §10. On "stop", mark M15 cancelled in the §12 table and do nothing else.
 - [x] **2. Chat call in `GroqClient`.** `fixScript(prompt)` posts to `/chat/completions` with the spiked model and returns the reply text. Reuses `_send`, so 401/403, 429 waits, 5xx retries and offline map to the existing typed exceptions. Tests with a fake server: reply text returned, the key only in the header, 429 wait and retry, rejected key.
 - [x] **3. `GroqScriptFixService` (application).** Builds the FR-18 prompt for the same lines, calls `fixScript`, applies the reply with `applyCorrectedScript`, leaves saving to the screen, which saves after Cancel is no longer possible, as Paste AI reply does. Throws the existing `NoScriptRowsException` when the reply has no rows and `TooManyLinesForAiException` above the 30-line cap. Tests with a fake `GroqClient` provider.
-- [ ] **4. Script screen.** Fix with Groq button: progress and Cancel, other fix buttons off meanwhile, no-key message with Settings, snackbars as FR-18 (`[?]` lines named). Widget tests with provider overrides.
-- [ ] **5. Help text.** The FR-12a help sheet and Settings line say the key also fixes scripts and that the picked lines go to Groq on tap.
-- [ ] **6. Docs.** FR-12a and FR-18 cross-links, §1 summary line, §8 rows for Groq failing during a fix, §13, §14 device check (a real naat on the phone, mobile data), and `CLAUDE.md`'s "Groq writes every script" bullet.
+- [x] **4. Script screen.** Fix with Groq button: progress and Cancel, other fix buttons off meanwhile, no-key message with Settings, snackbars as FR-18 (`[?]` lines named). Widget tests with provider overrides.
+- [x] **5. Help text.** The Settings note says the key also fixes scripts and that the picked lines, title and link go to Groq on tap. (The help sheet only explains how to get a key, so it is unchanged.)
+- [x] **6. Docs.** FR-12a and FR-18 cross-links, §1 summary line, §8 rows for Groq failing during a fix, §13, §14 device check (a real naat on the phone, mobile data), and `CLAUDE.md`'s "Groq writes every script" bullet.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -645,6 +648,12 @@ Request, 2026-11-04: merge the script fix (FR-18) and Groq transcription into on
   - Fences and chatter around rows are ignored; rows with bars in the text stay whole.
   - Missing rows keep their text; `[?]` rows are kept and named; a reply with no rows is rejected and changes nothing.
   - Corrected lines keep the picked range and clip, and the corrected script is the one that reopens.
+- **Groq script fix (M15):**
+  - The request goes to `/chat/completions` with the web-search model and the key only in the Authorization header; a 429 waits and resends; a 401 is "key rejected".
+  - Only the picked clip's lines are sent; more than 30 are refused before anything is sent.
+  - Citation marks `【…】` never end up in a line's text.
+  - Cancel ignores the reply and saves nothing; the other fix buttons are off while it runs.
+  - No key gives the §8 message with a Settings action; a Groq failure says "Groq couldn't fix this script."
 - **Groq (M9):**
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
@@ -738,6 +747,11 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] A real Urdu reply (RTL text, Urdu digits or a table the agent chose) still parses; if not, note the format the agent used.
   - [ ] ChatGPT answers the copied clip lines (about 10–30 rows) in one reply, with no request to split them.
   - [ ] Reopening the same link opens the corrected script.
+- **Groq script fix (M15):**
+  - [ ] Fix with Groq on a real naat clip (10–30 rows) over mobile data: time taken, and the corrected lines read right to a native reader.
+  - [ ] A naat with verses from another poem (not yet tested, §10 #6): the other poem's lines come back right, and nothing is moved into a wrong row.
+  - [ ] Free-plan limit: two fixes in a row (the 8,000 tokens per minute limit) and what the daily limit allows.
+  - [ ] Cancel mid-run; no key (Settings opens); revoked key; airplane mode.
 - **Groq (M9):**
   - [ ] The key check, help sheet and Copy link.
   - [ ] A 10-minute video's script time.
