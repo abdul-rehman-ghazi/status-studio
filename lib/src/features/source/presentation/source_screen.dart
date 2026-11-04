@@ -235,8 +235,8 @@ class _OnDeviceNote extends StatelessWidget {
         SizedBox(width: 10),
         Expanded(
           child: HintText(
-            'The script is written on your phone. Only the download uses the '
-            'internet.',
+            "Uses the video's captions when it has them. Otherwise its audio "
+            'is sent to Groq to write the script.',
           ),
         ),
       ],
