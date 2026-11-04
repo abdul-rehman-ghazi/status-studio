@@ -771,7 +771,7 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
 Request, 2026-11-04: save Fine-tune progress and continue later. The plan was written by an Opus subagent (its choices are in FR-24). Each task: test first, tick it, commit.
 
 - [x] **1. Spec.** FR-24 and the edits it needs in §2, FR-5, FR-9, FR-11, §4, §6.1, §8, §12.
-- [ ] **2. Draft type and JSON (domain).** `FineTuneDraft`, `SavedFineTune`; `fineTuneDraftToJson` and `fineTuneDraftFromJson` (version 1; a damaged or newer file throws `FormatException`).
+- [x] **2. Draft type and JSON (domain).** `FineTuneDraft`, `SavedFineTune`; `fineTuneDraftToJson` and `fineTuneDraftFromJson` (version 1; a damaged or newer file throws `FormatException`).
 - [ ] **3. Draft rules (domain).** `canKeep`, `FineTuneDraft.of`, `fits`, `restoredOnto`, `startOver`, and the stable script fingerprint.
 - [ ] **4. Shared JSON files and script-store additions.** `core/json_files.dart` (atomic write) moved out of `TranscriptStore`; `loadFromSource`, `loadVideo`, `markUsed`.
 - [ ] **5. Draft store (data).** `FineTuneDraftStore`: save, list (skips unreadable), delete; provider.
