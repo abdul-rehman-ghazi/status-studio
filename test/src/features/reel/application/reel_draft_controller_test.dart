@@ -21,6 +21,14 @@ void main() {
 
   ReelDraft draft() => container.read(reelDraftProvider);
 
+  test('restore_replaces_the_whole_draft', () {
+    controller.setTranscript(fixture);
+
+    controller.restore(pickedDraft);
+
+    expect(draft(), pickedDraft);
+  });
+
   test('range_tap_sets_clip_from_lines', () {
     controller
       ..setTranscript(fixture)

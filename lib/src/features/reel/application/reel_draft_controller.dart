@@ -19,6 +19,9 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void startNew() => state = const ReelDraft();
 
+  /// Continues a kept fine-tune (spec FR-24).
+  void restore(ReelDraft draft) => state = draft;
+
   void setVideo(SourceVideo video) => state = state.copyWith(video: video);
 
   void setLanguage(ScriptLanguage language) =>
