@@ -52,7 +52,7 @@ void main() {
 
   test('chunk_arguments_use_segment_muxer', () {
     final arguments = chunkArguments(
-      wavPath: 'a.wav',
+      inputPath: 'a.wav',
       outputPattern: 'chunk_%03d.wav',
       chunkSeconds: 90,
     );

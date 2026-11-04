@@ -474,7 +474,7 @@ Each task: test first, tick it, commit.
 - [x] **2. `GroqClient` (data).** Typed `GroqException`s (rejected key, rate limit with wait, server, offline); `checkKey` via `GET /models`; `transcribe` of one `.m4a` piece via `POST /audio/transcriptions` (`verbose_json`, segments). 429 under 60 s waits and resends; 5xx/498 retried once. The key is never in a log or error text. Faked HTTP in tests.
 - [x] **3. `GroqKeyStore`.** Key in `flutter_secure_storage`, plus the switch in settings; the switch can only be on while a key is saved.
 - [x] **4. `GroqTranscriber`.** Emits the same `ChunkEvent`s as `WhisperTranscriber`; offsets segments by piece start; drops segments over the `no_speech_prob` cut-off.
-- [ ] **5. Stream-copied `.m4a` pieces.** `AudioPreparer.splitAudioCopy` (FFmpeg `-c copy`, 90 s pieces).
+- [x] **5. Stream-copied `.m4a` pieces.** `AudioPreparer.splitAudioCopy` (FFmpeg `-c copy`, 90 s pieces).
 - [ ] **6. Pipeline engine choice.** Groq when on and a key is saved, else Whisper; skip the model step; save under `groq-whisper-large-v3-turbo`; partial progress per piece.
 - [ ] **7. Errors and Use on-device.** §8 messages and actions on Processing; Use on-device keeps Groq's lines and continues from the next piece on the phone.
 - [ ] **8. Settings section.** Key field (Paste, Show, Remove, check result), ⓘ help sheet with Copy link, switch with subtext.

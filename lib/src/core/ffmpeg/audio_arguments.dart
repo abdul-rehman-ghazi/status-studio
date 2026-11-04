@@ -20,17 +20,17 @@ List<String> wavArguments({
   ];
 }
 
-/// Cuts a WAV into back-to-back pieces of [chunkSeconds] without
+/// Cuts audio into back-to-back pieces of [chunkSeconds] without
 /// re-encoding.
 List<String> chunkArguments({
-  required String wavPath,
+  required String inputPath,
   required String outputPattern,
   required int chunkSeconds,
 }) {
   return [
     '-y',
     '-i',
-    wavPath,
+    inputPath,
     '-f',
     'segment',
     '-segment_time',

@@ -26,16 +26,38 @@ class AudioPreparer {
   }
 
   /// [wav] cut into pieces of [chunkSeconds], in playback order.
-  Future<List<File>> splitIntoChunks(File wav, {int chunkSeconds = 90}) async {
-    final folder = Directory('${wav.parent.path}/chunks_$chunkSeconds');
+  Future<List<File>> splitIntoChunks(File wav, {int chunkSeconds = 90}) =>
+      _split(
+        wav,
+        folderName: 'chunks_$chunkSeconds',
+        chunkSeconds: chunkSeconds,
+      );
+
+  /// [audio] cut into `.m4a` pieces of [chunkSeconds] by stream copy, the
+  /// small files Groq is sent (spec FR-12a). Cuts fall on audio packets, so
+  /// a piece can start a few milliseconds late; that doesn't add up.
+  Future<List<File>> splitAudioCopy(File audio, {int chunkSeconds = 90}) =>
+      _split(
+        audio,
+        folderName: 'pieces_$chunkSeconds',
+        chunkSeconds: chunkSeconds,
+      );
+
+  Future<List<File>> _split(
+    File source, {
+    required String folderName,
+    required int chunkSeconds,
+  }) async {
+    final folder = Directory('${source.parent.path}/$folderName');
     if (await folder.exists()) {
       await folder.delete(recursive: true);
     }
     await folder.create(recursive: true);
+    final extension = source.path.split('.').last;
     await runner.run(
       chunkArguments(
-        wavPath: wav.path,
-        outputPattern: '${folder.path}/chunk_%03d.wav',
+        inputPath: source.path,
+        outputPattern: '${folder.path}/chunk_%03d.$extension',
         chunkSeconds: chunkSeconds,
       ),
     );
