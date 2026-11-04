@@ -5,6 +5,7 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 final reelDraftProvider = NotifierProvider<ReelDraftController, ReelDraft>(
@@ -33,6 +34,11 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void tapLine(int index) =>
       state = state.withSelection(state.selection.tap(index));
+
+  /// Applies [edit] to the picked script as it is now, so a tap that lands
+  /// after another edit never works from stale lines.
+  void editScript(PickedScript Function(PickedScript script) edit) =>
+      state = state.withEditedScript(edit(state.pickedScript));
 
   void nudgeClipStart(Duration delta) {
     final clip = _requireClip();

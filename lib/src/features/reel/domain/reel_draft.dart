@@ -5,6 +5,7 @@ import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_cues.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
+import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -58,6 +59,37 @@ class ReelDraft {
     return selection is RangeSelected
         ? updated.withSelection(selection)
         : updated;
+  }
+
+  /// The script with its picked range, for editing lines (spec FR-21).
+  PickedScript get pickedScript {
+    final transcript = this.transcript;
+    final selection = this.selection;
+    if (transcript == null || selection is! RangeSelected) {
+      throw StateError('Lines were edited before a range was picked.');
+    }
+    return PickedScript(transcript: transcript, selection: selection);
+  }
+
+  /// Applies an edit made on Fine-tune (spec FR-21). The caption is refilled
+  /// from the lines; the clip follows the range's end lines only when their
+  /// times or the range changed, so a nudge survives an edit elsewhere.
+  ReelDraft withEditedScript(PickedScript edited) {
+    final before = pickedScript;
+    final refilled = copyWith(
+      transcript: edited.transcript,
+      selection: edited.selection,
+      caption: caption.copyWith(
+        variant: CaptionVariant.original,
+        text: _selectedText(edited.transcript, edited.selection),
+      ),
+    );
+    if (_sameEdges(before, edited)) {
+      return refilled;
+    }
+    return refilled.copyWith(
+      clip: ClipRange.fromLines(edited.transcript, edited.selection),
+    );
   }
 
   /// Applies [selection]; a full range also sets the clip and fills the
@@ -144,6 +176,15 @@ class ReelDraft {
   @override
   int get hashCode =>
       Object.hash(video, language, transcript, selection, clip, frame, caption);
+}
+
+bool _sameEdges(PickedScript before, PickedScript after) {
+  final firstBefore = before.transcript.lines[before.selection.start];
+  final lastBefore = before.transcript.lines[before.selection.end];
+  final firstAfter = after.transcript.lines[after.selection.start];
+  final lastAfter = after.transcript.lines[after.selection.end];
+  return firstBefore.start == firstAfter.start &&
+      lastBefore.end == lastAfter.end;
 }
 
 bool _extends(Transcript grown, Transcript current) =>
