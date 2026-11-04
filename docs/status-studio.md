@@ -424,13 +424,16 @@ Each error is a typed exception from the data layer. Screens map them to these m
    - The arm64 APK went from 57.4 to 45.4 MB, but the installed size grows.
 
    **Decision:** read without JavaScript first and with QuickJS only when that finds no usable formats. Each video is read once and kept while its URLs are valid.
-5. **Groq (M9 Task 1, to do).** Send the Q2 piece to Groq as a stream-copied `.m4a`, with a free key:
-   - Time it on Wi-Fi and on mobile data, and compare the text with small q5_1.
-   - Check timestamps after the segment-list offset.
-   - Pick the `no_speech_prob` cut-off on a music-only piece.
-   - Try automatic language.
-   - Confirm the free-plan limits. Groq's docs on 2026-11-04 list 20 requests a minute, 7,200 audio seconds an hour and 28,800 a day.
-   - Confirm the button names in the FR-12a help sheet.
+5. **Groq (M9 Task 1, desktop part done 2026-11-04).** The 90 s pieces of `s6kE_uP3xH4` (sung Urdu, 9:08) were cut from the lowest-bitrate m4a (format 139, 49 kbps HE-AAC) with `ffmpeg -c copy -f segment`, and sent from a Mac on Wi-Fi with the user's free key. Results:
+   - **Key check:** `GET /models` gives 200.
+   - **Piece size:** 0.55 MB per 90 s, as the spec says.
+   - **Offsets:** FFmpeg's segment list starts pieces at 90.000544 s, 180.001088 s and so on. They match the nominal 90 s multiples to under 1 ms, so `transcriptionChunk * position` is accurate enough.
+   - **Speed:** about 1.4–2.2 s per piece (0.55 MB up), roughly 45× real time. Mobile data and the phone are still to measure (§14).
+   - **Automatic language:** detected "Urdu" correctly; forcing `ur` gave the same lines, with segment times differing by under 0.1 s.
+   - **Segments:** sung audio comes back in long segments (up to 30 s) with the same text repeated across the chorus; speech comes back as sentence-sized lines.
+   - **`no_speech_prob` does not work on `whisper-large-v3-turbo`.** It is 0.000 on every segment, including a 90 s piano-only piece and 60 s of digital silence. Both came back as invented text ("Thank you." in 30 s segments, with `avg_logprob` −0.3 to −0.6 and `compression_ratio` 0.58). Those values overlap real sung Urdu (0.74–0.88), so no cut-off on them separates the two. `whisper-large-v3` (not turbo) does report it: 0.701 on silence. So the 0.6 cut-off in `groqNoSpeechCutoff` does nothing today. **Decision needed:** (a) drop segments that are known hallucinations ("Thank you.", "you", "Thanks for watching.") or identical text repeated over 30 s segments, keeping turbo; or (b) use `whisper-large-v3`, which costs more per audio hour (check Groq's pricing page) and has a working `no_speech_prob`.
+   - **Limits from the response headers (free plan):** 7,200 audio seconds per hour (`x-ratelimit-limit-audio-seconds`) and 2,000 requests (`x-ratelimit-limit-requests`, reset in about 2 min, so the daily/minute split in Groq's docs isn't visible). One 90 s piece uses 90 s of the hour budget. The reset time is a duration string such as `2m12s`; `retry-after` is only sent with a 429.
+   - **Still to do on a phone:** timing on mobile data, and the FR-12a help-sheet button names (depends on task 8).
 
 ## 11. Out of scope for v1
 
@@ -470,7 +473,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 
 Each task: test first, tick it, commit.
 
-- [ ] **1. Spike (needs the user's Groq key, on a phone).** Results go into §10 Q5 before tasks 4 and 8 settle their constants.
+- [ ] **1. Spike (needs the user's Groq key, on a phone).** Results go into §10 Q5 before tasks 4 and 8 settle their constants. Desktop part done; the `no_speech_prob` finding needs a decision; mobile data and help-sheet names remain.
 - [x] **2. `GroqClient` (data).** Typed `GroqException`s (rejected key, rate limit with wait, server, offline); `checkKey` via `GET /models`; `transcribe` of one `.m4a` piece via `POST /audio/transcriptions` (`verbose_json`, segments). 429 under 60 s waits and resends; 5xx/498 retried once. The key is never in a log or error text. Faked HTTP in tests.
 - [x] **3. `GroqKeyStore`.** Key in `flutter_secure_storage`, plus the switch in settings; the switch can only be on while a key is saved.
 - [x] **4. `GroqTranscriber`.** Emits the same `ChunkEvent`s as `WhisperTranscriber`; offsets segments by piece start; drops segments over the `no_speech_prob` cut-off.
