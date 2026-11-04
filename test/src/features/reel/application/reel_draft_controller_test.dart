@@ -147,16 +147,6 @@ void main() {
       expect(draft().clip!.start, const Duration(seconds: 23));
     });
 
-    test('widens_the_clip_when_a_line_after_the_range_joins_it', () {
-      pickLinesOneToThree();
-
-      controller.editScript(
-        (script) => withLineTimedAt(script, 4, const Duration(seconds: 50)),
-      );
-
-      expect(draft().clip!.end, const Duration(milliseconds: 58600));
-    });
-
     test('keeps_a_nudge_of_the_other_edge_when_one_edge_is_timed', () {
       pickLinesOneToThree();
       controller.nudgeClipEnd(ClipRange.nudgeStep);

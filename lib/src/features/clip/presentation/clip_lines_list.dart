@@ -162,7 +162,9 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
                   highlighted: line.index == highlighted,
                   inRange: selection.isHighlighted(line.index),
                   canRemove: !_isOnlyPickedLine(selection, line.index),
-                  onTap: () => _tapLine(line),
+                  onTap: selection.isHighlighted(line.index)
+                      ? () => _tapLine(line)
+                      : null,
                   onEdit: () => unawaited(_editLine(line)),
                   onRemove: () => _removeLine(line),
                 ),
@@ -207,7 +209,7 @@ class _LineRow extends StatelessWidget {
   final bool highlighted;
   final bool inRange;
   final bool canRemove;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
 

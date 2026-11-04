@@ -257,7 +257,9 @@ void main() {
     });
 
     test('keeps_the_lines_length', () {
-      final timed = withLineTimedAt(scriptOfFive(), 4, seconds(17));
+      final script = scriptOfFive(selection: const RangeSelected(1, 4));
+
+      final timed = withLineTimedAt(script, 4, seconds(17));
 
       expect(timed.transcript.lines[4].end, seconds(21));
     });
@@ -307,16 +309,11 @@ void main() {
       expect(withLineTimedAt(script, 2, seconds(3)), script);
     });
 
-    test('a_tapped_line_outside_the_range_extends_it_to_include_it', () {
-      final timed = withLineTimedAt(scriptOfFive(), 4, seconds(17));
-
-      expect(timed.selection, const RangeSelected(1, 4));
-    });
-
-    test('a_tapped_line_before_the_range_extends_it_to_include_it', () {
-      final timed = withLineTimedAt(scriptOfFive(), 0, seconds(1));
-
-      expect(timed.selection, const RangeSelected(0, 3));
+    test('rejects_a_line_outside_the_picked_range', () {
+      expect(
+        () => withLineTimedAt(scriptOfFive(), 4, seconds(17)),
+        throwsStateError,
+      );
     });
   });
 

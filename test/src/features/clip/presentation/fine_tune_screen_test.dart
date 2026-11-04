@@ -297,6 +297,17 @@ void main() {
       );
     });
 
+    testWidgets('tap_on_a_line_outside_the_clip_does_nothing', (tester) async {
+      final players = RecordingPlayerFactory();
+      await pumpFineTune(tester, playerFactory: players.call);
+      await reveal(tester, 4);
+
+      await tester.tap(find.text(textOf(4)));
+      await tester.pump();
+
+      expect(players.created.single.value.position, Duration.zero);
+    });
+
     testWidgets('tap_while_playing_starts_the_line_at_the_playhead', (
       tester,
     ) async {

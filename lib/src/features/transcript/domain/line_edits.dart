@@ -158,12 +158,17 @@ PickedScript withLineRemoved(PickedScript script, int index) {
 
 /// Tap to time (spec FR-21): the line starts at [playhead] and the line that
 /// was highlighted there ends there. A tap before the previous line's start,
-/// or on a line earlier than the one playing, changes nothing.
+/// or on a line earlier than the one playing, changes nothing. Only picked
+/// lines can be timed; any other [index] throws.
 PickedScript withLineTimedAt(
   PickedScript script,
   int index,
   Duration playhead,
 ) {
+  final selection = script.selection;
+  if (!selection.isHighlighted(index)) {
+    throw StateError('Line $index is outside the picked range.');
+  }
   final lines = [...script.transcript.lines];
   if (index > 0 && playhead < lines[index - 1].start) {
     return script;
@@ -178,15 +183,7 @@ PickedScript withLineTimedAt(
     lines[highlighted] = lines[highlighted].copyWith(end: playhead);
   }
   lines[index] = _startedAt(lines, index, playhead);
-  final selection = script.selection;
-  return _withLines(
-    script,
-    lines,
-    RangeSelected(
-      index < selection.start ? index : selection.start,
-      index > selection.end ? index : selection.end,
-    ),
-  );
+  return _withLines(script, lines, selection);
 }
 
 /// The line playing at [position], or none between lines (spec FR-21).
