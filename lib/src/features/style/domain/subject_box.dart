@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
+import 'package:status_studio/src/features/style/domain/crop_rect.dart';
+import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 /// Where a face is in a frame, as fractions of the frame (spec FR-23).
 @immutable
@@ -81,6 +83,22 @@ class FollowGeometry {
     required this.windowHeight,
     required this.base,
   });
+
+  /// The window [frame] crops from a [sourceSize] video, as fractions of it.
+  /// Throws for Blur and 16:9, which keep the whole frame.
+  factory FollowGeometry.forFrame({
+    required FrameSettings frame,
+    required OutputSize sourceSize,
+    required ClipRange clip,
+  }) {
+    final window = cropRectFor(frame, sourceSize);
+    return FollowGeometry(
+      clip: clip,
+      windowWidth: window.width / sourceSize.width,
+      windowHeight: window.height / sourceSize.height,
+      base: baseAnchorFor(frame),
+    );
+  }
 
   final ClipRange clip;
 

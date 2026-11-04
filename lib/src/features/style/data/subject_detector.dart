@@ -43,7 +43,7 @@ class MlKitFaceDetector implements SubjectDetector {
   Future<void> close() => _detector.close();
 }
 
-final subjectDetectorProvider = Provider.autoDispose<SubjectDetector>((ref) {
+final subjectDetectorProvider = Provider<SubjectDetector>((ref) {
   final detector = MlKitFaceDetector();
   ref.onDispose(() => unawaited(detector.close()));
   return detector;
