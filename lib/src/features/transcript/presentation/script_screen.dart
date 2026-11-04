@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
@@ -9,7 +8,6 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
-import 'package:status_studio/src/features/lyrics/application/lyrics_service.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -56,10 +54,16 @@ class ScriptScreen extends ConsumerWidget {
               savedAt: savedAt,
               onWriteAgain: () => _writeAgain(context, ref),
             ),
-          _ScriptTools(
-            draft: draft,
-            scriptIsBeingWritten: _isBeingWritten(
-              ref.watch(scriptProgressProvider),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: _GroqFixAction(
+                draft: draft,
+                scriptIsBeingWritten: _isBeingWritten(
+                  ref.watch(scriptProgressProvider),
+                ),
+              ),
             ),
           ),
           _PickHint(text: _pickHint(draft)),
@@ -174,183 +178,15 @@ final _toolButtonStyle = TextButton.styleFrom(
   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
 );
 
-/// The script's fixing tools on one row, so the lines keep their room.
-class _ScriptTools extends StatefulWidget {
-  const _ScriptTools({required this.draft, required this.scriptIsBeingWritten});
-
-  final ReelDraft draft;
-  final bool scriptIsBeingWritten;
-
-  @override
-  State<_ScriptTools> createState() => _ScriptToolsState();
-}
-
-class _ScriptToolsState extends State<_ScriptTools> {
-  bool _groqIsFixing = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final toolsAreOff = widget.scriptIsBeingWritten || _groqIsFixing;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Wrap(
-        children: [
-          _LyricsAction(draft: widget.draft, toolsAreOff: toolsAreOff),
-          _AiFixActions(draft: widget.draft, toolsAreOff: toolsAreOff),
-          _GroqFixAction(
-            draft: widget.draft,
-            scriptIsBeingWritten: widget.scriptIsBeingWritten,
-            onRunningChanged: (running) =>
-                setState(() => _groqIsFixing = running),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// FR-17: swaps the script for the song's published lyrics.
-class _LyricsAction extends ConsumerStatefulWidget {
-  const _LyricsAction({required this.draft, required this.toolsAreOff});
-
-  final ReelDraft draft;
-
-  /// Lines still arriving, or another fix still running, would be
-  /// overwritten by the lyrics, so wait for them.
-  final bool toolsAreOff;
-
-  @override
-  ConsumerState<_LyricsAction> createState() => _LyricsActionState();
-}
-
-class _LyricsActionState extends ConsumerState<_LyricsAction> {
-  bool _searching = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final canSearch =
-        !_searching && !widget.toolsAreOff && widget.draft.video != null;
-    return TextButton(
-      style: _toolButtonStyle,
-      onPressed: canSearch ? _replaceWithLyrics : null,
-      child: Text(_searching ? 'Searching…' : 'Real lyrics'),
-    );
-  }
-
-  Future<void> _replaceWithLyrics() async {
-    final video = widget.draft.video;
-    if (video == null) {
-      return;
-    }
-    final messenger = ScaffoldMessenger.of(context);
-    final controller = ref.read(reelDraftProvider.notifier);
-    setState(() => _searching = true);
-    try {
-      final transcript = await ref
-          .read(lyricsServiceProvider)
-          .replaceScript(video, widget.draft.language);
-      controller.setTranscript(transcript);
-      messenger.showSnackBar(const SnackBar(content: Text(_lyricsFound)));
-    } on Exception catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
-    } finally {
-      if (mounted) {
-        setState(() => _searching = false);
-      }
-    }
-  }
-}
-
-const _lyricsFound =
-    'The lyrics from lrclib.net replaced the script. Line times follow the '
-    'studio song, so check them in Fine-tune.';
-
-/// FR-18: copy the script with a ready prompt for an AI agent, then paste
-/// its corrected reply back.
-class _AiFixActions extends ConsumerWidget {
-  const _AiFixActions({required this.draft, required this.toolsAreOff});
-
-  final ReelDraft draft;
-  final bool toolsAreOff;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final canUse = !toolsAreOff && draft.video != null;
-    return Wrap(
-      children: [
-        TextButton(
-          style: _toolButtonStyle,
-          onPressed: canUse ? () => _copyForAi(context) : null,
-          child: const Text('Copy for AI'),
-        ),
-        TextButton(
-          style: _toolButtonStyle,
-          onPressed: canUse ? () => _pasteFixed(context, ref) : null,
-          child: const Text('Paste AI reply'),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _copyForAi(BuildContext context) async {
-    final video = draft.video;
-    final transcript = draft.transcript;
-    if (video == null || transcript == null) {
-      return;
-    }
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final lines = linesToCheck(transcript, draft.selection);
-      await Clipboard.setData(
-        ClipboardData(
-          text: scriptPromptFor(
-            videoTitle: video.title,
-            videoUrl: 'https://youtu.be/${video.videoId}',
-            lines: lines,
-          ),
-        ),
-      );
-      messenger.showSnackBar(SnackBar(content: Text(_copied(lines.length))));
-    } on Exception catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
-    }
-  }
-
-  Future<void> _pasteFixed(BuildContext context, WidgetRef ref) async {
-    final video = draft.video;
-    final transcript = draft.transcript;
-    if (video == null || transcript == null) {
-      return;
-    }
-    final messenger = ScaffoldMessenger.of(context);
-    final controller = ref.read(reelDraftProvider.notifier);
-    final editing = ref.read(scriptEditingServiceProvider);
-    try {
-      final pasted =
-          (await Clipboard.getData(Clipboard.kTextPlain))?.text ?? '';
-      final corrected = applyCorrectedScript(transcript, pasted);
-      controller.correctTranscript(corrected.transcript);
-      await editing.saveCorrected(video, draft.language, corrected.transcript);
-      messenger.showSnackBar(
-        SnackBar(content: Text(_correctedMessage(corrected))),
-      );
-    } on Exception catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(errorMessageFor(error))));
-    }
-  }
-}
-
 /// FR-19: Groq's web-search model fixes the script, with the saved key.
 class _GroqFixAction extends ConsumerStatefulWidget {
   const _GroqFixAction({
     required this.draft,
     required this.scriptIsBeingWritten,
-    required this.onRunningChanged,
   });
 
   final ReelDraft draft;
   final bool scriptIsBeingWritten;
-  final ValueChanged<bool> onRunningChanged;
 
   @override
   ConsumerState<_GroqFixAction> createState() => _GroqFixActionState();
@@ -395,10 +231,7 @@ class _GroqFixActionState extends ConsumerState<_GroqFixAction> {
     );
   }
 
-  void _setRunning(bool running) {
-    setState(() => _running = running);
-    widget.onRunningChanged(running);
-  }
+  void _setRunning(bool running) => setState(() => _running = running);
 
   void _cancel() {
     _wantedRun++;
@@ -466,10 +299,6 @@ SnackBar _fixFailedSnackBar(Object error, GoRouter router) {
   }
   return SnackBar(content: Text(errorMessageFor(error)));
 }
-
-String _copied(int lineCount) =>
-    'Copied $lineCount lines. Paste them into ChatGPT (or any AI that can '
-    'search the web), copy its reply, then tap Paste AI reply.';
 
 String _correctedMessage(CorrectedScript corrected) {
   final updated = 'Updated ${corrected.changedLines} lines.';

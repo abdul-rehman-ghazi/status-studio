@@ -2,21 +2,16 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:status_studio/src/features/lyrics/application/lyrics_service.dart';
-import 'package:status_studio/src/features/lyrics/domain/lyrics_match.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
-import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/groq_script_fix_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
-import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 import '../../../../helpers/fixtures.dart';
@@ -124,109 +119,6 @@ void main() {
     expect(find.text('Tap the line where your clip starts'), findsOneWidget);
   });
 
-  testWidgets('real_lyrics_replace_the_script_lines', (tester) async {
-    await pumpScriptWithLyrics(
-      tester,
-      FakeLyricsService(
-        lines: const [
-          TranscriptLine(
-            index: 0,
-            text: 'Real lyric line',
-            start: Duration(seconds: 5),
-            end: Duration(seconds: 9),
-          ),
-        ],
-      ),
-    );
-
-    await tester.tap(find.text('Real lyrics'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Real lyric line'), findsOneWidget);
-  });
-
-  testWidgets('missing_lyrics_keep_the_script_and_say_so', (tester) async {
-    await pumpScriptWithLyrics(
-      tester,
-      FakeLyricsService(failure: const LyricsNotFoundException()),
-    );
-
-    await tester.tap(find.text('Real lyrics'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
-    expect(find.textContaining("Couldn't find the lyrics"), findsOneWidget);
-  });
-
-  testWidgets('copy_for_ai_puts_the_prompt_and_rows_on_the_clipboard', (
-    tester,
-  ) async {
-    final clipboard = FakeClipboard('')..install();
-    await pumpScript(tester);
-
-    await tester.tap(find.text('Copy for AI'));
-    await tester.pump();
-
-    expect(
-      clipboard.text,
-      contains('1 | 00:12.00 | 00:20.60 | صبر کا پھل میٹھا ہوتا ہے'),
-    );
-  });
-
-  testWidgets('copy_for_ai_sends_only_the_picked_lines', (tester) async {
-    final clipboard = FakeClipboard('')..install();
-    await pumpRoutes(tester, [
-      AppRoutes.script,
-    ], setup: TestSetup(overrides: [draftOverride(pickedDraft)]));
-
-    await tester.tap(find.text('Copy for AI'));
-    await tester.pump();
-
-    expect(clipboard.text, contains('2 | 00:21.40'));
-    expect(clipboard.text, isNot(contains('1 | 00:12.00')));
-  });
-
-  testWidgets('paste_fixed_script_replaces_line_text', (tester) async {
-    FakeClipboard('1 | 00:12.00 | 00:20.60 | درست متن').install();
-    await pumpRoutes(
-      tester,
-      [AppRoutes.script],
-      setup: TestSetup(
-        overrides: [
-          draftOverride(scriptDraft),
-          scriptEditingServiceProvider.overrideWithValue(
-            ScriptEditingService(
-              store: Future.value(
-                TranscriptStore(
-                  Directory.systemTemp.createTempSync('paste_fixed'),
-                  clock: DateTime.now,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    await tester.tap(find.text('Paste AI reply'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('درست متن'), findsOneWidget);
-  });
-
-  testWidgets('paste_without_script_rows_keeps_the_script_and_says_so', (
-    tester,
-  ) async {
-    FakeClipboard('Sorry, I cannot help.').install();
-    await pumpScript(tester);
-
-    await tester.tap(find.text('Paste AI reply'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining("Couldn't find script lines"), findsOneWidget);
-    expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
-  });
-
   Future<void> pumpScriptWithGroq(WidgetTester tester, AskGroq askGroq) =>
       pumpRoutes(
         tester,
@@ -306,19 +198,23 @@ void main() {
     expect(find.text('علم بڑی دولت ہے'), findsOneWidget);
   });
 
-  testWidgets('fix_with_groq_turns_the_other_fix_buttons_off_while_it_runs', (
-    tester,
-  ) async {
+  testWidgets('script_tools_offer_only_fix_with_groq', (tester) async {
+    await pumpScript(tester);
+
+    expect(find.text('Fix with Groq'), findsOneWidget);
+    expect(find.text('Real lyrics'), findsNothing);
+    expect(find.text('Copy for AI'), findsNothing);
+    expect(find.text('Paste AI reply'), findsNothing);
+  });
+
+  testWidgets('fix_with_groq_shows_cancel_while_it_runs', (tester) async {
     await pumpScriptWithGroq(tester, (_) => Completer<String>().future);
 
     await tester.tap(find.text('Fix with Groq'));
     await tester.pump();
 
-    final paste = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Paste AI reply'),
-    );
-    expect(paste.onPressed, isNull);
     expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Fix with Groq'), findsNothing);
   });
 
   testWidgets('cancel_ignores_the_reply_and_keeps_the_script', (tester) async {
@@ -352,63 +248,6 @@ void main() {
       findsOneWidget,
     );
   });
-}
-
-/// Answers with [lines], or fails with [failure]; never touches the network.
-class FakeLyricsService implements LyricsService {
-  FakeLyricsService({this.lines, this.failure});
-
-  final List<TranscriptLine>? lines;
-  final Exception? failure;
-
-  @override
-  Future<Transcript> replaceScript(
-    SourceVideo video,
-    ScriptLanguage language,
-  ) async {
-    if (failure case final error?) {
-      throw error;
-    }
-    return Transcript(languageCode: 'en', lines: lines!);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-Future<void> pumpScriptWithLyrics(
-  WidgetTester tester,
-  FakeLyricsService lyrics,
-) => pumpRoutes(
-  tester,
-  [AppRoutes.script],
-  setup: TestSetup(
-    overrides: [
-      draftOverride(scriptDraft),
-      lyricsServiceProvider.overrideWithValue(lyrics),
-    ],
-  ),
-);
-
-/// Stands in for the system clipboard; returns what was last copied.
-class FakeClipboard {
-  FakeClipboard(this.text);
-
-  String text;
-
-  void install() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-          if (call.method == 'Clipboard.setData') {
-            text = (call.arguments as Map)['text'] as String;
-          }
-          return call.method == 'Clipboard.getData' ? {'text': text} : null;
-        });
-    addTearDown(
-      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, null),
-    );
-  }
 }
 
 /// A finished run that came from the saved scripts.
