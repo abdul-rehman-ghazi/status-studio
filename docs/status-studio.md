@@ -15,7 +15,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 
 | # | Screen | Route | Job |
 |---|---|---|---|
-| 1 | Home | `/` | Start a reel; recent reels and saved scripts; open Settings |
+| 1 | Home | `/` | Start a reel; recent reels, saved scripts and fine-tunes to continue (FR-24); open Settings |
 | 2 | Source | `/source` | Paste a YouTube link; choose language (default automatic) |
 | 3 | Processing | `/processing` | Download audio → detect language → transcribe → line up timestamps (skipped for a saved script, FR-14) |
 | 4 | Script | `/script` | Full script; tap the start line, then the end line |
@@ -76,6 +76,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - **Long-clip warning:** above 60.0 s, "Longer than 60 s. WhatsApp Status may cut it." It never blocks.
   - **Frame:** size, fill, keep in view and free crop (FR-6), and a crop that moves (FR-22). The crop window is drawn over the player.
 - **Step 2, Lyrics** (`/fine-tune/lyrics`, "Step 4 of 5"): FR-21.
+- **Kept:** progress is kept as it changes and continued from Recent (FR-24).
 
 **FR-6 Frame (on Fine-tune · Video since M19).**
 
@@ -127,6 +128,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - **Words:** letters, marks and digits only, so punctuation and characters illegal in file names are dropped; joined by `_`. A part with no words is left out; with none at all the name is `reel`.
   - **Same name again:** `-2`, `-3`, … is added, so a new reel never replaces an earlier one. The name is also the reel's id in Recent, and what Save to gallery and Share show.
 - **Output:** MP4 with H.264 video (`video/avc`) and AAC audio (`audio/mp4a-latm`), at the source frame rate, rendered by Media3 Transformer (§5).
+- **Kept fine-tune:** a finished export deletes the kept fine-tune (FR-24).
 - **Progress:** Media3's own progress.
 - **Cancel:** stops the render, deletes the partial file and returns to Style.
 - **Failure:** a native render error shows "Couldn't make the reel." It never hangs.
@@ -143,6 +145,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
   - A script row shows a script icon, the title and `Script · <language> · <video length> · <d MMM>`, where an automatic script names its detected language ("Urdu (detected)").
   - Tap opens Script without Processing or downloads.
   - Long-press offers Delete, which removes that script and any unfinished progress for it.
+- **Fine-tunes to continue (FR-24):** a Continue row replaces the video's script row; long-press offers Delete progress.
   - There is one row per video and requested language. Scripts saved before video details were kept appear once their link is opened again.
 
 **FR-12 Settings: speech models (retired in M10, 2026-11-04).** On-device Whisper and its model downloads were removed; the number stays so code and history keep their references. The Settings screen now starts with FR-12a.
@@ -292,6 +295,28 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **While it runs:** a bar, "Finding the person… 45 %", with Cancel. Sampling the frames has no progress to show, so until the first frame is looked at the bar is indeterminate and has no percent. The detector is made for the run and closed when it ends, fails or is cancelled. Cancel, leaving the step, opening Lyrics, turning "Move the crop" off, or any change of the clip, size, fill or the free crop's size stops it and changes nothing. If the user moves the crop by hand meanwhile, that wins and the result is dropped. It doesn't use the player, and takes no foreground service (about 20 s at most).
 - **Several people:** it follows the largest, with continuity. Choosing by tapping is out of scope (§11).
 
+**FR-24 Continue a fine-tune later (M21).** Work on Fine-tune is kept on the phone as it changes, so the user can leave and carry on from Recent, hours or days later. There is no Save button.
+- **What is kept:** the picked lines (FR-4), the clip's start and end (FR-5), the frame (size, fill, base anchor, free crop and the moving crop's keyframes, FR-6 and FR-22), the caption settings (FR-7) and whether lines were edited (FR-21).
+  - The script is not copied. The kept fine-tune names its saved script by video and requested language (FR-14). The source is `edited` when lines were edited; otherwise it is the newest script, the one FR-14 reopens.
+  - It also keeps a fingerprint of the script's lines from the first line through the last picked one (a 32-bit FNV-1a hash of each line's start, end and text, stable across runs). That tells a changed script apart, and lines added later (a script still being written) don't count.
+- **When:** 1 s after the last change while Fine-tune · Video is open or under a later step (Lyrics, Style, Export). Also at once when Fine-tune · Video closes (Back included) or the app goes to the background.
+  - A change is anything that changes the reel: a nudge, an edge set to the playhead, size, fill, crop, a keyframe, a line edit, a caption setting.
+  - A fine-tune equal to the last one written is not written again.
+  - A failed write is ignored, because the work is still in the app.
+- **One per video and language:** a new fine-tune of the same video and requested language replaces the kept one. Back to Script leaves it as it was; picking other lines replaces it once Fine-tune opens again.
+- **File:** `transcripts/<videoId>/draft-<requested>.json` in app support, beside the scripts. It is written as `.part` and renamed, and carries `version` 1.
+  - A file that can't be read, or has a newer version, is ignored and stays on disk. Its video's script row shows instead.
+  - Saving counts as a use of the video. The file goes with the video's folder under FR-14's retention (90 days after last use, at most 200 videos).
+- **Recent (FR-11):** a kept fine-tune has a row with a tune icon, the video title, `Fine-tune · <clip length> · <d MMM>` (e.g. `18.5 s`, the date of the last save) and "Continue" on the right.
+  - It replaces the script row of the same video and language, so the video shows once. It sorts by its last save among the reels and scripts.
+  - **Tap, script found and still fitting:** opens Fine-tune · Video with everything as it was, and Back shows Script with the lines picked. The script opens without downloading. The clip window is reused while it is cached (FR-15) and downloaded otherwise; offline, that download fails as on any Fine-tune.
+  - **Tap, script gone** (no saved script for the video and language, e.g. the app closed while it was being written): opens Processing, which writes or resumes the script (FR-3, FR-14), then Script with the snackbar "This fine-tune's script had to be written again. Pick the lines again; the size and caption style are kept."
+  - **Tap, script changed** (the fingerprint differs, the picked lines run past the script's end, or the clip runs past the video's end; e.g. after Write it again): opens Script with the current script and the snackbar "The script changed since this fine-tune was saved. Pick the lines again; the size and caption style are kept."
+  - In both of those cases the kept fine-tune is deleted. What carries over: size, fill, the crop stopped where it was at the old clip start (as FR-22 "New lines" says), and the caption's position and size. The lines, the clip and the caption text do not.
+  - **Long-press:** offers "Delete progress". It deletes only the kept fine-tune, and the video's script row shows again.
+- **Export:** a finished export (the reel is in Recent, FR-9) deletes the kept fine-tune. Going back from Done and changing something keeps a new one.
+- **Not kept:** anything before Fine-tune opens, the playhead, and the selected keyframe chip.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android first (minSdk 24, sideloaded APK). iOS later (deployment target 15.5, needed by ML Kit translation).
@@ -299,6 +324,7 @@ Status Studio turns any YouTube video, in any language, into a short clip for Wh
 - **Storage:**
   - Media cache: `sources/<videoId>/` in the temp directory, holding script audio, WAV pieces and clip windows. It's reused, and deleted on app start after 7 days.
   - Saved scripts: `transcripts/` in app support (FR-14).
+  - Unfinished fine-tunes: `draft-<requested>.json` beside the scripts in `transcripts/<videoId>/` (FR-24); they go with the folder.
   - Exports: `reels/` in app documents.
   - Downloads go to `.part` files and are renamed when complete. Whole streams download in 10 MB ranges.
 - **Data caps:** script audio is the lowest-bitrate MP4 audio. The clip is ≤ 720p H.264 plus the highest-bitrate MP4 audio, for the clip window only.
@@ -379,6 +405,8 @@ class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? trans
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: first caption line
 class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // captions | groq-whisper-large-v3-turbo 
 class SavedScript { SourceVideo video; ScriptLanguage language; SavedTranscript saved; } // a Recent row
+class FineTuneDraft { TranscriptKey script; RangeSelected selection; ClipRange clip; FrameSettings frame; CaptionSettings caption; bool linesEdited; int scriptFingerprint; DateTime savedAt; } // FR-24; the script itself is not copied
+class SavedFineTune { SourceVideo video; FineTuneDraft draft; } // a Recent row (FR-24)
 enum SpeechEngine { onDevice, groq }
 class CloudTranscriptionSettings { bool enabled; bool keyChecked; } // the key itself lives only in secure storage
 class ClipWindow { Duration start; Duration end; }                  // FR-15, video time
@@ -485,6 +513,8 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | Groq failed while fixing (other error, or 5xx/498 twice) | Script | Groq couldn't fix this script. | (snackbar) |
 | Groq's reply to Fix with Groq has no script rows | Script | Groq's reply had no script lines. Try again. | (snackbar) |
 | No person found in the clip | Fine-tune · Video | No person found in this clip. The crop stays where it is. | (snackbar) |
+| A kept fine-tune's script is gone | Script | This fine-tune's script had to be written again. Pick the lines again; the size and caption style are kept. | (snackbar) |
+| A kept fine-tune's script changed | Script | The script changed since this fine-tune was saved. Pick the lines again; the size and caption style are kept. | (snackbar) |
 | Following the person failed (frames, decoding or detector) | Fine-tune · Video | Couldn't follow the person. Try again. | (snackbar) |
 | Not enough storage | any download or export | Not enough space on your phone. | Back |
 
@@ -602,6 +632,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
 | M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18); device check pending |
 | M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | Built, branch `m20-follow-subject` (stacked on M19); the spike (§10 item 7) and the device checks are pending, so whether to ship it is undecided |
+| M21 Continue later | Fine-tune is kept as it changes and continued from Recent (FR-24) | In progress, branch `m21-fine-tune-drafts` (stacked on M20) |
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -735,6 +766,23 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
 - [x] **7. UI.** The button, progress, Cancel, the replace question and the snackbars.
 - [x] **8. Docs and review.** §13, §14, §12 status; reviewer pass (Opus; six findings, all fixed); push. CLAUDE.md's FFmpeg line still needs "and frame sampling" (left for the user to approve).
 
+### M21 tasks (branch `m21-fine-tune-drafts`)
+
+Request, 2026-11-04: save Fine-tune progress and continue later. The plan was written by an Opus subagent (its choices are in FR-24). Each task: test first, tick it, commit.
+
+- [x] **1. Spec.** FR-24 and the edits it needs in §2, FR-5, FR-9, FR-11, §4, §6.1, §8, §12.
+- [ ] **2. Draft type and JSON (domain).** `FineTuneDraft`, `SavedFineTune`; `fineTuneDraftToJson` and `fineTuneDraftFromJson` (version 1; a damaged or newer file throws `FormatException`).
+- [ ] **3. Draft rules (domain).** `canKeep`, `FineTuneDraft.of`, `fits`, `restoredOnto`, `startOver`, and the stable script fingerprint.
+- [ ] **4. Shared JSON files and script-store additions.** `core/json_files.dart` (atomic write) moved out of `TranscriptStore`; `loadFromSource`, `loadVideo`, `markUsed`.
+- [ ] **5. Draft store (data).** `FineTuneDraftStore`: save, list (skips unreadable), delete; provider.
+- [ ] **6. Saver and list (application).** `FineTuneDraftSaver` (serial, no repeat writes, discard after export) and `fineTuneDraftsProvider`.
+- [ ] **7. Wiring the saves.** Fine-tune screen (1 s debounce, close, background), Lyrics background flush, Export discards; test helpers and default overrides.
+- [ ] **8. Resumer (application).** `FineTuneResumer`: Ready, ScriptGone, ScriptChanged; `ReelDraftController.restore`.
+- [ ] **9. Recent merge (domain).** `recentEntries`: a fine-tune replaces its script row.
+- [ ] **10. Home rows.** Continue row, long-press Delete progress.
+- [ ] **11. Continue and the Script notice.** Tap paths and the snackbar on Script.
+- [ ] **12. Docs and review.** §13, §14, §12 status; reviewer pass (Opus); push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links:** a link with whitespace, `si=` parameters or the `m.` host parses.
@@ -834,6 +882,17 @@ Request, 2026-11-04: move the crop by object detection; the subject is a person 
   - The first frame is the logo's rest pose, the same as the native splash.
   - Outer bars stay under y 31 and the brackets move in at most 7 units, so nothing overlaps.
   - The splash covers Home, blocks taps, and goes when the animation ends; reduce motion skips it.
+
+- **Continue a fine-tune later (FR-24):**
+  - It round-trips through JSON to the millisecond.
+  - A newer version, an unknown name, a reversed range, keyframes out of order or an anchor outside 0..1 make the file unreadable; an unreadable file is skipped and its script row stays.
+  - The fingerprint is stable across runs. Lines added after the range still fit; a changed line up to the last picked one, a range past the end or a clip past the video don't.
+  - It is saved 1 s after the last change and at once on close or when the app is hidden. A run of changes is one write, and an unchanged draft isn't written again.
+  - There is one per video and language. A save marks the video used, the draft goes when its folder is pruned, and a `.part` file is never listed.
+  - A finished export deletes it, and a later save of the same draft writes nothing. A delete waits for a save in progress.
+  - Edited lines reopen from the `edited` script even when a newer one exists.
+  - The Continue row replaces the script row, and Delete progress brings the script row back.
+  - Continue opens Fine-tune and Back shows Script. With the script gone it opens Processing; with the script changed it opens Script with the snackbar. Both delete the draft and keep the frame (crop at the old start) and the caption's position and size.
 
 ## 14. Device checks
 
@@ -937,6 +996,14 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] The native logo hands over to Flutter's without a jump in size or position (Android 13 splash API on the Redmi, and with three-button navigation if possible).
 - [ ] The animation plays once and Home is usable straight after; with "Remove animations" on, Home shows at once.
 - [ ] Returning to the app from Recents doesn't replay it.
+
+**Continue later (M21):**
+- [ ] Swipe the app away 2 s after a nudge on a moving-crop clip; Continue restores the clip, keyframes and caption, with no download while cached.
+- [ ] Lock within 1 s of an Urdu line edit, kill the process (`adb shell am kill`); Continue brings back the edited lines and the range.
+- [ ] After the media cache is cleared, Continue downloads only the clip window; in airplane mode Fine-tune shows the offline error.
+- [ ] Export, then Home: the Continue row is gone and the reel row is there.
+- [ ] Write it again, then Continue: Script opens with the "script changed" snackbar.
+- [ ] A long Urdu title in the Continue row on a small phone.
 
 ## 15. Known issues (found on the phone, not fixed)
 
