@@ -41,7 +41,6 @@ ReelDraft pickedReelDraft({String videoId = 'abc123'}) {
     video: SourceVideo(
       videoId: videoId,
       title: 'A song',
-      channel: 'A channel',
       duration: const Duration(seconds: 60),
     ),
     language: ScriptLanguage.urdu,
@@ -109,7 +108,6 @@ SavedFineTune savedFineTune({
     video: SourceVideo(
       videoId: videoId,
       title: title,
-      channel: 'A channel',
       duration: const Duration(minutes: 3),
     ),
     draft: fineTuneDraftFixture(

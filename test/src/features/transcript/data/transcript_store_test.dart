@@ -28,7 +28,6 @@ TranscriptKey keyFor(String videoId) =>
 SourceVideo videoWithId(String videoId) => SourceVideo(
   videoId: videoId,
   title: 'Video $videoId',
-  channel: 'Channel',
   duration: const Duration(minutes: 3),
 );
 

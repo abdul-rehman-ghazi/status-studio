@@ -13,7 +13,6 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 const _video = SourceVideo(
   videoId: 'abc123',
   title: 'A song',
-  channel: 'A channel',
   duration: Duration(seconds: 60),
 );
 
@@ -107,7 +106,6 @@ void main() {
     const shortVideo = SourceVideo(
       videoId: 'abc123',
       title: 'A song',
-      channel: 'A channel',
       duration: Duration(seconds: 7),
     );
 

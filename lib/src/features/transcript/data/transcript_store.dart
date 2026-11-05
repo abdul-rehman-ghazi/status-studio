@@ -51,7 +51,7 @@ class TranscriptStore {
     return saved.single;
   }
 
-  /// The title, channel and length kept for [videoId] (see [saveVideo]).
+  /// The title and length kept for [videoId] (see [saveVideo]).
   Future<SourceVideo> loadVideo(String videoId) async {
     try {
       return SourceVideo.fromJson(
@@ -67,7 +67,7 @@ class TranscriptStore {
     await markUsed(key.videoId);
   }
 
-  /// Keeps [video]'s title, channel and length beside its scripts, so the
+  /// Keeps [video]'s title and length beside its scripts, so the
   /// Recent list can show and reopen them (FR-11).
   Future<void> saveVideo(SourceVideo video) => writeJsonAtomically(
     File('${_folder(video.videoId).path}/$_videoFile'),

@@ -24,7 +24,6 @@ class FakeVideoSource implements VideoSource {
     return SourceVideo(
       videoId: videoId,
       title: 'Sample video',
-      channel: 'Sample channel',
       duration: const Duration(minutes: 6, seconds: 48),
     );
   }

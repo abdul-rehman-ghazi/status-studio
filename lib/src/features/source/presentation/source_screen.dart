@@ -215,7 +215,7 @@ class _VideoSummary extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-              HintText('${video.channel} · ${formatTimestamp(video.duration)}'),
+              HintText(formatTimestamp(video.duration)),
             ],
           ),
         ),

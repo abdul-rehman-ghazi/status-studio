@@ -12,7 +12,6 @@ SavedScript savedScript({required String title, required int minutesOld}) {
     video: SourceVideo(
       videoId: 'video_$minutesOld',
       title: title,
-      channel: 'Sample channel',
       duration: const Duration(minutes: 6, seconds: 48),
     ),
     language: ScriptLanguage.auto,

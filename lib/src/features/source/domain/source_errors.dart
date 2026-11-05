@@ -78,3 +78,14 @@ class YouTubeChangedException implements Exception {
   @override
   String toString() => 'YouTubeChangedException: $reason';
 }
+
+/// The video file is missing or can't be read, so it can't be fingerprinted
+/// (spec FR-1).
+class VideoUnreadableException implements Exception {
+  const VideoUnreadableException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'VideoUnreadableException: $reason';
+}

@@ -20,7 +20,6 @@ SavedScript _script({
     video: SourceVideo(
       videoId: videoId,
       title: 'A song',
-      channel: 'A channel',
       duration: const Duration(minutes: 3),
     ),
     language: language,

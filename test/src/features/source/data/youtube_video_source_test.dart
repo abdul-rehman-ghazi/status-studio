@@ -108,7 +108,7 @@ void main() {
   test('fetch_video_reads_info', () async {
     final video = await source().fetchVideo('s6kE_uP3xH4');
 
-    expect([video.title, video.channel], ['Main Madine Chala', 'Heera Gold']);
+    expect([video.title], ['Main Madine Chala']);
   });
 
   test('video_is_read_once_for_every_step', () async {

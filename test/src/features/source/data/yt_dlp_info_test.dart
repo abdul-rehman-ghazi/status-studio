@@ -5,15 +5,14 @@ import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import '../../../../helpers/yt_dlp_json.dart';
 
 void main() {
-  test('reads_title_channel_and_length', () {
+  test('reads_title_and_length', () {
     final video = YtDlpInfo.fromJson(videoJson()).video;
 
     expect(
-      [video.videoId, video.title, video.channel, video.duration],
+      [video.videoId, video.title, video.duration],
       [
         's6kE_uP3xH4',
         'Main Madine Chala',
-        'Heera Gold',
         const Duration(minutes: 9, seconds: 8),
       ],
     );

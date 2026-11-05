@@ -7,7 +7,6 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 const sampleVideo = SourceVideo(
   videoId: 'dQw4w9WgXcQ',
   title: 'Sample video',
-  channel: 'Sample channel',
   duration: Duration(minutes: 6, seconds: 48),
 );
 

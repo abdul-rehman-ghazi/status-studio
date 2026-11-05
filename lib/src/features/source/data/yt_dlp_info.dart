@@ -61,7 +61,6 @@ class YtDlpInfo {
       video: SourceVideo(
         videoId: json['id']! as String,
         title: json['title']! as String,
-        channel: (json['channel'] ?? json['uploader'] ?? '') as String,
         duration: Duration(milliseconds: (seconds * 1000).round()),
       ),
       videoFormats: _videoFormats(formats.where(_isVideoOnly).toList()),
