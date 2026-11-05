@@ -160,12 +160,19 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       // Exceptions: nothing here may reach the zone as an unhandled error.
       return;
     }
-    if (!mounted) {
+    // Another video was chosen while this one was still importing.
+    if (!mounted || !identical(request, _videoRequest)) {
       return;
     }
-    ref.read(reelDraftProvider.notifier)
+    final draft = ref.read(reelDraftProvider.notifier);
+    final languageChanged = ref.read(reelDraftProvider).language != _language;
+    draft
       ..setVideo(video)
       ..setLanguage(_language);
+    if (languageChanged) {
+      // A script in another language replaces the edited lines (FR-21).
+      draft.forgetLineEdits();
+    }
     ref.read(scriptProgressProvider.notifier).start(video, _language);
     await context.push(AppRoutes.processing);
   }

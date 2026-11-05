@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -67,20 +68,41 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
       draft: ref.read(reelDraftProvider),
     );
     if (wouldClose && !await _confirmNewReel()) {
+      await _deleteStagedCopy(video);
       return;
     }
     // The top screen is animated out, not removed, so it is still mounted
     // when the draft is reset and would then keep the empty draft instead of
     // the last edits (FR-24): save them here.
-    await ref
-        .read(fineTuneDraftSaverProvider)
-        .save(ref.read(reelDraftProvider));
+    if (_isOnFineTune(router)) {
+      await ref
+          .read(fineTuneDraftSaverProvider)
+          .save(ref.read(reelDraftProvider));
+    }
     router.go(AppRoutes.home);
     // The screens of the old reel read the draft until they are gone, so it
     // is only reset once Home has replaced them.
     await SchedulerBinding.instance.endOfFrame;
     ref.read(reelDraftProvider.notifier).startNew();
     unawaited(router.push<void>(AppRoutes.source, extra: video));
+  }
+
+  /// Only a reel that has reached Fine-tune is worth keeping (FR-24); a
+  /// script still being written is saved by its own file.
+  bool _isOnFineTune(GoRouter router) => const {
+    AppRoutes.fineTune,
+    AppRoutes.lyrics,
+    AppRoutes.style,
+  }.contains(_currentPath(router));
+
+  /// The shared file waits in the app's incoming folder; leaving it would
+  /// keep a large video until the stale-copy sweep.
+  Future<void> _deleteStagedCopy(IncomingVideo video) async {
+    try {
+      await File(video.path).delete();
+    } on FileSystemException {
+      // Already gone, or the sweep will take it.
+    }
   }
 
   /// `currentConfiguration.uri` stays at the first route when screens are

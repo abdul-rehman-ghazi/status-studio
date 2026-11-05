@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/domain/lines_in_clip.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
@@ -84,7 +85,9 @@ class FineTuneDraft {
       video: video,
       language: script.language,
       transcript: transcript,
-      selection: selection,
+      // The script may have grown since this was kept (it can be saved while
+      // still being written): the lines inside the clip are the selected ones.
+      selection: linesInClip(transcript, clip),
       clip: clip,
       frame: frame,
       caption: caption,
