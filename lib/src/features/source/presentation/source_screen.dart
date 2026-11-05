@@ -146,8 +146,9 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     final SourceVideo video;
     try {
       video = await request;
-    } on Exception {
-      // The video card already shows why; stay on this screen.
+    } catch (_) {
+      // The video card already shows why; stay on this screen. Not only
+      // Exceptions: nothing here may reach the zone as an unhandled error.
       return;
     }
     if (!mounted) {
