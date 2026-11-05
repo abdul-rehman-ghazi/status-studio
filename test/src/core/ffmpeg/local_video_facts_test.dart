@@ -214,6 +214,184 @@ void main() {
     );
   });
 
+  test('cover_art_stream_is_not_a_video_stream', () {
+    final json = jsonEncode({
+      'streams': [
+        {
+          'codec_type': 'video',
+          'width': 500,
+          'height': 500,
+          'disposition': {'attached_pic': 1},
+        },
+        {'codec_type': 'audio'},
+      ],
+      'format': {'duration': '10', 'size': '100'},
+    });
+
+    expect(
+      () => parseLocalVideoFacts(json),
+      throwsA(isA<VideoUnreadableException>()),
+    );
+  });
+
+  test('real_video_stream_after_cover_art_is_chosen', () {
+    final json = jsonEncode({
+      'streams': [
+        {
+          'codec_type': 'video',
+          'width': 500,
+          'height': 500,
+          'disposition': {'attached_pic': 1},
+        },
+        {
+          'codec_type': 'video',
+          'width': 1280,
+          'height': 720,
+          'disposition': {'attached_pic': 0},
+        },
+        {'codec_type': 'audio'},
+      ],
+      'format': {'duration': '10', 'size': '100'},
+    });
+
+    final facts = parseLocalVideoFacts(json);
+
+    expect((facts.storedWidth, facts.storedHeight), (1280, 720));
+  });
+
+  test('zero_width_throws_unreadable', () {
+    expect(
+      () => parseLocalVideoFacts(
+        probeJson(video: const {'width': 0, 'height': 10}),
+      ),
+      throwsA(isA<VideoUnreadableException>()),
+    );
+  });
+
+  test('zero_height_throws_unreadable', () {
+    expect(
+      () => parseLocalVideoFacts(
+        probeJson(video: const {'width': 10, 'height': 0}),
+      ),
+      throwsA(isA<VideoUnreadableException>()),
+    );
+  });
+
+  test('zero_size_throws_unreadable', () {
+    expect(
+      () => parseLocalVideoFacts(
+        probeJson(
+          video: landscape,
+          format: const {'duration': '5', 'size': '0'},
+        ),
+      ),
+      throwsA(isA<VideoUnreadableException>()),
+    );
+  });
+
+  test('zero_format_duration_falls_back_to_video_stream_duration', () {
+    final facts = parseLocalVideoFacts(
+      probeJson(
+        video: landscape,
+        format: const {'duration': '0.000000', 'size': '5'},
+      ),
+    );
+
+    expect(facts.duration, const Duration(seconds: 69));
+  });
+
+  test('na_format_duration_falls_back_to_video_stream_duration', () {
+    final facts = parseLocalVideoFacts(
+      probeJson(
+        video: landscape,
+        format: const {'duration': 'N/A', 'size': '5'},
+      ),
+    );
+
+    expect(facts.duration, const Duration(seconds: 69));
+  });
+
+  test('na_duration_everywhere_throws_unreadable', () {
+    expect(
+      () => parseLocalVideoFacts(
+        probeJson(
+          video: const {'width': 10, 'height': 10, 'duration': 'N/A'},
+          format: const {'duration': 'N/A', 'size': '5'},
+        ),
+      ),
+      throwsA(isA<VideoUnreadableException>()),
+    );
+  });
+
+  test('side_data_rotation_wins_over_rotate_tag', () {
+    final facts = parseLocalVideoFacts(
+      probeJson(
+        video: {
+          ...landscape,
+          'tags': {'rotate': '90'},
+          'side_data_list': [
+            {'side_data_type': 'Display Matrix', 'rotation': -180},
+          ],
+        },
+      ),
+    );
+
+    expect(facts.rotationDegrees, 180);
+  });
+
+  test('rotate_tag_of_450_normalises_to_90', () {
+    final facts = parseLocalVideoFacts(
+      probeJson(
+        video: {
+          ...landscape,
+          'tags': {'rotate': '450'},
+        },
+      ),
+    );
+
+    expect(facts.rotationDegrees, 90);
+  });
+
+  test('rotate_tag_of_minus_270_normalises_to_90', () {
+    final facts = parseLocalVideoFacts(
+      probeJson(
+        video: {
+          ...landscape,
+          'tags': {'rotate': '-270'},
+        },
+      ),
+    );
+
+    expect(facts.rotationDegrees, 90);
+  });
+
+  test('width_and_height_given_as_strings_are_read', () {
+    final facts = parseLocalVideoFacts(
+      probeJson(
+        video: const {'width': '640', 'height': '360', 'duration': '1'},
+      ),
+    );
+
+    expect((facts.storedWidth, facts.storedHeight), (640, 360));
+  });
+
+  test('json_object_in_returns_clean_json_unchanged', () {
+    expect(jsonObjectIn('{"a": 1}'), '{"a": 1}');
+  });
+
+  test('json_object_in_cuts_log_lines_around_the_object', () {
+    const output = 'warning: odd\n{"a": {"b": 2}}\n[error] moov atom\n';
+
+    expect(jsonObjectIn(output), '{"a": {"b": 2}}');
+  });
+
+  test('json_object_in_throws_unreadable_without_braces', () {
+    expect(
+      () => jsonObjectIn('no json here'),
+      throwsA(isA<VideoUnreadableException>()),
+    );
+  });
+
   test('displayed_size_keeps_stored_size_when_not_rotated', () {
     const facts = LocalVideoFacts(
       duration: Duration(seconds: 1),

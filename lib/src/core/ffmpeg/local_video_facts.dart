@@ -50,21 +50,33 @@ List<String> localVideoProbeArguments(String path) => [
 /// Reads ffprobe's `-show_streams -show_format -of json` output.
 /// Throws [VideoUnreadableException] when it holds no usable video.
 LocalVideoFacts parseLocalVideoFacts(String probeJson) {
-  final root = _decodeObject(probeJson);
+  final root = _decodeObject(jsonObjectIn(probeJson));
   final streams = _objectsIn(root['streams']);
-  final video = _firstStreamOfType(streams, 'video');
+  final video = _firstVideoStream(streams);
   if (video == null) {
     throw const VideoUnreadableException('No video stream');
   }
   final format = _asObject(root['format']);
   return LocalVideoFacts(
     duration: _durationOf(format, video),
-    sizeBytes: _wholeNumber(format['size']) ?? _missing('file size'),
+    sizeBytes: _positiveWhole(format['size'], 'file size'),
     rotationDegrees: _rotationOf(video),
-    storedWidth: _wholeNumber(video['width']) ?? _missing('video width'),
-    storedHeight: _wholeNumber(video['height']) ?? _missing('video height'),
+    storedWidth: _positiveWhole(video['width'], 'video width'),
+    storedHeight: _positiveWhole(video['height'], 'video height'),
     hasAudio: _firstStreamOfType(streams, 'audio') != null,
   );
+}
+
+/// FFmpeg Kit's output holds every log line, so stray ffprobe messages can
+/// surround the JSON. Throws [VideoUnreadableException] when there is no
+/// object in [output].
+String jsonObjectIn(String output) {
+  final objectStart = output.indexOf('{');
+  final objectEnd = output.lastIndexOf('}');
+  if (objectStart < 0 || objectEnd < objectStart) {
+    throw const VideoUnreadableException('ffprobe output has no JSON object');
+  }
+  return output.substring(objectStart, objectEnd + 1);
 }
 
 Map<String, Object?> _decodeObject(String json) {
@@ -97,17 +109,43 @@ Map<String, Object?>? _firstStreamOfType(
   return null;
 }
 
+/// Cover art in an audio file is listed as a video stream; it isn't a video.
+Map<String, Object?>? _firstVideoStream(List<Map<String, Object?>> streams) {
+  for (final stream in streams) {
+    if (stream['codec_type'] == 'video' && !_isCoverArt(stream)) {
+      return stream;
+    }
+  }
+  return null;
+}
+
+bool _isCoverArt(Map<String, Object?> stream) =>
+    _wholeNumber(_asObject(stream['disposition'])['attached_pic']) == 1;
+
 Duration _durationOf(
   Map<String, Object?> format,
   Map<String, Object?> videoStream,
 ) {
   final seconds =
-      _decimalNumber(format['duration']) ??
-      _decimalNumber(videoStream['duration']);
-  if (seconds == null || seconds <= 0) {
+      _positiveDecimal(format['duration']) ??
+      _positiveDecimal(videoStream['duration']);
+  if (seconds == null) {
     throw const VideoUnreadableException('The video has no duration');
   }
   return Duration(milliseconds: (seconds * 1000).round());
+}
+
+double? _positiveDecimal(Object? value) {
+  final number = _decimalNumber(value);
+  return number != null && number > 0 ? number : null;
+}
+
+int _positiveWhole(Object? value, String fact) {
+  final number = _wholeNumber(value);
+  if (number == null || number <= 0) {
+    throw VideoUnreadableException('ffprobe gave no $fact');
+  }
+  return number;
 }
 
 /// Newer ffprobe puts the turn in the display matrix side data, as a
@@ -132,7 +170,7 @@ double? _sideDataRotation(Map<String, Object?> videoStream) {
 }
 
 int _quarterTurnOrNone(double clockwiseDegrees) {
-  final normalized = ((clockwiseDegrees.round() % 360) + 360) % 360;
+  final normalized = clockwiseDegrees.round() % 360;
   return normalized % 90 == 0 ? normalized : 0;
 }
 
@@ -147,6 +185,3 @@ int? _wholeNumber(Object? value) => switch (value) {
   final String text => int.tryParse(text),
   _ => null,
 };
-
-Never _missing(String fact) =>
-    throw VideoUnreadableException('ffprobe gave no $fact');

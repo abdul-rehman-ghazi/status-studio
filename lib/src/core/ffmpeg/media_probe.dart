@@ -1,4 +1,5 @@
 import 'package:ffmpeg_kit_flutter_new_min/ffprobe_kit.dart';
+import 'package:ffmpeg_kit_flutter_new_min/return_code.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/local_video_facts.dart';
@@ -16,6 +17,10 @@ class MediaProbe {
     final session = await FFprobeKit.executeWithArguments(
       localVideoProbeArguments(path),
     );
+    final returnCode = await session.getReturnCode();
+    if (!ReturnCode.isSuccess(returnCode)) {
+      throw const VideoUnreadableException('ffprobe could not read the file');
+    }
     final output = await session.getOutput() ?? '';
     return parseLocalVideoFacts(output).requireAudio();
   }
