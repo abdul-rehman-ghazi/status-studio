@@ -22,9 +22,10 @@ class FfmpegRunner {
   Future<void> run(
     List<String> arguments, {
     void Function(Duration processed)? onTime,
+    FfmpegCancelHandle? cancelHandle,
   }) async {
     final finished = Completer<void>();
-    await FFmpegKit.executeWithArgumentsAsync(
+    final session = await FFmpegKit.executeWithArgumentsAsync(
       arguments,
       (session) => unawaited(_complete(session, finished)),
       null,
@@ -33,6 +34,7 @@ class FfmpegRunner {
           : (Statistics statistics) =>
                 onTime(Duration(milliseconds: statistics.getTime())),
     );
+    await cancelHandle?._bind(session.getSessionId());
     return finished.future;
   }
 

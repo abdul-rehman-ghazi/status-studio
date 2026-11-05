@@ -39,9 +39,18 @@ class ReelDraft {
   final bool linesEdited;
 
   /// Starts the reel on [video]: the clip is the whole video, which the user
-  /// trims on Fine-tune (spec FR-1, FR-5).
-  ReelDraft withVideo(SourceVideo video) =>
-      ReelDraft(video: video, language: language, clip: _wholeVideo(video));
+  /// trims on Fine-tune (spec FR-1, FR-5). The same video again (Back to
+  /// Source, then Get the script) keeps the clip, frame and caption.
+  ReelDraft withVideo(SourceVideo video) {
+    if (video.videoId == this.video?.videoId) {
+      return copyWith(video: video);
+    }
+    return ReelDraft(
+      video: video,
+      language: language,
+      clip: _wholeVideo(video),
+    );
+  }
 
   /// A new transcript replaces the lines and the caption text filled from
   /// them; the clip, its nudges and the crop keyframes stay (spec FR-5). The

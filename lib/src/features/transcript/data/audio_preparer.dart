@@ -12,9 +12,10 @@ class AudioPreparer {
 
   final FfmpegRunner runner;
 
-  /// Set by [stopRunning]; a cut that hasn't started FFmpeg yet then never
-  /// does.
-  var _stopRequested = false;
+  /// The latest cut's own handle, so [stopRunning] stops that cut and not
+  /// another FFmpeg run (a waveform's), and a stop is never forgotten by a
+  /// cut that starts after it.
+  FfmpegCancelHandle? _currentCut;
 
   /// The audio of [video] as FLAC pieces of [chunkSeconds], in order, in a
   /// folder beside it (spec FR-3). [onProcessed] hears how much of the video
@@ -28,10 +29,10 @@ class AudioPreparer {
     required void Function(Duration processed) onProcessed,
     int chunkSeconds = 90,
   }) async {
-    _stopRequested = false;
+    final cut = _currentCut = FfmpegCancelHandle();
     final folder = Directory('${video.parent.path}/pieces_$chunkSeconds');
     await _emptied(folder);
-    if (_stopRequested) {
+    if (cut.isCancelled) {
       throw const FfmpegFailedException('stopped before it started');
     }
     await runner.run(
@@ -43,6 +44,7 @@ class AudioPreparer {
         ),
       ),
       onTime: onProcessed,
+      cancelHandle: cut,
     );
     final list = File('${folder.path}/$segmentListName');
     if (!await list.exists()) {
@@ -52,10 +54,7 @@ class AudioPreparer {
   }
 
   /// Stops the FFmpeg run, if one is still going.
-  Future<void> stopRunning() {
-    _stopRequested = true;
-    return runner.cancel();
-  }
+  Future<void> stopRunning() async => _currentCut?.cancel();
 
   Future<void> _emptied(Directory folder) async {
     if (await folder.exists()) {

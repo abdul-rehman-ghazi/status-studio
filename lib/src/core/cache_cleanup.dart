@@ -64,7 +64,7 @@ Future<int> deleteFoldersWithoutFingerprint(Directory root) async {
   var deleted = 0;
   await for (final entry in root.list()) {
     final name = entry.uri.pathSegments.lastWhere((part) => part.isNotEmpty);
-    if (entry is Directory && !name.startsWith(videoIdPrefix)) {
+    if (entry is Directory && !isVideoId(name)) {
       await _deleteIfPresent(entry);
       deleted++;
     }
@@ -81,6 +81,16 @@ Future<void> cleanUpOnStart({
   required Future<TranscriptStore> scripts,
   required DateTime now,
 }) async {
+  // First and alone: the other passes list and delete inside these folders.
+  Object? firstFailure;
+  try {
+    await Future.wait([
+      sources.then(deleteFoldersWithoutFingerprint),
+      scripts.then((store) => deleteFoldersWithoutFingerprint(store.root)),
+    ]);
+  } on Object catch (failure) {
+    firstFailure = failure;
+  }
   await Future.wait([
     scripts.then((store) => store.prune()),
     Future.wait([sources, scripts]).then(
@@ -90,11 +100,8 @@ Future<void> cleanUpOnStart({
         now: now,
       ),
     ),
-    Future.wait([sources, scripts]).then(
-      (both) => Future.wait([
-        deleteFoldersWithoutFingerprint(both[0] as Directory),
-        deleteFoldersWithoutFingerprint((both[1] as TranscriptStore).root),
-      ]),
-    ),
   ]);
+  if (firstFailure != null) {
+    throw firstFailure;
+  }
 }

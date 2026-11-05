@@ -233,8 +233,7 @@ class RealScriptPipeline implements ScriptPipeline {
     } finally {
       // Leaving early (the user cancelled) must stop FFmpeg too, or a
       // retry would empty the folder it is still writing to. A run that
-      // ended, well or not, is left alone: cancelling stops every FFmpeg
-      // session.
+      // ended, well or not, is left alone.
       if (cutIsRunning) {
         await services.audio.stopRunning();
       }

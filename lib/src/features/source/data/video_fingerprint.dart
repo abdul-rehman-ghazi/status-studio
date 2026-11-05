@@ -11,6 +11,11 @@ const _idHexLength = 16;
 /// Every video ID starts with this; folders named otherwise are older.
 const videoIdPrefix = 'v_';
 
+final _videoIdPattern = RegExp('^$videoIdPrefix[0-9a-f]{$_idHexLength}\$');
+
+/// Whether [folderName] is a fingerprint ID, not an older (YouTube) one.
+bool isVideoId(String folderName) => _videoIdPattern.hasMatch(folderName);
+
 /// The video's ID: `v_<16 hex>` from its size and the SHA-256 of its first and
 /// last 1 MiB (the whole file when it is under 2 MiB), so the same bytes give
 /// the same ID however the file arrives (spec FR-1).

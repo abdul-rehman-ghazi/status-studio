@@ -274,7 +274,7 @@ class _SavedScriptRow extends ConsumerWidget {
                   '${formatDayMonth(script.saved.savedAt.toLocal())}'
             : _chooseAgainHint,
       ),
-      onTap: () => _openScript(context, ref),
+      onTap: () => unawaited(_openScript(context, ref)),
       onLongPress: () => unawaited(_offerDelete(context, ref)),
     );
   }
@@ -282,14 +282,16 @@ class _SavedScriptRow extends ConsumerWidget {
   bool _isKept(WidgetRef ref) =>
       ref.watch(isVideoKeptProvider(script.video.videoId)).value ?? true;
 
-  bool _isKeptNow(WidgetRef ref) =>
-      ref.read(isVideoKeptProvider(script.video.videoId)).value ?? true;
-
   /// Processing finds the saved script and goes straight on to Script. With
   /// the kept video gone the user is asked for it again first (spec FR-1).
-  void _openScript(BuildContext context, WidgetRef ref) {
-    if (!_isKeptNow(ref)) {
-      _askForTheVideoAgain(context, ref, script.video.videoId);
+  Future<void> _openScript(BuildContext context, WidgetRef ref) async {
+    if (!await _isStillKept(ref, script.video.videoId)) {
+      if (context.mounted) {
+        _askForTheVideoAgain(context, ref, script.video.videoId);
+      }
+      return;
+    }
+    if (!context.mounted) {
       return;
     }
     ref.read(scriptOpeningNoticeProvider.notifier).clear();
@@ -300,7 +302,7 @@ class _SavedScriptRow extends ConsumerWidget {
     ref
         .read(scriptProgressProvider.notifier)
         .start(script.video, script.language);
-    context.push(AppRoutes.processing);
+    unawaited(context.push(AppRoutes.processing));
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
@@ -311,6 +313,15 @@ class _SavedScriptRow extends ConsumerWidget {
 }
 
 const _chooseAgainHint = 'Choose or share the video again';
+
+/// A row shows "choose again" from a cached answer; the video may have been
+/// imported since, so a tap that finds "gone" looks at the phone again.
+Future<bool> _isStillKept(WidgetRef ref, String videoId) async {
+  if (ref.read(isVideoKeptProvider(videoId)).value ?? true) {
+    return true;
+  }
+  return ref.refresh(isVideoKeptProvider(videoId).future);
+}
 
 /// The kept video is gone: say so and open Source. The script and the kept
 /// fine-tune stay, and the same video chosen again finds them (spec FR-1).
@@ -362,9 +373,6 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
   bool get _isKept =>
       ref.watch(isVideoKeptProvider(fineTune.video.videoId)).value ?? true;
 
-  bool get _isKeptNow =>
-      ref.read(isVideoKeptProvider(fineTune.video.videoId)).value ?? true;
-
   @override
   Widget build(BuildContext context) {
     final clipLength = fineTune.draft.clip.length;
@@ -394,11 +402,16 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
     if (_opening) {
       return;
     }
-    if (!_isKeptNow) {
-      _askForTheVideoAgain(context, ref, fineTune.video.videoId);
+    setState(() => _opening = true);
+    if (!await _isStillKept(ref, fineTune.video.videoId)) {
+      if (mounted) {
+        setState(() => _opening = false);
+      }
+      if (context.mounted) {
+        _askForTheVideoAgain(context, ref, fineTune.video.videoId);
+      }
       return;
     }
-    setState(() => _opening = true);
     final FineTuneResume outcome;
     try {
       outcome = await ref.read(fineTuneResumerProvider).resume(fineTune);
