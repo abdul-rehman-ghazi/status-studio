@@ -90,6 +90,17 @@ class VideoUnreadableException implements Exception {
   String toString() => 'VideoUnreadableException: $reason';
 }
 
+/// The kept copy of a video was cleaned up or deleted, so the user must
+/// choose the video again (spec FR-1, §8).
+class KeptVideoMissingException implements Exception {
+  const KeptVideoMissingException(this.videoId);
+
+  final String videoId;
+
+  @override
+  String toString() => 'KeptVideoMissingException: $videoId';
+}
+
 /// The phone can't say how much space is free, so a copy can't be checked
 /// first (spec FR-1). It is not the same as being out of space.
 class StorageUnknownException implements Exception {

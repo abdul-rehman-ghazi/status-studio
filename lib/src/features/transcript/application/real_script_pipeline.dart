@@ -4,8 +4,9 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/work_amount.dart';
-import 'package:status_studio/src/features/source/data/video_source.dart';
+import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/data/audio_preparer.dart';
@@ -13,6 +14,7 @@ import 'package:status_studio/src/features/transcript/data/groq_client.dart';
 import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
 import 'package:status_studio/src/features/transcript/data/groq_transcriber.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
+import 'package:status_studio/src/features/transcript/domain/audio_piece.dart';
 import 'package:status_studio/src/features/transcript/domain/language_inference.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/segment_lines.dart';
@@ -20,20 +22,21 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 /// Overall progress at the start of each stage (plan M3 Task 7).
-const _audioDownloadEnd = 0.3;
+const _audioPreparedAt = 0.3;
 const _languageStage = 0.35;
 
 /// Everything the pipeline uses, in one value so it stays within three
 /// parameters.
 class ScriptPipelineServices {
   const ScriptPipelineServices({
-    required this.videos,
+    required this.sources,
     required this.audio,
     required this.store,
     required this.groq,
   });
 
-  final VideoSource videos;
+  /// Where the kept videos are (spec FR-1).
+  final Future<SourceCache> sources;
   final AudioPreparer audio;
   final Future<TranscriptStore> store;
 
@@ -42,8 +45,8 @@ class ScriptPipelineServices {
   final Future<GroqTranscriber> Function() groq;
 }
 
-/// Writes a video's script from, in order: a saved script, YouTube
-/// captions, or Groq (FR-3), saving what it writes (FR-14).
+/// Writes a video's script from, in order: a saved script, or Groq on the
+/// audio cut from the kept video (FR-3), saving what it writes (FR-14).
 class RealScriptPipeline implements ScriptPipeline {
   RealScriptPipeline(this.services);
 
@@ -55,8 +58,8 @@ class RealScriptPipeline implements ScriptPipeline {
     ScriptLanguage language,
   ) async* {
     final store = await services.store;
-    // Before the saved-script check too, so a script saved before videos
-    // were kept joins the Recent list once its link is opened again.
+    // Before the saved-script check too, so a script saved earlier still
+    // joins the Recent list once its video is opened again.
     await store.saveVideo(video);
     final key = TranscriptKey(videoId: video.videoId, language: language);
     final saved = await _savedScript(store, key);
@@ -67,11 +70,6 @@ class RealScriptPipeline implements ScriptPipeline {
         transcript: saved.transcript,
         savedAt: saved.savedAt,
       );
-      return;
-    }
-    final captions = await _captions(video, language);
-    if (captions != null) {
-      yield* _finishWithCaptions(store, key, captions);
       return;
     }
     yield* _write(video, key);
@@ -102,53 +100,15 @@ class RealScriptPipeline implements ScriptPipeline {
     }
   }
 
-  /// The video's captions, if it has a usable track. Any caption failure
-  /// falls through to Groq; the script audio and partial progress may
-  /// already be on the phone.
-  Future<Transcript?> _captions(
-    SourceVideo video,
-    ScriptLanguage language,
-  ) async {
-    try {
-      return await services.videos.fetchCaptions(video, language);
-    } on Exception {
-      return null;
-    }
-  }
-
-  Stream<ScriptProgress> _finishWithCaptions(
-    TranscriptStore store,
-    TranscriptKey key,
-    Transcript captions,
-  ) async* {
-    yield ScriptProgress(
-      stage: ScriptStage.detectingLanguage,
-      fraction: _languageStage,
-      transcript: _empty(captions.languageCode),
-    );
-    await store.save(
-      key,
-      SavedTranscript(
-        transcript: captions,
-        source: captionsSource,
-        savedAt: store.clock(),
-      ),
-    );
-    yield ScriptProgress(
-      stage: ScriptStage.done,
-      fraction: 1,
-      transcript: captions,
-    );
-  }
-
   Stream<ScriptProgress> _write(SourceVideo video, TranscriptKey key) async* {
     final store = await services.store;
-    // Before any download: without a key there is nothing to wait for.
+    // Before any audio work: without a key there is nothing to wait for.
     final groq = await services.groq();
     final requested = key.language.whisperCode;
-    final audio = _ScriptAudio();
-    yield* _downloadAudio(video, requested, audio);
-    final pieces = await services.audio.splitAudioCopy(audio.file);
+    final keptVideo = await _keptVideo(video);
+    final prepared = _PreparedPieces();
+    yield* _prepareAudio(video, keptVideo, requested, prepared);
+    final pieces = prepared.pieces;
     yield ScriptProgress(
       stage: ScriptStage.detectingLanguage,
       fraction: _languageStage,
@@ -215,31 +175,43 @@ class RealScriptPipeline implements ScriptPipeline {
     );
   }
 
-  /// Reports the download's bytes as they arrive, then leaves the file in
-  /// [audio]: a generator can't both yield progress and return a value.
-  Stream<ScriptProgress> _downloadAudio(
+  Future<File> _keptVideo(SourceVideo video) async {
+    final cache = await services.sources;
+    final kept = cache.keptLocalVideos(video.videoId);
+    if (kept.isEmpty) {
+      throw KeptVideoMissingException(video.videoId);
+    }
+    return kept.first;
+  }
+
+  /// Reports how much of the video FFmpeg has read, then leaves the pieces
+  /// in [prepared]: a generator can't both yield progress and return a
+  /// value.
+  Stream<ScriptProgress> _prepareAudio(
     SourceVideo video,
+    File keptVideo,
     String languageCode,
-    _ScriptAudio audio,
+    _PreparedPieces prepared,
   ) async* {
     yield ScriptProgress(
-      stage: ScriptStage.downloadingAudio,
+      stage: ScriptStage.preparingAudio,
       fraction: 0,
       transcript: _empty(languageCode),
     );
-    final amounts = StreamController<WorkAmount>();
-    final download = services.videos
-        .downloadScriptAudio(video, onProgress: amounts.add)
-        .whenComplete(amounts.close);
-    await for (final amount in amounts.stream) {
+    final processed = StreamController<Duration>();
+    final cutting = services.audio
+        .cutScriptPieces(keptVideo, onProcessed: processed.add)
+        .whenComplete(processed.close);
+    await for (final readUpTo in processed.stream) {
+      final amount = _audioRead(video, readUpTo);
       yield ScriptProgress(
-        stage: ScriptStage.downloadingAudio,
-        fraction: _audioDownloadEnd * amount.fraction,
+        stage: ScriptStage.preparingAudio,
+        fraction: _audioPreparedAt * amount.fraction,
         transcript: _empty(languageCode),
         step: amount,
       );
     }
-    audio.file = await download;
+    prepared.pieces = await cutting;
   }
 
   Future<PartialTranscript> _partial(
@@ -285,9 +257,19 @@ class RealScriptPipeline implements ScriptPipeline {
   }
 }
 
-/// The script audio once [RealScriptPipeline._downloadAudio] has it.
-class _ScriptAudio {
-  late File file;
+/// The pieces once [RealScriptPipeline._prepareAudio] has cut them.
+class _PreparedPieces {
+  late List<AudioPiece> pieces;
+}
+
+/// How much of [video] FFmpeg has read, never more than its length.
+WorkAmount _audioRead(SourceVideo video, Duration readUpTo) {
+  final total = video.duration.inMilliseconds;
+  return WorkAmount(
+    done: math.min(total, readUpTo.inMilliseconds),
+    total: total,
+    unit: WorkUnit.audioMilliseconds,
+  );
 }
 
 /// Audio transcribed after [chunksDone] of [of] chunks, out of the video's
@@ -313,7 +295,7 @@ Transcript _empty(String languageCode) =>
 final realScriptPipelineProvider = Provider<ScriptPipeline>(
   (ref) => RealScriptPipeline(
     ScriptPipelineServices(
-      videos: ref.watch(videoSourceProvider),
+      sources: ref.watch(sourceCacheProvider.future),
       audio: ref.watch(audioPreparerProvider),
       store: ref.watch(transcriptStoreProvider.future),
       groq: () => _groqTranscriber(ref.read(groqKeyStoreProvider)),

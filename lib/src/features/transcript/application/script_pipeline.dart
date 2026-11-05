@@ -8,7 +8,7 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// In run order, so screens can compare stages with `index`.
 enum ScriptStage {
-  downloadingAudio('Downloading audio'),
+  preparingAudio('Preparing the audio'),
   detectingLanguage('Detecting the language'),
   transcribing('Writing the script'),
   // The last step Processing shows; once it's reached the script is done.
@@ -42,7 +42,7 @@ class ScriptProgress {
   final DateTime? savedAt;
 
   /// How much of [stage] is done, for the stages that can be measured:
-  /// bytes for the downloads, audio for transcribing.
+  /// audio read for preparing it, audio written for transcribing.
   final WorkAmount? step;
 }
 

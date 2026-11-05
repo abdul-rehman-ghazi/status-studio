@@ -163,7 +163,7 @@ class _RunSteps extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = this.progress;
-    final stage = progress?.stage ?? ScriptStage.downloadingAudio;
+    final stage = progress?.stage ?? ScriptStage.preparingAudio;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -261,9 +261,9 @@ typedef _StepReading = ({WorkAmount amount, double? perSecond});
 List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
   return [
     (
-      label: ScriptStage.downloadingAudio.label,
-      detail: 'From YouTube, audio only',
-      stage: ScriptStage.downloadingAudio,
+      label: ScriptStage.preparingAudio.label,
+      detail: 'From your video, on this phone',
+      stage: ScriptStage.preparingAudio,
     ),
     (
       label: ScriptStage.detectingLanguage.label,

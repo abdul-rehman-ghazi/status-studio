@@ -50,7 +50,7 @@ class GroqClient {
     await _send(() => _open('GET', '/models'));
   }
 
-  /// Writes one `.m4a` piece, in [languageCode] or, when it's `null`,
+  /// Writes one FLAC piece, in [languageCode] or, when it's `null`,
   /// in the language Groq detects.
   Future<List<GroqSegment>> transcribe(
     File piece, {
@@ -179,7 +179,7 @@ class GroqClient {
       ..add(
         utf8.encode(
           '--$boundary\r\nContent-Disposition: form-data; name="file"; '
-          'filename="piece.m4a"\r\nContent-Type: audio/mp4\r\n\r\n',
+          'filename="piece.flac"\r\nContent-Type: audio/flac\r\n\r\n',
         ),
       )
       ..add(audio)
