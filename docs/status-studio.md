@@ -47,8 +47,8 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 1. **Saved script** for this video and language (FR-14): open Script directly.
 2. **YouTube captions (removed in M23).** There are no caption tracks any more: a local video has none. The §10 history about auto tracks stays as history.
 3. **Speech to text** on the video's own audio track, by Groq with the user's key (FR-12a). Each segment becomes one line. Without a key the run stops with the §8 message before any audio is cut.
-   - **Audio:** one FFmpeg run reads the kept file and writes 16 kHz mono FLAC pieces of 90 s: `-vn -map 0:a:0 -ac 1 -ar 16000 -c:a flac -f segment -segment_time 90 chunk_%03d.flac`. 16 kHz mono FLAC is what Groq recommends. From M24 the voice-cleaning filters (FR-26) run first in the same command.
-   - **Pieces:** 90 seconds each, so lines appear while the rest is still being written. Each piece's times are offset by its start, read from FFmpeg's segment list.
+   - **Audio:** one FFmpeg run reads the kept file and writes 16 kHz mono FLAC pieces of 90 s: `-vn -map 0:a:0 -ac 1 -ar 16000 -c:a flac -f segment -segment_time 90 -segment_list pieces.csv -segment_list_type csv chunk_%03d.flac`. 16 kHz mono FLAC is what Groq recommends. From M24 the voice-cleaning filters (FR-26) run first in the same command.
+   - **Pieces:** 90 seconds each, so lines appear while the rest is still being written. Each piece's times are offset by its start, read from the `pieces.csv` segment list that FFmpeg writes.
    - **Dropped segments:** silence, music and bracketed tokens (`[BLANK_AUDIO]`, `(music)`, `♪`) never become lines.
    - **Groq** (`whisper-large-v3-turbo`):
      - **Request:** one multipart `POST https://api.groq.com/openai/v1/audio/transcriptions` per piece, in order, with `Authorization: Bearer <key>`. Fields: `file`, `model`, `response_format=verbose_json`, `timestamp_granularities[]=segment`, `temperature=0`, and `language=<whisperCode>` unless automatic.
@@ -178,7 +178,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 
 **FR-19 Fix the script with Groq (M15; the §10 spike #6 said go; changed in M23).** The one fixing button on Script (since M17), **Fix with Groq**, does what Copy for AI plus Paste AI reply did, with the key from FR-12a and no clipboard. It sits alone on the row above the lines. Real lyrics, Copy for AI and Paste AI reply were removed in M17.
 - **Same rules as FR-18:** the same prompt, without a link (M23), and the same lines (the clip's, or the whole script up to the row cap), the same reply handling (matched by row number, text only, times unchanged, `[?]` marks named in the snackbar) and the same result (the lines keep the range and clip, the caption is refilled, the script is saved as the newest script with source `edited`).
-- **Model and row cap:** `openai/gpt-oss-120b` with Groq's `browser_search` tool. At most **30** lines (the clip's, or the whole script); more gives the same §8 message, which now says to nudge the clip shorter first. Why 30: at 54 rows the model moved lines of the poem into the wrong rows (§10 #6).
+- **Model and row cap:** `openai/gpt-oss-120b` with Groq's `browser_search` tool. At most **30** lines (the clip's, or the whole script); more gives the same §8 message, which now says to shorten the clip on the next step first. Why 30: at 54 rows the model moved lines of the poem into the wrong rows (§10 #6).
 - **While it runs:** the button shows progress and a Cancel. Cancel stops waiting: the reply is ignored and nothing is saved (a request already sent still counts against the plan).
 - **No key:** the button is shown, and tapping it gives the §8 "needs a free Groq key" message with Settings.
 - **Privacy:** the clip's lines and the video's name go to Groq, only when the user taps this button. No link is sent (changed in M23). Say so in the FR-12a help text: the key is also used for this.
@@ -207,7 +207,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Result notification:** posted only when the app isn't on screen; tapping it opens the app where the work left off. Cancel posts nothing.
   - Script done: "Script ready" · video title. Failed: "Script stopped" · the §8 message.
   - Export done: "Reel ready" · "Tap to save or share it." Failed: "Export stopped" · the §8 message.
-- **Asking once:** the first time work starts, the app asks for notifications (Android 13+), then for exemption from battery optimisation. It never asks again on its own.
+- **Asking once:** the first time work starts, the app asks for notifications (Android 13+), then for exemption from battery optimisation. It never asks again on its own. M27 task 2 drops the battery-optimisation request and its Settings row.
 - **Settings, "Background work":**
   - Two rows: notifications on, and battery optimisation off. Each shows "Allow" when it isn't so; a refused notification permission opens App info instead.
   - A hint: "On Xiaomi and some other phones, also set Battery saver to No restrictions in App info." with "Open App info".
@@ -249,7 +249,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Before the first keyframe the anchor is the first keyframe's; after the last it holds. The first keyframe's way of arriving has no effect, so its Glide and Cut choice is hidden.
   - Keyframes are kept in video time, so nudging the clip does not move them. A new keyframe's time is inside the clip, with the clip's ends rounded inwards to 0.1 s first so a snapped time never falls outside; it snaps to 0.1 s, and one within 0.25 s of another replaces it.
   - A keyframe outside the clip (after a nudge or a line edit) has no effect on the reel except as the position the crop starts from or holds. Its chip is dimmed, and it can still be deleted.
-- **New script:** getting a new script (Write it again, or another language) leaves the keyframes alone, since the clip is the video and the nudges. Nudging a clip so that a keyframe falls outside it dims that keyframe, as below. (Changed in M23: picking other lines no longer exists.)
+- **New script:** getting a new script (Write it again, or another language) leaves the clip, its nudges and the keyframes alone, since the clip is the whole video plus the nudges; it only replaces the lines. Nudging a clip so that a keyframe falls outside it dims that keyframe, as above. (Changed in M23: picking other lines no longer exists.)
 - **Off by default:** "Move the crop during the clip" is a switch on step 1. Off, the crop is as FR-6 says. Turning it on creates a first keyframe at the clip start from the current crop. Turning it off removes the keyframes and keeps the crop where it was at the clip start: Crop to fill stores it as the base anchor, Free crop writes it into its rectangle.
 - **Editing (on):**
   - **Drag:** dragging the crop window over the player moves it with the finger and writes one keyframe, at the playhead where the drag started, when the finger lifts: it replaces the one there or adds one that glides in. Keep in view is hidden while the switch is on.
@@ -269,7 +269,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 
 **FR-23 Follow the person (M20; the automatic pick and "Choose for me" are replaced by FR-27 in M25).** Until M25 this section is how the app works. From M25 the face tracks, frames, smoothing and keyframe rules below are still used, but the user chooses what to follow at every scene (FR-27) and the app never picks. On Fine-tune · Video, with "Move the crop during the clip" on and the crop able to move (FR-22), a button makes the crop follow a person in the clip by writing its keyframes. Nothing is uploaded and no key is needed.
 - **Button:** "Follow the person" under the switch, with the hint "Runs on your phone; nothing is uploaded."
-- **Detector:** ML Kit face detection, on the phone, with the bundled model (fast mode, small faces allowed, no landmarks or contours). Pose detection is only a fallback if the spike (§10 item 7) shows faces are missed too often. Other detectors were rejected: selfie segmentation (made for close-ups) and object detection (it has no person class).
+- **Detector:** ML Kit face detection, on the phone, with the bundled model (fast mode, small faces allowed, no landmarks or contours). Pose detection is only a fallback if the spike (§10 item 7) shows faces are missed too often. Other detectors were rejected: selfie segmentation (made for close-ups) and ML Kit's object detection (it has no person class).
 - **Frames:** sampled by FFmpeg from the kept video file, clip range only: 4 per second, or fewer for a long clip so there are at most 240 (never below 2 per second), as JPEG scaled to fit 640 × 640. Frame k is at video time `clip.start + k / rate`. The same run lists scene cuts (`scdet`) with their times; a build without that filter fails the run, so it is run again without it and the jump rule below covers the cuts. The frames are in a cache folder that is deleted when the run ends (after the choice, FR-25), is cancelled or fails.
 - **Which face:** one person per scene, chosen once and followed to its end, not picked again in every frame. Faces in neighbouring frames (and up to 2 s apart, for a missed detection) are joined into one person when they are about the same size (area within 0.4×–2.5×) and no more than two face-widths and two face-heights apart; distance rather than overlap, because a quick mover leaves no overlap at 4 frames a second. Among the people seen in at least 90 % as many frames as the one seen longest, the one with the largest total face area is followed. So a bigger face that only passes through, or a small one always in the background, is not followed. In frames where the followed person is not seen the crop holds (Gaps). This is the pick when only one person is on screen at a time, for "Choose for me", and for scenes FR-25's choice can't reach.
 - **Where the window goes:** its x centres the window on the face; its y puts the face a third of the way down the window. The anchor is the window's left over `1 − window width`, clamped to 0..1. An axis with under 1 % room keeps the base anchor.
@@ -294,7 +294,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 **FR-24 Continue a fine-tune later (M21; changed in M23).** Work on Fine-tune is kept on the phone as it changes, so the user can leave and carry on from Recent, hours or days later. There is no Save button.
 - **What is kept:** the clip's start and end (FR-5; the picked lines of FR-4 went in M23), the frame (size, fill, base anchor, free crop and the moving crop's keyframes, FR-6 and FR-22), the caption settings (FR-7) and whether lines were edited (FR-21).
   - Neither the script nor the video is copied. The kept fine-tune names its saved script by video and requested language (FR-14), and its video by the fingerprint ID; the video is the kept `sources/<videoId>/source.<ext>` (FR-1). The source is `edited` when lines were edited; otherwise it is the newest script, the one FR-14 reopens.
-  - It also keeps a fingerprint of the script's lines from the first line through the last picked one (a 32-bit FNV-1a hash of each line's start, end and text, stable across runs). That tells a changed script apart, and lines added later (a script still being written) don't count.
+  - It also keeps a fingerprint of the script's lines from the first line through the last line of the clip (a 32-bit FNV-1a hash of each line's start, end and text, stable across runs). That tells a changed script apart, and lines added later (a script still being written) don't count.
 - **When:** 1 s after the last change while Fine-tune · Video is open or under a later step (Lyrics, Style, Export). Also at once when Fine-tune · Video closes (Back included) or the app goes to the background.
   - A change is anything that changes the reel: a nudge, an edge set to the playhead, size, fill, crop, a keyframe, a line edit, a caption setting.
   - A fine-tune equal to the last one written is not written again, unless its file was deleted since. Continuing a fine-tune counts as writing it, so leaving Fine-tune without a change keeps its date.
@@ -307,9 +307,9 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - It replaces the script row of the same video and language, so the video shows once. It sorts by its last save among the reels and scripts.
   - **Tap, script found and still fitting:** opens Fine-tune · Video with everything as it was, and Back shows Script. Nothing is downloaded; the player opens the kept file.
   - **Tap, kept video missing** (the folder was cleaned or the file deleted): the §8 message "Video not found, choose it again" shows, and Choose a video opens. The script and the draft stay.
-  - **Tap, script still being written:** the lines Groq had written so far count as the script when they hold the picked lines (the same fingerprint check). It opens as the first case, and the run carries on and adds the rest.
-  - **Tap, script gone** (no saved script for the video and language, and no unfinished progress that holds the picked lines): opens Processing, which writes or resumes the script (FR-3, FR-14), then Script with the snackbar "This fine-tune's script had to be written again. Check the clip's start and end; the size and caption style are kept."
-  - **Tap, script changed** (the fingerprint differs, the picked lines run past the script's end, or the clip runs past the video's end; e.g. after Write it again): opens Script with the current script and the snackbar "The script changed since this fine-tune was saved. Check the clip's start and end; the size and caption style are kept."
+  - **Tap, script still being written:** the lines Groq had written so far count as the script when they hold the clip's lines (the same fingerprint check). It opens as the first case, and the run carries on and adds the rest.
+  - **Tap, script gone** (no saved script for the video and language, and no unfinished progress that holds the clip's lines): opens Processing, which writes or resumes the script (FR-3, FR-14), then Script with the snackbar "This fine-tune's script had to be written again. Check the clip's start and end; the size and caption style are kept."
+  - **Tap, script changed** (the fingerprint differs, the clip's lines run past the script's end, or the clip runs past the video's end; e.g. after Write it again): opens Script with the current script and the snackbar "The script changed since this fine-tune was saved. Check the clip's start and end; the size and caption style are kept."
   - In both of those cases the kept fine-tune is deleted. What carries over: size, fill, the crop stopped where it was at the old clip start, and the caption's position and size. The clip's nudges and the caption text do not.
   - **Long-press:** offers "Delete progress". It deletes only the kept fine-tune, and the video's script row shows again.
 - **Export:** a finished export (the reel is in Recent, FR-9) deletes the kept fine-tune. Going back from Done and changing something keeps a new one.
@@ -328,7 +328,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - a **face** (FR-23's face tracks and the ML Kit detector);
   - a **body** (a person box; offered only if the §10 item 7 spike chose a body detector);
   - a **fixed spot**, a point the user taps, held for the whole scene.
-- **Never chosen for the user:** there is no "Choose for me", no automatic pick, and no carry-over of a choice to another scene by look-alike. A scene the user hasn't answered doesn't get keyframes.
+- **Never chosen for the user:** there is no "Choose for me", no automatic pick, and no carry-over of a choice to another scene by look-alike.
 - **Picture:** each scene shows its fullest frame (the one with the most faces, then the biggest), at the clip's aspect ratio.
 - **Sheet:** a bottom sheet per scene.
   - Title "Scene 2 of 5 · 0:07–0:12". Hint "Tap a face, a body, or the spot to keep in frame."
@@ -336,7 +336,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Buttons: "Back" (returns to the earlier scene to change its answer; the choices already given are kept) and "Cancel" (stops; nothing changes).
   - **Screen readers:** "Person 1", "Body 1", and a "Keep the centre" action that picks the centre spot.
   - The sheet pops with its result and the controller acts after the await, so a double pop can't happen.
-- **Keyframes:** a face or a body is followed as in FR-23 (anchor, smoothing, dead zone, simplification) within its scene only. A body's anchor is its box's centre, in its upper third. A spot is a constant anchor with a **Cut** keyframe at the scene start. A scene's start is a Cut either way. The 12-keyframe cap and the 0.5 s spacing of FR-23 still apply.
+- **Keyframes:** a face or a body is followed as in FR-23 (anchor, smoothing, dead zone, simplification) within its scene only. A body's anchor is its box's centre, in its upper third. A spot is a constant anchor with a **Cut** keyframe at the scene start. A scene's start is a Cut either way. The 12-keyframe cap and the 0.5 s spacing of FR-23 still apply. The cap keeps every scene's Cut keyframe first (the user chose each one); other keyframes are dropped before any Cut. If the clip has more than 12 scenes, the first 12 are kept and the rest hold the last anchor, and the sheet warns before asking: "This clip has more than 12 scenes. The crop follows the first 12."
 - **Frames:** they stay in the cache folder while the sheet is open, and are deleted when the user finishes, taps Cancel, dismisses the sheet, leaves the step, or changes the clip, size, fill or free crop size.
 - **Cancel or dismiss:** nothing changes. A hand edit made while frames were being looked at still wins.
 - **After:** the snackbar "The crop follows your choices (6 keyframes). Drag or tap a chip to adjust." Everything stays editable as FR-22 says.
@@ -359,7 +359,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 ## 5. Architecture
 
 - **Folders:** feature-first, `lib/src/features/<feature>/{domain,data,application,presentation}`, with a layer only when it has code.
-- **State:** Riverpod 3 (`Notifier`/`NotifierProvider`). The reel in progress is one immutable `ReelDraft` in `reelDraftProvider`. Changing the transcript clears the selection and clip.
+- **State:** Riverpod 3 (`Notifier`/`NotifierProvider`). The reel in progress is one immutable `ReelDraft` in `reelDraftProvider`. Changing the transcript replaces the lines and clears per-line caption edits (FR-21); the clip, its nudges and the crop keyframes stay.
 - **Services:** small interfaces exposed as providers, so fakes can replace them in tests: `VideoSource` (from M23 the `LocalVideoImporter`, with `IncomingVideoSource` for shares), `Transcriber`, `CaptionTranslator`, `Renderer`, `RecentReelsRepository`, `BackgroundWorkPlatform`.
 - **Speech to text:** `GroqTranscriber` (FR-12a) sends the pieces one by one and emits per-piece progress and lines.
 - **Navigation:** `go_router`, with route paths in `AppRoutes`.
@@ -532,7 +532,7 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | Translation pack missing and offline | Style | English needs a one-time download. | Retry |
 | Gallery access refused | Done | Allow Photos access in Settings to save reels. | Open settings |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
-| More than 30 lines for Fix with Groq (the 60-line copy path went in M17) | Script | Too many lines for an AI to check. Nudge the clip shorter first. | (snackbar) |
+| More than 30 lines for Fix with Groq (the 60-line copy path went in M17) | Script | Too many lines for an AI to check. Shorten the clip on the next step first. | (snackbar) |
 | No Groq key, Fix with Groq | Script | Fixing a script needs a free Groq key. | Settings (snackbar action) |
 | Groq failed while fixing (other error, or 5xx/498 twice) | Script | Groq couldn't fix this script. | (snackbar) |
 | Groq's reply to Fix with Groq has no script rows | Script | Groq's reply had no script lines. Try again. | (snackbar) |
@@ -619,7 +619,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
    - **Score:** character error rate (CER) against the expected text, after normalising both: lower case; remove harakat (U+064B–065F, U+0670), tatweel and ZWNJ; map ي ى ی to ی, ك ک to ک, ہ ه ة to ه, and أ إ آ ٱ to ا; collapse whitespace; join the lines. Lines missing compared with the expected text (a repeat Whisper dropped) are listed separately.
    - **Pass:** cleaned CER below raw CER, and at most 15 %. If 15 % is out of reach with filters alone, record the best result and stop. Don't tune against this one clip until it overfits: spot-check the chosen values on one more clip.
    - **Result:** pending. The table and the chosen values go here. Filters can't separate the voice from harmonium or daf (FR-26), so a mehfil with instruments may not reach 15 %.
-9. **First iOS build (M26 task 1, not yet run).** Question: does the app and every plugin build for iOS? Deployment target 15.5 (ML Kit), bundle ID `com.hotmail.arehmananis.statusstudio`; `pod install`, then `fvm flutter build ios --no-codesign`. Check that these resolve: ffmpeg_kit min, both ML Kit packages, `tflite_flutter` (if M25 chose it), gal, flutter_secure_storage, flutter_local_notifications, image_picker and the share package. Record the IPA size and any plugin that fails. ML Kit has no arm64 simulator support, so face detection can only be checked on a device (§14).
+9. **First iOS build (M26 task 1, not yet run).** Question: does the app and every plugin build for iOS? Deployment target 15.5 (ML Kit), bundle ID `com.hotmail.arehmananis.statusstudio`; `pod install`, then `fvm flutter build ios --no-codesign`. Check that these resolve: ffmpeg_kit min, both ML Kit packages, `tflite_flutter` (if M25 chose it), gal, flutter_secure_storage, flutter_local_notifications, image_picker and the share package. Record the IPA size and any plugin that fails. ML Kit has no arm64 simulator support, so face detection can only be checked on a device (§14). The ffmpeg_kit iOS podspec also excludes arm64 from simulator builds, so simulator runs need x86_64 (Rosetta); device builds are unaffected.
 
 
 ## 11. Out of scope for v1
@@ -843,14 +843,14 @@ Request, 2026-11-04: the followed person is sometimes the wrong one; "Tap to cho
 Request, 2026-11-05: the user now trims the video in another app and brings the clip into Status Studio, so YouTube is dropped entirely and the script covers the whole clip. Execution model: Sonnet writes each task, Opus reviews each commit's diff against the spec and CLAUDE.md, and Sonnet fixes confirmed findings before the next task; Opus also reviews the whole branch before the push. Tasks run one after another. Each task: test first, `tool/check.sh` once, one commit, tick it.
 
 - [x] **0. Docs.** This commit: the pivot in §1–§14, FR-26 and FR-27, §10 items 8 and 9, M23–M27 here, and CLAUDE.md.
-- [ ] **1. Fingerprint and `SourceVideo`.** `videoFingerprint(file)`: the file size plus the SHA-256 of the first and last 1 MiB; the ID is `v_<16 hex>`. `SourceVideo{videoId, title, duration}`, no `channel`. The name `videoId` stays, to avoid touching every call site.
+- [ ] **1. Fingerprint and `SourceVideo`.** `videoFingerprint(file)`: the file size plus the SHA-256 of the first and last 1 MiB; the ID is `v_<16 hex>`. `SourceVideo{videoId, title, duration}`, no `channel`. The name `videoId` stays, to avoid touching every call site. Also add `assets/videos/` to `.gitignore` (the reference clip is 63 MB; never declare it in `pubspec.yaml`).
 - [ ] **2. Media probe.** FFprobe in `lib/src/core/ffmpeg/`: duration, size, rotation, and whether there is an audio track. No audio, or unreadable, gives "Can't read this video." (§8). Rotation is read now because the chooser's aspect ratio on rotated portrait videos (an open §14 check) depends on it.
-- [ ] **3. Share in.** `receive_sharing_intent` (Android and iOS; check for a maintained version at task time) behind an `IncomingVideoSource` provider, and a `SEND` `video/*` intent filter on MainActivity. The iOS Share Extension and App Group come in M26. Fallback if the package doesn't resolve: our own `status_studio/video_in` channel that streams the content URI into app storage, hands over the launch intent once and forwards later shares from `onNewIntent`.
+- [ ] **3. Share in.** `receive_sharing_intent` (Android and iOS; check for a maintained version at task time) behind an `IncomingVideoSource` provider, and `SEND` and `VIEW` `video/*` intent filters on MainActivity. The iOS Share Extension and App Group come in M26. Fallback if the package doesn't resolve: our own `status_studio/video_in` channel that streams the content URI into app storage, hands over the launch intent once and forwards later shares from `onNewIntent`.
 - [ ] **4. Picker and importer.** `image_picker` `pickVideo`. `LocalVideoImporter` moves either source into `sources/<videoId>/source.<ext>` and returns `SourceVideo`. It replaces `VideoSource`; `videoSourceProvider` stays for test overrides.
 - [ ] **5. Source screen and routing.** "Choose a video", then a card with thumbnail, name and length, then Get script. A shared video opens Source with the card and starts the script. With a reel in progress: "Start a new reel from this video? The one you're making will close." with Start and Keep; the FR-24 draft is kept either way.
-- [ ] **6. Script audio from the file.** One FFmpeg run replaces the download and stream-copy split: `-vn -map 0:a:0 -ac 1 -ar 16000 -c:a flac -f segment -segment_time 90 chunk_%03d.flac`. Remove the captions path from `real_script_pipeline.dart`, with `caption_track_choice.dart` and `json3_captions.dart`. Resume per piece is unchanged. New Processing copy.
+- [ ] **6. Script audio from the file.** One FFmpeg run replaces the download and stream-copy split: `-vn -map 0:a:0 -ac 1 -ar 16000 -c:a flac -f segment -segment_time 90 -segment_list pieces.csv -segment_list_type csv chunk_%03d.flac`. Remove the captions path from `real_script_pipeline.dart`, with `caption_track_choice.dart` and `json3_captions.dart`. Resume per piece is unchanged. New Processing copy.
 - [ ] **7. Clip source is the file.** `clipSourceProvider` returns `ClipSource(file, offset: 0)`; `ClipWindow` is the whole video; the download states and "Downloading clip…" go; the seek bar spans the whole video (add the pending seek-bar width test here).
-- [ ] **8. Script without line picking.** `ClipRange` defaults to 0..duration and the selection is all lines. Script's tap selection goes; Script becomes a review screen (language, Fix with Groq, Next). Steps are renumbered. Recent and Continue reopen from the kept `source.<ext>`; when it is missing the row says "Choose or share the video again" and the §8 "Video not found, choose it again" message shows.
+- [ ] **8. Script without line picking.** `ClipRange` defaults to 0..duration and the selection is all lines. Script's tap selection goes; Script becomes a review screen (language, Fix with Groq, Next). Step labels: Source 1/5, Script 2/5, Fine-tune · Video 3/5, Fine-tune · Lyrics 4/5, Style 5/5 (unchanged), as FR-5 says. Recent and Continue reopen from the kept `source.<ext>`; when it is missing the row says "Choose or share the video again" and the §8 "Video not found, choose it again" message shows.
 - [ ] **9. Remove YouTube.** Dart: `youtube_video_source.dart`, `yt_dlp*.dart`, `yt_dlp_updater.dart` and its hook in `main.dart`, the Settings "YouTube support" section, `clip_source_preparer.dart`, `ranged_downloader.dart`, `segment_index.dart`, `stream_choice.dart`, the YouTube errors in `source_errors.dart`, `youtube_link.dart`. Android: `YtDlpChannel.kt`, `YtDlpCommands.kt`, the youtubedl-android Gradle dependency, and the legacy jniLibs packaging if only yt-dlp needed it. Test helpers: `fake_yt_dlp.dart`, `yt_dlp_json.dart`, `counting_video_source.dart`. FR-19's prompt drops the youtu.be link. A one-off cleanup deletes old `transcripts/` and `sources/` folders whose ID doesn't start with `v_`. Record the APK size change. Afterwards grep shows no `yt_dlp`, `youtube` or `youtubedl` in `lib/` and `android/` apart from that cleanup.
 - [ ] **10. Docs and review.** §13, §14 and the §12 status; an Opus whole-branch review; fix findings; push (not merge).
 
@@ -860,7 +860,7 @@ Request, 2026-11-05: clean the voice before Groq hears it, so the lyrics are mor
 
 - [ ] **1. `cleanVoiceFilter`.** In `audio_arguments.dart`: `highpass=f=80,lowpass=f=7500,afftdn=nr=12:nf=-30:tn=1,dynaudnorm=f=200:g=11:p=0.9`; test the argument list. It removes rumble, hiss, hum and hall noise and evens out loudness; it cannot separate the voice from harmonium or daf (FR-26).
 - [ ] **2. Use it in the piece run.** `-af <chain>` before the FLAC encode in M23's piece run. Processing shows "Cleaning the voice". Cleaned pieces are cached per video, so a retry doesn't clean again.
-- [ ] **3. Lyrics check against the reference clip (§10 item 8).** Add `assets/videos/` to `.gitignore` (never in `pubspec.yaml`); commit `tool/voice_check/arshe-haq-expected.txt`; write `tool/voice_check.dart`; compare raw, cleaned and cleaned with `ur`; score by CER; pass is cleaned below raw and at most 15 %; record the table and the chosen values in §10 item 8, and update FR-26 if they change. Add a §14 check: the same clip in the app on the Redmi gives a transcript within 2 points of the Mac CER.
+- [ ] **3. Lyrics check against the reference clip (§10 item 8).** The reference clip stays out of the repo and the app (`.gitignore` and `pubspec.yaml` rule: M23 task 1). Commit `tool/voice_check/arshe-haq-expected.txt`; write `tool/voice_check.dart`; compare raw, cleaned and cleaned with `ur`; score by CER; pass is cleaned below raw and at most 15 %; record the table and the chosen values in §10 item 8, and update FR-26 if they change. Add a §14 check: the same clip in the app on the Redmi gives a transcript within 2 points of the Mac CER.
 - [ ] **4. Docs and review.** §13, §14, §12 status; an Opus whole-branch review; fix findings; push (not merge).
 
 ### M25 tasks (branch `m25-choose-per-scene`)
@@ -904,7 +904,7 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - (The tap-selection cases went in M23: there is no line picking.)
   - Nudges past either end of the video are ignored. A nudge that improves an invalid clip is applied.
   - A free-crop drag stays inside the frame.
-  - A new transcript clears the selection and clip.
+  - A new transcript replaces the lines and clears per-line caption edits; the clip, its nudges and the crop keyframes stay.
 - **Downloads and captions (removed in M23):** nothing is downloaded and there are no caption tracks, so their tests went.
 - **Local video in (M23):**
   - The fingerprint is the same for the same bytes (a copy, or a rename) and different for different files, including files that differ only after the first MiB or before the last.
@@ -920,7 +920,7 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - Non-speech tokens never become lines.
   - Lines keep absolute times across piece boundaries.
   - A killed run resumes from the next piece.
-  - A saved script opens without downloading.
+  - A saved script opens without Processing.
 - **Waveform:**
   - It maps samples to video time when the window starts after 0.
   - Very short audio still gives the requested number of bars.
@@ -972,7 +972,7 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - Keyframes go to the render spec as NDC rectangles with times from the clip start, in place of the fixed crop; Blur and 16:9 send none.
   - The switch is hidden without room to move. A drag writes one keyframe, at the playhead where it began. The first keyframe has no Glide or Cut. Keep in view is hidden while the crop moves.
   - The Video step's player is released while Lyrics is open and made again on Back.
-  - Snapping never puts a keyframe outside the clip. Picking other lines or a new script stops the moving crop and keeps the crop at the old start.
+  - Snapping never puts a keyframe outside the clip. A new script leaves the moving crop, the clip and its nudges alone.
   - A vertical video's player is at most 260 dp high. Chips and the crop outline show only while the crop can move, and the switch stays while keyframes exist. The free crop editor changes only the size while the crop moves.
 - **Fine-tune lyrics (FR-21):**
   - Only the clip's lines are listed. The line due shows on the video, and nothing shows between lines. Add line is off outside the clip.
@@ -982,7 +982,7 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - A tap earlier than the previous line's start changes nothing.
   - Reorder moves text only; times stay in place.
   - A new line lands at the playhead; the line it lands in ends there.
-  - Delete refuses the last picked line, and the range keeps the same lines.
+  - Delete refuses the clip's last line, and the clip keeps the same lines.
   - The clip follows the range's end lines, and a plain nudge survives an edit elsewhere.
   - Highlight lasts from a line's start to its end, and nothing between lines.
   - An edit is saved after 1 s without edits and when the screen closes; closing with no edit saves nothing.
@@ -995,22 +995,22 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - The service outlives the first of two jobs.
   - Platform calls stay in order.
 - **AI script fix (M13):**
-  - The prompt holds the title, link and each row with its time and its row number in the whole script.
-  - Only the picked clip's lines are sent; more than 60 lines, picked or not, are refused.
+  - The prompt holds the title and each row with its time and its row number in the whole script; no link (changes in M23 task 9).
+  - Only the clip's lines are sent, and the row cap is 30 (changes in M23 task 8: the clip is the whole video until nudged; the 60-line copy path went in M17).
   - A reply's text replaces lines by row number; its times are never used.
   - Fences and chatter around rows are ignored; rows with bars in the text stay whole.
   - Missing rows keep their text; `[?]` rows are kept and named; a reply with no rows is rejected and changes nothing.
-  - Corrected lines keep the picked range and clip, and the corrected script is the one that reopens.
+  - Corrected lines keep the clip, and the corrected script is the one that reopens.
 - **Groq script fix (M15):**
   - The request goes to `/chat/completions` with the web-search model and the key only in the Authorization header; a 429 waits and resends; a 401 is "key rejected".
-  - Only the picked clip's lines are sent; more than 30 are refused before anything is sent.
+  - Only the clip's lines are sent (the whole video's, unless nudged); more than 30 are refused before anything is sent.
   - Citation marks `【…】` never end up in a line's text.
   - Cancel ignores the reply and saves nothing; the other fix buttons are off while it runs.
   - No key gives the §8 message with a Settings action; a Groq failure says "Groq couldn't fix this script."
 - **Groq (M9):**
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
-  - A script without captions and without a key stops before downloading audio.
+  - A script without a key stops before any audio is cut.
 
 - **Launch animation (M16):**
   - The first frame is the logo's rest pose, the same as the native splash.
@@ -1020,12 +1020,12 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
 - **Continue a fine-tune later (FR-24):**
   - It round-trips through JSON to the millisecond.
   - A newer version, an unknown name, a reversed range, keyframes out of order or an anchor outside 0..1 make the file unreadable; an unreadable file is skipped and its script row stays.
-  - The fingerprint is stable across runs. Lines added after the range still fit; a changed line up to the last picked one, a range past the end or a clip past the video don't.
+  - The fingerprint is stable across runs. Lines added after the range still fit; a changed line up to the last line of the clip, a range past the end or a clip past the video don't.
   - It is saved 1 s after the last change and at once on close or when the app is hidden. A run of changes is one write, and an unchanged draft isn't written again.
   - There is one per video and language. A save marks the video used, the draft goes when its folder is pruned, and a `.part` file is never listed.
   - A finished export deletes it, and a later save of the same draft writes nothing. A delete waits for a save in progress.
   - Edited lines reopen from the `edited` script even when a newer one exists.
-  - A script still being written, whose lines so far hold the picked ones, continues as Ready; one that doesn't is script gone.
+  - A script still being written, whose lines so far hold the clip's lines, continues as Ready; one that doesn't is script gone.
   - A kept fine-tune deleted elsewhere (Delete progress) is written again by the next save of the same work.
   - A second tap on Continue while the first is reading the script does nothing. Writing a script again or choosing another language drops the line-edit shield, so the new script replaces the lines.
   - The Continue row replaces the script row, and Delete progress brings the script row back.
