@@ -106,9 +106,14 @@ void main() {
   });
 
   group('PlatformIncomingVideoSource', () {
+    late List<String> platformCalls;
+
     void platformHolds(List<Map<Object?, Object?>> waiting) {
+      platformCalls = [];
       messenger.setMockMethodCallHandler(channel, (call) async {
+        platformCalls.add(call.method);
         if (call.method == 'listen') return waiting;
+        if (call.method == 'stopListening') return null;
         throw MissingPluginException();
       });
       addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
@@ -125,10 +130,66 @@ void main() {
     test('a_share_that_launched_the_app_is_delivered_once', () async {
       platformHolds([waitingShare()]);
       final source = PlatformIncomingVideoSource();
+      final received = <IncomingVideo>[];
+      final subscription = source.videos.listen(received.add);
+      addTearDown(subscription.cancel);
 
-      final first = await source.videos.first;
+      await pumpEventQueue();
 
-      expect(first, clip);
+      expect(received, [clip]);
+    });
+
+    test('a_second_listener_does_not_throw_and_gets_later_shares', () async {
+      platformHolds([]);
+      final source = PlatformIncomingVideoSource();
+      final first = <IncomingVideo>[];
+      final second = <IncomingVideo>[];
+      final firstSubscription = source.videos.listen(first.add);
+      final secondSubscription = source.videos.listen(second.add);
+      addTearDown(firstSubscription.cancel);
+      addTearDown(secondSubscription.cancel);
+      await pumpEventQueue();
+
+      await platformSends('incomingVideo', shareMessage());
+      await pumpEventQueue();
+
+      expect(
+        [first, second],
+        [
+          [clip],
+          [clip],
+        ],
+      );
+    });
+
+    test(
+      'the_last_listener_leaving_tells_the_platform_to_keep_shares',
+      () async {
+        platformHolds([]);
+        final source = PlatformIncomingVideoSource();
+        final subscription = source.videos.listen((_) {});
+        await pumpEventQueue();
+
+        await subscription.cancel();
+        await pumpEventQueue();
+
+        expect(platformCalls, ['listen', 'stopListening']);
+      },
+    );
+
+    test('listening_again_asks_the_platform_for_kept_shares', () async {
+      platformHolds([]);
+      final source = PlatformIncomingVideoSource();
+      final first = source.videos.listen((_) {});
+      await pumpEventQueue();
+      await first.cancel();
+      await pumpEventQueue();
+
+      final second = source.videos.listen((_) {});
+      addTearDown(second.cancel);
+      await pumpEventQueue();
+
+      expect(platformCalls, ['listen', 'stopListening', 'listen']);
     });
 
     test('a_later_share_is_delivered_after_the_launch_share', () async {

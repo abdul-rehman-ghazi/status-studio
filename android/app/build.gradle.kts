@@ -84,6 +84,8 @@ dependencies {
     implementation("androidx.media3:media3-common:1.11.1")
     // yt-dlp with Python and QuickJS (spec §5): resolves YouTube videos, updates itself.
     implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    // IntentCompat: the typed getParcelableExtra is broken on API 33.
+    implementation("androidx.core:core:1.13.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     testImplementation("junit:junit:4.13.2")
 }

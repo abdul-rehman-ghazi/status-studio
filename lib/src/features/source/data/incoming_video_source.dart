@@ -10,7 +10,7 @@ const _channel = MethodChannel('status_studio/video_in');
 /// Videos shared into the app from elsewhere (spec FR-1): the one that
 /// launched it first, then any later share while it runs.
 abstract interface class IncomingVideoSource {
-  /// Single-subscription. A share that fails to copy arrives as an error:
+  /// A broadcast stream. A share that fails to copy arrives as an error:
   /// [InsufficientStorageException] or [VideoUnreadableException].
   Stream<IncomingVideo> get videos;
 }
@@ -50,19 +50,29 @@ IncomingVideo _videoFrom(Map<Object?, Object?> message) {
 /// doesn't exist (iOS until M26, tests) no video ever arrives.
 class PlatformIncomingVideoSource implements IncomingVideoSource {
   PlatformIncomingVideoSource() {
-    _messages = StreamController<Map<Object?, Object?>>(
-      onListen: _startListening,
-      onCancel: _stopListening,
+    // The controller buffers until the first listener subscribes, so the
+    // launch share is not lost; `asBroadcastStream` then serves any number
+    // of listeners and tells us when the first arrives and the last leaves.
+    videos = incomingVideosFrom(_messages.stream).asBroadcastStream(
+      onListen: (subscription) {
+        subscription.resume();
+        unawaited(_startListening());
+      },
+      onCancel: (subscription) {
+        subscription.pause();
+        unawaited(_stopListening());
+      },
     );
-    videos = incomingVideosFrom(_messages.stream);
   }
 
-  late final StreamController<Map<Object?, Object?>> _messages;
+  final _messages = StreamController<Map<Object?, Object?>>();
+  var _listening = false;
 
   @override
   late final Stream<IncomingVideo> videos;
 
   Future<void> _startListening() async {
+    _listening = true;
     _channel.setMethodCallHandler(_onPlatformCall);
     try {
       final waiting = await _channel.invokeListMethod<Map<Object?, Object?>>(
@@ -76,13 +86,17 @@ class PlatformIncomingVideoSource implements IncomingVideoSource {
     }
   }
 
+  /// Tells the platform first and drops the handler after: a share pushed in
+  /// between would otherwise reach nobody. From then on the platform keeps
+  /// shares for the next `listen`.
   Future<void> _stopListening() async {
-    _channel.setMethodCallHandler(null);
+    _listening = false;
     try {
       await _channel.invokeMethod<void>('stopListening');
     } on MissingPluginException {
-      return;
+      // No platform side, so there is nothing to keep shares.
     }
+    if (!_listening) _channel.setMethodCallHandler(null);
   }
 
   Future<void> _onPlatformCall(MethodCall call) async =>

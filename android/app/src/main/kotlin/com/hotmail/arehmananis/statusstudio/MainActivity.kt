@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.provider.Settings
 import com.hotmail.arehmananis.statusstudio.render.RenderChannel
 import com.hotmail.arehmananis.statusstudio.videoin.VideoInChannel
+import com.hotmail.arehmananis.statusstudio.videoin.shouldHandleIntent
 import com.hotmail.arehmananis.statusstudio.youtube.YtDlpChannel
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -25,7 +26,14 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        videoIn?.receive(intent)
+        setIntent(intent)
+        handOverShare(intent, launchedFromSavedState = false)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        videoIn?.dispose()
+        videoIn = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -34,7 +42,7 @@ class MainActivity : FlutterActivity() {
         RenderChannel(applicationContext, messenger)
         YtDlpChannel(applicationContext, messenger)
         videoIn = VideoInChannel(applicationContext, messenger)
-        if (!restoredBySystem) videoIn?.receive(intent)
+        handOverShare(intent, restoredBySystem)
         MethodChannel(messenger, "status_studio/system").setMethodCallHandler { call, result ->
             when (call.method) {
                 "openAppSettings" -> {
@@ -44,6 +52,19 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * Android keeps the launch intent and replays it when the app is reopened from Recents, or
+     * when this method runs again for a new engine. A taken share is therefore emptied.
+     */
+    private fun handOverShare(shareIntent: Intent, launchedFromSavedState: Boolean) {
+        if (!shouldHandleIntent(shareIntent.flags, launchedFromSavedState)) return
+        if (videoIn?.receive(shareIntent) != true) return
+        shareIntent.action = Intent.ACTION_MAIN
+        shareIntent.setDataAndType(null, null)
+        shareIntent.clipData = null
+        shareIntent.replaceExtras(Bundle())
     }
 
     /** The app's page in system Settings, where a refused permission can be granted. */
