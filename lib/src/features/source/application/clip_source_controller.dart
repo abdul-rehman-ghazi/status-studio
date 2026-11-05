@@ -1,92 +1,71 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:status_studio/src/features/clip/domain/clip_range.dart';
-import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
+import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 
-/// How far one video's clip download has got, from 0 to 1.
-final clipSourceProgressProvider =
-    NotifierProvider.family<ClipSourceProgress, double, String>(
-      ClipSourceProgress.new,
-    );
-
-class ClipSourceProgress extends Notifier<double> {
-  ClipSourceProgress(this.videoId);
-
-  final String videoId;
-
-  @override
-  double build() => 0;
-
-  void report(double fraction) => state = fraction;
-}
-
-/// The downloaded clip window for preview and rendering, per video ID so
-/// one reel never sees another's file. `null` until the first request.
+/// The kept video for preview and rendering, per video ID so one reel never
+/// sees another's file. `null` until [ClipSourceController.open] has run.
 final clipSourceProvider =
     AsyncNotifierProvider.family<ClipSourceController, ClipSource?, String>(
       ClipSourceController.new,
     );
 
+/// Opens the video the user brought in (spec FR-1, FR-5). Nothing is
+/// downloaded or cut: the preview and the render both use the kept file, and
+/// its window is the whole video, so a nudge never needs a new file.
 class ClipSourceController extends AsyncNotifier<ClipSource?> {
   ClipSourceController(this.videoId);
 
   final String videoId;
 
-  /// The one download running for this video. Never completes with an
-  /// error: failures land in [state].
-  Future<void>? _running;
-  ClipRange? _latestClip;
+  /// The one open running for this video. Never completes with an error:
+  /// failures land in [state].
+  Future<void>? _opening;
 
   @override
   Future<ClipSource?> build() async => null;
 
-  /// Makes sure a downloaded window covers [clip]. Only one download runs
-  /// at a time; a request made meanwhile waits for it, and only the newest
-  /// one starts another download if it's still needed.
-  Future<void> prepareFor(SourceVideo video, ClipRange clip) async {
+  /// Makes the kept file of [video] the source. A second call while one is
+  /// running waits for it, and one made after it succeeded does nothing; after
+  /// a failure it tries again.
+  Future<void> open(SourceVideo video) async {
     if (video.videoId != videoId) {
       throw ArgumentError.value(video.videoId, 'video', 'is not $videoId');
     }
-    _latestClip = clip;
-    for (var running = _running; running != null; running = _running) {
-      await running;
-      if (_latestClip != clip) {
-        return;
-      }
-    }
-    if (_isCovered(clip)) {
+    if (state.value != null) {
       return;
     }
-    final download = _download(video, clip);
-    _running = download;
-    await download;
-    _running = null;
+    if (_opening case final running?) {
+      return running;
+    }
+    final opening = _open(video);
+    _opening = opening;
+    await opening;
+    _opening = null;
   }
 
-  /// Only a successful state counts: after a failure Riverpod keeps the old
-  /// value, but the screen shows the error, so it must be fetched again.
-  bool _isCovered(ClipRange clip) => switch (state) {
-    AsyncData(value: final current?) => current.window.covers(clip),
-    _ => false,
-  };
-
-  Future<void> _download(SourceVideo video, ClipRange clip) async {
-    final progress = ref.read(clipSourceProgressProvider(videoId).notifier);
+  Future<void> _open(SourceVideo video) async {
     state = const AsyncLoading();
-    progress.report(0);
-    final result = await AsyncValue.guard<ClipSource?>(() async {
-      final cache = await ref.read(sourceCacheProvider.future);
-      return ref
-          .read(clipSourcePreparerProvider)
-          .prepare(
-            ClipPrepareRequest(video: video, clip: clip, cache: cache),
-            onProgress: progress.report,
-          );
-    });
+    final result = await AsyncValue.guard<ClipSource?>(
+      () => _keptSource(video),
+    );
     if (ref.mounted) {
       state = result;
     }
+  }
+
+  Future<ClipSource> _keptSource(SourceVideo video) async {
+    final cache = await ref.read(sourceCacheProvider.future);
+    final kept = cache.keptLocalVideos(videoId);
+    if (kept.isEmpty) {
+      throw KeptVideoMissingException(videoId);
+    }
+    return ClipSource(
+      file: kept.first,
+      offset: Duration.zero,
+      window: ClipWindow(start: Duration.zero, end: video.duration),
+    );
   }
 }

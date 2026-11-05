@@ -11,8 +11,8 @@ import 'package:status_studio/src/features/source/application/clip_source_contro
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// The clip player once the clip's window is downloaded (FR-15); until
-/// then, how far the download has got.
+/// The clip player once the kept video is open (FR-5); until then, a
+/// message.
 class ClipSourcePlayer extends ConsumerStatefulWidget {
   const ClipSourcePlayer({
     super.key,
@@ -45,43 +45,30 @@ class ClipSourcePlayerState extends ConsumerState<ClipSourcePlayer> {
   @override
   void initState() {
     super.initState();
-    // Providers can't change during build, so the first download waits for
-    // the first frame.
+    // Providers can't change during build, so the video opens after the
+    // first frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _prepareFor(widget.clip);
+        _openVideo();
       }
     });
   }
 
-  @override
-  void didUpdateWidget(ClipSourcePlayer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.clip != oldWidget.clip) {
-      // A nudge past the downloaded window needs a new one; inside it this
-      // does nothing.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _prepareFor(widget.clip);
-        }
-      });
-    }
-  }
-
-  void _prepareFor(ClipRange clip) {
+  void _openVideo() {
     unawaited(
       ref
           .read(clipSourceProvider(widget.video.videoId).notifier)
-          .prepareFor(widget.video, clip),
+          .open(widget.video),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final videoId = widget.video.videoId;
-    // unwrapPrevious: a new window or a retry shows progress, not the
-    // earlier file or failure.
-    final source = ref.watch(clipSourceProvider(videoId)).unwrapPrevious();
+    // unwrapPrevious: a retry shows the opening message, not the earlier
+    // failure.
+    final source = ref
+        .watch(clipSourceProvider(widget.video.videoId))
+        .unwrapPrevious();
     if (source.value case final clipSource?) {
       return ClipPlayer(
         key: ValueKey(clipSource.file.path),
@@ -96,9 +83,7 @@ class ClipSourcePlayerState extends ConsumerState<ClipSourcePlayer> {
     if (source.error case final error?) {
       return _PlayerMessage(text: errorMessageFor(error));
     }
-    final fraction = ref.watch(clipSourceProgressProvider(videoId));
-    final percent = (fraction * 100).round();
-    return _PlayerMessage(text: 'Downloading clip… $percent %');
+    return const _PlayerMessage(text: 'Opening the video…');
   }
 }
 

@@ -44,19 +44,18 @@ final rendererProvider = Provider<Renderer>(
   ),
 );
 
-/// The downloaded clip for the draft; Fine-tune normally has it ready, so
-/// this downloads only if the app was restarted since (FR-15).
+/// The kept video for the draft; Fine-tune normally has it open already, so
+/// this only opens it if the app was restarted since (FR-1).
 Future<ClipSource> _clipSourceFor(Ref ref, ReelDraft draft) async {
   final video = draft.video;
-  final clip = draft.clip;
-  if (video == null || clip == null) {
+  if (video == null || draft.clip == null) {
     throw StateError('Export started without a video and a clip.');
   }
   final clipSource = clipSourceProvider(video.videoId);
-  await ref.read(clipSource.notifier).prepareFor(video, clip);
+  await ref.read(clipSource.notifier).open(video);
   final source = ref.read(clipSource).requireValue;
   if (source == null) {
-    throw const RenderFailedException('The clip was not downloaded.');
+    throw const RenderFailedException('The video was not opened.');
   }
   return source;
 }
