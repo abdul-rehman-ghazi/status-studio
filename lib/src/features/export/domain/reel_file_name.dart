@@ -1,7 +1,7 @@
 // Brackets and what is inside them: "(Official Video)", "[HD]", "【MV】".
 final _bracketed = RegExp(r'\([^)]*\)|\[[^\]]*\]|【[^】]*】');
 
-// Words YouTube titles add that no kalam's name contains.
+// Words video titles add that no kalam's name contains.
 final _titleNoise = RegExp(
   r'\b(official|lyrical|lyrics?|video|audio|music|full song|hd|4k|mv|visualizer)\b',
   caseSensitive: false,

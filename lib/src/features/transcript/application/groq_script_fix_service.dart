@@ -30,11 +30,7 @@ class GroqScriptFixService {
       mostLines: mostLinesForGroq,
     );
     final reply = await askGroq(
-      scriptPromptFor(
-        videoTitle: video.title,
-        videoUrl: 'https://youtu.be/${video.videoId}',
-        lines: lines,
-      ),
+      scriptPromptFor(videoTitle: video.title, lines: lines),
     );
     return applyCorrectedScript(transcript, reply);
   }

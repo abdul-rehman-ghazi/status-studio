@@ -71,7 +71,6 @@ List<TranscriptLine> linesToCheck(
 /// FR-18). Pasted as is, it needs nothing else from the user.
 String scriptPromptFor({
   required String videoTitle,
-  required String videoUrl,
   required List<TranscriptLine> lines,
 }) {
   final rows = lines
@@ -82,10 +81,9 @@ String scriptPromptFor({
       )
       .join('\n');
   return '''
-Below are rows of a time-stamped script that was auto-transcribed from a YouTube video of a naat or song. The text has mistakes. Fix the TEXT using the real published lyrics you find online, and reply with the rows in the same format. These rows are only a part of the video, so the row numbers do not start at 1; keep them as given.
+Below are rows of a time-stamped script that was auto-transcribed from the audio of a video of a naat or song. The text has mistakes. Fix the TEXT using the real published lyrics you find online, and reply with the rows in the same format. These rows are only a part of the video, so the row numbers do not start at 1; keep them as given.
 
 Video title: $videoTitle
-Video link: $videoUrl
 
 Each row is: <number> | <start> | <end> | <text>
 

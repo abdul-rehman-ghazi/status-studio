@@ -7,7 +7,6 @@ import android.provider.Settings
 import com.hotmail.arehmananis.statusstudio.render.RenderChannel
 import com.hotmail.arehmananis.statusstudio.videoin.VideoInChannel
 import com.hotmail.arehmananis.statusstudio.videoin.shouldHandleIntent
-import com.hotmail.arehmananis.statusstudio.youtube.YtDlpChannel
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -40,7 +39,6 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         RenderChannel(applicationContext, messenger)
-        YtDlpChannel(applicationContext, messenger)
         videoIn = VideoInChannel(applicationContext, messenger)
         handOverShare(intent, restoredBySystem)
         MethodChannel(messenger, "status_studio/system").setMethodCallHandler { call, result ->

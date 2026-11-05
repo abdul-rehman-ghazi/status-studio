@@ -9,11 +9,8 @@ import 'package:status_studio/src/features/transcript/domain/transcript_errors.d
 /// Spec §8 copy for a failure from the data layer.
 String errorMessageFor(Object error) {
   return switch (error) {
-    VideoUnavailableException() => "This video can't be downloaded.",
     OfflineException() ||
     GroqOfflineException() => "You're offline. Connect and try again.",
-    YouTubeChangedException() =>
-      "Couldn't read this video from YouTube. Try again later.",
     InsufficientStorageException() => 'Not enough space on your phone.',
     VideoUnreadableException() => "Can't read this video.",
     KeptVideoMissingException() => 'Video not found, choose it again.',

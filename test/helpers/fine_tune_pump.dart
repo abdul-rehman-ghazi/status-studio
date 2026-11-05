@@ -11,7 +11,6 @@ import 'package:status_studio/src/features/transcript/application/script_editing
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
-import 'fake_clip_preparer.dart';
 import 'fake_video_player.dart';
 import 'fixtures.dart';
 import 'pump_app.dart';
@@ -43,7 +42,6 @@ Future<void> pumpFineTuneStep(
   WidgetTester tester,
   String route, {
   VideoPlayerFactory playerFactory = fakePlayerFactory,
-  FakeClipSourcePreparer? clipPreparer,
   ReelDraft? draft,
   List<double>? waveformPeaks,
   ScriptEditingService? scriptEditing,
@@ -61,7 +59,6 @@ Future<void> pumpFineTuneStep(
       ...overrides,
     ],
     playerFactory: playerFactory,
-    clipPreparer: clipPreparer,
     waveformPeaks: waveformPeaks,
     fineTuneSaver: fineTuneSaver,
   ),

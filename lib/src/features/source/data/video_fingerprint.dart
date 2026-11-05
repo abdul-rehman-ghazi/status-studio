@@ -8,6 +8,9 @@ import 'package:status_studio/src/features/source/domain/source_errors.dart';
 const _edgeBytes = 1024 * 1024;
 const _idHexLength = 16;
 
+/// Every video ID starts with this; folders named otherwise are older.
+const videoIdPrefix = 'v_';
+
 /// The video's ID: `v_<16 hex>` from its size and the SHA-256 of its first and
 /// last 1 MiB (the whole file when it is under 2 MiB), so the same bytes give
 /// the same ID however the file arrives (spec FR-1).
@@ -28,7 +31,7 @@ Future<String> videoFingerprint(File video) async {
       await _addRange(hasher, video.openRead(tailStart, sizeBytes));
     }
     hasher.close();
-    return 'v_${digestSink.digest.toString().substring(0, _idHexLength)}';
+    return '$videoIdPrefix${digestSink.digest.toString().substring(0, _idHexLength)}';
   } on FileSystemException catch (error) {
     throw VideoUnreadableException('${error.message}: ${error.path}');
   }

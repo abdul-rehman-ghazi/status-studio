@@ -15,13 +15,6 @@ void main() {
     );
   });
 
-  test('maps_youtube_changed', () {
-    expect(
-      errorMessageFor(const YouTubeChangedException('x')),
-      "Couldn't read this video from YouTube. Try again later.",
-    );
-  });
-
   test('maps_unreadable_video', () {
     expect(
       errorMessageFor(const VideoUnreadableException('no audio')),
@@ -33,13 +26,6 @@ void main() {
     expect(
       errorMessageFor(const OfflineException('x')),
       "You're offline. Connect and try again.",
-    );
-  });
-
-  test('maps_unavailable', () {
-    expect(
-      errorMessageFor(const VideoUnavailableException('x')),
-      "This video can't be downloaded.",
     );
   });
 

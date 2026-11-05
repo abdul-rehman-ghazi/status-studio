@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/app.dart';
 import 'package:status_studio/src/core/cache_cleanup.dart';
-import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 
@@ -19,23 +18,7 @@ void main() {
   // After the first frame, so housekeeping never delays the app opening.
   WidgetsBinding.instance.addPostFrameCallback((_) {
     unawaited(_cleanUp(container));
-    unawaited(_updateYtDlp(container));
   });
-}
-
-/// A failed update isn't recorded, so the next start tries again.
-Future<void> _updateYtDlp(ProviderContainer container) async {
-  try {
-    await container.read(ytDlpUpdaterProvider).updateIfDue(DateTime.now());
-  } on Exception catch (error, stackTrace) {
-    FlutterError.reportError(
-      FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'yt-dlp update',
-      ),
-    );
-  }
 }
 
 Future<void> _cleanUp(ProviderContainer container) async {

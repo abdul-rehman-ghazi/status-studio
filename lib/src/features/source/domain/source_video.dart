@@ -1,8 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-/// From M23 the ID is the file fingerprint (`v_<16 hex>`, spec FR-1) and the
-/// title the file name; the YouTube path still fills a YouTube ID and title
-/// until M23 task 9 removes it.
+/// A video the user brought in (spec FR-1): its ID is the file fingerprint
+/// (`v_<16 hex>`) and its title the file name.
 @immutable
 class SourceVideo {
   const SourceVideo({

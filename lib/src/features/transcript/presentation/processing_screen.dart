@@ -191,7 +191,7 @@ enum _FailureAction {
 List<_FailureAction> _actionsFor(Object error) {
   return switch (error) {
     NoSpeechFoundException() => [_FailureAction.anotherLanguage],
-    VideoUnavailableException() || InsufficientStorageException() => const [],
+    InsufficientStorageException() => const [],
     NoGroqKeyException() || GroqKeyRejectedException() => const [
       _FailureAction.settings,
       _FailureAction.back,

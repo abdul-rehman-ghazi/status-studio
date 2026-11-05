@@ -24,14 +24,10 @@ import 'package:status_studio/src/features/reel/application/fine_tune_resumer.da
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
-import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
-import 'package:status_studio/src/features/source/data/fake_video_source.dart';
 import 'package:status_studio/src/features/source/data/incoming_video_source.dart';
 import 'package:status_studio/src/features/source/data/local_video_importer.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/data/video_picker.dart';
-import 'package:status_studio/src/features/source/data/video_source.dart';
-import 'package:status_studio/src/features/source/data/yt_dlp.dart';
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
 import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
@@ -43,13 +39,11 @@ import 'package:status_studio/src/routing/app_router.dart';
 
 import 'fake_background_work_platform.dart';
 import 'fake_caption_translator.dart';
-import 'fake_clip_preparer.dart';
 import 'fake_incoming_video_source.dart';
 import 'fake_local_video_importer.dart';
 import 'fake_reel_actions.dart';
 import 'fake_video_picker.dart';
 import 'fake_video_player.dart';
-import 'fake_yt_dlp.dart';
 import 'fine_tune_drafts.dart';
 import 'recording_ffmpeg.dart';
 import 'saved_scripts.dart';
@@ -59,9 +53,7 @@ import 'saved_scripts.dart';
 class TestSetup {
   const TestSetup({
     this.overrides = const [],
-    this.videoSource = const FakeVideoSource(),
     this.playerFactory = fakePlayerFactory,
-    this.clipPreparer,
     this.scriptPipeline = const FakeScriptPipeline(step: Duration.zero),
     this.waveformPeaks,
     this.renderer = const FakeRenderer(step: Duration.zero),
@@ -69,7 +61,6 @@ class TestSetup {
     this.reelActions,
     this.recentReels = const [],
     this.savedScripts = const [],
-    this.ytDlp,
     this.backgroundWork,
     this.fineTuneSaver,
     this.fineTunes = const [],
@@ -80,11 +71,8 @@ class TestSetup {
   });
 
   final List<Override> overrides;
-  final VideoSource videoSource;
   final VideoPlayerFactory playerFactory;
 
-  /// Defaults to a fresh [FakeClipSourcePreparer].
-  final ClipSourcePreparer? clipPreparer;
   final ScriptPipeline scriptPipeline;
 
   /// What every clip's waveform resolves to; FFmpeg never runs in tests.
@@ -101,9 +89,6 @@ class TestSetup {
 
   /// The finished scripts Home lists, newest first.
   final List<SavedScript> savedScripts;
-
-  /// Defaults to a fresh [FakeYtDlp]; the video source is faked anyway.
-  final YtDlp? ytDlp;
 
   /// Defaults to a fresh [FakeBackgroundWorkPlatform].
   final BackgroundWorkPlatform? backgroundWork;
@@ -134,12 +119,10 @@ class TestSetup {
     incomingVideoSourceProvider.overrideWithValue(
       incomingVideos ?? FakeIncomingVideoSource(),
     ),
-    videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
     captionTranslatorProvider.overrideWithValue(translator),
     reelActionsProvider.overrideWithValue(reelActions ?? FakeReelActions()),
     ffmpegRunnerProvider.overrideWithValue(const SilentFfmpegRunner()),
-    ytDlpProvider.overrideWithValue(ytDlp ?? FakeYtDlp()),
     backgroundWorkPlatformProvider.overrideWithValue(
       backgroundWork ?? FakeBackgroundWorkPlatform(),
     ),
@@ -152,9 +135,6 @@ class TestSetup {
       () => FakeSavedScriptsController(savedScripts),
     ),
     videoPlayerFactoryProvider.overrideWithValue(playerFactory),
-    clipSourcePreparerProvider.overrideWithValue(
-      clipPreparer ?? FakeClipSourcePreparer(),
-    ),
     waveformProvider.overrideWith(
       (ref, span) => switch (waveformPeaks) {
         final peaks? => Future.value(peaks),

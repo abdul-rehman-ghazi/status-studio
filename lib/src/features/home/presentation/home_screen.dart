@@ -125,8 +125,7 @@ class _NewReelCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Paste a YouTube link, then pick the lines from its '
-                      'script',
+                      'Choose or share a video, then trim and caption it',
                       style: textTheme.bodySmall?.copyWith(
                         color: AppColors.onAccent,
                       ),

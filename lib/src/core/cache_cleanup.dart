@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:status_studio/src/features/source/data/video_fingerprint.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 
 /// Deletes the `sources/<id>` folders in [sources] that were imported but
@@ -53,10 +54,28 @@ DateTime _lastChange(Directory folder) {
   return times.reduce((newest, time) => time.isAfter(newest) ? time : newest);
 }
 
+/// Deletes the folders in [root] whose name isn't a video fingerprint
+/// (`v_…`): they belong to videos from before M23 that can no longer be
+/// reached (spec FR-1). Files are left alone. Returns how many were deleted.
+Future<int> deleteFoldersWithoutFingerprint(Directory root) async {
+  if (!await root.exists()) {
+    return 0;
+  }
+  var deleted = 0;
+  await for (final entry in root.list()) {
+    final name = entry.uri.pathSegments.lastWhere((part) => part.isNotEmpty);
+    if (entry is Directory && !name.startsWith(videoIdPrefix)) {
+      await _deleteIfPresent(entry);
+      deleted++;
+    }
+  }
+  return deleted;
+}
+
 /// Startup housekeeping: old saved scripts with their videos (FR-14: 90
-/// days, at most 200 videos) and videos imported but never scripted. Each
-/// runs even if the other fails; the first failure is then rethrown to be
-/// reported.
+/// days, at most 200 videos), videos imported but never scripted, and the
+/// folders of videos from before M23. Each runs even if another fails; the
+/// first failure is then rethrown to be reported.
 Future<void> cleanUpOnStart({
   required Future<Directory> sources,
   required Future<TranscriptStore> scripts,
@@ -70,6 +89,12 @@ Future<void> cleanUpOnStart({
         transcripts: (both[1] as TranscriptStore).root,
         now: now,
       ),
+    ),
+    Future.wait([sources, scripts]).then(
+      (both) => Future.wait([
+        deleteFoldersWithoutFingerprint(both[0] as Directory),
+        deleteFoldersWithoutFingerprint((both[1] as TranscriptStore).root),
+      ]),
     ),
   ]);
 }
