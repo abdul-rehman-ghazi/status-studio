@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
+import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/incoming_video_source.dart';
@@ -68,6 +69,12 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
     if (wouldClose && !await _confirmNewReel()) {
       return;
     }
+    // The top screen is animated out, not removed, so it is still mounted
+    // when the draft is reset and would then keep the empty draft instead of
+    // the last edits (FR-24): save them here.
+    await ref
+        .read(fineTuneDraftSaverProvider)
+        .save(ref.read(reelDraftProvider));
     router.go(AppRoutes.home);
     // The screens of the old reel read the draft until they are gone, so it
     // is only reset once Home has replaced them.
