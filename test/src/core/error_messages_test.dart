@@ -22,6 +22,13 @@ void main() {
     );
   });
 
+  test('maps_unreadable_video', () {
+    expect(
+      errorMessageFor(const VideoUnreadableException('no audio')),
+      "Can't read this video.",
+    );
+  });
+
   test('maps_offline', () {
     expect(
       errorMessageFor(const OfflineException('x')),

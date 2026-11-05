@@ -84,6 +84,7 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 
 ## Tests
 
+- From M23 task 5 the user writes and runs the tests. Claude doesn't change tests or run `tool/check.sh`; it runs `fvm flutter analyze` only, lists tests that its change makes stale in the milestone's task text in `docs/status-studio.md` §12, and says in the commit message that tests were not run. This replaces "test first" and "`tool/check.sh` before every commit" until the user says otherwise.
 - One assertion concept per test; Arrange-Act-Assert.
 - Test names describe behaviour, e.g. `transcript_line_tap_sets_clip_start`.
 - Override providers to fake the incoming video, Groq and FFmpeg in tests. Never hit the network in tests.

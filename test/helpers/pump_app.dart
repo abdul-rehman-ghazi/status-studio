@@ -26,7 +26,10 @@ import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/clip_source_preparer.dart';
 import 'package:status_studio/src/features/source/data/fake_video_source.dart';
+import 'package:status_studio/src/features/source/data/incoming_video_source.dart';
+import 'package:status_studio/src/features/source/data/local_video_importer.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
+import 'package:status_studio/src/features/source/data/video_picker.dart';
 import 'package:status_studio/src/features/source/data/video_source.dart';
 import 'package:status_studio/src/features/source/data/yt_dlp.dart';
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
@@ -41,7 +44,10 @@ import 'package:status_studio/src/routing/app_router.dart';
 import 'fake_background_work_platform.dart';
 import 'fake_caption_translator.dart';
 import 'fake_clip_preparer.dart';
+import 'fake_incoming_video_source.dart';
+import 'fake_local_video_importer.dart';
 import 'fake_reel_actions.dart';
+import 'fake_video_picker.dart';
 import 'fake_video_player.dart';
 import 'fake_yt_dlp.dart';
 import 'fine_tune_drafts.dart';
@@ -68,6 +74,9 @@ class TestSetup {
     this.fineTuneSaver,
     this.fineTunes = const [],
     this.fineTuneResumer,
+    this.videoPicker,
+    this.importer,
+    this.incomingVideos,
   });
 
   final List<Override> overrides;
@@ -108,7 +117,23 @@ class TestSetup {
   /// Answers Continue; without one, Continue reads the disk.
   final FineTuneResumer? fineTuneResumer;
 
+  /// Defaults to a [FakeVideoPicker] whose user cancels.
+  final VideoPicker? videoPicker;
+
+  /// Defaults to a fresh [FakeLocalVideoImporter].
+  final LocalVideoImporter? importer;
+
+  /// Defaults to a [FakeIncomingVideoSource] that never shares anything.
+  final IncomingVideoSource? incomingVideos;
+
   List<Override> get allOverrides => [
+    videoPickerProvider.overrideWithValue(videoPicker ?? FakeVideoPicker()),
+    localVideoImporterProvider.overrideWith(
+      (ref) async => importer ?? FakeLocalVideoImporter(),
+    ),
+    incomingVideoSourceProvider.overrideWithValue(
+      incomingVideos ?? FakeIncomingVideoSource(),
+    ),
     videoSourceProvider.overrideWithValue(videoSource),
     rendererProvider.overrideWithValue(renderer),
     captionTranslatorProvider.overrideWithValue(translator),

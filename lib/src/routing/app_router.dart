@@ -7,6 +7,7 @@ import 'package:status_studio/src/features/export/presentation/done_screen.dart'
 import 'package:status_studio/src/features/export/presentation/export_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
+import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
 import 'package:status_studio/src/features/style/presentation/style_screen.dart';
 import 'package:status_studio/src/features/transcript/presentation/processing_screen.dart';
@@ -45,7 +46,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.source,
-        builder: (context, state) => const SourceScreen(),
+        builder: (context, state) => SourceScreen(
+          sharedVideo: state.extra is IncomingVideo
+              ? state.extra! as IncomingVideo
+              : null,
+        ),
       ),
       GoRoute(
         path: AppRoutes.processing,

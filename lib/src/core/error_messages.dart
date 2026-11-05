@@ -15,6 +15,7 @@ String errorMessageFor(Object error) {
     YouTubeChangedException() =>
       "Couldn't read this video from YouTube. Try again later.",
     InsufficientStorageException() => 'Not enough space on your phone.',
+    VideoUnreadableException() => "Can't read this video.",
     NoSpeechFoundException() => 'No speech found in this video.',
     NoGroqKeyException() => 'Writing a script needs a free Groq key.',
     GroqKeyRejectedException() => "Groq didn't accept your API key.",

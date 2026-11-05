@@ -34,6 +34,10 @@ class SourceCache {
   File localVideoFile(String videoId, String extension) =>
       File('${_folder(videoId)}/source.$extension');
 
+  /// The picture on the Source card for [videoId]'s kept video.
+  File thumbnailFile(String videoId) =>
+      File('${_folder(videoId)}/thumbnail.jpg');
+
   /// The videos already kept for [videoId], whatever their extension.
   List<File> keptLocalVideos(String videoId) {
     final folder = Directory(_folder(videoId));
