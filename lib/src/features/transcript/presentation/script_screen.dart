@@ -243,7 +243,10 @@ class _GroqFixActionState extends ConsumerState<_GroqFixAction> {
         ],
       );
     }
-    final canFix = !widget.scriptIsBeingWritten && widget.draft.video != null;
+    final canFix =
+        !widget.scriptIsBeingWritten &&
+        widget.draft.video != null &&
+        widget.draft.transcript?.lines.isNotEmpty == true;
     return TextButton(
       style: _toolButtonStyle,
       onPressed: canFix ? _fix : null,

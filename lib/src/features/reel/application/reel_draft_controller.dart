@@ -47,15 +47,15 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void nudgeClipStart(Duration delta) {
     final clip = _requireClip();
-    state = state.copyWith(
-      clip: clip.nudgeStart(delta, videoDuration: _requireVideo().duration),
+    state = state.withClip(
+      clip.nudgeStart(delta, videoDuration: _requireVideo().duration),
     );
   }
 
   void nudgeClipEnd(Duration delta) {
     final clip = _requireClip();
-    state = state.copyWith(
-      clip: clip.nudgeEnd(delta, videoDuration: _requireVideo().duration),
+    state = state.withClip(
+      clip.nudgeEnd(delta, videoDuration: _requireVideo().duration),
     );
   }
 

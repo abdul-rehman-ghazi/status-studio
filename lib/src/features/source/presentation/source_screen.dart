@@ -141,7 +141,9 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       displayName: displayName,
     );
     // Recent rows that asked for this video again can open now.
-    ref.invalidate(isVideoKeptProvider);
+    if (mounted) {
+      ref.invalidate(isVideoKeptProvider);
+    }
     return video;
   }
 

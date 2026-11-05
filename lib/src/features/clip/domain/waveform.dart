@@ -8,8 +8,6 @@ import 'package:status_studio/src/features/source/domain/clip_source.dart';
 const _sampleRate = 16000;
 const _bytesPerSample = 2;
 
-/// Beyond this many times the usual window, a source is the whole-video
-/// fallback (FR-15) and the waveform shows only the stretch around the clip.
 /// A video this long or shorter gets one waveform for all of it, so a nudge
 /// never needs another.
 const _longestWholeVideoShown = Duration(minutes: 10);

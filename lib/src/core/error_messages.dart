@@ -25,8 +25,8 @@ String errorMessageFor(Object error) {
       "Couldn't find script lines in what you pasted. Copy the AI's whole "
           'reply and try again.',
     TooManyLinesForAiException() =>
-      'Too many lines for an AI to check. Tap the start and end lines of '
-          'your clip first.',
+      'Too many lines for an AI to check. Shorten the clip on the next step '
+          'first.',
     RenderFailedException() => "Couldn't make the reel.",
     TranslationPackMissingException() => 'English needs a one-time download.',
     NoSubjectFoundException() =>

@@ -12,6 +12,10 @@ class AudioPreparer {
 
   final FfmpegRunner runner;
 
+  /// Set by [stopRunning]; a cut that hasn't started FFmpeg yet then never
+  /// does.
+  var _stopRequested = false;
+
   /// The audio of [video] as FLAC pieces of [chunkSeconds], in order, in a
   /// folder beside it (spec FR-3). [onProcessed] hears how much of the video
   /// FFmpeg has read.
@@ -24,8 +28,12 @@ class AudioPreparer {
     required void Function(Duration processed) onProcessed,
     int chunkSeconds = 90,
   }) async {
+    _stopRequested = false;
     final folder = Directory('${video.parent.path}/pieces_$chunkSeconds');
     await _emptied(folder);
+    if (_stopRequested) {
+      throw const FfmpegFailedException('stopped before it started');
+    }
     await runner.run(
       scriptPiecesArguments(
         ScriptPieces(
@@ -44,7 +52,10 @@ class AudioPreparer {
   }
 
   /// Stops the FFmpeg run, if one is still going.
-  Future<void> stopRunning() => runner.cancel();
+  Future<void> stopRunning() {
+    _stopRequested = true;
+    return runner.cancel();
+  }
 
   Future<void> _emptied(Directory folder) async {
     if (await folder.exists()) {

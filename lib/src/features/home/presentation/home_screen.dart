@@ -282,10 +282,13 @@ class _SavedScriptRow extends ConsumerWidget {
   bool _isKept(WidgetRef ref) =>
       ref.watch(isVideoKeptProvider(script.video.videoId)).value ?? true;
 
+  bool _isKeptNow(WidgetRef ref) =>
+      ref.read(isVideoKeptProvider(script.video.videoId)).value ?? true;
+
   /// Processing finds the saved script and goes straight on to Script. With
   /// the kept video gone the user is asked for it again first (spec FR-1).
   void _openScript(BuildContext context, WidgetRef ref) {
-    if (!_isKept(ref)) {
+    if (!_isKeptNow(ref)) {
       _askForTheVideoAgain(context, ref, script.video.videoId);
       return;
     }
@@ -359,6 +362,9 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
   bool get _isKept =>
       ref.watch(isVideoKeptProvider(fineTune.video.videoId)).value ?? true;
 
+  bool get _isKeptNow =>
+      ref.read(isVideoKeptProvider(fineTune.video.videoId)).value ?? true;
+
   @override
   Widget build(BuildContext context) {
     final clipLength = fineTune.draft.clip.length;
@@ -388,7 +394,7 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
     if (_opening) {
       return;
     }
-    if (!_isKept) {
+    if (!_isKeptNow) {
       _askForTheVideoAgain(context, ref, fineTune.video.videoId);
       return;
     }

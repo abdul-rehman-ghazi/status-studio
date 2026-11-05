@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/domain/lines_in_clip.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_cues.dart';
@@ -40,13 +41,16 @@ class ReelDraft {
   /// Starts the reel on [video]: the clip is the whole video, which the user
   /// trims on Fine-tune (spec FR-1, FR-5).
   ReelDraft withVideo(SourceVideo video) =>
-      copyWith(video: video, clip: _wholeVideo(video));
+      ReelDraft(video: video, language: language, clip: _wholeVideo(video));
 
-  /// A new transcript replaces the lines and the per-line caption edits; the
-  /// clip, its nudges and the crop keyframes stay (spec FR-5). Every line is
-  /// selected: there is no line picking (spec FR-4).
-  ReelDraft withTranscript(Transcript transcript) =>
-      _withEveryLine(transcript).copyWith(linesEdited: false);
+  /// A new transcript replaces the lines and the caption text filled from
+  /// them; the clip, its nudges and the crop keyframes stay (spec FR-5). The
+  /// lines inside the clip are the selected ones: nothing is picked (spec
+  /// FR-4).
+  ReelDraft withTranscript(Transcript transcript) => _selectingLinesInClip(
+    transcript,
+    clip,
+  )._withCaptionFromLines().copyWith(linesEdited: false);
 
   /// A transcript that only adds lines to the current one (a script still
   /// being written) keeps what the user edited; any other replaces it.
@@ -58,58 +62,81 @@ class ReelDraft {
     if (current == null || !_extends(transcript, current)) {
       return withTranscript(transcript);
     }
-    return _withEveryLine(transcript);
+    return _selectingLinesInClip(transcript, clip);
   }
 
-  /// [corrected] has the same lines with better text, so the caption is
-  /// refilled from them and the clip stays.
+  /// [corrected] has the same lines with better text. The clip stays, and
+  /// so does a caption the user changed.
   ReelDraft withCorrectedLines(Transcript corrected) =>
-      _withEveryLine(corrected);
+      _selectingLinesInClip(corrected, clip);
 
-  ReelDraft _withEveryLine(Transcript transcript) {
-    final lastLine = transcript.lines.length - 1;
-    if (lastLine < 0) {
+  /// Moves the clip to [newClip]; the selected lines follow it, and so does
+  /// the caption while it is still the lines' own text (spec FR-5).
+  ReelDraft withClip(ClipRange newClip) {
+    final transcript = this.transcript;
+    return transcript == null
+        ? copyWith(clip: newClip)
+        : _selectingLinesInClip(transcript, newClip);
+  }
+
+  /// Selects the lines inside [clip], or inside the whole video when there
+  /// is no clip yet. The caption is refilled only while it is still the
+  /// lines' own text, so a caption the user typed or translated stays.
+  ReelDraft _selectingLinesInClip(Transcript transcript, ClipRange? clip) {
+    final inClip = clip ?? _wholeVideo(video);
+    final followsLines = _captionFollowsLines;
+    if (inClip == null || transcript.lines.isEmpty) {
       return copyWith(
         transcript: transcript,
         selection: const NoSelection(),
-        clip: clip ?? _wholeVideo(video),
+        clip: inClip,
       );
     }
-    final selection = RangeSelected(0, lastLine);
+    final selection = linesInClip(transcript, inClip);
     return copyWith(
       transcript: transcript,
       selection: selection,
-      clip: clip ?? _wholeVideo(video),
-      caption: caption.copyWith(
-        variant: CaptionVariant.original,
-        text: _selectedText(transcript, selection),
-      ),
+      clip: inClip,
+      caption: followsLines
+          ? caption.copyWith(
+              variant: CaptionVariant.original,
+              text: _selectedText(transcript, selection),
+            )
+          : caption,
     );
   }
 
-  /// The script with its picked range, for editing lines (spec FR-21).
+  bool get _captionFollowsLines =>
+      caption.variant == CaptionVariant.original &&
+      caption.text == _selectedLinesText;
+
+  ReelDraft _withCaptionFromLines() => copyWith(
+    caption: caption.copyWith(
+      variant: CaptionVariant.original,
+      text: _selectedLinesText,
+    ),
+  );
+
+  String get _selectedLinesText =>
+      _selectedLines.map((line) => line.text).join('\n');
+
+  /// The script with the lines inside the clip, for editing (spec FR-21).
   PickedScript get pickedScript {
     final transcript = this.transcript;
     final selection = this.selection;
     if (transcript == null || selection is! RangeSelected) {
-      throw StateError('Lines were edited before a range was picked.');
+      throw StateError('Lines were edited before a script was written.');
     }
     return PickedScript(transcript: transcript, selection: selection);
   }
 
   /// Applies an edit made on Fine-tune (spec FR-21). The caption is refilled
-  /// from the lines; the clip stays, since it no longer follows the lines.
-  ReelDraft withEditedScript(PickedScript edited) {
-    return copyWith(
-      transcript: edited.transcript,
-      selection: edited.selection,
-      caption: caption.copyWith(
-        variant: CaptionVariant.original,
-        text: _selectedText(edited.transcript, edited.selection),
-      ),
-      linesEdited: true,
-    );
-  }
+  /// from the lines inside the clip; the clip stays, since it no longer
+  /// follows the lines.
+  ReelDraft withEditedScript(PickedScript edited) => _selectingLinesInClip(
+    edited.transcript,
+    clip,
+  )._withCaptionFromLines().copyWith(linesEdited: true);
 
   /// Starts a moving crop (spec FR-22): one keyframe at the clip start, where
   /// the fixed crop is.

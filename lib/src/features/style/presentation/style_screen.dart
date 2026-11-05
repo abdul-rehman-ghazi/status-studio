@@ -89,7 +89,7 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
             ),
             const SizedBox(height: 8),
             const HintText(
-              'Filled from the lines you picked. Each line shows on its own, '
+              'Filled from the lines inside the clip. Each line shows on its own, '
               'when it is said. Translation runs on your phone. Edit anything.',
             ),
             const SizedBox(height: 20),
