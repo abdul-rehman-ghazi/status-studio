@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository.
 
 ## What this is
 
-Status Studio: a general-purpose Flutter app that turns any YouTube video, in any language, into a short status clip. Flow: paste link → script (YouTube captions, or Groq with the user's key; language auto-detected or chosen) → user taps start and end lines → fine-tune ±0.5 s → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share.
+Status Studio: a general-purpose Flutter app (Android and iOS) that turns a video the user already trimmed elsewhere, in any language, into a short status clip. Flow: share or pick a trimmed video → clean the voice → Groq script (with the user's key; language auto-detected or chosen) → review → fine-tune ±0.5 s and lyrics → crop with a per-scene choice of face, body or spot → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share. Until M22 the input was a YouTube link; YouTube was dropped in the 2026-11-05 pivot (M23–M27, spec §12).
 
 Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
@@ -53,20 +53,21 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 
 ## Domain rules that are easy to get wrong
 
-- **Final render is Media3 Transformer, not FFmpeg.** The bundled FFmpeg is built with `--disable-mediacodec --disable-openssl` and has no libx264: it can't encode H.264 or read https URLs. Android renders through a Kotlin platform channel to Media3 (hardware H.264/AAC). FFmpeg is only for WAV conversion, splitting, stream-copy muxing and thumbnails.
+- **Final render is Media3 Transformer, not FFmpeg.** The bundled FFmpeg is built with `--disable-mediacodec --disable-openssl` and has no libx264: it can't encode H.264 or read https URLs. Android renders through a Kotlin platform channel to Media3 (hardware H.264/AAC). On iOS (from M26) AVFoundation renders the same spec over the same channel. FFmpeg is only for audio cleaning and splitting for Groq, thumbnails, and frame sampling for Follow the person.
 - **Captions and branding are drawn by Flutter.** Render caption text plus the logo to one transparent PNG at output size with Flutter's text engine; Media3 overlays it. Text rendering elsewhere would break Nastaliq letter joining.
-- **yt-dlp reads YouTube; Dart downloads.** `YouTubeVideoSource` runs yt-dlp (through `youtubedl-android`, on the `status_studio/ytdlp` Kotlin channel) only to get a video's title, length, stream URLs and caption tracks as JSON. The streams are downloaded in byte ranges with Dart `HttpClient`. Read without JavaScript first (`quickVideoInfo`, about 8 s on a mid-range phone) and with QuickJS only when that gives no streams (about 30 s). yt-dlp updates itself weekly and after a failed read. Don't bring back `youtube_explode_dart`: YouTube refused its stream URLs (spec §10 Q4).
-- **One FFmpeg only.** Use `ffmpeg_kit_flutter_new_min` for all video work. Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL.
+- **Video comes in as a local file.** It is shared into the app or chosen with the gallery picker, copied into app storage (`sources/<videoId>/source.<ext>`) and identified by a fingerprint (`v_<16 hex>`: file size plus SHA-256 of the first and last 1 MiB). No network for media. There is no YouTube code: don't bring back yt-dlp or `youtube_explode_dart` (spec §10 Q4 is history).
+- **One FFmpeg only.** Use `ffmpeg_kit_flutter_new_min` for all video work (audio cleaning and splitting for Groq, thumbnails, frame sampling). Don't add `ffmpeg_kit_flutter_new` (full GPL build): it duplicates native libraries and would make the app GPL.
 - **Heavy work off the UI thread.** Groq requests and FFmpeg runs are long. Stream progress to the UI, and stream transcript lines as they're produced so long videos are usable early.
-- **Groq writes every script without captions.** With the user's own free key, by `whisper-large-v3-turbo` (spec FR-12a). There is no on-device Whisper (removed in M10: 0.2× real time on a Redmi Note 11) and no on/off switch: no key means the §8 "needs a free Groq key" error. The same key powers Fix with Groq (spec FR-19): `openai/gpt-oss-120b` with the `browser_search` tool, at most 30 lines, sent only when the user taps the button. Never ship a key in the app. Keep the key in `flutter_secure_storage`, and never log it or put it in saved files, notifications or error text.
+- **Groq writes every script without captions.** With the user's own free key, by `whisper-large-v3-turbo` (spec FR-12a). There is no on-device Whisper (removed in M10: 0.2× real time on a Redmi Note 11) and no on/off switch: no key means the §8 "needs a free Groq key" error. The same key powers Fix with Groq (spec FR-19): `openai/gpt-oss-120b` with the `browser_search` tool, at most 30 lines, sent only when the user taps the button, with no link (only the lines and the video's name). Never ship a key in the app. Keep the key in `flutter_secure_storage`, and never log it or put it in saved files, notifications or error text.
 - **Captions show one line at a time** (spec FR-7a). Each line is its own overlay PNG and cue; Kotlin opens each PNG when due, so the PNGs must outlive `start` and be deleted when the render ends.
 - **Save the user's data.**
-  - Script audio is the lowest-bitrate stream, or nothing when YouTube captions exist.
-  - Video is never downloaded whole when it can be avoided: Fine-tune fetches only the clip window via the MP4 `sidx` index and HTTP range requests (spec FR-15).
-  - Network I/O for media is Dart `HttpClient`.
-- **Reuse earlier work.** Finished scripts are saved per video/language/source and reopened without downloading (spec FR-14). Groq progress is saved per 90-second piece and resumed.
+  - Nothing is downloaded: no media, no code fetched at runtime. The only uploads are the cleaned script-audio pieces (16 kHz mono FLAC) and Fix with Groq's lines, both to Groq with the user's key.
+  - The video is copied once into app storage and never changed or uploaded.
+  - Network I/O is Dart `HttpClient`, for Groq only.
+- **Reuse earlier work.** Finished scripts are saved per video fingerprint, language and source and reopened without cleaning or uploading (spec FR-14); the kept source file reopens Fine-tune. Groq progress is saved per 90-second piece and resumed; cleaned pieces are cached per video.
+- **The crop's subject is chosen by the user at every scene** (spec FR-27): a face, a body or a fixed spot, asked even with one face or none. Never auto-pick, never carry a choice to another scene by look-alike.
 - **RTL text.** Urdu, Arabic and Persian text needs `TextDirection.rtl` and the Nastaliq or Naskh family. Nastaliq needs a tall line height (about 2.1).
-- **Distribution.** YouTube downloading keeps the app off Google Play and the App Store. Keep YouTube access behind one data-layer class so a store build could swap in local-file input.
+- **Distribution.** No YouTube and no runtime-fetched code, so Play Store and App Store builds become possible. M27 lists the policy work (consent before the first Groq upload, no battery-optimisation request, privacy policy, store answers, listing rules). Keep the words "YouTube" and "WhatsApp" out of store listings.
 
 ## Code style
 
@@ -85,11 +86,11 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 
 - One assertion concept per test; Arrange-Act-Assert.
 - Test names describe behaviour, e.g. `transcript_line_tap_sets_clip_start`.
-- Override providers to fake YouTube, Groq and FFmpeg in tests. Never hit the network in tests.
+- Override providers to fake the incoming video, Groq and FFmpeg in tests. Never hit the network in tests.
 
 ## Platform notes
 
 - Application ID (Android) and bundle ID (iOS): `com.hotmail.arehmananis.statusstudio`.
 - Android `minSdk` is 24 (FFmpeg Kit requirement).
 - Release signing reads `android/key.properties` and `android/app/upload-keystore.jks`. Both are committed intentionally because the repo is private. Never print their contents, never make the repo public, and never switch release builds back to debug signing.
-- iOS hasn't been built yet. ML Kit translation needs a deployment target of iOS 15.5 or later.
+- iOS is built in M26: deployment target 15.5 or later (ML Kit translation), Share Extension plus App Group for sharing in, an AVFoundation renderer behind the same channels as Media3. ML Kit has no arm64 simulator support, so face detection is checked on devices only.
