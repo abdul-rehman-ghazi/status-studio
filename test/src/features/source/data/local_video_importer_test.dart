@@ -7,6 +7,7 @@ import 'package:status_studio/src/features/source/data/free_storage.dart';
 import 'package:status_studio/src/features/source/data/local_video_importer.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 
 import '../../../../helpers/fake_media_probe.dart';
@@ -16,23 +17,43 @@ const _mebibyte = 1024 * 1024;
 class _FixedFreeStorage implements FreeStorage {
   _FixedFreeStorage(this.bytes);
 
-  final int bytes;
+  /// Null means the phone can't say.
+  final int? bytes;
 
   @override
-  Future<int> freeBytes() async => bytes;
+  Future<int> freeBytes() async =>
+      bytes ?? (throw const StorageUnknownException('unknown'));
+}
+
+/// A copy that ends before all its bytes arrived, as when the file changes
+/// while it is read.
+class _CutShortCache extends SourceCache {
+  _CutShortCache(super.root);
+
+  @override
+  Future<File> write(
+    File target,
+    Stream<List<int>> bytes, {
+    required int totalBytes,
+    required void Function(double fraction) onProgress,
+  }) async => throw const IncompleteDownloadException('3 of 4096 bytes.');
 }
 
 void main() {
   late Directory root;
   late Directory incoming;
+  late Directory pickerCache;
+  late Future<File> Function(File file, String newPath) rename;
   late SourceCache cache;
   late TranscriptStore transcripts;
   late FakeMediaProbe probe;
-  late int freeBytes;
+  late int? freeBytes;
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('local_video_importer');
     incoming = Directory('${root.path}/incoming')..createSync();
+    pickerCache = Directory('${root.path}/cache')..createSync();
+    rename = (file, newPath) => file.rename(newPath);
     cache = SourceCache(Directory('${root.path}/sources'));
     transcripts = TranscriptStore(
       Directory('${root.path}/transcripts'),
@@ -51,6 +72,8 @@ void main() {
       probe: probe,
       storage: _FixedFreeStorage(freeBytes),
       incomingFolder: incoming,
+      pickerCacheFolder: pickerCache,
+      rename: (file, newPath) => rename(file, newPath),
     ),
   );
 
@@ -62,6 +85,12 @@ void main() {
 
   File stagedFile(String name, {int seed = 1}) =>
       File('${incoming.path}/$name')..writeAsBytesSync(bytes(seed));
+
+  File cachedFile(String name, {int seed = 1}) =>
+      File('${pickerCache.path}/$name')..writeAsBytesSync(bytes(seed));
+
+  Future<SourceVideo> importAs(File file, String displayName) =>
+      importer().importVideo(path: file.path, displayName: displayName);
 
   test(
     'importing_a_picked_video_keeps_it_as_source_with_its_extension',
@@ -159,30 +188,156 @@ void main() {
     expect(cache.keptLocalVideos(video.videoId), hasLength(1));
   });
 
-  test('importing_a_staged_video_moves_it', () async {
+  test('importing_a_staged_video_removes_it_from_staging', () async {
     final staged = stagedFile('shared.mp4');
 
-    final video = await importer().importVideo(
-      path: staged.path,
-      displayName: 'shared.mp4',
-    );
+    await importAs(staged, 'shared.mp4');
 
     expect(staged.existsSync(), isFalse);
-    expect(cache.localVideoFile(video.videoId, 'mp4').existsSync(), isTrue);
+  });
+
+  test('importing_a_staged_video_keeps_it_as_source', () async {
+    final staged = stagedFile('shared.mp4');
+
+    final video = await importAs(staged, 'shared.mp4');
+
+    expect(
+      cache.localVideoFile(video.videoId, 'mp4').readAsBytesSync(),
+      bytes(),
+    );
   });
 
   test('importing_a_staged_duplicate_deletes_the_staged_file', () async {
-    final first = pickedFile('a.mp4');
+    await importAs(pickedFile('a.mp4'), 'a.mp4');
     final staged = stagedFile('shared.mp4');
-    final video = await importer().importVideo(
-      path: first.path,
-      displayName: 'a.mp4',
-    );
 
-    await importer().importVideo(path: staged.path, displayName: 'shared.mp4');
+    await importAs(staged, 'shared.mp4');
 
     expect(staged.existsSync(), isFalse);
+  });
+
+  test('importing_a_staged_duplicate_keeps_one_copy', () async {
+    final video = await importAs(pickedFile('a.mp4'), 'a.mp4');
+
+    await importAs(stagedFile('shared.mov'), 'shared.mov');
+
     expect(cache.keptLocalVideos(video.videoId), hasLength(1));
+  });
+
+  test('importing_a_picker_cache_copy_removes_it_from_the_cache', () async {
+    final cached = cachedFile('picked.mp4');
+
+    await importAs(cached, 'picked.mp4');
+
+    expect(cached.existsSync(), isFalse);
+  });
+
+  test('importing_a_picker_cache_copy_keeps_it_as_source', () async {
+    final cached = cachedFile('picked.mp4');
+
+    final video = await importAs(cached, 'picked.mp4');
+
+    expect(
+      cache.localVideoFile(video.videoId, 'mp4').readAsBytesSync(),
+      bytes(),
+    );
+  });
+
+  test('importing_a_rejected_picker_cache_copy_deletes_it', () async {
+    probe.unreadable = const VideoUnreadableException('not a video');
+    final cached = cachedFile('broken.mp4');
+
+    await importAs(cached, 'broken.mp4').then<void>((_) {}, onError: (_) {});
+
+    expect(cached.existsSync(), isFalse);
+  });
+
+  test('importing_a_file_outside_the_app_folders_never_deletes_it', () async {
+    final picked = pickedFile('clip.mp4');
+
+    await importAs(picked, 'clip.mp4');
+
+    expect(picked.existsSync(), isTrue);
+  });
+
+  test(
+    'a_staging_path_with_dot_dot_that_leaves_staging_is_not_deleted',
+    () async {
+      final picked = pickedFile('clip.mp4');
+      final sneaky = File('${incoming.path}/../gallery_clip.mp4');
+
+      await importAs(sneaky, 'clip.mp4');
+
+      expect(picked.existsSync(), isTrue);
+    },
+  );
+
+  test('a_symlink_in_staging_to_an_outside_file_leaves_that_file', () async {
+    final picked = pickedFile('clip.mp4');
+    final link = Link('${incoming.path}/link.mp4')..createSync(picked.path);
+
+    await importAs(File(link.path), 'clip.mp4');
+
+    expect(picked.existsSync(), isTrue);
+  });
+
+  test('importing_when_the_move_crosses_volumes_copies_instead', () async {
+    rename = (file, newPath) => throw const FileSystemException('cross-device');
+    final staged = stagedFile('shared.mp4');
+
+    final video = await importAs(staged, 'shared.mp4');
+
+    expect(
+      cache.localVideoFile(video.videoId, 'mp4').readAsBytesSync(),
+      bytes(),
+    );
+  });
+
+  test(
+    'importing_when_the_move_crosses_volumes_still_removes_staged',
+    () async {
+      rename = (file, newPath) =>
+          throw const FileSystemException('cross-device');
+      final staged = stagedFile('shared.mp4');
+
+      await importAs(staged, 'shared.mp4');
+
+      expect(staged.existsSync(), isFalse);
+    },
+  );
+
+  test('importing_over_a_truncated_kept_file_replaces_it', () async {
+    final first = await importAs(pickedFile('a.mp4'), 'a.mp4');
+    final kept = cache.localVideoFile(first.videoId, 'mp4')
+      ..writeAsBytesSync([1, 2, 3]);
+
+    await importAs(pickedFile('b.mp4'), 'b.mp4');
+
+    expect(kept.readAsBytesSync(), bytes());
+  });
+
+  test('importing_over_a_truncated_kept_file_of_another_extension', () async {
+    final first = await importAs(pickedFile('a.mp4'), 'a.mp4');
+    cache.localVideoFile(first.videoId, 'mp4').writeAsBytesSync([1, 2, 3]);
+
+    await importAs(pickedFile('b.mov'), 'b.mov');
+
+    expect(cache.keptLocalVideos(first.videoId).map((file) => file.path), [
+      cache.localVideoFile(first.videoId, 'mov').path,
+    ]);
+  });
+
+  test('importing_the_same_video_at_once_keeps_one_copy', () async {
+    final first = pickedFile('a.mp4');
+    final second = pickedFile('b.mov');
+    final service = importer();
+
+    final videos = await Future.wait([
+      service.importVideo(path: first.path, displayName: 'a.mp4'),
+      service.importVideo(path: second.path, displayName: 'b.mov'),
+    ]);
+
+    expect(cache.keptLocalVideos(videos.first.videoId), hasLength(1));
   });
 
   test('importing_a_video_without_audio_is_rejected', () async {
@@ -281,6 +436,44 @@ void main() {
     );
 
     expect(cache.keptLocalVideos(video.videoId), hasLength(1));
+  });
+
+  test('importing_with_unknown_free_space_still_copies', () async {
+    freeBytes = null;
+    final picked = pickedFile('clip.mp4');
+
+    final video = await importAs(picked, 'clip.mp4');
+
+    expect(cache.keptLocalVideos(video.videoId), hasLength(1));
+  });
+
+  test('importing_with_an_empty_display_name_titles_it_by_file_stem', () async {
+    final picked = pickedFile('holiday.mp4');
+
+    final video = await importAs(picked, '');
+
+    expect(video.title, 'gallery_holiday');
+  });
+
+  test('importing_a_copy_cut_short_is_unreadable_not_offline', () async {
+    final picked = pickedFile('clip.mp4');
+    final service = LocalVideoImporter(
+      LocalVideoImporterServices(
+        cache: _CutShortCache(cache.root),
+        transcripts: transcripts,
+        probe: probe,
+        storage: _FixedFreeStorage(freeBytes),
+        incomingFolder: incoming,
+        pickerCacheFolder: pickerCache,
+      ),
+    );
+
+    final import = service.importVideo(
+      path: picked.path,
+      displayName: 'clip.mp4',
+    );
+
+    await expectLater(import, throwsA(isA<VideoUnreadableException>()));
   });
 
   test('importing_a_name_without_extension_keeps_it_as_mp4', () async {

@@ -56,9 +56,22 @@ class VideoInChannel(private val context: Context, messenger: BinaryMessenger) :
                 deliveries.stopListening()
                 result.success(null)
             }
-            "freeBytes" -> result.success(context.filesDir.usableSpace)
+            "freeBytes" -> replyWithFreeBytes(result)
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * The file system reports 0 when it can't tell, which is not the same as a full phone,
+     * so Dart is told the answer is unknown and decides what to do.
+     */
+    private fun replyWithFreeBytes(result: MethodChannel.Result) {
+        val freeBytes = context.filesDir.usableSpace
+        if (freeBytes <= 0L) {
+            result.error("storage_unknown", "The free space of the data folder is unknown.", null)
+            return
+        }
+        result.success(freeBytes)
     }
 
     /**

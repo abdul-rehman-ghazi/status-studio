@@ -89,3 +89,25 @@ class VideoUnreadableException implements Exception {
   @override
   String toString() => 'VideoUnreadableException: $reason';
 }
+
+/// The phone can't say how much space is free, so a copy can't be checked
+/// first (spec FR-1). It is not the same as being out of space.
+class StorageUnknownException implements Exception {
+  const StorageUnknownException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'StorageUnknownException: $reason';
+}
+
+/// The system gallery picker failed or is busy (for example already open),
+/// as opposed to the user closing it (spec FR-1).
+class VideoPickFailedException implements Exception {
+  const VideoPickFailedException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'VideoPickFailedException: $reason';
+}

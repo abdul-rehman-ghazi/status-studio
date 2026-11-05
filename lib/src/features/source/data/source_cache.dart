@@ -106,8 +106,7 @@ class SourceCache {
       await sink.close();
       _checkComplete(received, totalBytes);
     } catch (_) {
-      await sink.close();
-      await part.delete();
+      await _discard(part, sink);
       rethrow;
     }
     final complete = await part.rename(target.path);
@@ -116,6 +115,20 @@ class SourceCache {
   }
 
   String _folder(String videoId) => '${root.path}/$videoId';
+}
+
+/// Closes [sink] and deletes [part]. The sink may have failed to close
+/// already, and its second close then rethrows; that must not leave the
+/// partial file behind or hide the original failure.
+Future<void> _discard(File part, IOSink sink) async {
+  try {
+    await sink.close();
+  } on Exception {
+    // The first failure is the one to report.
+  }
+  if (await part.exists()) {
+    await part.delete();
+  }
 }
 
 /// A stream can end quietly when its connection closes, so the byte count

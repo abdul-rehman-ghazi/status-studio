@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,8 @@ import 'package:status_studio/src/features/transcript/data/transcript_store.dart
 /// Room left on the phone after a copy, for the rest of the app (spec FR-1).
 const _spareBytes = 50 * 1024 * 1024;
 
+Future<File> _renameFile(File file, String newPath) => file.rename(newPath);
+
 class LocalVideoImporterServices {
   const LocalVideoImporterServices({
     required this.cache,
@@ -21,6 +24,8 @@ class LocalVideoImporterServices {
     required this.probe,
     required this.storage,
     required this.incomingFolder,
+    required this.pickerCacheFolder,
+    this.rename = _renameFile,
   });
 
   final SourceCache cache;
@@ -30,86 +35,165 @@ class LocalVideoImporterServices {
 
   /// Where shared videos are staged (`files/incoming/`, spec FR-1).
   final Directory incomingFolder;
+
+  /// The app's cache folder, where `image_picker` puts its copy of a picked
+  /// video.
+  final Directory pickerCacheFolder;
+
+  /// Moves a file to a new path; replaceable so tests can make it fail the
+  /// way a move between volumes does.
+  final Future<File> Function(File file, String newPath) rename;
 }
 
 /// The only code that reads a picked or shared video and keeps it in app
 /// storage, as `sources/<videoId>/source.<ext>` (spec FR-1, §4).
 class LocalVideoImporter {
-  const LocalVideoImporter(this._services);
+  LocalVideoImporter(this._services);
 
   final LocalVideoImporterServices _services;
 
-  /// Keeps the video at [path] and returns it. A file staged in the
-  /// incoming folder is moved; any other is copied, and left unchanged.
+  /// Imports running now, by video ID, so the same video arriving twice at
+  /// once is kept once.
+  final _keeping = <String, Future<void>>{};
+
+  /// Keeps the video at [path] and returns it. A file the app already owns
+  /// (staged in the incoming folder, or the picker's copy in the cache) is
+  /// moved; any other is copied, and left unchanged.
   ///
   /// Throws [VideoUnreadableException] when the file can't be read or has no
   /// audio track, and [InsufficientStorageException] when a copy won't fit.
-  /// A staged file is deleted whenever it can't be kept.
+  /// A file the app owns is deleted whether or not it could be kept.
   Future<SourceVideo> importVideo({
     required String path,
     required String displayName,
   }) async {
     final file = File(path);
     try {
-      final video = await _keep(file, displayName);
-      await _services.transcripts.saveVideo(video);
+      final video = await _describe(file, displayName);
+      await _keepOnce(video, file, displayName);
       return video;
-    } catch (_) {
-      await _deleteIfStaged(file);
-      rethrow;
+    } finally {
+      await _deleteIfOwned(file);
     }
   }
 
-  Future<SourceVideo> _keep(File file, String displayName) async {
+  Future<SourceVideo> _describe(File file, String displayName) async {
     final facts = await _services.probe.readLocalVideo(file.path);
-    final videoId = await videoFingerprint(file);
-    final video = SourceVideo(
-      videoId: videoId,
-      title: _nameWithoutExtension(displayName),
+    return SourceVideo(
+      videoId: await videoFingerprint(file),
+      title: _titleOf(displayName, file.path),
       duration: facts.duration,
     );
-    if (_services.cache.keptLocalVideos(videoId).isNotEmpty) {
-      await _deleteIfStaged(file);
-      return video;
-    }
-    final target = _services.cache.localVideoFile(
-      videoId,
-      _extensionOf(displayName, file.path),
-    );
-    if (await _isStaged(file)) {
-      await _move(file, target);
-    } else {
-      await _copy(file, target);
-    }
-    return video;
   }
 
-  Future<void> _move(File staged, File target) async {
+  Future<void> _keepOnce(SourceVideo video, File file, String displayName) {
+    final running = _keeping[video.videoId];
+    if (running != null) {
+      return running;
+    }
+    final keeping = _keepAndRemember(video, file, displayName);
+    _keeping[video.videoId] = keeping;
+    return keeping;
+  }
+
+  Future<void> _keepAndRemember(
+    SourceVideo video,
+    File file,
+    String displayName,
+  ) async {
+    try {
+      await _keep(video.videoId, file, displayName);
+      await _services.transcripts.saveVideo(video);
+    } finally {
+      // Awaiting it would wait for this very future.
+      unawaited(_keeping.remove(video.videoId)!);
+    }
+  }
+
+  Future<void> _keep(String videoId, File file, String displayName) async {
+    final sizeBytes = await file.length();
+    final intact = await _keptOfSize(videoId, sizeBytes);
+    final target = intact.isNotEmpty
+        ? intact.first
+        : _services.cache.localVideoFile(
+            videoId,
+            _extensionOf(displayName, file.path),
+          );
+    if (intact.isEmpty) {
+      await _place(file, target, sizeBytes);
+    }
+    await _deleteOtherKeptVideos(videoId, keep: target);
+  }
+
+  /// Kept videos that are as long as the incoming file: an earlier copy that
+  /// was cut short is not reused.
+  Future<List<File>> _keptOfSize(String videoId, int sizeBytes) async {
+    final intact = <File>[];
+    for (final kept in _services.cache.keptLocalVideos(videoId)) {
+      if (await kept.length() == sizeBytes) {
+        intact.add(kept);
+      }
+    }
+    return intact;
+  }
+
+  Future<void> _deleteOtherKeptVideos(
+    String videoId, {
+    required File keep,
+  }) async {
+    for (final kept in _services.cache.keptLocalVideos(videoId)) {
+      if (kept.path != keep.path) {
+        await kept.delete();
+      }
+    }
+  }
+
+  Future<void> _place(File file, File target, int sizeBytes) async {
+    if (await _isOwned(file)) {
+      await _move(file, target, sizeBytes);
+      return;
+    }
+    await _copy(file, target, sizeBytes);
+  }
+
+  Future<void> _move(File owned, File target, int sizeBytes) async {
     await target.parent.create(recursive: true);
     try {
-      await staged.rename(target.path);
+      await _services.rename(owned, target.path);
     } on FileSystemException {
-      // The staging folder and the sources folder are on different volumes.
-      await _copy(staged, target);
-      await staged.delete();
+      // The incoming or cache folder and the sources folder are on
+      // different volumes. The owned file is deleted once the import ends.
+      await _copy(owned, target, sizeBytes);
     }
   }
 
-  Future<void> _copy(File file, File target) async {
-    final sizeBytes = await file.length();
+  Future<void> _copy(File file, File target, int sizeBytes) async {
     await _requireRoomFor(sizeBytes);
-    await guardIo(
-      () => _services.cache.write(
-        target,
-        file.openRead(),
-        totalBytes: sizeBytes,
-        onProgress: (_) {},
-      ),
-    );
+    try {
+      await guardIo(
+        () => _services.cache.write(
+          target,
+          file.openRead(),
+          totalBytes: sizeBytes,
+          onProgress: (_) {},
+        ),
+      );
+    } on IncompleteDownloadException catch (error) {
+      throw VideoUnreadableException(
+        'The video changed while it was copied: ${error.reason}',
+      );
+    }
   }
 
+  /// Skipped when the phone can't say how much is free: the copy then fails
+  /// on its own if the space runs out.
   Future<void> _requireRoomFor(int sizeBytes) async {
-    final freeBytes = await _services.storage.freeBytes();
+    final int freeBytes;
+    try {
+      freeBytes = await _services.storage.freeBytes();
+    } on StorageUnknownException {
+      return;
+    }
     if (freeBytes - sizeBytes < _spareBytes) {
       throw const InsufficientStorageException(
         'Not enough free space for this video.',
@@ -117,25 +201,51 @@ class LocalVideoImporter {
     }
   }
 
-  Future<bool> _isStaged(File file) async {
-    if (!await _services.incomingFolder.exists()) {
-      return false;
+  Future<bool> _isOwned(File file) async {
+    for (final folder in [
+      _services.incomingFolder,
+      _services.pickerCacheFolder,
+    ]) {
+      if (await _isInside(file, folder)) {
+        return true;
+      }
     }
-    final staging = await _services.incomingFolder.resolveSymbolicLinks();
-    final location = await file.resolveSymbolicLinks();
-    return location.startsWith('$staging${Platform.pathSeparator}');
+    return false;
   }
 
-  Future<void> _deleteIfStaged(File file) async {
-    if (await file.exists() && await _isStaged(file)) {
+  /// Symbolic links and `..` are resolved first, so a path can't claim to
+  /// be inside a folder it only points into.
+  Future<bool> _isInside(File file, Directory folder) async {
+    if (!await folder.exists()) {
+      return false;
+    }
+    final folderPath = await folder.resolveSymbolicLinks();
+    final location = await file.resolveSymbolicLinks();
+    return location.startsWith('$folderPath${Platform.pathSeparator}');
+  }
+
+  Future<void> _deleteIfOwned(File file) async {
+    if (await file.exists() && await _isOwned(file)) {
       await file.delete();
     }
   }
 }
 
-String _nameWithoutExtension(String displayName) {
-  final dot = displayName.lastIndexOf('.');
-  return dot > 0 ? displayName.substring(0, dot) : displayName;
+/// The sender's name without its extension; the file's own name when the
+/// sender gave none, and a plain word when that is empty too.
+String _titleOf(String displayName, String path) {
+  for (final name in [displayName, path.split(Platform.pathSeparator).last]) {
+    final title = _withoutExtension(name).trim();
+    if (title.isNotEmpty) {
+      return title;
+    }
+  }
+  return 'Video';
+}
+
+String _withoutExtension(String name) {
+  final dot = name.lastIndexOf('.');
+  return dot > 0 ? name.substring(0, dot) : name;
 }
 
 /// Lower case and plain, since it becomes part of a file name; `mp4` when
@@ -155,6 +265,7 @@ final localVideoImporterProvider = FutureProvider<LocalVideoImporter>((
   ref,
 ) async {
   final support = await getApplicationSupportDirectory();
+  final cacheFolder = await getTemporaryDirectory();
   return LocalVideoImporter(
     LocalVideoImporterServices(
       cache: await ref.watch(sourceCacheProvider.future),
@@ -162,6 +273,7 @@ final localVideoImporterProvider = FutureProvider<LocalVideoImporter>((
       probe: ref.watch(mediaProbeProvider),
       storage: ref.watch(freeStorageProvider),
       incomingFolder: Directory('${support.path}/incoming'),
+      pickerCacheFolder: cacheFolder,
     ),
   );
 });

@@ -114,6 +114,58 @@ void main() {
     expect((await store.load(keyFor('recent'))).source, 'captions');
   });
 
+  test('prune_deletes_the_kept_video_with_the_scripts', () async {
+    final sources = Directory('${root.path}/sources');
+    final scripts = Directory('${root.path}/transcripts');
+    final pruning = TranscriptStore(
+      scripts,
+      clock: () => now,
+      keptVideos: sources,
+    );
+    await pruning.save(keyFor('old'), savedAt(start));
+    File('${sources.path}/old/source.mp4')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('mp4');
+    now = start.add(const Duration(days: 91));
+
+    await pruning.prune();
+
+    expect(
+      (
+        Directory('${sources.path}/old').existsSync(),
+        Directory('${scripts.path}/old').existsSync(),
+      ),
+      (false, false),
+    );
+  });
+
+  test('prune_keeps_the_kept_video_of_a_recent_script', () async {
+    final sources = Directory('${root.path}/sources');
+    final pruning = TranscriptStore(
+      Directory('${root.path}/transcripts'),
+      clock: () => now,
+      keptVideos: sources,
+    );
+    await pruning.save(keyFor('recent'), savedAt(start));
+    File('${sources.path}/recent/source.mp4')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('mp4');
+    now = start.add(const Duration(days: 30));
+
+    await pruning.prune();
+
+    expect(Directory('${sources.path}/recent').existsSync(), isTrue);
+  });
+
+  test('prune_keeps_a_video_that_was_only_saved', () async {
+    await store.saveVideo(videoWithId('imported'));
+    now = start.add(const Duration(days: 1));
+
+    await store.prune();
+
+    expect((await store.loadVideo('imported')).videoId, 'imported');
+  });
+
   test('loading_counts_as_use_for_pruning', () async {
     await store.save(keyFor('a'), savedAt(start));
     now = start.add(const Duration(days: 80));

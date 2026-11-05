@@ -22,9 +22,13 @@ final _whisperFile = RegExp(r'^[^-]+-whisper-.*\.json$');
 /// (FR-14). Files are written as `.part` and renamed, so a crash never
 /// leaves a half-written script that looks whole.
 class TranscriptStore {
-  TranscriptStore(this.root, {required this.clock});
+  TranscriptStore(this.root, {required this.clock, this.keptVideos});
 
   final Directory root;
+
+  /// The `sources/` folder, whose `<videoId>` folders go with the video
+  /// when it is pruned (FR-14). Null where no videos are kept.
+  final Directory? keptVideos;
   final DateTime Function() clock;
 
   /// The newest script saved for [key], from any source. Counts as a use.
@@ -68,11 +72,15 @@ class TranscriptStore {
   }
 
   /// Keeps [video]'s title and length beside its scripts, so the
-  /// Recent list can show and reopen them (FR-11).
-  Future<void> saveVideo(SourceVideo video) => writeJsonAtomically(
-    File('${_folder(video.videoId).path}/$_videoFile'),
-    video.toJson(),
-  );
+  /// Recent list can show and reopen them (FR-11). Counts as a use, or
+  /// pruning would drop a video that was only imported.
+  Future<void> saveVideo(SourceVideo video) async {
+    await writeJsonAtomically(
+      File('${_folder(video.videoId).path}/$_videoFile'),
+      video.toJson(),
+    );
+    await markUsed(video.videoId);
+  }
 
   /// Every finished script whose video was saved, newest first: one per
   /// video and requested language, from its newest source. Doesn't count
@@ -143,7 +151,7 @@ class TranscriptStore {
   }
 
   /// Removes videos unused for 90 days, then the least recently used beyond
-  /// 200. Returns how many videos were removed.
+  /// 200, with their kept video file. Returns how many videos were removed.
   Future<int> prune() async {
     if (!await root.exists()) {
       return 0;
@@ -161,9 +169,24 @@ class TranscriptStore {
           video.folder,
     ];
     for (final folder in removed) {
+      await _deleteKeptVideo(folder);
       await folder.delete(recursive: true);
     }
     return removed.length;
+  }
+
+  Future<void> _deleteKeptVideo(Directory transcriptFolder) async {
+    final sources = keptVideos;
+    if (sources == null) {
+      return;
+    }
+    final videoId = transcriptFolder.uri.pathSegments.lastWhere(
+      (name) => name.isNotEmpty,
+    );
+    final kept = Directory('${sources.path}/$videoId');
+    if (await kept.exists()) {
+      await kept.delete(recursive: true);
+    }
   }
 
   SavedTranscript _newest(List<SavedTranscript> saved) =>
@@ -270,6 +293,7 @@ final transcriptStoreProvider = FutureProvider<TranscriptStore>((ref) async {
   final store = TranscriptStore(
     Directory('${support.path}/transcripts'),
     clock: DateTime.now,
+    keptVideos: Directory('${support.path}/sources'),
   );
   await store.removeWhisperScripts();
   return store;

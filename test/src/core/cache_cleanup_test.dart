@@ -19,10 +19,13 @@ class RecordingTranscriptStore extends TranscriptStore {
 
 void main() {
   late Directory root;
-  final now = DateTime(2026, 11, 2, 12);
+  late Directory sources;
+  late Directory transcripts;
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('cache_cleanup_test');
+    sources = Directory('${root.path}/sources')..createSync();
+    transcripts = Directory('${root.path}/transcripts')..createSync();
   });
 
   tearDown(() async {
@@ -31,56 +34,113 @@ void main() {
     }
   });
 
-  /// A video's source folder last changed [age] before [now].
-  Directory sourceFolder(String videoId, Duration age) {
-    final folder = Directory('${root.path}/$videoId')..createSync();
-    File('${folder.path}/clip.mp4')
-      ..writeAsStringSync('mp4')
-      ..setLastModifiedSync(now.subtract(age));
+  /// The time [age] after the folders below were made.
+  DateTime later(Duration age) => DateTime.now().add(age);
+
+  Directory keptVideo(String videoId) {
+    final folder = Directory('${sources.path}/$videoId')..createSync();
+    File('${folder.path}/source.mp4').writeAsStringSync('mp4');
     return folder;
   }
 
-  test('deletes_folders_older_than_seven_days', () async {
-    final old = sourceFolder('old', const Duration(days: 8));
+  void saveScript(String videoId) {
+    Directory('${transcripts.path}/$videoId').createSync();
+  }
 
-    final deleted = await deleteStaleSources(root, now: now);
+  test('orphan_source_older_than_seven_days_is_deleted', () async {
+    final orphan = keptVideo('v_orphan');
 
-    expect((deleted, old.existsSync()), (1, false));
+    final deleted = await deleteOrphanedSources(
+      sources,
+      transcripts: transcripts,
+      now: later(const Duration(days: 8)),
+    );
+
+    expect((deleted, orphan.existsSync()), (1, false));
   });
 
-  test('keeps_recent_folders', () async {
-    final recent = sourceFolder('recent', const Duration(days: 2));
+  test('orphan_source_younger_than_seven_days_is_kept', () async {
+    final orphan = keptVideo('v_orphan');
 
-    await deleteStaleSources(root, now: now);
+    await deleteOrphanedSources(
+      sources,
+      transcripts: transcripts,
+      now: later(const Duration(days: 6)),
+    );
 
-    expect(recent.existsSync(), isTrue);
+    expect(orphan.existsSync(), isTrue);
   });
 
-  test('missing_root_deletes_nothing', () async {
-    await root.delete(recursive: true);
+  test('source_with_a_saved_script_survives_thirty_days', () async {
+    final kept = keptVideo('v_scripted');
+    saveScript('v_scripted');
 
-    expect(await deleteStaleSources(root, now: now), 0);
+    await deleteOrphanedSources(
+      sources,
+      transcripts: transcripts,
+      now: later(const Duration(days: 30)),
+    );
+
+    expect(kept.existsSync(), isTrue);
+  });
+
+  test('moved_in_file_keeps_its_old_time_but_not_the_folders', () async {
+    final orphan = keptVideo('v_moved');
+    File('${orphan.path}/source.mp4')
+        .setLastModifiedSync(DateTime.now().subtract(const Duration(days: 20)));
+
+    await deleteOrphanedSources(
+      sources,
+      transcripts: transcripts,
+      now: later(const Duration(days: 1)),
+    );
+
+    expect(orphan.existsSync(), isTrue);
+  });
+
+  test('missing_sources_folder_deletes_nothing', () async {
+    await sources.delete(recursive: true);
+
+    final deleted = await deleteOrphanedSources(
+      sources,
+      transcripts: transcripts,
+      now: later(const Duration(days: 30)),
+    );
+
+    expect(deleted, 0);
   });
 
   test('startup_cleanup_prunes_saved_scripts', () async {
-    final store = RecordingTranscriptStore(Directory('${root.path}/scripts'));
+    final store = RecordingTranscriptStore(transcripts);
 
     await cleanUpOnStart(
-      sources: Future.value(root),
+      sources: Future.value(sources),
       scripts: Future.value(store),
-      now: now,
+      now: DateTime.now(),
     );
 
     expect(store.pruned, 1);
   });
 
+  test('startup_cleanup_deletes_old_orphan_sources', () async {
+    final orphan = keptVideo('v_orphan');
+
+    await cleanUpOnStart(
+      sources: Future.value(sources),
+      scripts: Future.value(RecordingTranscriptStore(transcripts)),
+      now: later(const Duration(days: 8)),
+    );
+
+    expect(orphan.existsSync(), isFalse);
+  });
+
   test('failed_source_cleanup_still_prunes_saved_scripts', () async {
-    final store = RecordingTranscriptStore(Directory('${root.path}/scripts'));
+    final store = RecordingTranscriptStore(transcripts);
 
     await cleanUpOnStart(
       sources: Future.error(const FileSystemException('No documents')),
       scripts: Future.value(store),
-      now: now,
+      now: DateTime.now(),
     ).catchError((Object _) {});
 
     expect(store.pruned, 1);
