@@ -56,6 +56,7 @@ class VideoInChannel(private val context: Context, messenger: BinaryMessenger) :
                 deliveries.stopListening()
                 result.success(null)
             }
+            "freeBytes" -> result.success(context.filesDir.usableSpace)
             else -> result.notImplemented()
         }
     }

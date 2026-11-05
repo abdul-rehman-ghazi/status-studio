@@ -30,6 +30,23 @@ class SourceCache {
   /// Video and audio muxed together, for preview and rendering.
   File sourceFile(String videoId) => File('${_folder(videoId)}/source.mp4');
 
+  /// The video the user brought in, kept whole (spec FR-1).
+  File localVideoFile(String videoId, String extension) =>
+      File('${_folder(videoId)}/source.$extension');
+
+  /// The videos already kept for [videoId], whatever their extension.
+  List<File> keptLocalVideos(String videoId) {
+    final folder = Directory(_folder(videoId));
+    if (!folder.existsSync()) {
+      return const [];
+    }
+    return folder
+        .listSync()
+        .whereType<File>()
+        .where((file) => _keptVideoName.hasMatch(file.uri.pathSegments.last))
+        .toList();
+  }
+
   /// A muxed clip window. The name carries the window and the offset, so
   /// [cachedClips] can find it again after a restart.
   File clipFile(
@@ -111,6 +128,8 @@ void _checkComplete(int received, int totalBytes) {
   }
 }
 
+final _keptVideoName = RegExp(r'^source\.[A-Za-z0-9]+$');
+
 final _clipName = RegExp(r'clip_(\d+)_(\d+)_(\d+)\.mp4$');
 
 /// The clip window [file] holds, if its name is a clip file's name.
@@ -132,6 +151,7 @@ double _fraction(int received, int total) =>
     total <= 0 ? 0 : math.min(1, received / total);
 
 final sourceCacheProvider = FutureProvider<SourceCache>((ref) async {
-  final temporary = await getTemporaryDirectory();
-  return SourceCache(Directory('${temporary.path}/sources'));
+  // Kept videos must outlive the system clearing the cache (spec §4).
+  final support = await getApplicationSupportDirectory();
+  return SourceCache(Directory('${support.path}/sources'));
 });
