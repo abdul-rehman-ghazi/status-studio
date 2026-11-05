@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
@@ -11,23 +12,21 @@ const _idHexLength = 16;
 /// last 1 MiB (the whole file when it is under 2 MiB), so the same bytes give
 /// the same ID however the file arrives (spec FR-1).
 ///
-/// Throws [VideoUnreadableException] when the file can't be read.
+/// Throws [VideoUnreadableException] when the file can't be read or is empty.
 Future<String> videoFingerprint(File video) async {
   try {
     final sizeBytes = await video.length();
+    if (sizeBytes == 0) {
+      throw VideoUnreadableException('Empty file: ${video.path}');
+    }
     final digestSink = _DigestSink();
     final hasher = sha256.startChunkedConversion(digestSink)
       ..add(_sizeBytes(sizeBytes));
-    await _addRange(
-      hasher,
-      video,
-      0,
-      sizeBytes < _edgeBytes ? sizeBytes : _edgeBytes,
-    );
-    final tailStart = sizeBytes - _edgeBytes > _edgeBytes
-        ? sizeBytes - _edgeBytes
-        : _edgeBytes;
-    await _addRange(hasher, video, tailStart, sizeBytes);
+    await _addRange(hasher, video.openRead(0, min(sizeBytes, _edgeBytes)));
+    final tailStart = max(sizeBytes - _edgeBytes, _edgeBytes);
+    if (tailStart < sizeBytes) {
+      await _addRange(hasher, video.openRead(tailStart, sizeBytes));
+    }
     hasher.close();
     return 'v_${digestSink.digest.toString().substring(0, _idHexLength)}';
   } on FileSystemException catch (error) {
@@ -45,14 +44,8 @@ List<int> _sizeBytes(int sizeBytes) {
   return bytes;
 }
 
-Future<void> _addRange(
-  Sink<List<int>> hasher,
-  File video,
-  int startByte,
-  int endByte,
-) async {
-  if (startByte >= endByte) return;
-  await for (final chunk in video.openRead(startByte, endByte)) {
+Future<void> _addRange(Sink<List<int>> hasher, Stream<List<int>> range) async {
+  await for (final chunk in range) {
     hasher.add(chunk);
   }
 }
