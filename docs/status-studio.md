@@ -670,7 +670,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | Built, branch `m20-follow-subject` (stacked on M19); the spike (§10 item 7) and the device checks are pending, so whether to ship it is undecided |
 | M21 Continue later | Fine-tune is kept as it changes and continued from Recent (FR-24) | Built, branch `m21-fine-tune-drafts` (stacked on M20); device checks pending (§14) |
 | M22 Choose the person | Tap a face to choose whom Follow the person follows (FR-25) | Built, branch `m22-choose-person` (stacked on M20); device check pending |
-| M23 Local video in | Share or pick a trimmed video instead of a YouTube link; whole-video clip; YouTube removed (FR-1, FR-3, FR-4, FR-5, FR-14, FR-15) | Planned, branch `m23-local-video` (from `dev`) |
+| M23 Local video in | Share or pick a trimmed video instead of a YouTube link; whole-video clip; YouTube removed (FR-1, FR-3, FR-4, FR-5, FR-14, FR-15) | Built and reviewed, branch `m23-local-video` (from `dev`), pushed, not merged; tests not run (the user tests from task 5, stale ones listed in §12); device checks pending (§14) |
 | M24 Clean voice | FFmpeg filters clean the audio before Groq (FR-26, §10 item 8) | Planned, branch `m24-clean-voice` (stacked on M23) |
 | M25 Choose per scene | At every scene the user picks a face, a body or a fixed spot (FR-27) | Planned, branch `m25-choose-per-scene` (stacked on M24) |
 | M26 iOS | iOS build, Share Extension, AVFoundation renderer (§10 item 9) | Planned, branch `m26-ios` (stacked on M25) |
