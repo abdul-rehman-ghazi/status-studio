@@ -19,7 +19,7 @@ import 'package:video_player/video_player.dart';
 /// Frame size used until the clip file has been probed.
 const assumedSourceSize = OutputSize(1920, 1080);
 
-/// The clip downloaded for [draft], if Fine-tune has fetched it.
+/// The kept video for [draft], once Fine-tune has opened it.
 ClipSource? previewClipSource(WidgetRef ref, ReelDraft draft) {
   final video = draft.video;
   if (video == null) {

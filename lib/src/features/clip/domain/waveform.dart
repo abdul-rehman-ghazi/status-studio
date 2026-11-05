@@ -10,7 +10,13 @@ const _bytesPerSample = 2;
 
 /// Beyond this many times the usual window, a source is the whole-video
 /// fallback (FR-15) and the waveform shows only the stretch around the clip.
-const _widestShownFactor = 2;
+/// A video this long or shorter gets one waveform for all of it, so a nudge
+/// never needs another.
+const _longestWholeVideoShown = Duration(minutes: 10);
+
+/// A longer video shows only this much from the clip's start: its WAV is
+/// about 1.9 MB a minute and is read into memory.
+const _longestShownAroundClip = Duration(minutes: 5);
 
 /// Which WAV to draw and where it sits in video time.
 @immutable
@@ -38,19 +44,24 @@ class WaveformRequest {
   int get hashCode => Object.hash(wavPath, offset, window);
 }
 
-/// The stretch of video the waveform covers: the downloaded window, unless
-/// the source is far wider (the whole video), where a bar per minute would
-/// hide the clip and the WAV would be the whole soundtrack.
+/// The stretch of video the waveform covers: all of the video when it is
+/// short, otherwise a few minutes from the clip's start, so the WAV never
+/// becomes a long soundtrack.
 ClipWindow waveformWindowFor(
   ClipSource source,
   ClipRange clip,
   Duration videoDuration,
 ) {
+  final whole = source.window;
+  if (whole.end - whole.start <= _longestWholeVideoShown) {
+    return whole;
+  }
   final aroundClip = clipWindowFor(clip, videoDuration);
-  final widest = (aroundClip.end - aroundClip.start) * _widestShownFactor;
-  return source.window.end - source.window.start > widest
-      ? aroundClip
-      : source.window;
+  final cappedEnd = aroundClip.start + _longestShownAroundClip;
+  return ClipWindow(
+    start: aroundClip.start,
+    end: aroundClip.end < cappedEnd ? aroundClip.end : cappedEnd,
+  );
 }
 
 /// The loudest sample in each of [buckets] equal slices of the request's

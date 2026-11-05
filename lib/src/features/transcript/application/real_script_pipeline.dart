@@ -106,12 +106,7 @@ class RealScriptPipeline implements ScriptPipeline {
     final keptVideo = await _keptVideo(video);
     final prepared = _PreparedPieces();
     yield* _prepareAudio(video, keptVideo, key.language.whisperCode, prepared);
-    try {
-      yield* _transcribe(video, key, (groq: groq, pieces: prepared.pieces));
-    } finally {
-      // A retry cuts them again, so they never outlive the run.
-      await services.audio.discardPieces(prepared.pieces);
-    }
+    yield* _transcribe(video, key, (groq: groq, pieces: prepared.pieces));
   }
 
   Stream<ScriptProgress> _transcribe(
@@ -215,12 +210,15 @@ class RealScriptPipeline implements ScriptPipeline {
     final processed = StreamController<Duration>();
     // A failure is rethrown below, or after a cancel, when nobody awaits it:
     // ignore() keeps it from reaching the zone as unhandled.
+    var cutIsRunning = true;
     final cutting =
         services.audio
             .cutScriptPieces(keptVideo, onProcessed: processed.add)
-            .whenComplete(processed.close)
+            .whenComplete(() {
+              cutIsRunning = false;
+              return processed.close();
+            })
           ..ignore();
-    var finished = false;
     try {
       await for (final readUpTo in processed.stream) {
         final amount = _audioRead(video, readUpTo);
@@ -232,12 +230,12 @@ class RealScriptPipeline implements ScriptPipeline {
         );
       }
       prepared.pieces = await cutting;
-      finished = true;
     } finally {
       // Leaving early (the user cancelled) must stop FFmpeg too, or a
       // retry would empty the folder it is still writing to. A run that
-      // ended is left alone: cancelling stops every FFmpeg session.
-      if (!finished) {
+      // ended, well or not, is left alone: cancelling stops every FFmpeg
+      // session.
+      if (cutIsRunning) {
         await services.audio.stopRunning();
       }
     }

@@ -125,7 +125,9 @@ class FollowSubjectController extends Notifier<FollowState> {
     }
     final source = ref.read(clipSourceProvider(video.videoId)).value;
     if (source == null) {
-      throw StateError('Follow the person started before the clip downloaded.');
+      throw StateError(
+        'Follow the person started before the video was opened.',
+      );
     }
     _releasePending();
     final pathAtStart = draft.frame.cropPath;

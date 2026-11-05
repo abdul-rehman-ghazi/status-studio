@@ -43,17 +43,6 @@ class AudioPreparer {
     return parseSegmentList(await list.readAsString(), folder: folder);
   }
 
-  /// Deletes the folder [pieces] were cut into.
-  Future<void> discardPieces(List<AudioPiece> pieces) async {
-    if (pieces.isEmpty) {
-      return;
-    }
-    final folder = pieces.first.file.parent;
-    if (await folder.exists()) {
-      await folder.delete(recursive: true);
-    }
-  }
-
   /// Stops the FFmpeg run, if one is still going.
   Future<void> stopRunning() => runner.cancel();
 
