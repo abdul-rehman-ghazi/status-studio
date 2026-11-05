@@ -37,19 +37,19 @@ class ReelDraft {
   /// written no longer replace the edited ones.
   final bool linesEdited;
 
-  /// A new transcript invalidates the old selection and clip.
-  ReelDraft withTranscript(Transcript transcript) {
-    return ReelDraft(
-      video: video,
-      language: language,
-      transcript: transcript,
-      frame: _frameWithoutMovingCrop,
-      caption: caption,
-    );
-  }
+  /// Starts the reel on [video]: the clip is the whole video, which the user
+  /// trims on Fine-tune (spec FR-1, FR-5).
+  ReelDraft withVideo(SourceVideo video) =>
+      copyWith(video: video, clip: _wholeVideo(video));
+
+  /// A new transcript replaces the lines and the per-line caption edits; the
+  /// clip, its nudges and the crop keyframes stay (spec FR-5). Every line is
+  /// selected: there is no line picking (spec FR-4).
+  ReelDraft withTranscript(Transcript transcript) =>
+      _withEveryLine(transcript).copyWith(linesEdited: false);
 
   /// A transcript that only adds lines to the current one (a script still
-  /// being written) keeps the selection and clip; any other replaces it.
+  /// being written) keeps what the user edited; any other replaces it.
   ReelDraft withGrowingTranscript(Transcript transcript) {
     final current = this.transcript;
     if (linesEdited) {
@@ -58,17 +58,33 @@ class ReelDraft {
     if (current == null || !_extends(transcript, current)) {
       return withTranscript(transcript);
     }
-    return copyWith(transcript: transcript);
+    return _withEveryLine(transcript);
   }
 
-  /// [corrected] has the same lines with better text, so the picked range
-  /// and clip stay, and the caption is refilled from the corrected lines.
-  ReelDraft withCorrectedLines(Transcript corrected) {
-    final updated = copyWith(transcript: corrected);
-    final selection = this.selection;
-    return selection is RangeSelected
-        ? updated.withSelection(selection)
-        : updated;
+  /// [corrected] has the same lines with better text, so the caption is
+  /// refilled from them and the clip stays.
+  ReelDraft withCorrectedLines(Transcript corrected) =>
+      _withEveryLine(corrected);
+
+  ReelDraft _withEveryLine(Transcript transcript) {
+    final lastLine = transcript.lines.length - 1;
+    if (lastLine < 0) {
+      return copyWith(
+        transcript: transcript,
+        selection: const NoSelection(),
+        clip: clip ?? _wholeVideo(video),
+      );
+    }
+    final selection = RangeSelected(0, lastLine);
+    return copyWith(
+      transcript: transcript,
+      selection: selection,
+      clip: clip ?? _wholeVideo(video),
+      caption: caption.copyWith(
+        variant: CaptionVariant.original,
+        text: _selectedText(transcript, selection),
+      ),
+    );
   }
 
   /// The script with its picked range, for editing lines (spec FR-21).
@@ -82,36 +98,16 @@ class ReelDraft {
   }
 
   /// Applies an edit made on Fine-tune (spec FR-21). The caption is refilled
-  /// from the lines; each clip edge follows its own line only when that
-  /// line's time changed, so a nudge survives an edit elsewhere.
+  /// from the lines; the clip stays, since it no longer follows the lines.
   ReelDraft withEditedScript(PickedScript edited) {
-    final before = pickedScript;
     return copyWith(
       transcript: edited.transcript,
       selection: edited.selection,
-      clip: _clipAfterEdit(before, edited),
       caption: caption.copyWith(
         variant: CaptionVariant.original,
         text: _selectedText(edited.transcript, edited.selection),
       ),
       linesEdited: true,
-    );
-  }
-
-  ClipRange _clipAfterEdit(PickedScript before, PickedScript after) {
-    final clip = this.clip;
-    if (clip == null) {
-      throw StateError('Lines were edited before a clip was set.');
-    }
-    final firstBefore = before.transcript.lines[before.selection.start];
-    final lastBefore = before.transcript.lines[before.selection.end];
-    final firstAfter = after.transcript.lines[after.selection.start];
-    final lastAfter = after.transcript.lines[after.selection.end];
-    return ClipRange(
-      start: firstAfter.start == firstBefore.start
-          ? clip.start
-          : firstAfter.start,
-      end: lastAfter.end == lastBefore.end ? clip.end : lastAfter.end,
     );
   }
 
@@ -284,6 +280,9 @@ class ReelDraft {
     linesEdited,
   );
 }
+
+ClipRange? _wholeVideo(SourceVideo? video) =>
+    video == null ? null : ClipRange(start: Duration.zero, end: video.duration);
 
 const _tenth = Duration(milliseconds: 100);
 

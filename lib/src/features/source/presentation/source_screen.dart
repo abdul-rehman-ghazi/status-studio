@@ -11,6 +11,7 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/source/application/video_thumbnail.dart';
 import 'package:status_studio/src/features/source/data/local_video_importer.dart';
 import 'package:status_studio/src/features/source/data/video_picker.dart';
@@ -135,7 +136,13 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
 
   Future<SourceVideo> _importVideo(String path, String displayName) async {
     final importer = await ref.read(localVideoImporterProvider.future);
-    return importer.importVideo(path: path, displayName: displayName);
+    final video = await importer.importVideo(
+      path: path,
+      displayName: displayName,
+    );
+    // Recent rows that asked for this video again can open now.
+    ref.invalidate(isVideoKeptProvider);
+    return video;
   }
 
   Future<void> _getScript() async {

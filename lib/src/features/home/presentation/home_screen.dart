@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
@@ -15,7 +16,9 @@ import 'package:status_studio/src/features/reel/application/fine_tune_drafts_con
 import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
+import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
@@ -267,17 +270,26 @@ class _SavedScriptRow extends ConsumerWidget {
       leading: const _ScriptThumbnail(),
       title: ScriptText(script.video.title, maxLines: 1),
       subtitle: Text(
-        'Script · $language · ${formatTimestamp(script.video.duration)} · '
-        '${formatDayMonth(script.saved.savedAt.toLocal())}',
+        _isKept(ref)
+            ? 'Script · $language · ${formatTimestamp(script.video.duration)} · '
+                  '${formatDayMonth(script.saved.savedAt.toLocal())}'
+            : _chooseAgainHint,
       ),
       onTap: () => _openScript(context, ref),
       onLongPress: () => unawaited(_offerDelete(context, ref)),
     );
   }
 
-  /// The same path as pasting the link again: Processing finds the saved
-  /// script and goes straight on to Script.
+  bool _isKept(WidgetRef ref) =>
+      ref.watch(isVideoKeptProvider(script.video.videoId)).value ?? true;
+
+  /// Processing finds the saved script and goes straight on to Script. With
+  /// the kept video gone the user is asked for it again first (spec FR-1).
   void _openScript(BuildContext context, WidgetRef ref) {
+    if (!_isKept(ref)) {
+      _askForTheVideoAgain(context, ref, script.video.videoId);
+      return;
+    }
     ref.read(scriptOpeningNoticeProvider.notifier).clear();
     ref.read(reelDraftProvider.notifier)
       ..startNew()
@@ -294,6 +306,20 @@ class _SavedScriptRow extends ConsumerWidget {
       await ref.read(savedScriptsProvider.notifier).delete(script);
     }
   }
+}
+
+const _chooseAgainHint = 'Choose or share the video again';
+
+/// The kept video is gone: say so and open Source. The script and the kept
+/// fine-tune stay, and the same video chosen again finds them (spec FR-1).
+void _askForTheVideoAgain(BuildContext context, WidgetRef ref, String videoId) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(errorMessageFor(KeptVideoMissingException(videoId))),
+    ),
+  );
+  ref.read(reelDraftProvider.notifier).startNew();
+  context.push(AppRoutes.source);
 }
 
 class _ScriptThumbnail extends StatelessWidget {
@@ -331,6 +357,9 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
 
   SavedFineTune get fineTune => widget.fineTune;
 
+  bool get _isKept =>
+      ref.watch(isVideoKeptProvider(fineTune.video.videoId)).value ?? true;
+
   @override
   Widget build(BuildContext context) {
     final clipLength = fineTune.draft.clip.length;
@@ -339,8 +368,10 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       leading: const _FineTuneThumbnail(),
       title: ScriptText(fineTune.video.title, maxLines: 1),
       subtitle: Text(
-        'Fine-tune · ${formatSeconds(clipLength)} · '
-        '${formatDayMonth(fineTune.draft.savedAt.toLocal())}',
+        _isKept
+            ? 'Fine-tune · ${formatSeconds(clipLength)} · '
+                  '${formatDayMonth(fineTune.draft.savedAt.toLocal())}'
+            : _chooseAgainHint,
       ),
       trailing: Text(
         'Continue',
@@ -356,6 +387,10 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
   /// would open every screen twice.
   Future<void> _continue(BuildContext context, WidgetRef ref) async {
     if (_opening) {
+      return;
+    }
+    if (!_isKept) {
+      _askForTheVideoAgain(context, ref, fineTune.video.videoId);
       return;
     }
     setState(() => _opening = true);
