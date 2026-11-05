@@ -101,14 +101,28 @@ class RealScriptPipeline implements ScriptPipeline {
   }
 
   Stream<ScriptProgress> _write(SourceVideo video, TranscriptKey key) async* {
-    final store = await services.store;
     // Before any audio work: without a key there is nothing to wait for.
     final groq = await services.groq();
-    final requested = key.language.whisperCode;
     final keptVideo = await _keptVideo(video);
     final prepared = _PreparedPieces();
-    yield* _prepareAudio(video, keptVideo, requested, prepared);
-    final pieces = prepared.pieces;
+    yield* _prepareAudio(video, keptVideo, key.language.whisperCode, prepared);
+    try {
+      yield* _transcribe(video, key, (groq: groq, pieces: prepared.pieces));
+    } finally {
+      // A retry cuts them again, so they never outlive the run.
+      await services.audio.discardPieces(prepared.pieces);
+    }
+  }
+
+  Stream<ScriptProgress> _transcribe(
+    SourceVideo video,
+    TranscriptKey key,
+    ({GroqTranscriber groq, List<AudioPiece> pieces}) work,
+  ) async* {
+    final store = await services.store;
+    final groq = work.groq;
+    final pieces = work.pieces;
+    final requested = key.language.whisperCode;
     yield ScriptProgress(
       stage: ScriptStage.detectingLanguage,
       fraction: _languageStage,
@@ -199,19 +213,34 @@ class RealScriptPipeline implements ScriptPipeline {
       transcript: _empty(languageCode),
     );
     final processed = StreamController<Duration>();
-    final cutting = services.audio
-        .cutScriptPieces(keptVideo, onProcessed: processed.add)
-        .whenComplete(processed.close);
-    await for (final readUpTo in processed.stream) {
-      final amount = _audioRead(video, readUpTo);
-      yield ScriptProgress(
-        stage: ScriptStage.preparingAudio,
-        fraction: _audioPreparedAt * amount.fraction,
-        transcript: _empty(languageCode),
-        step: amount,
-      );
+    // A failure is rethrown below, or after a cancel, when nobody awaits it:
+    // ignore() keeps it from reaching the zone as unhandled.
+    final cutting =
+        services.audio
+            .cutScriptPieces(keptVideo, onProcessed: processed.add)
+            .whenComplete(processed.close)
+          ..ignore();
+    var finished = false;
+    try {
+      await for (final readUpTo in processed.stream) {
+        final amount = _audioRead(video, readUpTo);
+        yield ScriptProgress(
+          stage: ScriptStage.preparingAudio,
+          fraction: _audioPreparedAt * amount.fraction,
+          transcript: _empty(languageCode),
+          step: amount,
+        );
+      }
+      prepared.pieces = await cutting;
+      finished = true;
+    } finally {
+      // Leaving early (the user cancelled) must stop FFmpeg too, or a
+      // retry would empty the folder it is still writing to. A run that
+      // ended is left alone: cancelling stops every FFmpeg session.
+      if (!finished) {
+        await services.audio.stopRunning();
+      }
     }
-    prepared.pieces = await cutting;
   }
 
   Future<PartialTranscript> _partial(

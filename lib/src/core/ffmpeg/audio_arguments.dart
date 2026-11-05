@@ -38,6 +38,10 @@ List<String> scriptPiecesArguments(ScriptPieces pieces) {
     '1',
     '-ar',
     '16000',
+    // 16-bit: speech gains nothing from FLAC's 24 bits, and the upload is
+    // about 40 % smaller.
+    '-sample_fmt',
+    's16',
     '-c:a',
     'flac',
     '-f',
