@@ -9,11 +9,12 @@ const _longestWait = Duration(seconds: 60);
 const _defaultWait = Duration(seconds: 5);
 
 /// The model every script is written with (spec FR-12a).
-const scriptModel = 'whisper-large-v3-turbo';
+const scriptModel = 'whisper-large-v3';
 
 /// Segments Groq is this sure hold no speech are dropped. Turbo always
-/// reports 0 (§10 Q5), so this only matters if the model changes. Here, not
-/// in the transcriber, so tool/voice_check.dart can apply the same rule.
+/// reported 0 (§10 Q5); large-v3 reports real values (0.00 to 0.12 on the
+/// reference clip), so the cutoff is live since M24. Here, not in the
+/// transcriber, so tool/voice_check.dart can apply the same rule.
 const groqNoSpeechCutoff = 0.6;
 
 // The only Groq model the key can call that searches the web (spec §10 #6).
