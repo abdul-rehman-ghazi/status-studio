@@ -1,6 +1,6 @@
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 
-/// How far either side of a cut the preview dims (spec FR-22).
+/// How far either side of a cut the preview dims (spec FR-21, FR-22).
 const _dipHalfWidth = Duration(milliseconds: 100);
 
 /// The picture's dimmest point, on the cut itself.

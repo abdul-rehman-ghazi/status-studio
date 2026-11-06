@@ -4,6 +4,7 @@ import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dar
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/style/domain/caption_cues.dart';
+import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/cut_dip.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/framed_video.dart';
@@ -93,11 +94,15 @@ class _ReelStageState extends State<ReelStage>
     );
   }
 
-  /// Paused or scrubbing, the position is exact and a cut is shown as it is.
+  /// Paused, the position is exact and a cut is shown as it is. Blur, 16:9 and
+  /// a window with no room keep their keyframes but never move, so there is
+  /// no jump to hide.
   double _dipWhilePlaying(ReelDraft draft, Duration time) {
-    return widget.playhead.isPlaying
-        ? opacityAroundCuts(draft.frame.cropPath, time)
-        : 1;
+    final moves = canMoveCrop(draft.frame, widget.sourceSize);
+    if (!widget.playhead.isPlaying || !moves) {
+      return 1;
+    }
+    return opacityAroundCuts(draft.frame.cropPath, time);
   }
 
   Widget _overlayFor(OverlaySpec spec) {

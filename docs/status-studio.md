@@ -229,7 +229,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 
 **FR-21 Fine-tune lyrics (M18; its own step since M19).** Step 2 of Fine-tune lists the clip's lines, editable, with the video playing with the lyrics on it.
 - **Lines:** only the clip's lines are listed (those inside the nudged range). Lines around the clip are not shown. Every listed line reacts to a tap.
-- **Player:** the reel as it will look: the video cut to the output frame (FR-6) with the crop where FR-22 puts it at that moment, and the line due on it, laid out as FR-7 says (caption position and size). Play and pause, and a seek bar over the clip only: it starts at the clip start, stops at the clip end (playing again from the end starts at the start), and has no "Play clip" button. Nothing outside the clip can be seen or reached. **Cut dip (M25):** while playing, the preview's video dims to 35 % over 100 ms either side of each Cut keyframe's cut (`opacityAroundCuts`), because the crop there is read from the playhead's estimated position (the platform reports about twice a second) and can sit a few milliseconds off the picture. Paused or scrubbing, and in the export, there is no dip: the export reads each frame's own time.
+- **Player:** the reel as it will look: the video cut to the output frame (FR-6) with the crop where FR-22 puts it at that moment, and the line due on it, laid out as FR-7 says (caption position and size). Play and pause, and a seek bar over the clip only: it starts at the clip start, stops at the clip end (playing again from the end starts at the start), and has no "Play clip" button. Nothing outside the clip can be seen or reached. **Cut dip (M25):** while playing, the preview's video dims to 35 % over 100 ms either side of each Cut keyframe's cut (`opacityAroundCuts`), because the crop there is read from the playhead's estimated position (the platform reports about twice a second) and can sit a few milliseconds off the picture. Paused, with Blur or 16:9 (the crop can't move there), and in the export, there is no dip: the export reads each frame's own time.
 - **Tap a line:**
   - **While paused:** seeks to the line's start.
   - **While playing (tap to time):** the line's start becomes the playhead. The line that was highlighted at that moment ends there, so the new highlight replaces it. The tapped line keeps its length (at least 1 s), cut at the next line's start.
@@ -1008,7 +1008,7 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - The frame arguments use file time (the offset subtracted), the sampling rate falls for long clips and never below 2, and the cut parser reads FFmpeg's times.
   - Replace is asked only when more than one keyframe exists. Cancel, leaving, turning the move off, and a clip or size change stop the run, delete the frames and change nothing; a hand edit during the run wins. The detector is closed after every run.
   - A build without the scene filter is run again without it. The cuts file path is escaped for the filter graph. Until the first frame is looked at the bar is indeterminate.
-- **Cut dip (M25):** `opacityAroundCuts` is 1 away from Cuts, 0.35 on a Cut keyframe's cut (`shownAt`), linear between, 100 ms either side; glide keyframes never dip; the nearest Cut wins when two overlap; the stage applies it only while the playhead is playing.
+- **Cut dip (M25):** `opacityAroundCuts` is 1 away from Cuts, 0.35 on a Cut keyframe's cut (`shownAt`), linear between, 100 ms either side; glide keyframes never dip; the nearest Cut wins when two overlap; the stage applies it only while the playhead is playing and the crop can move (`canMoveCrop`), so Blur, 16:9 and a window with no room never dim.
 - **Moving crop (FR-22):**
   - A glide moves in a straight line and arrives at its keyframe's time; a cut holds the earlier anchor until then and has jumped at exactly that time. Dart and Kotlin share their boundary cases.
   - Before the first keyframe the first anchor holds, and after the last the last.
@@ -1199,7 +1199,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] Write the script twice for the same video (another language the second time): the second run skips "Cleaning the voice" at once.
 
 **Choose per scene (M25):**
-- [ ] Lyrics preview, playing over a scene change (the reference clip at 0:30): the video dims briefly there and the crop switches with the picture, with no one-frame jerk; paused on the cut, no dim.
+- [ ] Lyrics preview, playing over a scene change (the reference clip at 0:30): the video dims briefly there and the crop switches with the picture, with no one-frame jerk; paused on the cut, no dim; with Blur background, no dim at all.
 - [ ] **Spike pending (M25 task 1, §10 item 7):** faces plus bodies on the Redmi Note 11: time per frame, recall, false positives, APK growth; pick a body detector or no-go. M25 task 5 waits for it.
 - [ ] A mehfil with cut-aways: every scene is asked, including the cut-aways and a scene with one face.
 - [ ] Export a clip with hard cuts and a different crop in each scene: at every cut the crop changes on the same frame as the picture, with no frame of the old shot in the new crop and none of the new shot in the old one (step through the file frame by frame).
