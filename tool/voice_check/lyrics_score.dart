@@ -58,37 +58,62 @@ List<String> missingLines({
   final heardRunes = heard.runes.toList();
   var cursor = 0;
   for (final line in expectedLines) {
-    final match = _bestMatch(line.runes.toList(), heardRunes.sublist(cursor));
-    if (match.distance / line.runes.length > _missingLineThreshold) {
+    final match = _firstMatch(line.runes.toList(), heardRunes.sublist(cursor));
+    if (match == null) {
       missing.add(line);
       continue;
     }
-    cursor += match.end;
+    cursor += match;
   }
   return missing;
 }
 
-typedef _Match = ({int distance, int end});
-
-/// The substring of [text] closest to [pattern] (Sellers' variant of the
-/// edit distance, where the match may start anywhere), and where it ends.
-_Match _bestMatch(List<int> pattern, List<int> text) {
+/// Where the first stretch of [text] within the missing-line threshold of
+/// [pattern] ends (Sellers' variant of the edit distance, where the match
+/// may start anywhere), or `null` when no stretch is. The first, not the
+/// best: a repeated line must match at its own turn, or one slightly
+/// misheard line would swallow the lines after it.
+int? _firstMatch(List<int> pattern, List<int> text) {
+  final allowed = (pattern.length * _missingLineThreshold).floor();
   var column = List<int>.generate(pattern.length + 1, (row) => row);
-  var best = (distance: column.last, end: 0);
   for (var position = 1; position <= text.length; position++) {
-    final next = List<int>.filled(pattern.length + 1, 0);
-    for (var row = 1; row <= pattern.length; row++) {
-      final substitution = pattern[row - 1] == text[position - 1] ? 0 : 1;
-      next[row] = [
-        column[row] + 1,
-        next[row - 1] + 1,
-        column[row - 1] + substitution,
-      ].reduce((a, b) => a < b ? a : b);
-    }
-    column = next;
-    if (column.last < best.distance) {
-      best = (distance: column.last, end: position);
+    column = _nextColumn(pattern, column, text[position - 1]);
+    if (column.last <= allowed) {
+      return _bestEndNear(pattern, text, position);
     }
   }
-  return best;
+  return null;
+}
+
+/// The end, within one pattern length after [firstEnd], where the match
+/// is closest, so the cursor lands at the end of the sung line.
+int _bestEndNear(List<int> pattern, List<int> text, int firstEnd) {
+  var column = List<int>.generate(pattern.length + 1, (row) => row);
+  var bestEnd = firstEnd;
+  var bestDistance = pattern.length + 1;
+  final last = (firstEnd + pattern.length).clamp(0, text.length);
+  for (var position = 1; position <= last; position++) {
+    column = _nextColumn(pattern, column, text[position - 1]);
+    if (position >= firstEnd && column.last < bestDistance) {
+      bestDistance = column.last;
+      bestEnd = position;
+    }
+  }
+  return bestEnd;
+}
+
+/// One more character of text in the match table: row `i` holds the best
+/// distance from the first `i` characters of [pattern] to a stretch of
+/// text ending here.
+List<int> _nextColumn(List<int> pattern, List<int> column, int character) {
+  final next = List<int>.filled(pattern.length + 1, 0);
+  for (var row = 1; row <= pattern.length; row++) {
+    final substitution = pattern[row - 1] == character ? 0 : 1;
+    next[row] = [
+      column[row] + 1,
+      next[row - 1] + 1,
+      column[row - 1] + substitution,
+    ].reduce((a, b) => a < b ? a : b);
+  }
+  return next;
 }

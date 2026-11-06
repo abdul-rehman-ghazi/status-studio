@@ -2,8 +2,11 @@
 /// Spec §10 item 8.
 ///
 /// ```sh
-/// GROQ_API_KEY=... fvm dart run tool/voice_check.dart <video> <expected.txt>
+/// read -rs GROQ_API_KEY && export GROQ_API_KEY
+/// fvm dart run tool/voice_check.dart <video> <expected.txt>
 /// ```
+///
+/// (`read` keeps the key out of the shell history.)
 ///
 /// Builds the FFmpeg arguments with the app's own `audio_arguments.dart`,
 /// runs them with the `ffmpeg` on the PATH, sends the pieces to Groq with the
@@ -12,6 +15,9 @@
 ///
 /// The key is read from the environment only. It is never written to a file
 /// or printed. Network access stays in `tool/`; app tests never touch it.
+/// Groq's text is kept as the app keeps it: segments above the no-speech
+/// cutoff are dropped (the app also drops English phantom phrases such as
+/// "thank you", which cannot be in Urdu lyrics).
 library;
 
 import 'dart:io';
@@ -43,9 +49,8 @@ Future<void> main(List<String> arguments) async {
     final ffmpegVersion = await _ffmpegVersion();
     final scores = await _scoreAllVariants(
       GroqClient(apiKey: apiKey),
-      video: File(arguments[0]),
-      expectedLines: expectedLines,
-      workFolder: workFolder,
+      expectedLines,
+      await _cutBothKinds(File(arguments[0]), workFolder),
     );
     _printReport(ffmpegVersion, scores);
   } finally {
@@ -85,67 +90,68 @@ const _variants = [
 ];
 
 Future<List<String>> _readExpectedLines(File file) async {
-  final lines = (await file.readAsLines())
+  final written = (await file.readAsLines())
       .map((line) => line.trim())
       .where((line) => line.isNotEmpty && !line.startsWith('#'))
+      .toList();
+  final unfinished = written.where((line) => line.startsWith('TODO'));
+  if (unfinished.isNotEmpty) {
+    throw StateError('${file.path} is unfinished: ${unfinished.first}');
+  }
+  final lines = written
+      .map(normalizeLyrics)
+      .where((line) => line.isNotEmpty)
       .toList();
   if (lines.isEmpty) {
     throw StateError('${file.path} has no lyrics');
   }
-  final unfinished = lines.where((line) => line.startsWith('TODO'));
-  if (unfinished.isNotEmpty) {
-    throw StateError('${file.path} is unfinished: ${unfinished.first}');
-  }
-  return [for (final line in lines) normalizeLyrics(line)];
+  return lines;
 }
 
 Future<String> _ffmpegVersion() async {
-  final result = await Process.run('ffmpeg', ['-version']);
-  if (result.exitCode != 0) {
+  try {
+    final result = await Process.run('ffmpeg', ['-version']);
+    return (result.stdout as String).split('\n').first;
+  } on ProcessException {
     throw StateError('ffmpeg is not on the PATH');
   }
-  return (result.stdout as String).split('\n').first;
 }
 
-Future<List<_Score>> _scoreAllVariants(
-  GroqClient groq, {
-  required File video,
-  required List<String> expectedLines,
-  required Directory workFolder,
-}) async {
-  final pieces = {
-    true: await _cutPieces(video, workFolder, cleaned: true),
-    false: await _cutPieces(video, workFolder, cleaned: false),
-  };
-  final scores = <_Score>[];
-  for (final variant in _variants) {
-    final heard = await _transcribe(
-      groq,
-      pieces[variant.cleaned]!,
-      variant.languageCode,
-    );
-    scores.add(_score(variant, heard, expectedLines));
-  }
-  return scores;
+/// The pieces of one run of the app's FFmpeg command: [cleaned] has the
+/// `-af` filter, [raw] is the same command without it.
+class _CutPieces {
+  const _CutPieces({required this.cleaned, required this.raw});
+
+  final List<File> cleaned;
+  final List<File> raw;
+
+  List<File> of(_Variant variant) => variant.cleaned ? cleaned : raw;
 }
 
-/// The pieces the app would send, cleaned or, for the baseline, the same
-/// command without the `-af` filter.
-Future<List<File>> _cutPieces(
-  File video,
-  Directory workFolder, {
-  required bool cleaned,
-}) async {
-  final folder = Directory('${workFolder.path}/${cleaned ? 'cleaned' : 'raw'}');
-  await folder.create();
-  final appArguments = scriptPiecesArguments(
+Future<_CutPieces> _cutBothKinds(File video, Directory workFolder) async {
+  final cleanedFolder = await Directory('${workFolder.path}/cleaned').create();
+  final rawFolder = await Directory('${workFolder.path}/raw').create();
+  final appArguments = _appArguments(video, cleanedFolder);
+  return _CutPieces(
+    cleaned: await _runFfmpeg(appArguments, cleanedFolder),
+    raw: await _runFfmpeg(
+      _withoutFilter(_appArguments(video, rawFolder)),
+      rawFolder,
+    ),
+  );
+}
+
+List<String> _appArguments(File video, Directory folder) {
+  return scriptPiecesArguments(
     ScriptPieces(
       inputPath: video.path,
       folderPath: folder.path,
       chunkSeconds: _pieceSeconds,
     ),
   );
-  final arguments = cleaned ? appArguments : _withoutFilter(appArguments);
+}
+
+Future<List<File>> _runFfmpeg(List<String> arguments, Directory folder) async {
   final result = await Process.run('ffmpeg', [
     '-hide_banner',
     '-loglevel',
@@ -173,15 +179,35 @@ List<String> _withoutFilter(List<String> arguments) {
   return [...arguments]..removeRange(filterAt, filterAt + 2);
 }
 
+Future<List<_Score>> _scoreAllVariants(
+  GroqClient groq,
+  List<String> expectedLines,
+  _CutPieces pieces,
+) async {
+  final scores = <_Score>[];
+  for (final variant in _variants) {
+    final heard = await _transcribe(groq, pieces.of(variant), variant);
+    scores.add(_score(variant, heard, expectedLines));
+  }
+  return scores;
+}
+
 Future<String> _transcribe(
   GroqClient groq,
   List<File> pieces,
-  String? languageCode,
+  _Variant variant,
 ) async {
   final texts = <String>[];
   for (final piece in pieces) {
-    final segments = await groq.transcribe(piece, languageCode: languageCode);
-    texts.addAll(segments.map((segment) => segment.text));
+    final segments = await groq.transcribe(
+      piece,
+      languageCode: variant.languageCode,
+    );
+    texts.addAll(
+      segments
+          .where((segment) => segment.noSpeechProbability < groqNoSpeechCutoff)
+          .map((segment) => segment.text),
+    );
   }
   return normalizeLyrics(texts.join(' '));
 }
@@ -203,7 +229,18 @@ void _printReport(String ffmpegVersion, List<_Score> scores) {
     ..writeln(ffmpegVersion)
     ..writeln('Groq whisper-large-v3-turbo, pieces of $_pieceSeconds s')
     ..writeln('Filter: $cleanVoiceFilter')
-    ..writeln()
+    ..writeln();
+  _printTable(scores);
+  stdout.writeln();
+  for (final languageCode in const <String?>[null, 'ur']) {
+    stdout.writeln(_verdict(scores, languageCode));
+  }
+  stdout.writeln();
+  _printWhatWasHeard(scores);
+}
+
+void _printTable(List<_Score> scores) {
+  stdout
     ..writeln('| Audio | Language | CER | Lines missing |')
     ..writeln('|---|---|---|---|');
   for (final score in scores) {
@@ -213,11 +250,9 @@ void _printReport(String ffmpegVersion, List<_Score> scores) {
       '| ${score.missing.length} |',
     );
   }
-  stdout.writeln();
-  for (final languageCode in const <String?>[null, 'ur']) {
-    stdout.writeln(_verdict(scores, languageCode));
-  }
-  stdout.writeln();
+}
+
+void _printWhatWasHeard(List<_Score> scores) {
   for (final score in scores) {
     stdout
       ..writeln('${score.variant.audioName}/${score.variant.languageName}:')

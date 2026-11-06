@@ -36,10 +36,6 @@ class ChunkWritten extends ChunkEvent {
   final List<TranscriptLine> lines;
 }
 
-/// Segments Groq is this sure hold no speech are dropped. Turbo always
-/// reports 0 (§10 Q5), so this only matters if the model changes.
-const groqNoSpeechCutoff = 0.6;
-
 /// One Groq run over a video's FLAC pieces, possibly resuming after
 /// [completedPieces] pieces whose lines ended at [firstIndex] − 1.
 class GroqTranscription {

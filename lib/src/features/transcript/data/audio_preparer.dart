@@ -37,16 +37,16 @@ class AudioPreparer {
   }) async {
     final cut = _currentCut = FfmpegCancelHandle();
     final folder = _piecesFolder(video, chunkSeconds);
+    // Checked between the folder steps: a cancelled cut that carried on
+    // would delete the folder a quick retry has started writing to.
+    _throwIfCancelled(cut);
     await _deleteOtherPieceFolders(video.parent, keep: folder);
     if (await _isFinished(folder)) {
       return _readPieces(folder);
     }
+    _throwIfCancelled(cut);
     await _emptied(folder);
-    // Checked after the folder work too: a cancel that came during it must
-    // not start FFmpeg, whose output a quick retry would then delete.
-    if (cut.isCancelled) {
-      throw const FfmpegFailedException('stopped before it started');
-    }
+    _throwIfCancelled(cut);
     return _cutAndMark(
       ScriptPieces(
         inputPath: video.path,
@@ -83,13 +83,22 @@ class AudioPreparer {
   Future<void> stopRunning() async => _currentCut?.cancel();
 
   Directory _piecesFolder(File video, int chunkSeconds) {
-    final chainId = sha256
-        .convert(cleanVoiceFilter.codeUnits)
+    return Directory(
+      '${video.parent.path}/$_piecesFolderPrefix${chunkSeconds}_'
+      '${_commandId(chunkSeconds)}',
+    );
+  }
+
+  /// Names the whole FFmpeg command, not only the filter chain: a changed
+  /// sample rate or format must not reuse pieces cut with the old one.
+  String _commandId(int chunkSeconds) {
+    final command = scriptPiecesArguments(
+      ScriptPieces(inputPath: '', folderPath: '', chunkSeconds: chunkSeconds),
+    );
+    return sha256
+        .convert(command.join('\n').codeUnits)
         .toString()
         .substring(0, 8);
-    return Directory(
-      '${video.parent.path}/$_piecesFolderPrefix${chunkSeconds}_$chainId',
-    );
   }
 
   Future<void> _deleteOtherPieceFolders(
@@ -143,10 +152,14 @@ class AudioPreparer {
     return true;
   }
 
-  Future<void> _emptied(Directory folder) async {
-    if (await folder.exists()) {
-      await folder.delete(recursive: true);
+  void _throwIfCancelled(FfmpegCancelHandle cut) {
+    if (cut.isCancelled) {
+      throw const FfmpegFailedException('stopped before it started');
     }
+  }
+
+  Future<void> _emptied(Directory folder) async {
+    await _deleteIfPresent(folder);
     await folder.create(recursive: true);
   }
 }

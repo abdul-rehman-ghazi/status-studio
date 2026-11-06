@@ -9,6 +9,11 @@ const _longestWait = Duration(seconds: 60);
 const _defaultWait = Duration(seconds: 5);
 const _model = 'whisper-large-v3-turbo';
 
+/// Segments Groq is this sure hold no speech are dropped. Turbo always
+/// reports 0 (§10 Q5), so this only matters if the model changes. Here, not
+/// in the transcriber, so tool/voice_check.dart can apply the same rule.
+const groqNoSpeechCutoff = 0.6;
+
 // The only Groq model the key can call that searches the web (spec §10 #6).
 const _scriptFixModel = 'openai/gpt-oss-120b';
 
