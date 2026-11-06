@@ -129,7 +129,7 @@ class ReelRenderer(private val context: Context) {
             .build()
     }
 
-    /** Framing first, then the dip at scene cuts, the caption and branding overlay always last. */
+    /** Framing first, the caption and branding overlay always last. */
     private fun videoEffects(spec: RenderSpec, overlay: TimedCaptionOverlay): List<Effect> {
         val fitOutput = Presentation.createForWidthAndHeight(
             spec.outputWidth,
@@ -164,14 +164,7 @@ class ReelRenderer(private val context: Context) {
             )
             Fill.None -> listOf(fitOutput)
         }
-        return framing + cutDipFor(spec.fill) + OverlayEffect(listOf(overlay))
-    }
-
-    /** A moving crop with scene cuts dims the picture around each, as the preview does. */
-    private fun cutDipFor(fill: Fill): List<Effect> {
-        if (fill !is Fill.MovingCrop) return listOf()
-        val cuts = cutTimesMs(fill.keyframes)
-        return if (cuts.isEmpty()) listOf() else listOf(CutDip(cuts))
+        return framing + OverlayEffect(listOf(overlay))
     }
 }
 
