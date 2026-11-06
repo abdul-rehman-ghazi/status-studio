@@ -4,6 +4,7 @@ import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dar
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/style/domain/caption_cues.dart';
+import 'package:status_studio/src/features/style/domain/cut_dip.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/framed_video.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
@@ -71,11 +72,14 @@ class _ReelStageState extends State<ReelStage>
       child: Stack(
         children: [
           Positioned.fill(
-            child: FramedVideo(
-              video: widget.video,
-              frame: draft.frame,
-              sourceSize: widget.sourceSize,
-              videoTime: time,
+            child: Opacity(
+              opacity: _dipWhilePlaying(draft, time),
+              child: FramedVideo(
+                video: widget.video,
+                frame: draft.frame,
+                sourceSize: widget.sourceSize,
+                videoTime: time,
+              ),
             ),
           ),
           _overlayFor(
@@ -87,6 +91,13 @@ class _ReelStageState extends State<ReelStage>
         ],
       ),
     );
+  }
+
+  /// Paused or scrubbing, the position is exact and a cut is shown as it is.
+  double _dipWhilePlaying(ReelDraft draft, Duration time) {
+    return widget.playhead.isPlaying
+        ? opacityAroundCuts(draft.frame.cropPath, time)
+        : 1;
   }
 
   Widget _overlayFor(OverlaySpec spec) {
