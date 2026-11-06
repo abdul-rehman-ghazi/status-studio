@@ -7,7 +7,9 @@ import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 
 const _longestWait = Duration(seconds: 60);
 const _defaultWait = Duration(seconds: 5);
-const _model = 'whisper-large-v3-turbo';
+
+/// The model every script is written with (spec FR-12a).
+const scriptModel = 'whisper-large-v3-turbo';
 
 /// Segments Groq is this sure hold no speech are dropped. Turbo always
 /// reports 0 (§10 Q5), so this only matters if the model changes. Here, not
@@ -37,6 +39,7 @@ class GroqSegment {
 class GroqClient {
   GroqClient({
     required this.apiKey,
+    this.model = scriptModel,
     Uri? baseUri,
     HttpClient? httpClient,
     Future<void> Function(Duration)? wait,
@@ -45,6 +48,9 @@ class GroqClient {
        _wait = wait ?? Future<void>.delayed;
 
   final String apiKey;
+
+  /// Only tool/voice_check.dart passes another model, to compare them.
+  final String model;
   final Uri _baseUri;
   final HttpClient _http;
   final Future<void> Function(Duration) _wait;
@@ -56,14 +62,20 @@ class GroqClient {
   }
 
   /// Writes one FLAC piece, in [languageCode] or, when it's `null`,
-  /// in the language Groq detects.
+  /// in the language Groq detects. [prompt] is a text hint Whisper reads
+  /// before the audio; the app sends none.
   Future<List<GroqSegment>> transcribe(
     File piece, {
     required String? languageCode,
+    String? prompt,
   }) async {
     final audio = await piece.readAsBytes();
     final boundary = 'studio${DateTime.now().microsecondsSinceEpoch}';
-    final body = _multipartBody(boundary, audio, languageCode);
+    final body = _multipartBody(
+      boundary,
+      audio,
+      _transcriptionFields(languageCode, prompt),
+    );
     final reply = await _send(() async {
       final request = await _open('POST', '/audio/transcriptions');
       request.headers.contentType = ContentType(
@@ -159,18 +171,25 @@ class GroqClient {
         : Duration(milliseconds: (seconds * 1000).round());
   }
 
-  List<int> _multipartBody(
-    String boundary,
-    List<int> audio,
+  Map<String, String> _transcriptionFields(
     String? languageCode,
+    String? prompt,
   ) {
-    final fields = {
-      'model': _model,
+    return {
+      'model': model,
       'response_format': 'verbose_json',
       'timestamp_granularities[]': 'segment',
       'temperature': '0',
-      ?(languageCode == null ? null : 'language'): languageCode,
+      'language': ?languageCode,
+      'prompt': ?prompt,
     };
+  }
+
+  List<int> _multipartBody(
+    String boundary,
+    List<int> audio,
+    Map<String, String> fields,
+  ) {
     final bytes = BytesBuilder();
     for (final MapEntry(:key, :value) in fields.entries) {
       bytes.add(

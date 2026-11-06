@@ -28,6 +28,11 @@ import 'package:status_studio/src/features/transcript/data/groq_client.dart';
 import 'voice_check/lyrics_score.dart';
 
 const _pieceSeconds = 90;
+
+const _models = [scriptModel, 'whisper-large-v3'];
+
+/// A generic hint, with no lyrics in it: "This is a naat sharif in Urdu."
+const _urduHint = 'یہ اردو زبان میں ایک نعت شریف ہے۔';
 const _passCerCeiling = 0.15;
 const _keyVariable = 'GROQ_API_KEY';
 const _noKeyExitCode = 2;
@@ -48,7 +53,10 @@ Future<void> main(List<String> arguments) async {
   try {
     final ffmpegVersion = await _ffmpegVersion();
     final scores = await _scoreAllVariants(
-      GroqClient(apiKey: apiKey),
+      {
+        for (final model in _models)
+          model: GroqClient(apiKey: apiKey, model: model),
+      },
       expectedLines,
       await _cutBothKinds(File(arguments[0]), workFolder),
     );
@@ -59,13 +67,19 @@ Future<void> main(List<String> arguments) async {
 }
 
 class _Variant {
-  const _Variant({required this.cleaned, required this.languageCode});
+  const _Variant({
+    required this.model,
+    required this.prompt,
+    required this.cleaned,
+  });
 
+  final String model;
+  final String? prompt;
   final bool cleaned;
-  final String? languageCode;
 
   String get audioName => cleaned ? 'cleaned' : 'raw';
-  String get languageName => languageCode ?? 'auto';
+  String get promptName => prompt == null ? 'none' : 'Urdu hint';
+  String get groupName => '$model, prompt $promptName';
 }
 
 class _Score {
@@ -82,11 +96,14 @@ class _Score {
   final String heard;
 }
 
-const _variants = [
-  _Variant(cleaned: false, languageCode: null),
-  _Variant(cleaned: true, languageCode: null),
-  _Variant(cleaned: false, languageCode: 'ur'),
-  _Variant(cleaned: true, languageCode: 'ur'),
+/// Every model with and without the hint, each on raw and cleaned audio.
+/// Language stays automatic: it picked Urdu on its own, and `ur` gave the
+/// same text (§10 item 8).
+final _variants = [
+  for (final model in _models)
+    for (final prompt in const <String?>[null, _urduHint])
+      for (final cleaned in const [false, true])
+        _Variant(model: model, prompt: prompt, cleaned: cleaned),
 ];
 
 Future<List<String>> _readExpectedLines(File file) async {
@@ -183,13 +200,17 @@ List<String> _withoutFilter(List<String> arguments) {
 }
 
 Future<List<_Score>> _scoreAllVariants(
-  GroqClient groq,
+  Map<String, GroqClient> clients,
   List<String> expectedLines,
   _CutPieces pieces,
 ) async {
   final scores = <_Score>[];
   for (final variant in _variants) {
-    final heard = await _transcribe(groq, pieces.of(variant), variant);
+    final heard = await _transcribe(
+      clients[variant.model]!,
+      pieces.of(variant),
+      variant,
+    );
     scores.add(_score(variant, heard, expectedLines));
   }
   return scores;
@@ -204,7 +225,8 @@ Future<String> _transcribe(
   for (final piece in pieces) {
     final segments = await groq.transcribe(
       piece,
-      languageCode: variant.languageCode,
+      languageCode: null,
+      prompt: variant.prompt,
     );
     texts.addAll(
       segments
@@ -230,13 +252,13 @@ _Score _score(_Variant variant, String heard, List<String> expectedLines) {
 void _printReport(String ffmpegVersion, List<_Score> scores) {
   stdout
     ..writeln(ffmpegVersion)
-    ..writeln('Groq whisper-large-v3-turbo, pieces of $_pieceSeconds s')
+    ..writeln('Groq, pieces of $_pieceSeconds s, automatic language')
     ..writeln('Filter: $cleanVoiceFilter')
     ..writeln();
   _printTable(scores);
   stdout.writeln();
-  for (final languageCode in const <String?>[null, 'ur']) {
-    stdout.writeln(_verdict(scores, languageCode));
+  for (final group in scores.map((score) => score.variant.groupName).toSet()) {
+    stdout.writeln(_verdict(scores, group));
   }
   stdout.writeln();
   _printWhatWasHeard(scores);
@@ -244,11 +266,12 @@ void _printReport(String ffmpegVersion, List<_Score> scores) {
 
 void _printTable(List<_Score> scores) {
   stdout
-    ..writeln('| Audio | Language | CER | Lines missing |')
-    ..writeln('|---|---|---|---|');
+    ..writeln('| Model | Prompt | Audio | CER | Lines missing |')
+    ..writeln('|---|---|---|---|---|');
   for (final score in scores) {
     stdout.writeln(
-      '| ${score.variant.audioName} | ${score.variant.languageName} '
+      '| ${score.variant.model} | ${score.variant.promptName} '
+      '| ${score.variant.audioName} '
       '| ${(score.errorRate * 100).toStringAsFixed(1)} % '
       '| ${score.missing.length} |',
     );
@@ -258,7 +281,7 @@ void _printTable(List<_Score> scores) {
 void _printWhatWasHeard(List<_Score> scores) {
   for (final score in scores) {
     stdout
-      ..writeln('${score.variant.audioName}/${score.variant.languageName}:')
+      ..writeln('${score.variant.groupName}, ${score.variant.audioName}:')
       ..writeln('  heard: ${score.heard}');
     for (final line in score.missing) {
       stdout.writeln('  missing: $line');
@@ -266,15 +289,13 @@ void _printWhatWasHeard(List<_Score> scores) {
   }
 }
 
-String _verdict(List<_Score> scores, String? languageCode) {
-  final sameLanguage = scores.where(
-    (score) => score.variant.languageCode == languageCode,
-  );
-  final raw = sameLanguage.firstWhere((score) => !score.variant.cleaned);
-  final cleaned = sameLanguage.firstWhere((score) => score.variant.cleaned);
+String _verdict(List<_Score> scores, String group) {
+  final sameGroup = scores.where((score) => score.variant.groupName == group);
+  final raw = sameGroup.firstWhere((score) => !score.variant.cleaned);
+  final cleaned = sameGroup.firstWhere((score) => score.variant.cleaned);
   final passes =
       cleaned.errorRate < raw.errorRate && cleaned.errorRate <= _passCerCeiling;
-  return '${languageCode ?? 'auto'}: ${passes ? 'PASS' : 'FAIL'} '
+  return '$group: ${passes ? 'PASS' : 'FAIL'} '
       '(cleaned ${(cleaned.errorRate * 100).toStringAsFixed(1)} % '
       'against raw ${(raw.errorRate * 100).toStringAsFixed(1)} %)';
 }
