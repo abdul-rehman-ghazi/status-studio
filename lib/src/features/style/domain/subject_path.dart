@@ -20,6 +20,12 @@ const _jumpIsACut = 0.3;
 const _keyframeSpacing = Duration(milliseconds: 500);
 const _tenth = Duration(milliseconds: 100);
 
+/// A scene's Cut keyframe sits this much before the cut, not on it: the
+/// renderer reads a frame's time in whole milliseconds, so a keyframe on the
+/// cut could still show the new shot's first frame with the old crop. A frame
+/// is longer than this at any frame rate up to 100 fps.
+const _cutLead = Duration(milliseconds: 10);
+
 /// The crop path for what the user chose in each scene, in order (spec
 /// FR-27): a face or body is followed within its scene, a spot is held.
 ///
@@ -79,8 +85,9 @@ List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
 /// The cuts that make a scene long enough to hold its keyframe: one within
 /// half a second of the scene before it, or of the clip's end, is not a
 /// boundary, or the user's answer for that scene would be dropped by the
-/// keyframe spacing. Times are compared as the keyframes will have them,
-/// rounded to a tenth of a second.
+/// keyframe spacing. A cut is compared as its keyframe will be (a little
+/// before it, see [_cutLead]), and the clip's ends as theirs are (rounded
+/// inwards to a tenth of a second).
 List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
   final inside =
       cuts.where((cut) => cut > clip.start && cut < clip.end).toList()..sort();
@@ -88,7 +95,7 @@ List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
   var previous = _roundedUpToTenth(clip.start);
   final latest = _roundedDownToTenth(clip.end);
   for (final cut in inside) {
-    final at = _snapped(cut);
+    final at = cut - _cutLead;
     final longEnough =
         at - previous >= _keyframeSpacing && latest - at >= _keyframeSpacing;
     if (longEnough) {
@@ -457,7 +464,11 @@ List<CropKeyframe> _keyframesFrom(
   for (final (sceneIndex, path) in scenePaths.indexed) {
     for (final (pointIndex, point) in path.indexed) {
       final startsScene = pointIndex == 0 && sceneIndex > 0;
-      final time = _within(_snapped(point.time), earliest, latest);
+      final time = _within(
+        startsScene ? point.time - _cutLead : _snapped(point.time),
+        earliest,
+        latest,
+      );
       final keyframe = CropKeyframe(
         time: keyframes.isEmpty ? earliest : time,
         anchor: point.anchor,
