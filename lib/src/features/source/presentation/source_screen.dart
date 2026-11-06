@@ -131,7 +131,10 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     if (!mounted) {
       return;
     }
-    setState(() => _videoRequest = request..ignore());
+    request.ignore();
+    setState(() {
+      _videoRequest = request;
+    });
   }
 
   Future<SourceVideo> _importVideo(String path, String displayName) async {

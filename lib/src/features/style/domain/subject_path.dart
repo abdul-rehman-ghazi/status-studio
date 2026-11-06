@@ -44,12 +44,7 @@ CropPath pathForChoices(
 /// The crop anchor that puts the spot at ([x], [y]), as fractions of the
 /// frame, in the middle of the window.
 CropAnchor anchorForSpot(double x, double y, FollowGeometry geometry) {
-  return _anchorKeeping(
-    x: x,
-    y: y,
-    windowDown: 1 / 2,
-    geometry: geometry,
-  );
+  return _anchorKeeping(_Aim(x: x, y: y, windowDown: 1 / 2), geometry);
 }
 
 // --- Scenes -------------------------------------------------------------
@@ -81,9 +76,25 @@ List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
   return _scenesBetween(track.samples, cuts, geometry.clip);
 }
 
+/// The cuts that make a scene long enough to hold its keyframe: one within
+/// half a second of the scene before it, or of the clip's end, is not a
+/// boundary, or the user's answer for that scene would be dropped by the
+/// keyframe spacing.
 List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
-  return cuts.where((cut) => cut > clip.start && cut < clip.end).toList()
-    ..sort();
+  final inside =
+      cuts.where((cut) => cut > clip.start && cut < clip.end).toList()..sort();
+  final kept = <Duration>[];
+  var previous = clip.start;
+  for (final cut in inside) {
+    final longEnough =
+        cut - previous >= _keyframeSpacing &&
+        clip.end - cut >= _keyframeSpacing;
+    if (longEnough) {
+      kept.add(cut);
+      previous = cut;
+    }
+  }
+  return kept;
 }
 
 List<SubjectScene> _scenesBetween(
@@ -204,25 +215,30 @@ List<_Point> _scenePoints(
     FollowFace(:final track) => _followedPoints(
       scene,
       geometry,
-      track,
-      _anchorFor,
+      _Followed(track, _anchorFor),
     ),
     FollowBody(:final track) => _followedPoints(
       scene,
       geometry,
-      track,
-      _bodyAnchorFor,
+      _Followed(track, _bodyAnchorFor),
     ),
   };
+}
+
+/// Who is followed in a scene, and how a box of theirs becomes an anchor.
+class _Followed {
+  const _Followed(this.track, this.anchorFor);
+
+  final FaceTrack track;
+  final CropAnchor Function(SubjectBox box, FollowGeometry geometry) anchorFor;
 }
 
 List<_Point> _followedPoints(
   SubjectScene scene,
   FollowGeometry geometry,
-  FaceTrack track,
-  CropAnchor Function(SubjectBox box, FollowGeometry geometry) anchorFor,
+  _Followed followed,
 ) {
-  final anchors = _filledAnchors(scene.samples, geometry, track, anchorFor);
+  final anchors = _filledAnchors(scene.samples, geometry, followed);
   final xs = _followedWithDeadZone(_median([for (final a in anchors) a.x]));
   final ys = _followedWithDeadZone(_median([for (final a in anchors) a.y]));
   final points = [
@@ -242,13 +258,12 @@ List<_Point> _followedPoints(
 List<CropAnchor> _filledAnchors(
   List<SubjectSample> samples,
   FollowGeometry geometry,
-  FaceTrack followed,
-  CropAnchor Function(SubjectBox box, FollowGeometry geometry) anchorFor,
+  _Followed followed,
 ) {
   final found = <CropAnchor?>[];
   for (var i = 0; i < samples.length; i++) {
-    final box = followed.faceAt(i);
-    found.add(box == null ? null : anchorFor(box, geometry));
+    final box = followed.track.faceAt(i);
+    found.add(box == null ? null : followed.anchorFor(box, geometry));
   }
   final first = found.firstWhere((a) => a != null, orElse: () => null);
   var held = first ?? geometry.base;
@@ -259,10 +274,8 @@ List<CropAnchor> _filledAnchors(
 /// down it; an axis with almost no room keeps the base.
 CropAnchor _anchorFor(SubjectBox face, FollowGeometry geometry) {
   return _anchorKeeping(
-    x: face.centreX,
-    y: face.centreY,
-    windowDown: 1 / 3,
-    geometry: geometry,
+    _Aim(x: face.centreX, y: face.centreY, windowDown: 1 / 3),
+    geometry,
   );
 }
 
@@ -270,27 +283,29 @@ CropAnchor _anchorFor(SubjectBox face, FollowGeometry geometry) {
 /// the head and chest are) a third of the way down the window.
 CropAnchor _bodyAnchorFor(SubjectBox body, FollowGeometry geometry) {
   return _anchorKeeping(
-    x: body.centreX,
-    y: body.top + body.height / 3,
-    windowDown: 1 / 3,
-    geometry: geometry,
+    _Aim(x: body.centreX, y: body.top + body.height / 3, windowDown: 1 / 3),
+    geometry,
   );
 }
 
-/// The anchor that puts the point at ([x], [y]) [windowDown] of the way down
-/// the window; an axis with almost no room keeps the base.
-CropAnchor _anchorKeeping({
-  required double x,
-  required double y,
-  required double windowDown,
-  required FollowGeometry geometry,
-}) {
+/// A point of the frame and how far down the window it should sit.
+class _Aim {
+  const _Aim({required this.x, required this.y, required this.windowDown});
+
+  final double x;
+  final double y;
+  final double windowDown;
+}
+
+/// The anchor that puts [aim]'s point where it says in the window; an axis
+/// with almost no room keeps the base.
+CropAnchor _anchorKeeping(_Aim aim, FollowGeometry geometry) {
   final anchorX = geometry.roomX < _smallestRoom
       ? geometry.base.x
-      : (x - geometry.windowWidth / 2) / geometry.roomX;
+      : (aim.x - geometry.windowWidth / 2) / geometry.roomX;
   final anchorY = geometry.roomY < _smallestRoom
       ? geometry.base.y
-      : (y - geometry.windowHeight * windowDown) / geometry.roomY;
+      : (aim.y - geometry.windowHeight * aim.windowDown) / geometry.roomY;
   return CropAnchor(x: anchorX, y: anchorY).clamped();
 }
 

@@ -244,23 +244,28 @@ class FollowSubjectController extends Notifier<FollowState> {
         pictureSize: sourceSize,
         pathAtStart: pathAtStart,
       );
-      keptForTheChoice = true;
       _ask(0);
+      keptForTheChoice = true;
     } on Object {
       if (!_isStale(generation)) {
         state = const FollowFailed();
       }
     } finally {
       if (!keptForTheChoice) {
+        // Only this run's walk: a newer run may have its own by now.
+        if (identical(_walk?.frames, frames)) {
+          _walk = null;
+        }
         await frames?.delete();
       }
     }
   }
 
-  /// The user answered the scene's question (spec FR-27).
-  void answer(SceneAnswer answer) {
+  /// The user answered [question] (spec FR-27). An answer to a question that
+  /// is no longer the current one is ignored.
+  void answer(FollowChoosing question, SceneAnswer answer) {
     final walk = _walk;
-    if (walk == null || state is! FollowChoosing) {
+    if (walk == null || !identical(state, question)) {
       return;
     }
     switch (answer) {

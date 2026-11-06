@@ -211,7 +211,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
     ref
         .read(followSubjectProvider.notifier)
-        .answer(answer ?? const Cancelled());
+        .answer(choosing, answer ?? const Cancelled());
   }
 
   /// Says how a run ended (spec FR-23), then clears it.

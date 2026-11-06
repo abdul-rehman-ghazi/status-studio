@@ -74,10 +74,16 @@ class _PersonChooserSheetState extends State<PersonChooserSheet> {
       return;
     }
     setState(() => _pin = spot);
-    _pinTimer = Timer(
-      _pinShown,
-      () => widget.onAnswered(PickedSpot(x: spot.dx, y: spot.dy)),
-    );
+    _pinTimer = Timer(_pinShown, () => _answerSpot(spot));
+  }
+
+  /// The sheet may have been closed (a drag, the scrim, Back) while the pin
+  /// showed; popping again then would close the screen under it.
+  void _answerSpot(Offset spot) {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      return;
+    }
+    widget.onAnswered(PickedSpot(x: spot.dx, y: spot.dy));
   }
 
   @override
@@ -276,19 +282,23 @@ class _Picture extends StatelessWidget {
             ),
             for (final (index, body) in choosing.bodies.indexed)
               _Marker(
-                label: 'Body ${index + 1}',
-                badge: 'B${index + 1}',
-                color: AppColors.textPrimary,
-                badgeTextColor: AppColors.background,
+                style: _MarkerStyle(
+                  label: 'Body ${index + 1}',
+                  badge: 'B${index + 1}',
+                  color: AppColors.textPrimary,
+                  badgeTextColor: AppColors.background,
+                ),
                 rect: _rectOf(body),
                 onTap: () => onBody(index),
               ),
             for (final (index, face) in choosing.faces.indexed)
               _Marker(
-                label: 'Person ${index + 1}',
-                badge: '${index + 1}',
-                color: AppColors.accent,
-                badgeTextColor: AppColors.onAccent,
+                style: _MarkerStyle(
+                  label: 'Person ${index + 1}',
+                  badge: '${index + 1}',
+                  color: AppColors.accent,
+                  badgeTextColor: AppColors.onAccent,
+                ),
                 rect: _rectOf(face),
                 onTap: () => onFace(index),
               ),
@@ -300,20 +310,25 @@ class _Picture extends StatelessWidget {
   }
 }
 
-class _Marker extends StatelessWidget {
-  const _Marker({
+/// How a marker reads: to the eye and to a screen reader.
+class _MarkerStyle {
+  const _MarkerStyle({
     required this.label,
     required this.badge,
     required this.color,
     required this.badgeTextColor,
-    required this.rect,
-    required this.onTap,
   });
 
   final String label;
   final String badge;
   final Color color;
   final Color badgeTextColor;
+}
+
+class _Marker extends StatelessWidget {
+  const _Marker({required this.style, required this.rect, required this.onTap});
+
+  final _MarkerStyle style;
   final Rect rect;
   final VoidCallback onTap;
 
@@ -328,7 +343,7 @@ class _Marker extends StatelessWidget {
       rect: target,
       child: Semantics(
         button: true,
-        label: label,
+        label: style.label,
         onTap: onTap,
         excludeSemantics: true,
         child: Center(
@@ -337,15 +352,15 @@ class _Marker extends StatelessWidget {
             height: rect.height,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                border: Border.all(color: color, width: 2),
+                border: Border.all(color: style.color, width: 2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Align(
                 alignment: Alignment.topLeft,
                 child: _Badge(
-                  text: badge,
-                  color: color,
-                  textColor: badgeTextColor,
+                  text: style.badge,
+                  color: style.color,
+                  textColor: style.badgeTextColor,
                 ),
               ),
             ),
@@ -372,9 +387,7 @@ class _Badge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color,
-        borderRadius: const BorderRadius.only(
-          bottomRight: Radius.circular(6),
-        ),
+        borderRadius: const BorderRadius.only(bottomRight: Radius.circular(6)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
