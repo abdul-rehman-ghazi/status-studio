@@ -2,5 +2,6 @@
   "java.configuration.updateBuildConfiguration": "interactive",
   "dart.flutterSdkPath": ".fvm/versions/3.47.8",
   "java.import.gradle.java.home": "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
-  "java.compile.nullAnalysis.mode": "automatic"
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable"
 }
