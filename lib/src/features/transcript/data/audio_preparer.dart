@@ -42,29 +42,41 @@ class AudioPreparer {
       return _readPieces(folder);
     }
     await _emptied(folder);
+    // Checked after the folder work too: a cancel that came during it must
+    // not start FFmpeg, whose output a quick retry would then delete.
     if (cut.isCancelled) {
       throw const FfmpegFailedException('stopped before it started');
     }
-    await runner.run(
-      scriptPiecesArguments(
-        ScriptPieces(
-          inputPath: video.path,
-          folderPath: folder.path,
-          chunkSeconds: chunkSeconds,
-        ),
+    return _cutAndMark(
+      ScriptPieces(
+        inputPath: video.path,
+        folderPath: folder.path,
+        chunkSeconds: chunkSeconds,
       ),
+      cut,
+      onProcessed,
+    );
+  }
+
+  Future<List<AudioPiece>> _cutAndMark(
+    ScriptPieces pieces,
+    FfmpegCancelHandle cut,
+    void Function(Duration processed) onProcessed,
+  ) async {
+    await runner.run(
+      scriptPiecesArguments(pieces),
       onTime: onProcessed,
       cancelHandle: cut,
     );
-    final list = File('${folder.path}/$segmentListName');
-    if (!await list.exists()) {
+    if (!await File(pieces.segmentListPath).exists()) {
       throw const VideoUnreadableException('FFmpeg wrote no audio pieces');
     }
-    final pieces = parseSegmentList(await list.readAsString(), folder: folder);
+    final folder = Directory(pieces.folderPath);
+    final cutPieces = await _readPieces(folder);
     // FFmpeg appends to the segment list as it goes, so the list alone
     // can't tell a finished cut from one that was cut short.
     await File('${folder.path}/$_finishedMarkerName').writeAsString('');
-    return pieces;
+    return cutPieces;
   }
 
   /// Stops the FFmpeg run, if one is still going.
@@ -89,8 +101,17 @@ class AudioPreparer {
       if (entry is Directory &&
           name.startsWith(_piecesFolderPrefix) &&
           entry.path != keep.path) {
-        await entry.delete(recursive: true);
+        await _deleteIfPresent(entry);
       }
+    }
+  }
+
+  /// A cancelled cut and its retry can both be clearing the same folder.
+  Future<void> _deleteIfPresent(Directory folder) async {
+    try {
+      await folder.delete(recursive: true);
+    } on PathNotFoundException {
+      return;
     }
   }
 
