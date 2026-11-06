@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_time.dart';
 
 /// Where the pieces and their segment list go.
