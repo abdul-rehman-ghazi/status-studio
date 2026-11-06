@@ -254,10 +254,17 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   /// step makes its player again only once Lyrics has slid away: never two
   /// decoders at a time (spec FR-22).
   Future<void> _openLyrics() async {
+    if (_playerReleased) {
+      return;
+    }
     ref.read(followSubjectProvider.notifier).cancel();
     setState(() => _playerReleased = true);
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) {
+      return;
+    }
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      setState(() => _playerReleased = false);
       return;
     }
     final covered = ModalRoute.of(context)?.secondaryAnimation;

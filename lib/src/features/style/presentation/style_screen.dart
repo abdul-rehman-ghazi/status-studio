@@ -34,7 +34,7 @@ class StyleScreen extends ConsumerStatefulWidget {
   ConsumerState<StyleScreen> createState() => _StyleScreenState();
 }
 
-class _StyleScreenState extends ConsumerState<StyleScreen> {
+class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
   late final TextEditingController _captionController = TextEditingController(
     text: ref.read(reelDraftProvider).caption.text,
   );
@@ -48,9 +48,31 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   /// and the phone's 1080p decoder has no memory left for the export's own
   /// (MediaCodec error -12 on the Redmi Note 11).
   var _previewReleased = false;
+  late final RouteObserver<ModalRoute<void>> _routes = ref.read(
+    routeObserverProvider,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (ModalRoute.of(context) case final route?) {
+      _routes.subscribe(this, route);
+    }
+  }
+
+  /// Whatever Export became (it replaces itself with Done) has been popped, so
+  /// the preview's player may come back once that route has slid away. Not on
+  /// the push future: Export ending with Done never completes it.
+  @override
+  void didPopNext() {
+    if (_previewReleased) {
+      unawaited(_restorePreview());
+    }
+  }
 
   @override
   void dispose() {
+    _routes.unsubscribe(this);
     _captionController.dispose();
     super.dispose();
   }
@@ -121,14 +143,27 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   /// back only once Export has slid away: never two decoders at a time (the
   /// same rule as Fine-tune and Lyrics).
   Future<void> _openExport() async {
+    // A second tap before the push must not open Export twice: two renders
+    // would bring the decoder shortage back.
+    if (_previewReleased) {
+      return;
+    }
     setState(() => _previewReleased = true);
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) {
       return;
     }
-    final covered = ModalRoute.of(context)?.secondaryAnimation;
-    await context.push(AppRoutes.export);
-    await untilDismissed(covered);
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      // Back was pressed meanwhile; pushing now would open Export over the
+      // wrong screen.
+      setState(() => _previewReleased = false);
+      return;
+    }
+    unawaited(context.push(AppRoutes.export));
+  }
+
+  Future<void> _restorePreview() async {
+    await untilDismissed(ModalRoute.of(context)?.secondaryAnimation);
     if (mounted) {
       setState(() => _previewReleased = false);
     }

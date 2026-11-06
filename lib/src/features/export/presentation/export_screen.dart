@@ -96,7 +96,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       if (mounted) {
         context.pushReplacement(AppRoutes.doneFor(reel.id));
       }
-    } on Exception catch (error) {
+    } on Object catch (error) {
+      // An Error too (a plugin in a bad state), or Export would stay at 100 %
+      // with nothing to tap.
       if (mounted) {
         setState(() => _failure = error);
       }

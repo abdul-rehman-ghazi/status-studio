@@ -27,6 +27,14 @@ dependencies:
   google_mlkit_face_detection: ^0.15.1
   image_picker: ^1.2.4
 
+# 2.5.x unregisters its one shared "data_store" instance whenever any Flutter
+# engine detaches. The foreground service's engine detaches when a script or an
+# export ends, after which every preferences read in the app throws "No
+# instance named data_store has been registered". 2.4.x unregisters per
+# engine. Remove this when the plugin stops sharing the instance.
+dependency_overrides:
+  shared_preferences_android: 2.4.26
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

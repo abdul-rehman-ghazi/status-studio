@@ -34,7 +34,8 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   final _playhead = ClipPlayhead();
 
   /// True while Caption and Export are open: this player's decoder would
-  /// leave the export's too little memory (spec FR-22, one decoder at a time).
+  /// leave the export's too little memory (one decoder at a time, spec
+  /// FR-21's notes).
   var _playerReleased = false;
   late final ScriptEditingService _scriptEditing;
   late final AppLifecycleListener _lifecycle;
@@ -96,9 +97,19 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   /// Caption opens only once this step's player is gone, and the player comes
   /// back only once Caption has slid away.
   Future<void> _openStyle() async {
+    // A second tap before the push must not open Caption twice.
+    if (_playerReleased) {
+      return;
+    }
     setState(() => _playerReleased = true);
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) {
+      return;
+    }
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      // Back was pressed meanwhile; pushing now would open Caption over the
+      // wrong screen.
+      setState(() => _playerReleased = false);
       return;
     }
     final covered = ModalRoute.of(context)?.secondaryAnimation;
