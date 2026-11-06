@@ -355,7 +355,7 @@ class _ScriptThumbnail extends StatelessWidget {
 }
 
 /// A fine-tune kept at Fine-tune, to continue later (FR-24). Long-press
-/// offers Delete progress, which leaves the video's script.
+/// offers Delete, which removes the fine-tune and the video's script.
 class _FineTuneRow extends ConsumerStatefulWidget {
   const _FineTuneRow({required this.fineTune});
 
@@ -459,8 +459,23 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       .start(fineTune.video, fineTune.draft.script.language);
 
   Future<void> _offerDeleteProgress(BuildContext context, WidgetRef ref) async {
-    if (await _confirmAction(context, 'Delete progress')) {
-      await ref.read(fineTuneDraftsProvider.notifier).delete(fineTune);
+    if (!await _confirmAction(context, 'Delete')) {
+      return;
+    }
+    await ref.read(fineTuneDraftsProvider.notifier).delete(fineTune);
+    await _deleteItsScript(ref);
+  }
+
+  /// Without this the script row would show again where the fine-tune was.
+  Future<void> _deleteItsScript(WidgetRef ref) async {
+    final scripts = await ref.read(savedScriptsProvider.future);
+    final script = scripts.where(
+      (saved) =>
+          saved.video.videoId == fineTune.video.videoId &&
+          saved.language == fineTune.draft.script.language,
+    );
+    for (final saved in script) {
+      await ref.read(savedScriptsProvider.notifier).delete(saved);
     }
   }
 }

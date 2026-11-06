@@ -144,7 +144,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - A script row shows a script icon, the video's name and `Script · <language> · <video length> · <d MMM>`, where an automatic script names its detected language ("Urdu (detected)").
   - Tap opens Fine-tune without Processing. It reopens from the kept `source.<ext>`. When that file is missing, the row says "Choose or share the video again" and the §8 "Video not found" message shows.
   - Long-press offers Delete, which removes that script, its unfinished progress and the kept video.
-- **Fine-tunes to continue (FR-24):** a Continue row replaces the video's script row; long-press offers Delete progress.
+- **Fine-tunes to continue (FR-24):** a Continue row replaces the video's script row; long-press offers Delete, which removes the fine-tune and the video's script, as Delete on a script row does (changed 2026-11-06: the script row used to show again).
   - There is one row per video and requested language.
 
 **FR-12 Settings: speech models (retired in M10, 2026-11-04).** On-device Whisper and its model downloads were removed; the number stays so code and history keep their references. The Settings screen now starts with FR-12a.
@@ -313,7 +313,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Tap, script gone** (no saved script for the video and language, and no unfinished progress that holds the clip's lines): opens Processing, which writes or resumes the script (FR-3, FR-14), then Fine-tune with the snackbar "This fine-tune's script had to be written again. Check the clip's start and end; the size and caption style are kept."
   - **Tap, script changed** (the fingerprint differs, the clip's lines run past the script's end, or the clip runs past the video's end; e.g. after Write it again): opens Fine-tune with the current script and the snackbar "The script changed since this fine-tune was saved. Check the clip's start and end; the size and caption style are kept."
   - In both of those cases the kept fine-tune is deleted. What carries over: size, fill, the crop stopped where it was at the old clip start, and the caption's position and size. The clip's nudges and the caption text do not.
-  - **Long-press:** offers "Delete progress". It deletes only the kept fine-tune, and the video's script row shows again.
+  - **Long-press:** offers "Delete". It deletes the kept fine-tune and the video's script for its language (changed 2026-11-06: it used to delete only the fine-tune, and the script row showed again).
 - **Export:** a finished export (the reel is in Recent, FR-9) deletes the kept fine-tune. Going back from Done and changing something keeps a new one.
 - **Not kept:** the per-scene choices of FR-27 are written into the crop's keyframes, so the keyframes are kept; the scene questions themselves are not. Also anything before Fine-tune opens, the playhead, and the selected keyframe chip.
 
@@ -1072,7 +1072,7 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - A script still being written, whose lines so far hold the clip's lines, continues as Ready; one that doesn't is script gone.
   - A kept fine-tune deleted elsewhere (Delete progress) is written again by the next save of the same work.
   - A second tap on Continue while the first is reading the script does nothing. Writing a script again or choosing another language drops the line-edit shield, so the new script replaces the lines.
-  - The Continue row replaces the script row, and Delete progress brings the script row back.
+  - The Continue row replaces the script row, and Delete removes both the fine-tune and the script (no script row is left).
   - Continue opens Fine-tune and Back shows Source or Home. With the script gone it opens Processing; with the script changed it opens Script with the snackbar. Both delete the draft and keep the frame (crop at the old start) and the caption's position and size.
 
 ## 14. Device checks
