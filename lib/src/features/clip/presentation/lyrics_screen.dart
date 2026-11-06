@@ -35,7 +35,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
 
   /// True while Caption and Export are open: this player's decoder would
   /// leave the export's too little memory (one decoder at a time, spec
-  /// FR-21's notes).
+  /// FR-22).
   var _playerReleased = false;
   late final ScriptEditingService _scriptEditing;
   late final AppLifecycleListener _lifecycle;
