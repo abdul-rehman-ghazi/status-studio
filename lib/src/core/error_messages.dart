@@ -29,8 +29,6 @@ String errorMessageFor(Object error) {
           'first.',
     RenderFailedException() => "Couldn't make the reel.",
     TranslationPackMissingException() => 'English needs a one-time download.',
-    NoSubjectFoundException() =>
-      'No person found in this clip. The crop stays where it is.',
     FollowFailedException() => "Couldn't follow the person. Try again.",
     _ => 'Something went wrong. Try again.',
   };

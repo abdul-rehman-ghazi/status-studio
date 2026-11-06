@@ -193,44 +193,38 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     return replace ?? false;
   }
 
-  /// Asks whom to follow (spec FR-25). Leaving the sheet any other way than
-  /// by answering is a cancel.
-  Future<void> _askWhom(FollowChoosing choosing) async {
-    final follow = ref.read(followSubjectProvider.notifier);
-    await showModalBottomSheet<void>(
+  /// Asks what to keep in frame in one scene (spec FR-27). The sheet closes
+  /// once with its answer, and only then is the answer acted on; leaving it
+  /// any other way is a cancel.
+  Future<void> _askWhat(FollowChoosing choosing) async {
+    final answer = await showModalBottomSheet<SceneAnswer>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheet) => PersonChooserSheet(
         choosing: choosing,
-        onChosen: (choice) {
-          Navigator.of(sheet).pop();
-          follow.choose(choice);
-        },
-        onChooseForMe: () {
-          Navigator.of(sheet).pop();
-          follow.chooseForMe();
-        },
-        onCancel: () => Navigator.of(sheet).pop(),
+        onAnswered: (answer) => Navigator.of(sheet).pop(answer),
       ),
     );
-    if (mounted && ref.read(followSubjectProvider) is FollowChoosing) {
-      follow.cancel();
+    if (!mounted) {
+      return;
     }
+    ref
+        .read(followSubjectProvider.notifier)
+        .answer(answer ?? const Cancelled());
   }
 
   /// Says how a run ended (spec FR-23), then clears it.
   void _showHowFollowEnded(FollowState? before, FollowState after) {
     if (after is FollowChoosing) {
-      unawaited(_askWhom(after));
+      unawaited(_askWhat(after));
       return;
     }
     final message = switch (after) {
       FollowDone(:final keyframeCount) =>
-        'The crop follows the person ($keyframeCount '
+        'The crop follows your choices ($keyframeCount '
             '${keyframeCount == 1 ? 'keyframe' : 'keyframes'}). '
             'Drag or tap a chip to adjust.',
-      FollowNoSubject() => errorMessageFor(const NoSubjectFoundException()),
       FollowFailed() => errorMessageFor(const FollowFailedException('')),
       _ => null,
     };
