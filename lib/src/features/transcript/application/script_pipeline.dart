@@ -8,7 +8,7 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// In run order, so screens can compare stages with `index`.
 enum ScriptStage {
-  preparingAudio('Preparing the audio'),
+  preparingAudio('Cleaning the voice'),
   detectingLanguage('Detecting the language'),
   transcribing('Writing the script'),
   // The last step Processing shows; once it's reached the script is done.
