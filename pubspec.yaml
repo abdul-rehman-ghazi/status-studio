@@ -26,6 +26,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   google_mlkit_face_detection: ^0.15.1
   image_picker: ^1.2.4
+  tflite_flutter: ^0.12.1
 
 # 2.5.x unregisters its one shared "data_store" instance whenever any Flutter
 # engine detaches. The foreground service's engine detaches when a script or an
@@ -44,6 +45,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # EfficientDet-Lite0 (Apache 2.0, TF Hub) for the body choice, spec FR-27.
+    - assets/models/
 
   fonts:
     - family: Inter

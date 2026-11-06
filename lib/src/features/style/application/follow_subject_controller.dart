@@ -141,8 +141,10 @@ class _Walk {
   final OutputSize pictureSize;
   final CropPath pathAtStart;
 
-  /// One per scene asked; null until it is answered.
-  final List<SceneChoice?> answers;
+  /// One per scene asked; null until it is answered. A body answer is only
+  /// turned into a track after the last answer, since it takes a look at the
+  /// scene's frames.
+  final List<SceneAnswer?> answers;
   var sceneIndex = 0;
 
   /// The first scene that has no answer yet, or null when all have one.
@@ -151,12 +153,29 @@ class _Walk {
     return index < 0 ? null : index;
   }
 
-  List<SceneChoice> get allAnswers => [for (final a in answers) a!];
+  /// Where in the track's samples the scene's frames start.
+  int firstFrameOf(int scene) => scenes[scene].firstIndex;
 }
 
-/// Sampling the frames takes this share of the progress; the rest is looking
-/// at them.
+/// What looking for the bodies of the answered scenes needs, and how far it
+/// has got.
+class _BodyWork {
+  _BodyWork({
+    required this.detector,
+    required this.generation,
+    required this.totalFrames,
+  });
+
+  final SubjectDetector detector;
+  final int generation;
+  final int totalFrames;
+  var framesLooked = 0;
+}
+
+/// Sampling the frames takes this share of the progress, looking for faces in
+/// them up to [_facesShare], and the bodies in each scene's picture the rest.
 const _samplingShare = 0.25;
+const _facesShare = 0.85;
 
 final followSubjectProvider =
     NotifierProvider.autoDispose<FollowSubjectController, FollowState>(
@@ -236,10 +255,18 @@ class FollowSubjectController extends Notifier<FollowState> {
         return;
       }
       final asked = scenes.take(mostScenesFollowed).toList();
+      final pictures = await _withBodies(
+        [for (final scene in asked) pictureOfScene(scene)],
+        frames,
+        generation,
+      );
+      if (_isStale(generation)) {
+        return;
+      }
       _walk = _Walk(
         frames: frames,
         scenes: scenes,
-        pictures: [for (final scene in asked) pictureOfScene(scene)],
+        pictures: pictures,
         geometry: geometry,
         pictureSize: sourceSize,
         pathAtStart: pathAtStart,
@@ -276,44 +303,160 @@ class FollowSubjectController extends Notifier<FollowState> {
           _ask(walk.sceneIndex - 1);
         }
       case PickedFace() || PickedBody() || PickedSpot():
-        _keep(walk, _choiceFor(walk, answer));
+        _keep(walk, answer);
     }
-  }
-
-  SceneChoice _choiceFor(_Walk walk, SceneAnswer answer) {
-    final picture = walk.pictures[walk.sceneIndex];
-    return switch (answer) {
-      PickedFace(:final index) => FollowFace(picture.faces[index].track),
-      PickedBody(:final index) => FollowBody(picture.bodies[index].track),
-      PickedSpot(:final x, :final y) => HoldSpot(
-        anchorForSpot(x, y, walk.geometry),
-      ),
-      WentBack() || Cancelled() => throw ArgumentError.value(
-        answer,
-        'answer',
-        'is not a choice',
-      ),
-    };
   }
 
   /// Records the answer and asks the first scene still unanswered, so going
   /// back to change one answer comes forward again to where the user was.
-  void _keep(_Walk walk, SceneChoice choice) {
-    walk.answers[walk.sceneIndex] = choice;
+  void _keep(_Walk walk, SceneAnswer answer) {
+    walk.answers[walk.sceneIndex] = answer;
     final next = walk.firstUnanswered;
     if (next != null) {
       _ask(next);
       return;
     }
-    _walk = null;
-    unawaited(walk.frames.delete());
+    unawaited(_finish(walk));
+  }
+
+  /// Turns the answers into the crop's keyframes. Faces and spots are known
+  /// already; a body has to be looked for in its scene's frames first, which
+  /// shows the progress again.
+  Future<void> _finish(_Walk walk) async {
+    final generation = _generation;
     try {
+      final choices = await _choicesFor(walk, generation);
+      if (_isStale(generation)) {
+        return;
+      }
+      _releaseWalk();
       _apply(
-        pathForChoices(walk.scenes, walk.geometry, walk.allAnswers),
+        pathForChoices(walk.scenes, walk.geometry, choices),
         walk.pathAtStart,
       );
     } on Object {
-      state = const FollowFailed();
+      if (!_isStale(generation)) {
+        _releaseWalk();
+        state = const FollowFailed();
+      }
+    }
+  }
+
+  Future<List<SceneChoice>> _choicesFor(_Walk walk, int generation) async {
+    final answers = [for (final answer in walk.answers) answer!];
+    final bodyScenes = [
+      for (final (index, answer) in answers.indexed)
+        if (answer is PickedBody) index,
+    ];
+    if (bodyScenes.isEmpty) {
+      return [
+        for (final (index, answer) in answers.indexed)
+          _choiceFor(walk, index, answer),
+      ];
+    }
+    state = const FollowRunning(0);
+    final work = _BodyWork(
+      detector: ref.read(subjectDetectorProvider)(),
+      generation: generation,
+      // Every other frame of each scene is looked at.
+      totalFrames: [
+        for (final index in bodyScenes)
+          (walk.scenes[index].samples.length + 1) ~/ 2,
+      ].fold(0, (sum, frames) => sum + frames),
+    );
+    try {
+      return [
+        for (final (index, answer) in answers.indexed)
+          answer is PickedBody
+              ? await _followBody(walk, index, work)
+              : _choiceFor(walk, index, answer),
+      ];
+    } finally {
+      await work.detector.close();
+    }
+  }
+
+  SceneChoice _choiceFor(_Walk walk, int sceneIndex, SceneAnswer answer) {
+    return switch (answer) {
+      PickedFace(:final index) => FollowFace(
+        walk.pictures[sceneIndex].faces[index].track,
+      ),
+      PickedSpot(:final x, :final y) => HoldSpot(
+        anchorForSpot(x, y, walk.geometry),
+      ),
+      PickedBody() || WentBack() || Cancelled() => throw ArgumentError.value(
+        answer,
+        'answer',
+        'is not a face or a spot',
+      ),
+    };
+  }
+
+  /// The body chosen in the scene's picture, followed through the scene. The
+  /// detector looks at every other frame (a body is big and slow), and the
+  /// picture's own boxes stand for its frame.
+  Future<SceneChoice> _followBody(
+    _Walk walk,
+    int sceneIndex,
+    _BodyWork work,
+  ) async {
+    final scene = walk.scenes[sceneIndex];
+    final picture = walk.pictures[sceneIndex];
+    final pictureIndex = picture.sampleIndex - walk.firstFrameOf(sceneIndex);
+    final chosen =
+        picture.bodies[(walk.answers[sceneIndex]! as PickedBody).index];
+    final samples = <SubjectSample>[];
+    for (final (index, sample) in scene.samples.indexed) {
+      final bodies = index == pictureIndex
+          ? picture.bodies
+          : index.isOdd
+          ? const <SubjectBox>[]
+          : await _lookForBodies(
+              walk.frames.frames[scene.firstIndex + index],
+              work,
+            );
+      if (_isStale(work.generation)) {
+        throw const FollowFailedException('stopped');
+      }
+      samples.add(SubjectSample(time: sample.time, faces: bodies));
+    }
+    return FollowBody(trackOfBody(samples, pictureIndex, chosen));
+  }
+
+  Future<List<SubjectBox>> _lookForBodies(File frame, _BodyWork work) async {
+    final bodies = await work.detector.bodiesIn(frame);
+    state = FollowRunning(++work.framesLooked / work.totalFrames);
+    return bodies;
+  }
+
+  /// Looks for the bodies in each picture. A phone where the body model can't
+  /// load or run still has faces and spots, so a failure leaves the pictures
+  /// with no bodies instead of ending the run.
+  Future<List<ScenePicture>> _withBodies(
+    List<ScenePicture> pictures,
+    SampledFrames frames,
+    int generation,
+  ) async {
+    final detector = ref.read(subjectDetectorProvider)();
+    try {
+      final withBodies = <ScenePicture>[];
+      for (final (index, picture) in pictures.indexed) {
+        final bodies = await detector.bodiesIn(
+          frames.frames[picture.sampleIndex],
+        );
+        if (_isStale(generation)) {
+          return pictures;
+        }
+        withBodies.add(picture.withBodies(bodies));
+        state = FollowRunning(
+          _facesShare + (1 - _facesShare) * (index + 1) / pictures.length,
+        );
+      }
+      return withBodies;
+    } on Object {
+      return pictures;
+    } finally {
+      await detector.close();
     }
   }
 
@@ -333,7 +476,7 @@ class FollowSubjectController extends Notifier<FollowState> {
       picture: walk.frames.frames[picture.sampleIndex],
       pictureSize: walk.pictureSize,
       faces: [for (final person in picture.faces) person.box],
-      bodies: [for (final person in picture.bodies) person.box],
+      bodies: picture.bodies,
       skippedSceneCount: scenes.length - walk.pictures.length,
     );
   }
@@ -428,7 +571,7 @@ class FollowSubjectController extends Notifier<FollowState> {
       );
       state = FollowRunning(
         _samplingShare +
-            (1 - _samplingShare) * (index + 1) / frames.frames.length,
+            (_facesShare - _samplingShare) * (index + 1) / frames.frames.length,
       );
     }
     return samples;

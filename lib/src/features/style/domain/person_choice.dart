@@ -4,8 +4,8 @@ import 'package:status_studio/src/features/style/domain/subject_path.dart';
 
 const _mostPeopleOffered = 6;
 
-/// One face or body to choose in a scene's picture, and the person it is
-/// followed as (spec FR-27).
+/// One face to choose in a scene's picture, and the person it is followed as
+/// (spec FR-27).
 class ScenePerson {
   const ScenePerson({required this.box, required this.track});
 
@@ -27,8 +27,15 @@ class ScenePicture {
   /// Left to right.
   final List<ScenePerson> faces;
 
-  /// Left to right. Empty until there is a body detector (M25 task 5).
-  final List<ScenePerson> bodies;
+  /// The people found in the picture as body boxes, left to right. A body is
+  /// followed only once it is chosen, so there is no track yet.
+  final List<SubjectBox> bodies;
+
+  ScenePicture withBodies(List<SubjectBox> found) => ScenePicture(
+    sampleIndex: sampleIndex,
+    faces: faces,
+    bodies: _biggestLeftToRight(found, (box) => box),
+  );
 }
 
 /// The scene's fullest frame (spec FR-27): the one with the most people, else
@@ -59,8 +66,36 @@ ScenePicture pictureOfScene(SubjectScene scene) {
   }
   return ScenePicture(
     sampleIndex: scene.firstIndex + fullestIndex,
-    faces: _biggestLeftToRight(frames[fullestIndex]),
+    faces: _biggestLeftToRight(frames[fullestIndex], (person) => person.box),
   );
+}
+
+/// The track of the body chosen at [chosen] in a scene, from [bodySamples]:
+/// the scene's samples with the bodies found in each (a frame the detector
+/// skipped has none). [pictureIndex] is the picture's place among them. The
+/// same distance rule as faces joins a body's boxes, and its other stretches
+/// within the scene.
+///
+/// Throws [ArgumentError] when [chosen] is not a box of the sample at
+/// [pictureIndex].
+FaceTrack trackOfBody(
+  List<SubjectSample> bodySamples,
+  int pictureIndex,
+  SubjectBox chosen,
+) {
+  final tracks = trackFaces(bodySamples);
+  final track = tracks.firstWhere(
+    (candidate) => candidate.faceAt(pictureIndex) == chosen,
+    orElse: () => throw ArgumentError.value(
+      chosen,
+      'chosen',
+      'is not a body in the picture',
+    ),
+  );
+  // Bodies are looked for in every other frame, so a body is seen in at most
+  // half of the scene.
+  final lasting = lastingPeople(tracks, bodySamples.length ~/ 2);
+  return withTheirOtherSightings(track, lasting);
 }
 
 /// More people, else bigger faces; on a tie the earlier stays.
@@ -74,8 +109,9 @@ bool _isFuller(List<ScenePerson> frame, {required List<ScenePerson> than}) {
 double _areaOf(List<ScenePerson> frame) =>
     frame.fold(0.0, (sum, person) => sum + person.box.area);
 
-List<ScenePerson> _biggestLeftToRight(List<ScenePerson> frame) {
-  final biggest = [...frame]..sort((a, b) => b.box.area.compareTo(a.box.area));
+List<T> _biggestLeftToRight<T>(List<T> frame, SubjectBox Function(T) boxOf) {
+  final biggest = [...frame]
+    ..sort((a, b) => boxOf(b).area.compareTo(boxOf(a).area));
   return biggest.take(_mostPeopleOffered).toList()
-    ..sort((a, b) => a.box.centreX.compareTo(b.box.centreX));
+    ..sort((a, b) => boxOf(a).centreX.compareTo(boxOf(b).centreX));
 }
