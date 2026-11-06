@@ -1,21 +1,25 @@
+import 'dart:math' as math;
+
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 
-/// How far either side of a cut the preview dims (spec FR-21, FR-22).
-const _dipHalfWidth = Duration(milliseconds: 100);
+/// How far either side of a cut the picture dims (spec FR-22). The Android
+/// renderer's `CutDip.kt` has the same numbers.
+const _dipHalfWidth = Duration(milliseconds: 160);
 
 /// The picture's dimmest point, on the cut itself.
-const _dipFloor = 0.35;
+const _dipFloor = 0.4;
 
-/// The opacity the playing preview gives the video at [time]: it dips around
-/// each Cut keyframe and is 1 elsewhere.
+/// How bright the picture is at [time]: [_dipFloor] on each scene cut,
+/// easing back to 1 along a cosine over [_dipHalfWidth] either side, so there
+/// is no corner at the cut or where the dip ends. 1 away from every cut.
 ///
-/// The player reports its position only about twice a second, so while
-/// playing the preview's crop can be a few milliseconds off the picture it
-/// sits on; a cut then shows as a one-frame jerk. The dip hides that. The
-/// export reads each frame's own time and cuts exactly, so it has no dip.
+/// The export applies it to every frame; the playing preview applies it too,
+/// which also hides that its crop is read from an estimated playhead and can
+/// sit a few milliseconds off the picture at a cut. The first keyframe has
+/// no shot before it, so it never dips.
 double opacityAroundCuts(CropPath path, Duration time) {
   var opacity = 1.0;
-  for (final keyframe in path.keyframes) {
+  for (final keyframe in path.keyframes.skip(1)) {
     if (keyframe.arrival != CropArrival.cut) {
       continue;
     }
@@ -23,10 +27,16 @@ double opacityAroundCuts(CropPath path, Duration time) {
     if (away >= _dipHalfWidth) {
       continue;
     }
-    final here =
-        _dipFloor +
-        (1 - _dipFloor) * away.inMicroseconds / _dipHalfWidth.inMicroseconds;
-    opacity = opacity < here ? opacity : here;
+    final here = _brightnessAway(
+      away.inMicroseconds / _dipHalfWidth.inMicroseconds,
+    );
+    opacity = math.min(opacity, here);
   }
   return opacity;
+}
+
+/// [shareOfHalfWidth] is 0 on the cut and 1 at the dip's edge.
+double _brightnessAway(double shareOfHalfWidth) {
+  final eased = (1 - math.cos(math.pi * shareOfHalfWidth)) / 2;
+  return _dipFloor + (1 - _dipFloor) * eased;
 }
