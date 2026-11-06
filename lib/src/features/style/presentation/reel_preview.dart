@@ -49,29 +49,74 @@ class ReelPreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sourceSize = previewSourceSize(ref, draft);
-    final output = outputSizeFor(draft.frame, sourceSize);
-    final width = maxWidth;
-    final height = width * output.height / output.width;
     final source = previewClipSource(ref, draft);
     final clip = draft.clip;
+    return _ReelFrame(
+      draft: draft,
+      maxWidth: maxWidth,
+      sourceSize: sourceSize,
+      video: source == null || clip == null
+          ? _VideoPlaceholder(frame: draft.frame)
+          : _SourceFrame(
+              key: ValueKey(source.file.path),
+              source: source,
+              firstFrame: clip.start - source.offset,
+              videoTime: clip.start,
+              framing: (frame: draft.frame, sourceSize: sourceSize),
+            ),
+    );
+  }
+}
+
+/// [ReelPreview] with no player, so no decoder is held: shown while another
+/// screen needs the phone's video decoders (the export's, spec FR-9).
+class ReelPreviewWithoutVideo extends ConsumerWidget {
+  const ReelPreviewWithoutVideo({
+    super.key,
+    required this.draft,
+    required this.maxWidth,
+  });
+
+  final ReelDraft draft;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _ReelFrame(
+      draft: draft,
+      maxWidth: maxWidth,
+      sourceSize: previewSourceSize(ref, draft),
+      video: _VideoPlaceholder(frame: draft.frame),
+    );
+  }
+}
+
+/// The reel's frame at its output aspect with [video] under the caption and
+/// branding.
+class _ReelFrame extends StatelessWidget {
+  const _ReelFrame({
+    required this.draft,
+    required this.maxWidth,
+    required this.sourceSize,
+    required this.video,
+  });
+
+  final ReelDraft draft;
+  final double maxWidth;
+  final OutputSize sourceSize;
+  final Widget video;
+
+  @override
+  Widget build(BuildContext context) {
+    final output = outputSizeFor(draft.frame, sourceSize);
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        width: width,
-        height: height,
+        width: maxWidth,
+        height: maxWidth * output.height / output.width,
         child: Stack(
           children: [
-            Positioned.fill(
-              child: source == null || clip == null
-                  ? _VideoPlaceholder(frame: draft.frame)
-                  : _SourceFrame(
-                      key: ValueKey(source.file.path),
-                      source: source,
-                      firstFrame: clip.start - source.offset,
-                      videoTime: clip.start,
-                      framing: (frame: draft.frame, sourceSize: sourceSize),
-                    ),
-            ),
+            Positioned.fill(child: video),
             ReelOverlayLayer(
               spec: OverlaySpec(
                 output: output,

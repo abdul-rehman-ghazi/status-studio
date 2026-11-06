@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
@@ -31,6 +32,10 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   static const _saveDelay = Duration(seconds: 1);
 
   final _playhead = ClipPlayhead();
+
+  /// True while Caption and Export are open: this player's decoder would
+  /// leave the export's too little memory (spec FR-22, one decoder at a time).
+  var _playerReleased = false;
   late final ScriptEditingService _scriptEditing;
   late final AppLifecycleListener _lifecycle;
   Timer? _saveTimer;
@@ -88,6 +93,22 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     }
   }
 
+  /// Caption opens only once this step's player is gone, and the player comes
+  /// back only once Caption has slid away.
+  Future<void> _openStyle() async {
+    setState(() => _playerReleased = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    final covered = ModalRoute.of(context)?.secondaryAnimation;
+    await context.push(AppRoutes.style);
+    await untilDismissed(covered);
+    if (mounted) {
+      setState(() => _playerReleased = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(reelDraftProvider);
@@ -107,18 +128,20 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: ClipSourcePlayer(
-              video: video,
-              clip: clip,
-              playhead: _playhead,
-              onlyRange: clip,
-              frame: (context, videoWidget) => ReelStage(
-                draft: draft,
-                sourceSize: previewSourceSize(ref, draft),
-                video: videoWidget,
-                playhead: _playhead,
-              ),
-            ),
+            child: _playerReleased
+                ? const ClipPlayerPlaceholder()
+                : ClipSourcePlayer(
+                    video: video,
+                    clip: clip,
+                    playhead: _playhead,
+                    onlyRange: clip,
+                    frame: (context, videoWidget) => ReelStage(
+                      draft: draft,
+                      sourceSize: previewSourceSize(ref, draft),
+                      video: videoWidget,
+                      playhead: _playhead,
+                    ),
+                  ),
           ),
           Expanded(child: _lines(draft)),
         ],
@@ -126,7 +149,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
       bottomNavigationBar: ScriptWritingFooter(
         child: BottomAction(
           child: FilledButton(
-            onPressed: () => context.push(AppRoutes.style),
+            onPressed: () => unawaited(_openStyle()),
             child: const Text('Next: caption'),
           ),
         ),

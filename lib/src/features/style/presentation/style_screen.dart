@@ -9,6 +9,7 @@ import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/option_row.dart';
+import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/script_detection.dart';
@@ -42,6 +43,11 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   /// after the user moved on is dropped instead of overwriting their choice.
   var _variantRequest = 0;
   var _translating = false;
+
+  /// True while Export is open: the preview's player holds a video decoder,
+  /// and the phone's 1080p decoder has no memory left for the export's own
+  /// (MediaCodec error -12 on the Redmi Note 11).
+  var _previewReleased = false;
 
   @override
   void dispose() {
@@ -104,25 +110,44 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
       ),
       bottomNavigationBar: BottomAction(
         child: FilledButton(
-          onPressed: () => context.push(AppRoutes.export),
+          onPressed: () => unawaited(_openExport()),
           child: const Text('Export reel'),
         ),
       ),
     );
   }
 
+  /// Export starts only once this step's player is gone, and the player comes
+  /// back only once Export has slid away: never two decoders at a time (the
+  /// same rule as Fine-tune and Lyrics).
+  Future<void> _openExport() async {
+    setState(() => _previewReleased = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    final covered = ModalRoute.of(context)?.secondaryAnimation;
+    await context.push(AppRoutes.export);
+    await untilDismissed(covered);
+    if (mounted) {
+      setState(() => _previewReleased = false);
+    }
+  }
+
   Widget _framePreview(ReelDraft draft) {
     final output = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
     return LayoutBuilder(
-      builder: (context, constraints) => Center(
-        child: ReelPreview(
-          draft: draft,
-          maxWidth: math.min(
-            constraints.maxWidth,
-            _previewMaxHeight * output.width / output.height,
-          ),
-        ),
-      ),
+      builder: (context, constraints) {
+        final maxWidth = math.min(
+          constraints.maxWidth,
+          _previewMaxHeight * output.width / output.height,
+        );
+        return Center(
+          child: _previewReleased
+              ? ReelPreviewWithoutVideo(draft: draft, maxWidth: maxWidth)
+              : ReelPreview(draft: draft, maxWidth: maxWidth),
+        );
+      },
     );
   }
 

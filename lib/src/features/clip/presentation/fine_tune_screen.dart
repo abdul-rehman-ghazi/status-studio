@@ -7,6 +7,7 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
@@ -261,30 +262,9 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
     final covered = ModalRoute.of(context)?.secondaryAnimation;
     await context.push(AppRoutes.lyrics);
-    await _untilDismissed(covered);
+    await untilDismissed(covered);
     if (mounted) {
       setState(() => _playerReleased = false);
-    }
-  }
-
-  Future<void> _untilDismissed(Animation<double>? animation) async {
-    if (animation == null || animation.isDismissed) {
-      return;
-    }
-    final dismissed = Completer<void>();
-    void onStatus(AnimationStatus status) {
-      if (status == AnimationStatus.dismissed && !dismissed.isCompleted) {
-        dismissed.complete();
-      }
-    }
-
-    animation.addStatusListener(onStatus);
-    try {
-      await dismissed.future.timeout(const Duration(seconds: 1));
-    } on TimeoutException {
-      // A route that never finishes sliding must not leave a blank player.
-    } finally {
-      animation.removeStatusListener(onStatus);
     }
   }
 
