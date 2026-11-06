@@ -314,7 +314,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   void _selectKeyframe(CropPath path, int index) {
     setState(() => _selectedKeyframe = index);
     if (_playhead.isReady) {
-      unawaited(_playhead.seekTo(path.keyframes[index].time));
+      unawaited(_playhead.seekTo(path.keyframes[index].shownAt));
     }
   }
 
