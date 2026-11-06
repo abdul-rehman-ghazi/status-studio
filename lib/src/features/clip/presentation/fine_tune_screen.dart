@@ -32,6 +32,7 @@ import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/frame_controls.dart';
 import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
+import 'package:status_studio/src/features/transcript/presentation/script_opening_notice_host.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -103,12 +104,13 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Fine-tune · Video',
-        stepLabel: 'Step 3 of 5',
+        stepLabel: 'Step 2 of 4',
       ),
       // The player and the crop keyframes stay put while the rest scrolls,
       // so the crop can be moved with the video in view.
       body: Column(
         children: [
+          const ScriptOpeningNoticeHost(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: _playerReleased

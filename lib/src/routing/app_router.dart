@@ -11,13 +11,11 @@ import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
 import 'package:status_studio/src/features/style/presentation/style_screen.dart';
 import 'package:status_studio/src/features/transcript/presentation/processing_screen.dart';
-import 'package:status_studio/src/features/transcript/presentation/script_screen.dart';
 
 abstract final class AppRoutes {
   static const home = '/';
   static const source = '/source';
   static const processing = '/processing';
-  static const script = '/script';
   static const fineTune = '/fine-tune';
   static const lyrics = '/fine-tune/lyrics';
   static const style = '/style';
@@ -55,10 +53,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.processing,
         builder: (context, state) => const ProcessingScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.script,
-        builder: (context, state) => const ScriptScreen(),
       ),
       GoRoute(
         path: AppRoutes.fineTune,

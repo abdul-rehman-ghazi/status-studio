@@ -55,7 +55,7 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
     final controller = ref.read(reelDraftProvider.notifier);
     final caption = draft.caption;
     return Scaffold(
-      appBar: const FlowAppBar(title: 'Caption', stepLabel: 'Step 5 of 5'),
+      appBar: const FlowAppBar(title: 'Caption', stepLabel: 'Step 4 of 4'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(

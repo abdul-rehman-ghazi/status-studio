@@ -74,7 +74,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
       _leaving = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          context.pushReplacement(AppRoutes.script);
+          context.pushReplacement(AppRoutes.fineTune);
         }
       });
     }
@@ -125,7 +125,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
     );
   }
 
-  /// Once a line exists the user can start picking (FR-3 progressive).
+  /// Once a line exists Fine-tune can open while the rest is written (FR-3).
   Widget _bottomButton(
     BuildContext context,
     WidgetRef ref,
@@ -133,8 +133,8 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   ) {
     if (progress != null && progress.transcript.lines.isNotEmpty) {
       return FilledButton(
-        onPressed: () => context.pushReplacement(AppRoutes.script),
-        child: const Text('Start picking lines'),
+        onPressed: () => context.pushReplacement(AppRoutes.fineTune),
+        child: const Text('Open fine-tune'),
       );
     }
     return OutlinedButton(

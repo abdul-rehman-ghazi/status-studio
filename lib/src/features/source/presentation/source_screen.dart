@@ -55,7 +55,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
   Widget build(BuildContext context) {
     final hasVideo = _videoRequest != null;
     return Scaffold(
-      appBar: const FlowAppBar(title: 'New reel', stepLabel: 'Step 1 of 5'),
+      appBar: const FlowAppBar(title: 'New reel', stepLabel: 'Step 1 of 4'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

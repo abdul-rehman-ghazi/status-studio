@@ -14,6 +14,8 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/style/presentation/reel_stage.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
+import 'package:status_studio/src/features/transcript/presentation/script_tools.dart';
+import 'package:status_studio/src/features/transcript/presentation/script_writing_footer.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 /// Step 2 of Fine-tune: the clip's lines, when each one shows, and the video
@@ -65,6 +67,13 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     _saveTimer = Timer(_saveDelay, () => unawaited(_savePending()));
   }
 
+  /// The script is about to be written again, so a line edit still waiting
+  /// to be saved must not land on top of the new one.
+  void _dropPendingSave() {
+    _saveTimer?.cancel();
+    _pendingSave = null;
+  }
+
   Future<void> _savePending() async {
     final save = _pendingSave;
     _pendingSave = null;
@@ -90,7 +99,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Fine-tune · Lyrics',
-        stepLabel: 'Step 4 of 5',
+        stepLabel: 'Step 3 of 4',
       ),
       // The player stays put while the lines scroll, so they can be tapped
       // with the video in view.
@@ -114,10 +123,12 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
           Expanded(child: _lines(draft)),
         ],
       ),
-      bottomNavigationBar: BottomAction(
-        child: FilledButton(
-          onPressed: () => context.push(AppRoutes.style),
-          child: const Text('Next: caption'),
+      bottomNavigationBar: ScriptWritingFooter(
+        child: BottomAction(
+          child: FilledButton(
+            onPressed: () => context.push(AppRoutes.style),
+            child: const Text('Next: caption'),
+          ),
         ),
       ),
     );
@@ -127,6 +138,8 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        ScriptTools(onRewriting: _dropPendingSave),
+        const SizedBox(height: 8),
         const HintText(
           'Tap a line to jump to it. While the clip plays, tap a line when '
           'it starts to set when it shows.',

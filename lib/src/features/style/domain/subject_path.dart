@@ -79,19 +79,21 @@ List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
 /// The cuts that make a scene long enough to hold its keyframe: one within
 /// half a second of the scene before it, or of the clip's end, is not a
 /// boundary, or the user's answer for that scene would be dropped by the
-/// keyframe spacing.
+/// keyframe spacing. Times are compared as the keyframes will have them,
+/// rounded to a tenth of a second.
 List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
   final inside =
       cuts.where((cut) => cut > clip.start && cut < clip.end).toList()..sort();
   final kept = <Duration>[];
-  var previous = clip.start;
+  var previous = _roundedUpToTenth(clip.start);
+  final latest = _roundedDownToTenth(clip.end);
   for (final cut in inside) {
+    final at = _snapped(cut);
     final longEnough =
-        cut - previous >= _keyframeSpacing &&
-        clip.end - cut >= _keyframeSpacing;
+        at - previous >= _keyframeSpacing && latest - at >= _keyframeSpacing;
     if (longEnough) {
       kept.add(cut);
-      previous = cut;
+      previous = at;
     }
   }
   return kept;

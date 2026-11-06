@@ -326,7 +326,8 @@ class FollowSubjectController extends Notifier<FollowState> {
       sceneIndex: sceneIndex,
       sceneCount: walk.pictures.length,
       sceneStart: scenes[sceneIndex].start,
-      sceneEnd: sceneIndex + 1 < scenes.length
+      // The last scene asked holds to the clip's end when scenes were left out.
+      sceneEnd: sceneIndex + 1 < walk.pictures.length
           ? scenes[sceneIndex + 1].start
           : walk.geometry.clip.end,
       picture: walk.frames.frames[picture.sampleIndex],

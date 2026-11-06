@@ -440,9 +440,7 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
         draft.restore(restored);
         unawaited(ref.read(fineTuneDraftSaverProvider).rememberKept(restored));
         _startScript(ref);
-        context
-          ..push(AppRoutes.script)
-          ..push(AppRoutes.fineTune);
+        context.push(AppRoutes.fineTune);
       case FineTuneScriptGone(:final startOver):
         draft.restore(startOver);
         notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptGone);
@@ -452,7 +450,7 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
         draft.restore(startOver);
         notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptChanged);
         _startScript(ref);
-        context.push(AppRoutes.script);
+        context.push(AppRoutes.fineTune);
     }
   }
 

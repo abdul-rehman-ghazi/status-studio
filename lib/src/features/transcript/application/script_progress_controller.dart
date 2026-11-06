@@ -9,7 +9,7 @@ import 'package:status_studio/src/features/transcript/application/script_notices
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 
 /// The script run in progress, shared by Processing and Script so the
-/// user can start picking lines while the rest is still being written.
+/// user can open Fine-tune while the rest is still being written.
 final scriptProgressProvider =
     NotifierProvider<ScriptProgressController, AsyncValue<ScriptProgress>>(
       ScriptProgressController.new,
