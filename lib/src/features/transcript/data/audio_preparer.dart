@@ -23,9 +23,9 @@ class AudioPreparer {
   /// how much of the video FFmpeg has read.
   ///
   /// A finished cut is reused, so a retry or another language doesn't clean
-  /// again. The folder's name holds the filter chain, so a changed chain
-  /// never reuses old pieces; folders of other chains and unfinished cuts
-  /// are deleted.
+  /// again. The folder's name holds a hash of the FFmpeg command, so a
+  /// changed chain, rate or format never reuses old pieces; folders of other
+  /// commands and unfinished cuts are deleted.
   ///
   /// Throws [VideoUnreadableException] when FFmpeg wrote no segment list.
   /// A video with no audio makes FFmpeg fail instead; the importer already
@@ -37,13 +37,13 @@ class AudioPreparer {
   }) async {
     final cut = _currentCut = FfmpegCancelHandle();
     final folder = _piecesFolder(video, chunkSeconds);
-    // Checked between the folder steps: a cancelled cut that carried on
-    // would delete the folder a quick retry has started writing to.
-    _throwIfCancelled(cut);
     await _deleteOtherPieceFolders(video.parent, keep: folder);
     if (await _isFinished(folder)) {
       return _readPieces(folder);
     }
+    // Checked after the folder steps, which await: a cancelled cut that
+    // carried on would delete the folder a quick retry has started
+    // writing to.
     _throwIfCancelled(cut);
     await _emptied(folder);
     _throwIfCancelled(cut);

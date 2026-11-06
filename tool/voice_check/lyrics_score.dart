@@ -79,19 +79,26 @@ int? _firstMatch(List<int> pattern, List<int> text) {
   for (var position = 1; position <= text.length; position++) {
     column = _nextColumn(pattern, column, text[position - 1]);
     if (column.last <= allowed) {
-      return _bestEndNear(pattern, text, position);
+      return _bestEndNear(pattern, text, position, lookAhead: allowed);
     }
   }
   return null;
 }
 
-/// The end, within one pattern length after [firstEnd], where the match
-/// is closest, so the cursor lands at the end of the sung line.
-int _bestEndNear(List<int> pattern, List<int> text, int firstEnd) {
+/// The end, within [lookAhead] characters after [firstEnd], where the match
+/// is closest, so the cursor lands at the end of the sung line. The window
+/// is as short as the threshold allows, so it cannot reach into a repeat of
+/// the same line and make that repeat look missing.
+int _bestEndNear(
+  List<int> pattern,
+  List<int> text,
+  int firstEnd, {
+  required int lookAhead,
+}) {
   var column = List<int>.generate(pattern.length + 1, (row) => row);
   var bestEnd = firstEnd;
   var bestDistance = pattern.length + 1;
-  final last = (firstEnd + pattern.length).clamp(0, text.length);
+  final last = (firstEnd + lookAhead).clamp(0, text.length);
   for (var position = 1; position <= last; position++) {
     column = _nextColumn(pattern, column, text[position - 1]);
     if (position >= firstEnd && column.last < bestDistance) {

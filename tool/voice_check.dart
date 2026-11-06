@@ -111,6 +111,9 @@ Future<List<String>> _readExpectedLines(File file) async {
 Future<String> _ffmpegVersion() async {
   try {
     final result = await Process.run('ffmpeg', ['-version']);
+    if (result.exitCode != 0) {
+      throw StateError('ffmpeg -version failed: ${result.stderr}');
+    }
     return (result.stdout as String).split('\n').first;
   } on ProcessException {
     throw StateError('ffmpeg is not on the PATH');
