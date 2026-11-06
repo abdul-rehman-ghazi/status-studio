@@ -22,7 +22,7 @@ class ReelDraftController extends Notifier<ReelDraft> {
   /// Continues a kept fine-tune (spec FR-24).
   void restore(ReelDraft draft) => state = draft;
 
-  void setVideo(SourceVideo video) => state = state.copyWith(video: video);
+  void setVideo(SourceVideo video) => state = state.withVideo(video);
 
   void setLanguage(ScriptLanguage language) =>
       state = state.copyWith(language: language);
@@ -40,9 +40,6 @@ class ReelDraftController extends Notifier<ReelDraft> {
   void growTranscript(Transcript transcript) =>
       state = state.withGrowingTranscript(transcript);
 
-  void tapLine(int index) =>
-      state = state.withSelection(state.selection.tap(index));
-
   /// Applies [edit] to the picked script as it is now, so a tap that lands
   /// after another edit never works from stale lines.
   void editScript(PickedScript Function(PickedScript script) edit) =>
@@ -50,15 +47,15 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void nudgeClipStart(Duration delta) {
     final clip = _requireClip();
-    state = state.copyWith(
-      clip: clip.nudgeStart(delta, videoDuration: _requireVideo().duration),
+    state = state.withClip(
+      clip.nudgeStart(delta, videoDuration: _requireVideo().duration),
     );
   }
 
   void nudgeClipEnd(Duration delta) {
     final clip = _requireClip();
-    state = state.copyWith(
-      clip: clip.nudgeEnd(delta, videoDuration: _requireVideo().duration),
+    state = state.withClip(
+      clip.nudgeEnd(delta, videoDuration: _requireVideo().duration),
     );
   }
 

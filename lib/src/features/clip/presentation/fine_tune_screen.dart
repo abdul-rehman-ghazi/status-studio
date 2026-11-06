@@ -7,11 +7,11 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
-import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
 import 'package:status_studio/src/features/clip/domain/waveform.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/clip/presentation/crop_keyframe_chips.dart';
@@ -32,6 +32,7 @@ import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/frame_controls.dart';
 import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
+import 'package:status_studio/src/features/transcript/presentation/script_opening_notice_host.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -103,12 +104,13 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Fine-tune · Video',
-        stepLabel: 'Step 3 of 5',
+        stepLabel: 'Step 2 of 4',
       ),
       // The player and the crop keyframes stay put while the rest scrolls,
       // so the crop can be moved with the video in view.
       body: Column(
         children: [
+          const ScriptOpeningNoticeHost(),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: _playerReleased
@@ -193,44 +195,38 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     return replace ?? false;
   }
 
-  /// Asks whom to follow (spec FR-25). Leaving the sheet any other way than
-  /// by answering is a cancel.
-  Future<void> _askWhom(FollowChoosing choosing) async {
-    final follow = ref.read(followSubjectProvider.notifier);
-    await showModalBottomSheet<void>(
+  /// Asks what to keep in frame in one scene (spec FR-27). The sheet closes
+  /// once with its answer, and only then is the answer acted on; leaving it
+  /// any other way is a cancel.
+  Future<void> _askWhat(FollowChoosing choosing) async {
+    final answer = await showModalBottomSheet<SceneAnswer>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheet) => PersonChooserSheet(
         choosing: choosing,
-        onChosen: (choice) {
-          Navigator.of(sheet).pop();
-          follow.choose(choice);
-        },
-        onChooseForMe: () {
-          Navigator.of(sheet).pop();
-          follow.chooseForMe();
-        },
-        onCancel: () => Navigator.of(sheet).pop(),
+        onAnswered: (answer) => Navigator.of(sheet).pop(answer),
       ),
     );
-    if (mounted && ref.read(followSubjectProvider) is FollowChoosing) {
-      follow.cancel();
+    if (!mounted) {
+      return;
     }
+    ref
+        .read(followSubjectProvider.notifier)
+        .answer(choosing, answer ?? const Cancelled());
   }
 
   /// Says how a run ended (spec FR-23), then clears it.
   void _showHowFollowEnded(FollowState? before, FollowState after) {
     if (after is FollowChoosing) {
-      unawaited(_askWhom(after));
+      unawaited(_askWhat(after));
       return;
     }
     final message = switch (after) {
       FollowDone(:final keyframeCount) =>
-        'The crop follows the person ($keyframeCount '
+        'The crop follows your choices ($keyframeCount '
             '${keyframeCount == 1 ? 'keyframe' : 'keyframes'}). '
             'Drag or tap a chip to adjust.',
-      FollowNoSubject() => errorMessageFor(const NoSubjectFoundException()),
       FollowFailed() => errorMessageFor(const FollowFailedException('')),
       _ => null,
     };
@@ -257,38 +253,24 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   /// step makes its player again only once Lyrics has slid away: never two
   /// decoders at a time (spec FR-22).
   Future<void> _openLyrics() async {
+    if (_playerReleased) {
+      return;
+    }
     ref.read(followSubjectProvider.notifier).cancel();
     setState(() => _playerReleased = true);
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) {
       return;
     }
-    final covered = ModalRoute.of(context)?.secondaryAnimation;
-    await context.push(AppRoutes.lyrics);
-    await _untilDismissed(covered);
-    if (mounted) {
+    if (ModalRoute.of(context)?.isCurrent != true) {
       setState(() => _playerReleased = false);
-    }
-  }
-
-  Future<void> _untilDismissed(Animation<double>? animation) async {
-    if (animation == null || animation.isDismissed) {
       return;
     }
-    final dismissed = Completer<void>();
-    void onStatus(AnimationStatus status) {
-      if (status == AnimationStatus.dismissed && !dismissed.isCompleted) {
-        dismissed.complete();
-      }
-    }
-
-    animation.addStatusListener(onStatus);
-    try {
-      await dismissed.future.timeout(const Duration(seconds: 1));
-    } on TimeoutException {
-      // A route that never finishes sliding must not leave a blank player.
-    } finally {
-      animation.removeStatusListener(onStatus);
+    final covered = ModalRoute.of(context)?.secondaryAnimation;
+    await context.push(AppRoutes.lyrics);
+    await untilDismissed(covered);
+    if (mounted) {
+      setState(() => _playerReleased = false);
     }
   }
 
@@ -318,7 +300,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
   void _selectKeyframe(CropPath path, int index) {
     setState(() => _selectedKeyframe = index);
     if (_playhead.isReady) {
-      unawaited(_playhead.seekTo(path.keyframes[index].time));
+      unawaited(_playhead.seekTo(path.keyframes[index].shownAt));
     }
   }
 
@@ -334,11 +316,11 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       padding: const EdgeInsets.all(20),
       children: [
         _ClipSummary(clip: clip),
-        if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
+        // if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
         const SizedBox(height: 16),
         _ClipWaveform(video: video, clip: clip),
         const SizedBox(height: 16),
-        _WholeVideoBar(clip: clip, videoDuration: video.duration),
+        // _WholeVideoBar(clip: clip, videoDuration: video.duration),
         const SizedBox(height: 20),
         Row(
           children: [

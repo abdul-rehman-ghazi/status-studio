@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/face_tracks.dart';
-import 'package:status_studio/src/features/style/domain/follow_errors.dart';
+import 'package:status_studio/src/features/style/domain/scene_choice.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
 const _smallestRoom = 0.01;
@@ -12,154 +12,39 @@ const _deadZone = 0.08;
 const _tolerance = 0.03;
 const _toleranceGrowth = 1.5;
 const _mostKeyframes = 12;
+
+/// A clip's first scenes are asked, one cut keyframe each; any later scene
+/// holds the last anchor.
+const mostScenesFollowed = _mostKeyframes;
 const _jumpIsACut = 0.3;
-const _leastFaceShare = 0.2;
-const _leastFaceFrames = 3;
 const _keyframeSpacing = Duration(milliseconds: 500);
 const _tenth = Duration(milliseconds: 100);
 
-/// The crop path that follows the person in [track] (spec FR-23): in each
-/// scene, the one seen longest.
+/// The crop path for what the user chose in each scene, in order (spec
+/// FR-27): a face or body is followed within its scene, a spot is held.
 ///
-/// Throws [NoSubjectFoundException] when faces are too rare to follow.
-CropPath followSubject(SubjectTrack track, FollowGeometry geometry) {
-  requireEnoughFaces(track.samples);
-  final scenes = scenesOf(track, geometry);
-  return _pathOfScenes(scenes, geometry, [
-    for (final scene in scenes) mostProminent(trackFaces(scene.samples)),
-  ]);
-}
-
-/// The crop path that follows the person who was [choice]d (spec FR-25): in
-/// the scene of the picture, that person; in the other scenes, the face about
-/// the same size and in the same place, else the one seen longest.
-///
-/// Throws [NoSubjectFoundException] when faces are too rare to follow, and
-/// [ArgumentError] when [choice]'s face is not in its sample.
-CropPath followPerson(
-  SubjectTrack track,
-  FollowGeometry geometry,
-  PersonChoice choice,
-) {
-  requireEnoughFaces(track.samples);
-  final scenes = scenesOf(track, geometry);
-  final people = [for (final scene in scenes) trackFaces(scene.samples)];
-  final lasting = [
-    for (final (index, scene) in scenes.indexed)
-      lastingPeople(people[index], scene.samples.length),
-  ];
-  final chosenScene = scenes.indexWhere(
-    (scene) =>
-        choice.sampleIndex >= scene.firstIndex &&
-        choice.sampleIndex < scene.firstIndex + scene.samples.length,
-  );
-  if (chosenScene < 0) {
-    throw ArgumentError.value(choice.sampleIndex, 'choice', 'is not a sample');
-  }
-  final chosen = _withTheirOtherSightings(
-    _thePersonIn(
-      people[chosenScene],
-      choice.face,
-      choice.sampleIndex - scenes[chosenScene].firstIndex,
-    ),
-    lasting[chosenScene],
-  );
-  return _pathOfScenes(scenes, geometry, [
-    for (final (index, scenePeople) in people.indexed)
-      index == chosenScene
-          ? chosen
-          : _followedInAnotherScene(chosen, scenePeople, lasting[index]),
-  ]);
-}
-
-/// Faces can't be recognised across cuts, so the person is the one of
-/// [lasting] who looks like [chosen]; when no one does, the one seen longest.
-FaceTrack? _followedInAnotherScene(
-  FaceTrack chosen,
-  List<FaceTrack> scenePeople,
-  List<FaceTrack> lasting,
-) {
-  final alike = _likeThe(chosen, lasting);
-  if (alike == null) {
-    return mostProminent(scenePeople);
-  }
-  return _withTheirOtherSightings(alike, lasting);
-}
-
-/// [person] with the later or earlier stretches in which the same person was
-/// picked up again as a new track after being missed for long: not seen in the
-/// same frame as them, and in about the same place and size.
-FaceTrack _withTheirOtherSightings(FaceTrack person, List<FaceTrack> lasting) {
-  final usual = person.typicalFace;
-  final others = lasting.where((track) => !identical(track, person)).toList()
-    ..sort((a, b) => a.firstIndex.compareTo(b.firstIndex));
-  var joined = person;
-  for (final other in others) {
-    if (!joined.sharesASampleWith(other) &&
-        usual.couldBeSameFaceAs(other.typicalFace)) {
-      joined = joined.joinedWith(other);
-    }
-  }
-  return joined;
-}
-
-FaceTrack _thePersonIn(
-  List<FaceTrack> people,
-  SubjectBox face,
-  int sceneSampleIndex,
-) {
-  return people.firstWhere(
-    (person) => person.faceAt(sceneSampleIndex) == face,
-    orElse: () => throw ArgumentError.value(
-      face,
-      'choice',
-      'is not a face in its sample',
-    ),
-  );
-}
-
-/// The person of another scene who sits about where [chosen] usually does and
-/// is about as big; the nearest when several do. Faces can't be recognised
-/// across cuts, so place and size stand in: right for a repeated camera angle.
-FaceTrack? _likeThe(FaceTrack chosen, List<FaceTrack> people) {
-  final usual = chosen.typicalFace;
-  final alike = people.where(
-    (person) => usual.couldBeSameFaceAs(person.typicalFace),
-  );
-  if (alike.isEmpty) {
-    return null;
-  }
-  return alike.reduce(
-    (best, next) =>
-        _centresApart(usual, next.typicalFace) <
-            _centresApart(usual, best.typicalFace)
-        ? next
-        : best,
-  );
-}
-
-double _centresApart(SubjectBox a, SubjectBox b) =>
-    math.max((a.centreX - b.centreX).abs(), (a.centreY - b.centreY).abs());
-
-CropPath _pathOfScenes(
+/// [choices] may be fewer than [scenes] (a clip with more than
+/// [mostScenesFollowed] scenes); the crop then holds after the last choice.
+/// Throws [ArgumentError] when there are more choices than scenes.
+CropPath pathForChoices(
   List<SubjectScene> scenes,
   FollowGeometry geometry,
-  List<FaceTrack?> followed,
+  List<SceneChoice> choices,
 ) {
+  if (choices.length > scenes.length) {
+    throw ArgumentError.value(choices.length, 'choices', 'more than scenes');
+  }
   final paths = [
-    for (final (index, scene) in scenes.indexed)
-      _scenePoints(scene, geometry, followed[index]),
+    for (final (index, choice) in choices.indexed)
+      _scenePoints(scenes[index], geometry, choice),
   ];
   return CropPath(_cappedKeyframes(paths, geometry.clip));
 }
 
-/// Throws [NoSubjectFoundException] when faces are too rare to follow anyone.
-void requireEnoughFaces(List<SubjectSample> samples) {
-  final withFaces = samples.where((sample) => sample.faces.isNotEmpty).length;
-  final share = samples.isEmpty ? 0 : withFaces / samples.length;
-  if (withFaces < _leastFaceFrames || share < _leastFaceShare) {
-    throw const NoSubjectFoundException();
-  }
+/// The crop anchor that puts the spot at ([x], [y]), as fractions of the
+/// frame, in the middle of the window.
+CropAnchor anchorForSpot(double x, double y, FollowGeometry geometry) {
+  return _anchorKeeping(_Aim(x: x, y: y, windowDown: 1 / 2), geometry);
 }
 
 // --- Scenes -------------------------------------------------------------
@@ -191,9 +76,28 @@ List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
   return _scenesBetween(track.samples, cuts, geometry.clip);
 }
 
+/// The cuts that make a scene long enough to hold its keyframe: one within
+/// half a second of the scene before it, or of the clip's end, is not a
+/// boundary, or the user's answer for that scene would be dropped by the
+/// keyframe spacing. A cut is compared as its keyframe will be (a little
+/// before it, see [cutKeyframeLead]), and the clip's ends as theirs are (rounded
+/// inwards to a tenth of a second).
 List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
-  return cuts.where((cut) => cut > clip.start && cut < clip.end).toList()
-    ..sort();
+  final inside =
+      cuts.where((cut) => cut > clip.start && cut < clip.end).toList()..sort();
+  final kept = <Duration>[];
+  var previous = _roundedUpToTenth(clip.start);
+  final latest = _roundedDownToTenth(clip.end);
+  for (final cut in inside) {
+    final at = cut - cutKeyframeLead;
+    final longEnough =
+        at - previous >= _keyframeSpacing && latest - at >= _keyframeSpacing;
+    if (longEnough) {
+      kept.add(cut);
+      previous = at;
+    }
+  }
+  return kept;
 }
 
 List<SubjectScene> _scenesBetween(
@@ -306,7 +210,36 @@ class _Point {
 List<_Point> _scenePoints(
   SubjectScene scene,
   FollowGeometry geometry,
-  FaceTrack? followed,
+  SceneChoice choice,
+) {
+  return switch (choice) {
+    // A spot is a cut to where the user pointed, and no move after it.
+    HoldSpot(:final anchor) => [_Point(scene.start, anchor)],
+    FollowFace(:final track) => _followedPoints(
+      scene,
+      geometry,
+      _Followed(track, _anchorFor),
+    ),
+    FollowBody(:final track) => _followedPoints(
+      scene,
+      geometry,
+      _Followed(track, _bodyAnchorFor),
+    ),
+  };
+}
+
+/// Who is followed in a scene, and how a box of theirs becomes an anchor.
+class _Followed {
+  const _Followed(this.track, this.anchorFor);
+
+  final FaceTrack track;
+  final CropAnchor Function(SubjectBox box, FollowGeometry geometry) anchorFor;
+}
+
+List<_Point> _followedPoints(
+  SubjectScene scene,
+  FollowGeometry geometry,
+  _Followed followed,
 ) {
   final anchors = _filledAnchors(scene.samples, geometry, followed);
   final xs = _followedWithDeadZone(_median([for (final a in anchors) a.x]));
@@ -322,18 +255,18 @@ List<_Point> _scenePoints(
   return _simplified(points, _tolerance);
 }
 
-/// The anchor for every sample: a frame where the followed person is not seen
-/// holds the last one; the frames before the first sighting take that one; a
-/// scene with no face keeps the base.
+/// The anchor for every sample: a frame where the followed one is not seen
+/// holds the last anchor, and the frames before the first sighting take that
+/// one.
 List<CropAnchor> _filledAnchors(
   List<SubjectSample> samples,
   FollowGeometry geometry,
-  FaceTrack? followed,
+  _Followed followed,
 ) {
   final found = <CropAnchor?>[];
   for (var i = 0; i < samples.length; i++) {
-    final face = followed?.faceAt(i);
-    found.add(face == null ? null : _anchorFor(face, geometry));
+    final box = followed.track.faceAt(i);
+    found.add(box == null ? null : followed.anchorFor(box, geometry));
   }
   final first = found.firstWhere((a) => a != null, orElse: () => null);
   var held = first ?? geometry.base;
@@ -343,13 +276,40 @@ List<CropAnchor> _filledAnchors(
 /// The window centred on the face across, with the face a third of the way
 /// down it; an axis with almost no room keeps the base.
 CropAnchor _anchorFor(SubjectBox face, FollowGeometry geometry) {
-  final x = geometry.roomX < _smallestRoom
+  return _anchorKeeping(
+    _Aim(x: face.centreX, y: face.centreY, windowDown: 1 / 3),
+    geometry,
+  );
+}
+
+/// The window centred on the body across, with the body's upper third (where
+/// the head and chest are) a third of the way down the window.
+CropAnchor _bodyAnchorFor(SubjectBox body, FollowGeometry geometry) {
+  return _anchorKeeping(
+    _Aim(x: body.centreX, y: body.top + body.height / 3, windowDown: 1 / 3),
+    geometry,
+  );
+}
+
+/// A point of the frame and how far down the window it should sit.
+class _Aim {
+  const _Aim({required this.x, required this.y, required this.windowDown});
+
+  final double x;
+  final double y;
+  final double windowDown;
+}
+
+/// The anchor that puts [aim]'s point where it says in the window; an axis
+/// with almost no room keeps the base.
+CropAnchor _anchorKeeping(_Aim aim, FollowGeometry geometry) {
+  final anchorX = geometry.roomX < _smallestRoom
       ? geometry.base.x
-      : (face.centreX - geometry.windowWidth / 2) / geometry.roomX;
-  final y = geometry.roomY < _smallestRoom
+      : (aim.x - geometry.windowWidth / 2) / geometry.roomX;
+  final anchorY = geometry.roomY < _smallestRoom
       ? geometry.base.y
-      : (face.centreY - geometry.windowHeight / 3) / geometry.roomY;
-  return CropAnchor(x: x, y: y).clamped();
+      : (aim.y - geometry.windowHeight * aim.windowDown) / geometry.roomY;
+  return CropAnchor(x: anchorX, y: anchorY).clamped();
 }
 
 List<double> _median(List<double> values) {
@@ -459,26 +419,34 @@ List<_Point> _withoutIdleEnd(List<_Point> points, double tolerance) {
 
 /// Many scenes can leave more keyframes than any tolerance removes, so the
 /// ones that change the crop least go, wherever they are: the end of the clip
-/// is never simply cut off. The first keyframe stays.
+/// is never simply cut off. A cut is the user's choice for its scene, so a
+/// glide goes before any cut does. The first keyframe stays.
 List<CropKeyframe> _mergedDownToTheMost(List<CropKeyframe> keyframes) {
   final kept = [...keyframes];
   while (kept.length > _mostKeyframes) {
-    var leastIndex = 1;
-    var least = double.infinity;
-    for (var i = 1; i < kept.length; i++) {
-      final change = math.max(
-        (kept[i].anchor.x - kept[i - 1].anchor.x).abs(),
-        (kept[i].anchor.y - kept[i - 1].anchor.y).abs(),
-      );
-      if (change < least) {
-        least = change;
-        leastIndex = i;
-      }
-    }
-    kept.removeAt(leastIndex);
+    kept.removeAt(_leastChangingIndex(kept));
   }
   return kept;
 }
+
+int _leastChangingIndex(List<CropKeyframe> keyframes) {
+  final glides = [
+    for (var i = 1; i < keyframes.length; i++)
+      if (keyframes[i].arrival == CropArrival.glide) i,
+  ];
+  final candidates = glides.isNotEmpty
+      ? glides
+      : [for (var i = 1; i < keyframes.length; i++) i];
+  return candidates.reduce(
+    (best, next) =>
+        _changeAt(keyframes, next) < _changeAt(keyframes, best) ? next : best,
+  );
+}
+
+double _changeAt(List<CropKeyframe> keyframes, int index) => math.max(
+  (keyframes[index].anchor.x - keyframes[index - 1].anchor.x).abs(),
+  (keyframes[index].anchor.y - keyframes[index - 1].anchor.y).abs(),
+);
 
 List<CropKeyframe> _keyframesFrom(
   List<List<_Point>> scenePaths,
@@ -490,7 +458,11 @@ List<CropKeyframe> _keyframesFrom(
   for (final (sceneIndex, path) in scenePaths.indexed) {
     for (final (pointIndex, point) in path.indexed) {
       final startsScene = pointIndex == 0 && sceneIndex > 0;
-      final time = _within(_snapped(point.time), earliest, latest);
+      final time = _within(
+        startsScene ? point.time - cutKeyframeLead : _snapped(point.time),
+        earliest,
+        latest,
+      );
       final keyframe = CropKeyframe(
         time: keyframes.isEmpty ? earliest : time,
         anchor: point.anchor,
@@ -522,13 +494,17 @@ void _addWithSpacing(
     _addAfterThePause(keyframes, next, latest);
     return;
   }
-  if (keyframes.length > 1) {
-    keyframes
-      ..removeLast()
-      ..add(next);
+  // The glides of the scene before that are too close to the cut go, so the
+  // Cut keeps half a second from the keyframe before it.
+  while (keyframes.length > 1 &&
+      next.time - keyframes.last.time < _keyframeSpacing) {
+    keyframes.removeLast();
+  }
+  if (next.time - keyframes.last.time >= _keyframeSpacing) {
+    keyframes.add(next);
     return;
   }
-  // The only keyframe so far is the clip's start: the cut came right after
+  // The only keyframe left is the clip's start: the cut came right after
   // it, so the start takes the new shot's anchor and keeps its time.
   keyframes[0] = keyframes[0].copyWith(anchor: next.anchor);
 }
@@ -543,7 +519,7 @@ void _addAfterThePause(
 ) {
   final previous = keyframes.last;
   final moved = _distanceBetween(previous.anchor, next.anchor);
-  final arrives = previous.time + _keyframeSpacing;
+  final arrives = _roundedUpToTenth(previous.time + _keyframeSpacing);
   if (moved <= _deadZone || arrives > latest) {
     return;
   }

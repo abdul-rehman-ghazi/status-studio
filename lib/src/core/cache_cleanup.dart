@@ -1,51 +1,107 @@
 import 'dart:io';
 
+import 'package:status_studio/src/features/source/data/video_fingerprint.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 
-/// Deletes the per-video folders under [root] whose newest file is older
-/// than [maxAge] (spec §4 Storage). Returns how many were deleted.
-Future<int> deleteStaleSources(
-  Directory root, {
+/// Deletes the `sources/<id>` folders in [sources] that were imported but
+/// never scripted: no `transcripts/<id>` folder in [transcripts] at all, and
+/// nothing in them changed for [maxAge] (spec §4 Storage). A video whose
+/// script or fine-tune draft is kept is never deleted here; the 90-day
+/// transcript prune removes it, folder and all. Returns how many were
+/// deleted.
+Future<int> deleteOrphanedSources(
+  Directory sources, {
+  required Directory transcripts,
   required DateTime now,
   Duration maxAge = const Duration(days: 7),
 }) async {
-  if (!await root.exists()) {
+  if (!await sources.exists()) {
     return 0;
   }
   var deleted = 0;
-  await for (final entry in root.list()) {
-    if (entry is Directory && now.difference(_lastChange(entry)) > maxAge) {
-      await entry.delete(recursive: true);
+  await for (final entry in sources.list()) {
+    if (entry is Directory &&
+        !_hasTranscripts(entry, transcripts) &&
+        now.difference(_lastChange(entry)) > maxAge) {
+      await _deleteIfPresent(entry);
       deleted++;
     }
   }
   return deleted;
 }
 
-/// When a file in [folder] last changed, so a clip fetched today keeps the
-/// video's older audio too. Reading a cached file doesn't count: the spec
-/// deletes caches by age, not by use. The folder's own time is used only
-/// when it's empty, since adding files moves it.
-DateTime _lastChange(Directory folder) {
-  final files = folder.listSync(recursive: true).whereType<File>();
-  if (files.isEmpty) {
-    return folder.statSync().modified;
-  }
-  return files
-      .map((file) => file.lastModifiedSync())
-      .reduce((newest, time) => time.isAfter(newest) ? time : newest);
+bool _hasTranscripts(Directory source, Directory transcripts) {
+  final videoId = source.uri.pathSegments.lastWhere((name) => name.isNotEmpty);
+  return Directory('${transcripts.path}/$videoId').existsSync();
 }
 
-/// Startup housekeeping: stale media caches and old saved scripts
-/// (FR-14: 90 days, at most 200 videos). Each runs even if the other
-/// fails; the first failure is then rethrown to be reported.
+/// A prune running at the same time may have deleted it first.
+Future<void> _deleteIfPresent(Directory folder) async {
+  if (await folder.exists()) {
+    await folder.delete(recursive: true);
+  }
+}
+
+/// When [folder] or a file in it last changed. The folder's own time counts
+/// because moving a file in keeps the file's old time. Reading a file
+/// doesn't change either: the spec deletes by age, not by use.
+DateTime _lastChange(Directory folder) {
+  final times = [
+    folder.statSync().modified,
+    for (final file in folder.listSync(recursive: true).whereType<File>())
+      file.lastModifiedSync(),
+  ];
+  return times.reduce((newest, time) => time.isAfter(newest) ? time : newest);
+}
+
+/// Deletes the folders in [root] whose name isn't a video fingerprint
+/// (`v_…`): they belong to videos from before M23 that can no longer be
+/// reached (spec FR-1). Files are left alone. Returns how many were deleted.
+Future<int> deleteFoldersWithoutFingerprint(Directory root) async {
+  if (!await root.exists()) {
+    return 0;
+  }
+  var deleted = 0;
+  await for (final entry in root.list()) {
+    final name = entry.uri.pathSegments.lastWhere((part) => part.isNotEmpty);
+    if (entry is Directory && !isVideoId(name)) {
+      await _deleteIfPresent(entry);
+      deleted++;
+    }
+  }
+  return deleted;
+}
+
+/// Startup housekeeping: old saved scripts with their videos (FR-14: 90
+/// days, at most 200 videos), videos imported but never scripted, and the
+/// folders of videos from before M23. Each runs even if another fails; the
+/// first failure is then rethrown to be reported.
 Future<void> cleanUpOnStart({
   required Future<Directory> sources,
   required Future<TranscriptStore> scripts,
   required DateTime now,
 }) async {
+  // First and alone: the other passes list and delete inside these folders.
+  Object? firstFailure;
+  try {
+    await Future.wait([
+      sources.then(deleteFoldersWithoutFingerprint),
+      scripts.then((store) => deleteFoldersWithoutFingerprint(store.root)),
+    ]);
+  } on Object catch (failure) {
+    firstFailure = failure;
+  }
   await Future.wait([
-    sources.then((root) => deleteStaleSources(root, now: now)),
     scripts.then((store) => store.prune()),
+    Future.wait([sources, scripts]).then(
+      (both) => deleteOrphanedSources(
+        both[0] as Directory,
+        transcripts: (both[1] as TranscriptStore).root,
+        now: now,
+      ),
+    ),
   ]);
+  if (firstFailure != null) {
+    throw firstFailure;
+  }
 }

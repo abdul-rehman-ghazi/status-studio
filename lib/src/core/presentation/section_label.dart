@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Bold label above a group of controls ("YouTube link", "Size", …).
+/// Bold label above a group of controls ("Video", "Size", …).
 class SectionLabel extends StatelessWidget {
   const SectionLabel(this.text, {super.key});
 

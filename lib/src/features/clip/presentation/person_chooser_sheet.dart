@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/style/application/follow_subject_controller.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
+import 'package:status_studio/src/features/style/domain/subject_path.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 const _tallest = 360.0;
@@ -16,25 +20,75 @@ const _mostOfTheScreen = 0.45;
 const _reach = 24.0;
 const _smallestTarget = 48.0;
 
-/// Asks whom the crop should follow: a sampled frame with a numbered outline
-/// on every person (spec FR-25). It only calls back; whatever shows it closes
-/// it.
-class PersonChooserSheet extends StatelessWidget {
+/// How long the pin shows where a spot was picked before the next scene.
+const _pinShown = Duration(milliseconds: 450);
+const _pinSize = 28.0;
+
+/// Asks what the crop should keep in frame in one scene: its fullest frame,
+/// with a numbered outline on every face and body (spec FR-27). It answers
+/// once, through [onAnswered], and whatever shows it closes it with that
+/// answer.
+class PersonChooserSheet extends StatefulWidget {
   const PersonChooserSheet({
     super.key,
     required this.choosing,
-    required this.onChosen,
-    required this.onChooseForMe,
-    required this.onCancel,
+    required this.onAnswered,
   });
 
   final FollowChoosing choosing;
-  final ValueChanged<PersonChoice> onChosen;
-  final VoidCallback onChooseForMe;
-  final VoidCallback onCancel;
+  final ValueChanged<SceneAnswer> onAnswered;
+
+  @override
+  State<PersonChooserSheet> createState() => _PersonChooserSheetState();
+}
+
+class _PersonChooserSheetState extends State<PersonChooserSheet> {
+  var _answered = false;
+  Offset? _pin;
+  Timer? _pinTimer;
+
+  @override
+  void dispose() {
+    _pinTimer?.cancel();
+    super.dispose();
+  }
+
+  /// True for the first call only: a second tap while the sheet is closing
+  /// must not answer again.
+  bool _claim() {
+    if (_answered) {
+      return false;
+    }
+    _answered = true;
+    return true;
+  }
+
+  void _answer(SceneAnswer answer) {
+    if (_claim()) {
+      widget.onAnswered(answer);
+    }
+  }
+
+  void _pickSpot(Offset spot) {
+    if (!_claim()) {
+      return;
+    }
+    setState(() => _pin = spot);
+    _pinTimer = Timer(_pinShown, () => _answerSpot(spot));
+  }
+
+  /// The sheet may have been closed (a drag, the scrim, Back) while the pin
+  /// showed; popping again then would close the screen under it.
+  void _answerSpot(Offset spot) {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      return;
+    }
+    widget.onAnswered(PickedSpot(x: spot.dx, y: spot.dy));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final choosing = widget.choosing;
     final theme = Theme.of(context);
     final tallest = math.min(
       _tallest,
@@ -48,13 +102,18 @@ class PersonChooserSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Who should the crop follow?',
+              _titleOf(choosing),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
-            const HintText('Tap a face.'),
+            const HintText('Tap a face, a body, or the spot to keep in frame.'),
+            if (choosing.skippedSceneCount > 0)
+              const HintText(
+                'This clip has more than $mostScenesFollowed scenes. '
+                'The crop follows the first $mostScenesFollowed.',
+              ),
             const SizedBox(height: 12),
             Center(
               child: ConstrainedBox(
@@ -67,23 +126,30 @@ class PersonChooserSheet extends StatelessWidget {
                       key: const Key('person-picture'),
                       choosing: choosing,
                       size: box.biggest,
-                      onChosen: onChosen,
+                      pin: _pin,
+                      onFace: (index) => _answer(PickedFace(index)),
+                      onBody: (index) => _answer(PickedBody(index)),
+                      onSpot: _pickSpot,
                     ),
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            // A wrap, not a row: on a 320 dp phone the two buttons don't fit
+            // A wrap, not a row: on a 320 dp phone the buttons don't fit
             // side by side.
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,
               children: [
-                TextButton(onPressed: onCancel, child: const Text('Cancel')),
-                OutlinedButton(
-                  onPressed: onChooseForMe,
-                  child: const Text('Choose for me'),
+                if (choosing.sceneIndex > 0)
+                  TextButton(
+                    onPressed: () => _answer(const WentBack()),
+                    child: const Text('Back'),
+                  ),
+                TextButton(
+                  onPressed: () => _answer(const Cancelled()),
+                  child: const Text('Cancel'),
                 ),
               ],
             ),
@@ -94,46 +160,87 @@ class PersonChooserSheet extends StatelessWidget {
   }
 }
 
+String _titleOf(FollowChoosing choosing) {
+  final span =
+      '${formatTimestamp(choosing.sceneStart)}'
+      '–${formatTimestamp(choosing.sceneEnd)}';
+  return 'Scene ${choosing.sceneIndex + 1} of ${choosing.sceneCount} · $span';
+}
+
 class _Picture extends StatelessWidget {
   const _Picture({
     super.key,
     required this.choosing,
     required this.size,
-    required this.onChosen,
+    required this.pin,
+    required this.onFace,
+    required this.onBody,
+    required this.onSpot,
   });
 
   final FollowChoosing choosing;
   final Size size;
-  final ValueChanged<PersonChoice> onChosen;
+  final Offset? pin;
+  final ValueChanged<int> onFace;
+  final ValueChanged<int> onBody;
 
+  /// The spot as fractions of the picture.
+  final ValueChanged<Offset> onSpot;
+
+  /// A face first, then a body, else the spot itself.
   void _tapAt(Offset tap) {
-    final near = _nearestFirst(tap);
-    if (near.isNotEmpty) {
-      onChosen(near.first);
+    final face = _faceNear(tap);
+    if (face != null) {
+      onFace(face);
+      return;
     }
+    final body = _bodyAt(tap);
+    if (body != null) {
+      onBody(body);
+      return;
+    }
+    onSpot(Offset(tap.dx / size.width, tap.dy / size.height));
   }
 
-  /// The choices within reach of [tap], the nearest first.
-  List<PersonChoice> _nearestFirst(Offset tap) {
-    final reached =
-        [
-            for (final choice in choosing.choices)
-              (choice, _distanceFromFace(choice.face, tap)),
-          ].where((entry) => entry.$2 <= _reach).toList()
-          ..sort((a, b) => a.$2.compareTo(b.$2));
-    return [for (final entry in reached) entry.$1];
+  /// The nearest face within reach of [tap], by its place in the list.
+  int? _faceNear(Offset tap) {
+    int? nearest;
+    var nearestDistance = _reach;
+    for (final (index, face) in choosing.faces.indexed) {
+      final distance = _distanceFromBox(face, tap);
+      if (distance <= nearestDistance) {
+        nearest = index;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
   }
 
-  Rect _rectOf(SubjectBox face) => Rect.fromLTWH(
-    face.left * size.width,
-    face.top * size.height,
-    face.width * size.width,
-    face.height * size.height,
+  /// The smallest body box that holds [tap]: a person in front of another is
+  /// the one meant.
+  int? _bodyAt(Offset tap) {
+    int? smallest;
+    for (final (index, body) in choosing.bodies.indexed) {
+      if (!_rectOf(body).contains(tap)) {
+        continue;
+      }
+      if (smallest == null || body.area < choosing.bodies[smallest].area) {
+        smallest = index;
+      }
+    }
+    return smallest;
+  }
+
+  Rect _rectOf(SubjectBox box) => Rect.fromLTWH(
+    box.left * size.width,
+    box.top * size.height,
+    box.width * size.width,
+    box.height * size.height,
   );
 
-  /// 0 inside the face.
-  double _distanceFromFace(SubjectBox face, Offset tap) {
-    final rect = _rectOf(face);
+  /// 0 inside the box.
+  double _distanceFromBox(SubjectBox box, Offset tap) {
+    final rect = _rectOf(box);
     final across = math.max(
       0.0,
       math.max(rect.left - tap.dx, tap.dx - rect.right),
@@ -147,44 +254,81 @@ class _Picture extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Excluded from semantics: a screen reader would tap it at (0, 0). The
-    // numbered markers are its buttons.
-    return GestureDetector(
-      excludeFromSemantics: true,
-      behavior: HitTestBehavior.opaque,
-      onTapUp: (details) => _tapAt(details.localPosition),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ExcludeSemantics(
-              child: Image.file(
-                choosing.picture,
-                fit: BoxFit.fill,
-                errorBuilder: (_, _, _) =>
-                    const ColoredBox(color: AppColors.surface),
+    // The gesture and the image are excluded from semantics: a screen reader
+    // would tap them at (0, 0). The markers are the buttons, and the picture
+    // offers the centre as an action.
+    return Semantics(
+      container: true,
+      label: 'Scene picture',
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: 'Keep the centre'): () =>
+            onSpot(const Offset(0.5, 0.5)),
+      },
+      child: GestureDetector(
+        excludeFromSemantics: true,
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (details) => _tapAt(details.localPosition),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ExcludeSemantics(
+                child: Image.file(
+                  choosing.picture,
+                  fit: BoxFit.fill,
+                  errorBuilder: (_, _, _) =>
+                      const ColoredBox(color: AppColors.surface),
+                ),
               ),
             ),
-          ),
-          for (final (index, choice) in choosing.choices.indexed)
-            _FaceMarker(
-              number: index + 1,
-              rect: _rectOf(choice.face),
-              onTap: () => onChosen(choice),
-            ),
-        ],
+            for (final (index, body) in choosing.bodies.indexed)
+              _Marker(
+                style: _MarkerStyle(
+                  label: 'Body ${index + 1}',
+                  badge: 'B${index + 1}',
+                  color: AppColors.textPrimary,
+                  badgeTextColor: AppColors.background,
+                ),
+                rect: _rectOf(body),
+                onTap: () => onBody(index),
+              ),
+            for (final (index, face) in choosing.faces.indexed)
+              _Marker(
+                style: _MarkerStyle(
+                  label: 'Person ${index + 1}',
+                  badge: '${index + 1}',
+                  color: AppColors.accent,
+                  badgeTextColor: AppColors.onAccent,
+                ),
+                rect: _rectOf(face),
+                onTap: () => onFace(index),
+              ),
+            if (pin case final spot?) _Pin(at: spot, size: size),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _FaceMarker extends StatelessWidget {
-  const _FaceMarker({
-    required this.number,
-    required this.rect,
-    required this.onTap,
+/// How a marker reads: to the eye and to a screen reader.
+class _MarkerStyle {
+  const _MarkerStyle({
+    required this.label,
+    required this.badge,
+    required this.color,
+    required this.badgeTextColor,
   });
 
-  final int number;
+  final String label;
+  final String badge;
+  final Color color;
+  final Color badgeTextColor;
+}
+
+class _Marker extends StatelessWidget {
+  const _Marker({required this.style, required this.rect, required this.onTap});
+
+  final _MarkerStyle style;
   final Rect rect;
   final VoidCallback onTap;
 
@@ -199,7 +343,7 @@ class _FaceMarker extends StatelessWidget {
       rect: target,
       child: Semantics(
         button: true,
-        label: 'Person $number',
+        label: style.label,
         onTap: onTap,
         excludeSemantics: true,
         child: Center(
@@ -208,12 +352,16 @@ class _FaceMarker extends StatelessWidget {
             height: rect.height,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.accent, width: 2),
+                border: Border.all(color: style.color, width: 2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Align(
                 alignment: Alignment.topLeft,
-                child: _NumberBadge(number: number),
+                child: _Badge(
+                  text: style.badge,
+                  color: style.color,
+                  textColor: style.badgeTextColor,
+                ),
               ),
             ),
           ),
@@ -223,26 +371,58 @@ class _FaceMarker extends StatelessWidget {
   }
 }
 
-class _NumberBadge extends StatelessWidget {
-  const _NumberBadge({required this.number});
+class _Badge extends StatelessWidget {
+  const _Badge({
+    required this.text,
+    required this.color,
+    required this.textColor,
+  });
 
-  final int number;
+  final String text;
+  final Color color;
+  final Color textColor;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppColors.accent,
-        borderRadius: BorderRadius.only(bottomRight: Radius.circular(6)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: const BorderRadius.only(bottomRight: Radius.circular(6)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         child: Text(
-          '$number',
-          style: const TextStyle(
-            color: AppColors.onAccent,
+          text,
+          style: TextStyle(
+            color: textColor,
             fontSize: 12,
             fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shows where a spot was picked, its tip on the spot.
+class _Pin extends StatelessWidget {
+  const _Pin({required this.at, required this.size});
+
+  final Offset at;
+  final Size size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      key: const Key('spot-pin'),
+      left: at.dx * size.width - _pinSize / 2,
+      top: at.dy * size.height - _pinSize,
+      child: const IgnorePointer(
+        child: ExcludeSemantics(
+          child: Icon(
+            Icons.location_on,
+            size: _pinSize,
+            color: AppColors.accent,
           ),
         ),
       ),

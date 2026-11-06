@@ -3,11 +3,11 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
-/// Source name of a script that came from YouTube captions (FR-14).
-const captionsSource = 'captions';
-
 /// Source name of a script Groq wrote (FR-14).
-const groqSource = 'groq-whisper-large-v3-turbo';
+///
+/// Names the model: a script from an older model stays readable, but a
+/// partial run of one is never resumed under another.
+const groqSource = 'groq-whisper-large-v3';
 
 /// Source name of a script whose text was corrected by an AI agent (FR-18).
 const editedSource = 'edited';
@@ -62,7 +62,8 @@ class SavedTranscript {
 
   final Transcript transcript;
 
-  /// `captions` or `groq-whisper-large-v3-turbo`.
+  /// `groq-whisper-large-v3` (older scripts: `groq-whisper-large-v3-turbo`)
+  /// or `edited`.
   final String source;
   final DateTime savedAt;
 

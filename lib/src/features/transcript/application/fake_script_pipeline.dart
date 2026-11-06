@@ -56,7 +56,7 @@ List<ScriptProgress> _progressEvents() {
       sampleTranscript.copyWith(lines: lines.sublist(0, count));
   return [
     ScriptProgress(
-      stage: ScriptStage.downloadingAudio,
+      stage: ScriptStage.preparingAudio,
       fraction: 0,
       transcript: linesUpTo(0),
     ),

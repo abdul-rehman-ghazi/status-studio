@@ -36,6 +36,12 @@ class CropAnchor {
 /// How a keyframe is reached from the one before it.
 enum CropArrival { glide, cut }
 
+/// A scene's Cut keyframe sits this much before the cut (spec FR-27): the
+/// renderer reads a frame's time in whole milliseconds, so a keyframe on the
+/// cut could still show the new shot's first frame with the old crop. A frame
+/// is longer than this at any frame rate below 100 fps.
+const cutKeyframeLead = Duration(milliseconds: 10);
+
 /// A crop anchor at a moment of the video, in video time (spec FR-22).
 @immutable
 class CropKeyframe {
@@ -48,6 +54,11 @@ class CropKeyframe {
   final Duration time;
   final CropAnchor anchor;
   final CropArrival arrival;
+
+  /// Where to put the playhead to see this keyframe's crop on its own shot: a
+  /// Cut's keyframe is [cutKeyframeLead] before the cut, on the old shot.
+  Duration get shownAt =>
+      arrival == CropArrival.cut ? time + cutKeyframeLead : time;
 
   CropKeyframe copyWith({
     Duration? time,

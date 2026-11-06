@@ -9,12 +9,11 @@ import 'package:status_studio/src/features/transcript/domain/transcript_errors.d
 /// Spec §8 copy for a failure from the data layer.
 String errorMessageFor(Object error) {
   return switch (error) {
-    VideoUnavailableException() => "This video can't be downloaded.",
     OfflineException() ||
     GroqOfflineException() => "You're offline. Connect and try again.",
-    YouTubeChangedException() =>
-      "Couldn't read this video from YouTube. Try again later.",
     InsufficientStorageException() => 'Not enough space on your phone.',
+    VideoUnreadableException() => "Can't read this video.",
+    KeptVideoMissingException() => 'Video not found, choose it again.',
     NoSpeechFoundException() => 'No speech found in this video.',
     NoGroqKeyException() => 'Writing a script needs a free Groq key.',
     GroqKeyRejectedException() => "Groq didn't accept your API key.",
@@ -26,12 +25,10 @@ String errorMessageFor(Object error) {
       "Couldn't find script lines in what you pasted. Copy the AI's whole "
           'reply and try again.',
     TooManyLinesForAiException() =>
-      'Too many lines for an AI to check. Tap the start and end lines of '
-          'your clip first.',
+      'Too many lines for an AI to check. Shorten the clip on the next step '
+          'first.',
     RenderFailedException() => "Couldn't make the reel.",
     TranslationPackMissingException() => 'English needs a one-time download.',
-    NoSubjectFoundException() =>
-      'No person found in this clip. The crop stays where it is.',
     FollowFailedException() => "Couldn't follow the person. Try again.",
     _ => 'Something went wrong. Try again.',
   };

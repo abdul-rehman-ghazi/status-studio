@@ -2,19 +2,45 @@ package com.hotmail.arehmananis.statusstudio
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.provider.Settings
 import com.hotmail.arehmananis.statusstudio.render.RenderChannel
-import com.hotmail.arehmananis.statusstudio.youtube.YtDlpChannel
+import com.hotmail.arehmananis.statusstudio.videoin.VideoInChannel
+import com.hotmail.arehmananis.statusstudio.videoin.shouldHandleIntent
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var videoIn: VideoInChannel? = null
+
+    // When Android restores the activity after the process died, `intent` is still the
+    // original share, which was already handled.
+    private var restoredBySystem = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        restoredBySystem = savedInstanceState != null
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handOverShare(intent, launchedFromSavedState = false)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        videoIn?.dispose()
+        videoIn = null
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         RenderChannel(applicationContext, messenger)
-        YtDlpChannel(applicationContext, messenger)
+        videoIn = VideoInChannel(applicationContext, messenger)
+        handOverShare(intent, restoredBySystem)
         MethodChannel(messenger, "status_studio/system").setMethodCallHandler { call, result ->
             when (call.method) {
                 "openAppSettings" -> {
@@ -24,6 +50,19 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * Android keeps the launch intent and replays it when the app is reopened from Recents, or
+     * when this method runs again for a new engine. A taken share is therefore emptied.
+     */
+    private fun handOverShare(shareIntent: Intent, launchedFromSavedState: Boolean) {
+        if (!shouldHandleIntent(shareIntent.flags, launchedFromSavedState)) return
+        if (videoIn?.receive(shareIntent) != true) return
+        shareIntent.action = Intent.ACTION_MAIN
+        shareIntent.setDataAndType(null, null)
+        shareIntent.clipData = null
+        shareIntent.replaceExtras(Bundle())
     }
 
     /** The app's page in system Settings, where a refused permission can be granted. */

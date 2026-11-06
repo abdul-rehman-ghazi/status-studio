@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
@@ -15,7 +16,9 @@ import 'package:status_studio/src/features/reel/application/fine_tune_drafts_con
 import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
+import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
@@ -122,8 +125,7 @@ class _NewReelCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Paste a YouTube link, then pick the lines from its '
-                      'script',
+                      'Choose or share a video, then trim and caption it',
                       style: textTheme.bodySmall?.copyWith(
                         color: AppColors.onAccent,
                       ),
@@ -267,17 +269,31 @@ class _SavedScriptRow extends ConsumerWidget {
       leading: const _ScriptThumbnail(),
       title: ScriptText(script.video.title, maxLines: 1),
       subtitle: Text(
-        'Script · $language · ${formatTimestamp(script.video.duration)} · '
-        '${formatDayMonth(script.saved.savedAt.toLocal())}',
+        _isKept(ref)
+            ? 'Script · $language · ${formatTimestamp(script.video.duration)} · '
+                  '${formatDayMonth(script.saved.savedAt.toLocal())}'
+            : _chooseAgainHint,
       ),
-      onTap: () => _openScript(context, ref),
+      onTap: () => unawaited(_openScript(context, ref)),
       onLongPress: () => unawaited(_offerDelete(context, ref)),
     );
   }
 
-  /// The same path as pasting the link again: Processing finds the saved
-  /// script and goes straight on to Script.
-  void _openScript(BuildContext context, WidgetRef ref) {
+  bool _isKept(WidgetRef ref) =>
+      ref.watch(isVideoKeptProvider(script.video.videoId)).value ?? true;
+
+  /// Processing finds the saved script and goes straight on to Script. With
+  /// the kept video gone the user is asked for it again first (spec FR-1).
+  Future<void> _openScript(BuildContext context, WidgetRef ref) async {
+    if (!await _isStillKept(ref, script.video.videoId)) {
+      if (context.mounted) {
+        _askForTheVideoAgain(context, ref, script.video.videoId);
+      }
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
     ref.read(scriptOpeningNoticeProvider.notifier).clear();
     ref.read(reelDraftProvider.notifier)
       ..startNew()
@@ -286,7 +302,7 @@ class _SavedScriptRow extends ConsumerWidget {
     ref
         .read(scriptProgressProvider.notifier)
         .start(script.video, script.language);
-    context.push(AppRoutes.processing);
+    unawaited(context.push(AppRoutes.processing));
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
@@ -294,6 +310,29 @@ class _SavedScriptRow extends ConsumerWidget {
       await ref.read(savedScriptsProvider.notifier).delete(script);
     }
   }
+}
+
+const _chooseAgainHint = 'Choose or share the video again';
+
+/// A row shows "choose again" from a cached answer; the video may have been
+/// imported since, so a tap that finds "gone" looks at the phone again.
+Future<bool> _isStillKept(WidgetRef ref, String videoId) async {
+  if (ref.read(isVideoKeptProvider(videoId)).value ?? true) {
+    return true;
+  }
+  return ref.refresh(isVideoKeptProvider(videoId).future);
+}
+
+/// The kept video is gone: say so and open Source. The script and the kept
+/// fine-tune stay, and the same video chosen again finds them (spec FR-1).
+void _askForTheVideoAgain(BuildContext context, WidgetRef ref, String videoId) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(errorMessageFor(KeptVideoMissingException(videoId))),
+    ),
+  );
+  ref.read(reelDraftProvider.notifier).startNew();
+  context.push(AppRoutes.source);
 }
 
 class _ScriptThumbnail extends StatelessWidget {
@@ -316,7 +355,7 @@ class _ScriptThumbnail extends StatelessWidget {
 }
 
 /// A fine-tune kept at Fine-tune, to continue later (FR-24). Long-press
-/// offers Delete progress, which leaves the video's script.
+/// offers Delete, which removes the fine-tune and the video's script.
 class _FineTuneRow extends ConsumerStatefulWidget {
   const _FineTuneRow({required this.fineTune});
 
@@ -331,6 +370,9 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
 
   SavedFineTune get fineTune => widget.fineTune;
 
+  bool get _isKept =>
+      ref.watch(isVideoKeptProvider(fineTune.video.videoId)).value ?? true;
+
   @override
   Widget build(BuildContext context) {
     final clipLength = fineTune.draft.clip.length;
@@ -339,8 +381,10 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       leading: const _FineTuneThumbnail(),
       title: ScriptText(fineTune.video.title, maxLines: 1),
       subtitle: Text(
-        'Fine-tune · ${formatSeconds(clipLength)} · '
-        '${formatDayMonth(fineTune.draft.savedAt.toLocal())}',
+        _isKept
+            ? 'Fine-tune · ${formatSeconds(clipLength)} · '
+                  '${formatDayMonth(fineTune.draft.savedAt.toLocal())}'
+            : _chooseAgainHint,
       ),
       trailing: Text(
         'Continue',
@@ -359,6 +403,15 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       return;
     }
     setState(() => _opening = true);
+    if (!await _isStillKept(ref, fineTune.video.videoId)) {
+      if (mounted) {
+        setState(() => _opening = false);
+      }
+      if (context.mounted) {
+        _askForTheVideoAgain(context, ref, fineTune.video.videoId);
+      }
+      return;
+    }
     final FineTuneResume outcome;
     try {
       outcome = await ref.read(fineTuneResumerProvider).resume(fineTune);
@@ -387,9 +440,7 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
         draft.restore(restored);
         unawaited(ref.read(fineTuneDraftSaverProvider).rememberKept(restored));
         _startScript(ref);
-        context
-          ..push(AppRoutes.script)
-          ..push(AppRoutes.fineTune);
+        context.push(AppRoutes.fineTune);
       case FineTuneScriptGone(:final startOver):
         draft.restore(startOver);
         notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptGone);
@@ -399,7 +450,7 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
         draft.restore(startOver);
         notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptChanged);
         _startScript(ref);
-        context.push(AppRoutes.script);
+        context.push(AppRoutes.fineTune);
     }
   }
 
@@ -408,8 +459,23 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       .start(fineTune.video, fineTune.draft.script.language);
 
   Future<void> _offerDeleteProgress(BuildContext context, WidgetRef ref) async {
-    if (await _confirmAction(context, 'Delete progress')) {
-      await ref.read(fineTuneDraftsProvider.notifier).delete(fineTune);
+    if (!await _confirmAction(context, 'Delete')) {
+      return;
+    }
+    await ref.read(fineTuneDraftsProvider.notifier).delete(fineTune);
+    await _deleteItsScript(ref);
+  }
+
+  /// Without this the script row would show again where the fine-tune was.
+  Future<void> _deleteItsScript(WidgetRef ref) async {
+    final scripts = await ref.read(savedScriptsProvider.future);
+    final script = scripts.where(
+      (saved) =>
+          saved.video.videoId == fineTune.video.videoId &&
+          saved.language == fineTune.draft.script.language,
+    );
+    for (final saved in script) {
+      await ref.read(savedScriptsProvider.notifier).delete(saved);
     }
   }
 }

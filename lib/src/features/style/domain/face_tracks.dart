@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
-const _leastShareOfLongest = 0.9;
 const _leastSightings = 3;
 const _leastShareOfScene = 0.2;
 
@@ -109,21 +108,22 @@ List<FaceTrack> trackFaces(List<SubjectSample> samples) {
   return tracks;
 }
 
-/// The person to follow: among those on screen for most of the scene, the
-/// biggest. A bigger face that only passes through is not the subject, and
-/// neither is a small one in the background that is always there. Null when
-/// there are no people.
-FaceTrack? mostProminent(List<FaceTrack> tracks) {
-  if (tracks.isEmpty) {
-    return null;
+/// [person] with the later or earlier stretches in which the same person was
+/// picked up again as a new track after being missed for long: not seen in the
+/// same frame as them, and in about the same place and size. [lasting] are the
+/// scene's people.
+FaceTrack withTheirOtherSightings(FaceTrack person, List<FaceTrack> lasting) {
+  final usual = person.typicalFace;
+  final others = lasting.where((track) => !identical(track, person)).toList()
+    ..sort((a, b) => a.firstIndex.compareTo(b.firstIndex));
+  var joined = person;
+  for (final other in others) {
+    if (!joined.sharesASampleWith(other) &&
+        usual.couldBeSameFaceAs(other.typicalFace)) {
+      joined = joined.joinedWith(other);
+    }
   }
-  final longest = tracks.map((track) => track.sightings).reduce(math.max);
-  final lastingMost = tracks.where(
-    (track) => track.sightings >= longest * _leastShareOfLongest,
-  );
-  return lastingMost.reduce(
-    (best, next) => next.areaSeen > best.areaSeen ? next : best,
-  );
+  return joined;
 }
 
 /// The tracks seen often enough in a scene of [sceneLength] samples to be

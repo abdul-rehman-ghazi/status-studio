@@ -1,5 +1,7 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
@@ -9,52 +11,65 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
-import 'package:status_studio/src/features/source/data/video_source.dart';
+import 'package:status_studio/src/features/source/application/is_video_kept.dart';
+import 'package:status_studio/src/features/source/application/video_thumbnail.dart';
+import 'package:status_studio/src/features/source/data/local_video_importer.dart';
+import 'package:status_studio/src/features/source/data/video_picker.dart';
+import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
-import 'package:status_studio/src/features/source/domain/youtube_link.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
+/// Step 1: bring in a video, by the gallery picker or by a share (spec FR-1).
+///
+/// A [sharedVideo] is imported at once and its script starts without a tap.
 class SourceScreen extends ConsumerStatefulWidget {
-  const SourceScreen({super.key});
+  const SourceScreen({this.sharedVideo, super.key});
+
+  final IncomingVideo? sharedVideo;
 
   @override
   ConsumerState<SourceScreen> createState() => _SourceScreenState();
 }
 
 class _SourceScreenState extends ConsumerState<SourceScreen> {
-  final _linkController = TextEditingController();
   Future<SourceVideo>? _videoRequest;
   var _language = ScriptLanguage.auto;
-  var _showLinkError = false;
 
   @override
-  void dispose() {
-    _linkController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    final shared = widget.sharedVideo;
+    if (shared == null) {
+      unawaited(_recoverLostPick());
+      return;
+    }
+    _videoRequest = _importVideo(shared.path, shared.displayName);
+    unawaited(_getScript());
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasVideo = _videoRequest != null;
     return Scaffold(
-      appBar: const FlowAppBar(title: 'New reel', stepLabel: 'Step 1 of 5'),
+      appBar: const FlowAppBar(title: 'New reel', stepLabel: 'Step 1 of 4'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const SectionLabel('YouTube link'),
-          _LinkField(
-            controller: _linkController,
-            errorText: _showLinkError
-                ? "That doesn't look like a YouTube link."
-                : null,
-            onChanged: _onLinkChanged,
-            onPaste: _pasteLink,
+          const SectionLabel('Video'),
+          OutlinedButton.icon(
+            onPressed: _chooseVideo,
+            icon: const Icon(Icons.video_library_outlined),
+            label: Text(hasVideo ? 'Choose another video' : 'Choose a video'),
           ),
           if (_videoRequest case final request?) _VideoCard(request: request),
           const SizedBox(height: 8),
-          const HintText('Any video, any length.'),
+          const HintText(
+            'Trim it in another app first, or share it to Status Studio.',
+          ),
           const SizedBox(height: 24),
           const SectionLabel('Language of the video'),
           DropdownButtonFormField<ScriptLanguage>(
@@ -78,89 +93,91 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       ),
       bottomNavigationBar: BottomAction(
         child: FilledButton(
-          onPressed: _getScript,
+          onPressed: hasVideo ? _getScript : null,
           child: const Text('Get the script'),
         ),
       ),
     );
   }
 
-  void _onLinkChanged(String link) {
-    setState(() {
-      _showLinkError = false;
-      _videoRequest = _requestVideo(link);
-    });
-  }
-
-  Future<SourceVideo>? _requestVideo(String link) {
+  Future<void> _chooseVideo() async {
+    final VideoPickResult picked;
     try {
-      final videoId = parseYouTubeVideoId(link);
-      // The card shows a failure once it builds; ignore() keeps the error
-      // from being reported as unhandled before then.
-      return ref.read(videoSourceProvider).fetchVideo(videoId)..ignore();
-    } on InvalidYouTubeLinkException {
-      return null;
+      picked = await ref.read(videoPickerProvider).pickVideo();
+    } on VideoPickFailedException catch (failure) {
+      _showVideo(Future<SourceVideo>.error(failure));
+      return;
+    }
+    if (picked is VideoPicked) {
+      _showVideo(_importVideo(picked.path, picked.displayName));
     }
   }
 
-  Future<void> _pasteLink() async {
-    final clip = await Clipboard.getData(Clipboard.kTextPlain);
-    final link = clip?.text ?? '';
-    _linkController.text = link;
-    _onLinkChanged(link);
+  Future<void> _recoverLostPick() async {
+    final LostVideoResult lost;
+    try {
+      lost = await ref.read(videoPickerProvider).retrieveLostVideo();
+    } on VideoPickFailedException {
+      return;
+    }
+    if (lost is LostVideoFound && mounted && _videoRequest == null) {
+      _showVideo(_importVideo(lost.video.path, lost.video.displayName));
+    }
+  }
+
+  /// The card shows a failure once it builds; ignore() keeps the error from
+  /// being reported as unhandled before then.
+  void _showVideo(Future<SourceVideo> request) {
+    if (!mounted) {
+      return;
+    }
+    request.ignore();
+    setState(() {
+      _videoRequest = request;
+    });
+  }
+
+  Future<SourceVideo> _importVideo(String path, String displayName) async {
+    final importer = await ref.read(localVideoImporterProvider.future);
+    final video = await importer.importVideo(
+      path: path,
+      displayName: displayName,
+    );
+    // Recent rows that asked for this video again can open now.
+    if (mounted) {
+      ref.invalidate(isVideoKeptProvider);
+    }
+    return video;
   }
 
   Future<void> _getScript() async {
     final request = _videoRequest;
     if (request == null) {
-      setState(() => _showLinkError = true);
       return;
     }
     final SourceVideo video;
     try {
       video = await request;
     } catch (_) {
-      // The video card already shows why; stay on this screen.
+      // The video card already shows why; stay on this screen. Not only
+      // Exceptions: nothing here may reach the zone as an unhandled error.
       return;
     }
-    if (!mounted) {
+    // Another video was chosen while this one was still importing.
+    if (!mounted || !identical(request, _videoRequest)) {
       return;
     }
-    ref.read(reelDraftProvider.notifier)
+    final draft = ref.read(reelDraftProvider.notifier);
+    final languageChanged = ref.read(reelDraftProvider).language != _language;
+    draft
       ..setVideo(video)
       ..setLanguage(_language);
+    if (languageChanged) {
+      // A script in another language replaces the edited lines (FR-21).
+      draft.forgetLineEdits();
+    }
     ref.read(scriptProgressProvider.notifier).start(video, _language);
     await context.push(AppRoutes.processing);
-  }
-}
-
-class _LinkField extends StatelessWidget {
-  const _LinkField({
-    required this.controller,
-    required this.errorText,
-    required this.onChanged,
-    required this.onPaste,
-  });
-
-  final TextEditingController controller;
-  final String? errorText;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onPaste;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.url,
-      autocorrect: false,
-      onChanged: onChanged,
-      decoration: InputDecoration(
-        hintText: 'https://youtu.be/…',
-        errorText: errorText,
-        border: const OutlineInputBorder(),
-        suffixIcon: TextButton(onPressed: onPaste, child: const Text('Paste')),
-      ),
-    );
   }
 }
 
@@ -208,18 +225,59 @@ class _VideoSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.play_circle_outline, color: AppColors.accent),
+        _Thumbnail(videoId: video.videoId),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-              HintText('${video.channel} · ${formatTimestamp(video.duration)}'),
+              HintText(formatTimestamp(video.duration)),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The video's first frame; its icon until the picture is ready, or if it
+/// can't be made (a missing picture only costs the card its image).
+class _Thumbnail extends ConsumerWidget {
+  const _Thumbnail({required this.videoId});
+
+  final String videoId;
+
+  static const _size = 56.0;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final thumbnail = ref.watch(videoThumbnailProvider(videoId)).asData;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: _size,
+        height: _size,
+        child: thumbnail == null
+            ? const _ThumbnailIcon()
+            : Image.file(
+                File(thumbnail.value.path),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stack) => const _ThumbnailIcon(),
+              ),
+      ),
+    );
+  }
+}
+
+class _ThumbnailIcon extends StatelessWidget {
+  const _ThumbnailIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: AppColors.background,
+      child: Icon(Icons.play_circle_outline, color: AppColors.accent),
     );
   }
 }
@@ -235,8 +293,8 @@ class _OnDeviceNote extends StatelessWidget {
         SizedBox(width: 10),
         Expanded(
           child: HintText(
-            "Uses the video's captions when it has them. Otherwise its audio "
-            'is sent to Groq to write the script.',
+            "The video's audio is sent to Groq to write the script. The "
+            'video itself stays on your phone.',
           ),
         ),
       ],

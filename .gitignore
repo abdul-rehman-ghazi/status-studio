@@ -52,3 +52,6 @@ app.*.map.json
 
 # Claude Code personal settings
 .claude/settings.local.json
+
+# Reference clips for manual checks; too big to commit and never bundled
+assets/videos/

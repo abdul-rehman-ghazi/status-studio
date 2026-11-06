@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
@@ -14,6 +15,8 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/style/presentation/reel_stage.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
+import 'package:status_studio/src/features/transcript/presentation/script_tools.dart';
+import 'package:status_studio/src/features/transcript/presentation/script_writing_footer.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 /// Step 2 of Fine-tune: the clip's lines, when each one shows, and the video
@@ -29,6 +32,11 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   static const _saveDelay = Duration(seconds: 1);
 
   final _playhead = ClipPlayhead();
+
+  /// True while Caption and Export are open: this player's decoder would
+  /// leave the export's too little memory (one decoder at a time, spec
+  /// FR-22).
+  var _playerReleased = false;
   late final ScriptEditingService _scriptEditing;
   late final AppLifecycleListener _lifecycle;
   Timer? _saveTimer;
@@ -65,6 +73,13 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     _saveTimer = Timer(_saveDelay, () => unawaited(_savePending()));
   }
 
+  /// The script is about to be written again, so a line edit still waiting
+  /// to be saved must not land on top of the new one.
+  void _dropPendingSave() {
+    _saveTimer?.cancel();
+    _pendingSave = null;
+  }
+
   Future<void> _savePending() async {
     final save = _pendingSave;
     _pendingSave = null;
@@ -79,6 +94,32 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     }
   }
 
+  /// Caption opens only once this step's player is gone, and the player comes
+  /// back only once Caption has slid away.
+  Future<void> _openStyle() async {
+    // A second tap before the push must not open Caption twice.
+    if (_playerReleased) {
+      return;
+    }
+    setState(() => _playerReleased = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      // Back was pressed meanwhile; pushing now would open Caption over the
+      // wrong screen.
+      setState(() => _playerReleased = false);
+      return;
+    }
+    final covered = ModalRoute.of(context)?.secondaryAnimation;
+    await context.push(AppRoutes.style);
+    await untilDismissed(covered);
+    if (mounted) {
+      setState(() => _playerReleased = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(reelDraftProvider);
@@ -90,7 +131,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     return Scaffold(
       appBar: const FlowAppBar(
         title: 'Fine-tune · Lyrics',
-        stepLabel: 'Step 4 of 5',
+        stepLabel: 'Step 3 of 4',
       ),
       // The player stays put while the lines scroll, so they can be tapped
       // with the video in view.
@@ -98,26 +139,30 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: ClipSourcePlayer(
-              video: video,
-              clip: clip,
-              playhead: _playhead,
-              onlyRange: clip,
-              frame: (context, videoWidget) => ReelStage(
-                draft: draft,
-                sourceSize: previewSourceSize(ref, draft),
-                video: videoWidget,
-                playhead: _playhead,
-              ),
-            ),
+            child: _playerReleased
+                ? const ClipPlayerPlaceholder()
+                : ClipSourcePlayer(
+                    video: video,
+                    clip: clip,
+                    playhead: _playhead,
+                    onlyRange: clip,
+                    frame: (context, videoWidget) => ReelStage(
+                      draft: draft,
+                      sourceSize: previewSourceSize(ref, draft),
+                      video: videoWidget,
+                      playhead: _playhead,
+                    ),
+                  ),
           ),
           Expanded(child: _lines(draft)),
         ],
       ),
-      bottomNavigationBar: BottomAction(
-        child: FilledButton(
-          onPressed: () => context.push(AppRoutes.style),
-          child: const Text('Next: caption'),
+      bottomNavigationBar: ScriptWritingFooter(
+        child: BottomAction(
+          child: FilledButton(
+            onPressed: () => unawaited(_openStyle()),
+            child: const Text('Next: caption'),
+          ),
         ),
       ),
     );
@@ -127,6 +172,8 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        ScriptTools(onRewriting: _dropPendingSave),
+        const SizedBox(height: 8),
         const HintText(
           'Tap a line to jump to it. While the clip plays, tap a line when '
           'it starts to set when it shows.',

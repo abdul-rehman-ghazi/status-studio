@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  crypto: ^3.0.8
+  meta: ^1.16.0
   flutter_riverpod: ^3.4.3
   go_router: ^18.1.1
   video_player: ^2.14.1
@@ -23,6 +25,16 @@ dependencies:
   flutter_local_notifications: ^22.3.3
   flutter_secure_storage: ^11.2.0
   google_mlkit_face_detection: ^0.15.1
+  image_picker: ^1.2.4
+  tflite_flutter: ^0.12.1
+
+# 2.5.x unregisters its one shared "data_store" instance whenever any Flutter
+# engine detaches. The foreground service's engine detaches when a script or an
+# export ends, after which every preferences read in the app throws "No
+# instance named data_store has been registered". 2.4.x unregisters per
+# engine. Remove this when the plugin stops sharing the instance.
+dependency_overrides:
+  shared_preferences_android: 2.4.26
 
 dev_dependencies:
   flutter_test:
@@ -33,6 +45,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # EfficientDet-Lite0 (Apache 2.0, TF Hub) for the body choice, spec FR-27.
+    - assets/models/
 
   fonts:
     - family: Inter

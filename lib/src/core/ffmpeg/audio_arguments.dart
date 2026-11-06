@@ -1,24 +1,71 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_time.dart';
 
-/// Cuts audio into back-to-back pieces of [chunkSeconds] without
-/// re-encoding.
-List<String> chunkArguments({
-  required String inputPath,
-  required String outputPattern,
-  required int chunkSeconds,
-}) {
+/// Where the pieces and their segment list go.
+@immutable
+class ScriptPieces {
+  const ScriptPieces({
+    required this.inputPath,
+    required this.folderPath,
+    required this.chunkSeconds,
+  });
+
+  final String inputPath;
+  final String folderPath;
+  final int chunkSeconds;
+
+  /// FFmpeg lists each finished piece here as `name,start,end` (CSV).
+  String get segmentListPath => '$folderPath/$segmentListName';
+}
+
+const segmentListName = 'pieces.csv';
+
+/// What Groq hears instead of the raw audio (spec FR-26): rumble and hiss
+/// cut, steady noise reduced, loudness evened out. Only built-in FFmpeg
+/// filters, so the bundled build has them all. It cannot separate a voice
+/// from a harmonium or a daf.
+const cleanVoiceFilter =
+    'highpass=f=80,lowpass=f=7500,afftdn=nr=12:nf=-30:tn=1,'
+    'dynaudnorm=f=200:g=11:p=0.9';
+
+/// The video's first audio stream, cleaned with [cleanVoiceFilter], as
+/// 16 kHz mono FLAC pieces of about [ScriptPieces.chunkSeconds] each, the
+/// small files Groq is sent (spec FR-3, FR-12a, FR-26). The video stream is
+/// dropped.
+///
+/// Cuts fall on audio frames, so a piece starts a fraction of a second
+/// after a multiple of the length; the segment list has the exact times.
+List<String> scriptPiecesArguments(ScriptPieces pieces) {
   return [
     '-y',
     '-i',
-    inputPath,
+    pieces.inputPath,
+    '-vn',
+    '-map',
+    '0:a:0',
+    '-af',
+    cleanVoiceFilter,
+    '-ac',
+    '1',
+    '-ar',
+    '16000',
+    // 16-bit: speech gains nothing from FLAC's 24 bits, and the upload is
+    // about 40 % smaller.
+    '-sample_fmt',
+    's16',
+    '-c:a',
+    'flac',
     '-f',
     'segment',
     '-segment_time',
-    '$chunkSeconds',
-    '-c',
-    'copy',
-    outputPattern,
+    '${pieces.chunkSeconds}',
+    '-reset_timestamps',
+    '1',
+    '-segment_list',
+    pieces.segmentListPath,
+    '-segment_list_type',
+    'csv',
+    '${pieces.folderPath}/chunk_%03d.flac',
   ];
 }
 

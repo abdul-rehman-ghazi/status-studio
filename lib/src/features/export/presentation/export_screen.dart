@@ -34,6 +34,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   /// Why the last render failed (spec §8); set until Retry.
   Object? _failure;
 
+  /// The finished render, once there is one: when saving it to Recent fails,
+  /// Retry saves it again instead of rendering a second time.
+  String? _renderedVideoPath;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +47,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   /// Keeps rendering when the user leaves the app or locks the phone
   /// (FR-16).
   void _startRender() {
+    _renderedVideoPath = null;
     final draft = ref.read(reelDraftProvider);
     _subscription = ref
         .read(backgroundWorkProvider)
@@ -57,10 +62,13 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 
   void _retry() {
-    setState(() {
-      _failure = null;
-      _fraction = 0;
-    });
+    final rendered = _renderedVideoPath;
+    setState(() => _failure = null);
+    if (rendered != null) {
+      unawaited(_keepAndOpenDone(rendered));
+      return;
+    }
+    setState(() => _fraction = 0);
     _startRender();
   }
 
@@ -75,6 +83,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       case RenderRunning(:final fraction):
         setState(() => _fraction = fraction);
       case RenderFinished(:final videoPath):
+        _renderedVideoPath = videoPath;
         unawaited(_keepAndOpenDone(videoPath));
     }
   }
@@ -96,7 +105,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       if (mounted) {
         context.pushReplacement(AppRoutes.doneFor(reel.id));
       }
-    } on Exception catch (error) {
+    } on Object catch (error) {
+      // An Error too (a plugin in a bad state), or Export would stay at 100 %
+      // with nothing to tap.
       if (mounted) {
         setState(() => _failure = error);
       }

@@ -17,7 +17,7 @@ abstract interface class JobNotices<T> {
   BackgroundJob get job;
 
   /// Shown as soon as the work starts: its first event can take a while
-  /// (yt-dlp, a clip download), and the user may leave before it comes.
+  /// (a long FFmpeg run), and the user may leave before it comes.
   ProgressNotice get starting;
 
   ProgressNotice progress(T event);

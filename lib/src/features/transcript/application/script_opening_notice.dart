@@ -1,15 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Why Script opens with a message: a kept fine-tune could not be continued
+/// Why Fine-tune opens with a message: a kept fine-tune could not be continued
 /// (spec FR-24, §8).
 enum ScriptOpeningNotice {
   fineTuneScriptGone(
-    "This fine-tune's script had to be written again. Pick the lines again; "
-    'the size and caption style are kept.',
+    "This fine-tune's script had to be written again. Check the clip's start "
+    'and end; the size and caption style are kept.',
   ),
   fineTuneScriptChanged(
-    'The script changed since this fine-tune was saved. Pick the lines '
-    'again; the size and caption style are kept.',
+    'The script changed since this fine-tune was saved. Check the start and '
+    'end of the clip; the size and caption style are kept.',
   );
 
   const ScriptOpeningNotice(this.message);
@@ -19,7 +19,7 @@ enum ScriptOpeningNotice {
 
 typedef PendingScriptNotice = ({String videoId, ScriptOpeningNotice notice});
 
-/// The message Script shows once when it opens for [PendingScriptNotice.videoId].
+/// The message Fine-tune shows once when it opens for [PendingScriptNotice.videoId].
 final scriptOpeningNoticeProvider =
     NotifierProvider<ScriptOpeningNoticeController, PendingScriptNotice?>(
       ScriptOpeningNoticeController.new,

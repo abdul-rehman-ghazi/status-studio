@@ -9,6 +9,7 @@ import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/option_row.dart';
+import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/script_detection.dart';
@@ -33,7 +34,7 @@ class StyleScreen extends ConsumerStatefulWidget {
   ConsumerState<StyleScreen> createState() => _StyleScreenState();
 }
 
-class _StyleScreenState extends ConsumerState<StyleScreen> {
+class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
   late final TextEditingController _captionController = TextEditingController(
     text: ref.read(reelDraftProvider).caption.text,
   );
@@ -43,8 +44,35 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
   var _variantRequest = 0;
   var _translating = false;
 
+  /// True while Export is open: the preview's player holds a video decoder,
+  /// and the phone's 1080p decoder has no memory left for the export's own
+  /// (MediaCodec error -12 on the Redmi Note 11).
+  var _previewReleased = false;
+  late final RouteObserver<ModalRoute<void>> _routes = ref.read(
+    routeObserverProvider,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (ModalRoute.of(context) case final route?) {
+      _routes.subscribe(this, route);
+    }
+  }
+
+  /// Whatever Export became (it replaces itself with Done) has been popped, so
+  /// the preview's player may come back once that route has slid away. Not on
+  /// the push future: Export ending with Done never completes it.
+  @override
+  void didPopNext() {
+    if (_previewReleased) {
+      unawaited(_restorePreview());
+    }
+  }
+
   @override
   void dispose() {
+    _routes.unsubscribe(this);
     _captionController.dispose();
     super.dispose();
   }
@@ -55,7 +83,7 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
     final controller = ref.read(reelDraftProvider.notifier);
     final caption = draft.caption;
     return Scaffold(
-      appBar: const FlowAppBar(title: 'Caption', stepLabel: 'Step 5 of 5'),
+      appBar: const FlowAppBar(title: 'Caption', stepLabel: 'Step 4 of 4'),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -89,7 +117,7 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
             ),
             const SizedBox(height: 8),
             const HintText(
-              'Filled from the lines you picked. Each line shows on its own, '
+              'Filled from the lines inside the clip. Each line shows on its own, '
               'when it is said. Translation runs on your phone. Edit anything.',
             ),
             const SizedBox(height: 20),
@@ -104,25 +132,57 @@ class _StyleScreenState extends ConsumerState<StyleScreen> {
       ),
       bottomNavigationBar: BottomAction(
         child: FilledButton(
-          onPressed: () => context.push(AppRoutes.export),
+          onPressed: () => unawaited(_openExport()),
           child: const Text('Export reel'),
         ),
       ),
     );
   }
 
+  /// Export starts only once this step's player is gone, and the player comes
+  /// back only once Export has slid away: never two decoders at a time (the
+  /// same rule as Fine-tune and Lyrics).
+  Future<void> _openExport() async {
+    // A second tap before the push must not open Export twice: two renders
+    // would bring the decoder shortage back.
+    if (_previewReleased) {
+      return;
+    }
+    setState(() => _previewReleased = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      return;
+    }
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      // Back was pressed meanwhile; pushing now would open Export over the
+      // wrong screen.
+      setState(() => _previewReleased = false);
+      return;
+    }
+    unawaited(context.push(AppRoutes.export));
+  }
+
+  Future<void> _restorePreview() async {
+    await untilDismissed(ModalRoute.of(context)?.secondaryAnimation);
+    if (mounted) {
+      setState(() => _previewReleased = false);
+    }
+  }
+
   Widget _framePreview(ReelDraft draft) {
     final output = outputSizeFor(draft.frame, previewSourceSize(ref, draft));
     return LayoutBuilder(
-      builder: (context, constraints) => Center(
-        child: ReelPreview(
-          draft: draft,
-          maxWidth: math.min(
-            constraints.maxWidth,
-            _previewMaxHeight * output.width / output.height,
-          ),
-        ),
-      ),
+      builder: (context, constraints) {
+        final maxWidth = math.min(
+          constraints.maxWidth,
+          _previewMaxHeight * output.width / output.height,
+        );
+        return Center(
+          child: _previewReleased
+              ? ReelPreviewWithoutVideo(draft: draft, maxWidth: maxWidth)
+              : ReelPreview(draft: draft, maxWidth: maxWidth),
+        );
+      },
     );
   }
 

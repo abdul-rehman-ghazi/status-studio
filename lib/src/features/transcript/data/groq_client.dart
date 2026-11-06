@@ -7,7 +7,15 @@ import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 
 const _longestWait = Duration(seconds: 60);
 const _defaultWait = Duration(seconds: 5);
-const _model = 'whisper-large-v3-turbo';
+
+/// The model every script is written with (spec FR-12a).
+const scriptModel = 'whisper-large-v3';
+
+/// Segments Groq is this sure hold no speech are dropped. Turbo always
+/// reported 0 (§10 Q5); large-v3 reports real values (0.00 to 0.12 on the
+/// reference clip), so the cutoff is live since M24. Here, not in the
+/// transcriber, so tool/voice_check.dart can apply the same rule.
+const groqNoSpeechCutoff = 0.6;
 
 // The only Groq model the key can call that searches the web (spec §10 #6).
 const _scriptFixModel = 'openai/gpt-oss-120b';
@@ -32,6 +40,7 @@ class GroqSegment {
 class GroqClient {
   GroqClient({
     required this.apiKey,
+    this.model = scriptModel,
     Uri? baseUri,
     HttpClient? httpClient,
     Future<void> Function(Duration)? wait,
@@ -40,6 +49,9 @@ class GroqClient {
        _wait = wait ?? Future<void>.delayed;
 
   final String apiKey;
+
+  /// Only tool/voice_check.dart passes another model, to compare them.
+  final String model;
   final Uri _baseUri;
   final HttpClient _http;
   final Future<void> Function(Duration) _wait;
@@ -50,15 +62,21 @@ class GroqClient {
     await _send(() => _open('GET', '/models'));
   }
 
-  /// Writes one `.m4a` piece, in [languageCode] or, when it's `null`,
-  /// in the language Groq detects.
+  /// Writes one FLAC piece, in [languageCode] or, when it's `null`,
+  /// in the language Groq detects. [prompt] is a text hint Whisper reads
+  /// before the audio; the app sends none.
   Future<List<GroqSegment>> transcribe(
     File piece, {
     required String? languageCode,
+    String? prompt,
   }) async {
     final audio = await piece.readAsBytes();
     final boundary = 'studio${DateTime.now().microsecondsSinceEpoch}';
-    final body = _multipartBody(boundary, audio, languageCode);
+    final body = _multipartBody(
+      boundary,
+      audio,
+      _transcriptionFields(languageCode, prompt),
+    );
     final reply = await _send(() async {
       final request = await _open('POST', '/audio/transcriptions');
       request.headers.contentType = ContentType(
@@ -154,18 +172,25 @@ class GroqClient {
         : Duration(milliseconds: (seconds * 1000).round());
   }
 
-  List<int> _multipartBody(
-    String boundary,
-    List<int> audio,
+  Map<String, String> _transcriptionFields(
     String? languageCode,
+    String? prompt,
   ) {
-    final fields = {
-      'model': _model,
+    return {
+      'model': model,
       'response_format': 'verbose_json',
       'timestamp_granularities[]': 'segment',
       'temperature': '0',
-      ?(languageCode == null ? null : 'language'): languageCode,
+      'language': ?languageCode,
+      'prompt': ?prompt,
     };
+  }
+
+  List<int> _multipartBody(
+    String boundary,
+    List<int> audio,
+    Map<String, String> fields,
+  ) {
     final bytes = BytesBuilder();
     for (final MapEntry(:key, :value) in fields.entries) {
       bytes.add(
@@ -179,7 +204,7 @@ class GroqClient {
       ..add(
         utf8.encode(
           '--$boundary\r\nContent-Disposition: form-data; name="file"; '
-          'filename="piece.m4a"\r\nContent-Type: audio/mp4\r\n\r\n',
+          'filename="piece.flac"\r\nContent-Type: audio/flac\r\n\r\n',
         ),
       )
       ..add(audio)

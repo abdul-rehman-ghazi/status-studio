@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
+import 'package:status_studio/src/features/transcript/domain/audio_piece.dart';
 import 'package:status_studio/src/features/transcript/domain/segment_lines.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -37,11 +36,7 @@ class ChunkWritten extends ChunkEvent {
   final List<TranscriptLine> lines;
 }
 
-/// Segments Groq is this sure hold no speech are dropped. Turbo always
-/// reports 0 (§10 Q5), so this only matters if the model changes.
-const groqNoSpeechCutoff = 0.6;
-
-/// One Groq run over a video's `.m4a` pieces, possibly resuming after
+/// One Groq run over a video's FLAC pieces, possibly resuming after
 /// [completedPieces] pieces whose lines ended at [firstIndex] − 1.
 class GroqTranscription {
   const GroqTranscription({
@@ -51,7 +46,7 @@ class GroqTranscription {
     this.firstIndex = 0,
   });
 
-  final List<File> pieces;
+  final List<AudioPiece> pieces;
   final ScriptLanguage language;
   final int completedPieces;
   final int firstIndex;
@@ -78,15 +73,16 @@ class GroqTranscriber {
         return;
       }
       yield ChunkProgress(position: position, fraction: 0);
+      final piece = job.pieces[position];
       final segments = await _client.transcribe(
-        job.pieces[position],
+        piece.file,
         languageCode: job.language == ScriptLanguage.auto
             ? null
             : job.language.whisperCode,
       );
       final lines = linesFromSegments(
         _speech(segments),
-        offset: transcriptionChunk * position,
+        offset: piece.start,
         firstIndex: nextIndex,
       );
       nextIndex += lines.length;

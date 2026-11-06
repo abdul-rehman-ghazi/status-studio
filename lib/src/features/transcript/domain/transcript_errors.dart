@@ -6,14 +6,6 @@ class NoSpeechFoundException implements Exception {
   String toString() => 'NoSpeechFoundException';
 }
 
-/// YouTube has no caption track to use for the chosen language.
-class NoCaptionTrackException implements Exception {
-  const NoCaptionTrackException();
-
-  @override
-  String toString() => 'NoCaptionTrackException';
-}
-
 /// No saved script (or saved partial progress) exists for a key, or the
 /// file is unreadable.
 class NoSavedTranscriptException implements Exception {

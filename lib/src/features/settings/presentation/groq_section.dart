@@ -84,7 +84,7 @@ class _GroqSectionState extends ConsumerState<GroqSection> {
         const HintText(
           'Writes the script when a video has no captions. Your video\'s '
           'audio is sent to Groq, which uses about as much data again as '
-          'downloading it. Tapping Fix with Groq on the Script screen also '
+          'downloading it. Tapping Fix with Groq on the Lyrics screen also '
           "sends the lines you picked, the title and the link. Groq's terms "
           'apply.',
         ),

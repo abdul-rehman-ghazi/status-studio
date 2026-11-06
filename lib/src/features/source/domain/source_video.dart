@@ -1,26 +1,26 @@
 import 'package:flutter/foundation.dart';
 
+/// A video the user brought in (spec FR-1): its ID is the file fingerprint
+/// (`v_<16 hex>`) and its title the file name.
 @immutable
 class SourceVideo {
   const SourceVideo({
     required this.videoId,
     required this.title,
-    required this.channel,
     required this.duration,
   });
 
-  /// Throws [FormatException] when [json] isn't a saved video.
+  /// Throws [FormatException] when [json] isn't a saved video. A `channel`
+  /// key left by an older version is ignored.
   factory SourceVideo.fromJson(Map<String, Object?> json) {
     if (json case {
       'videoId': final String videoId,
       'title': final String title,
-      'channel': final String channel,
       'durationMs': final int durationMs,
     }) {
       return SourceVideo(
         videoId: videoId,
         title: title,
-        channel: channel,
         duration: Duration(milliseconds: durationMs),
       );
     }
@@ -29,26 +29,18 @@ class SourceVideo {
 
   final String videoId;
   final String title;
-  final String channel;
   final Duration duration;
 
   Map<String, Object?> toJson() => {
     'videoId': videoId,
     'title': title,
-    'channel': channel,
     'durationMs': duration.inMilliseconds,
   };
 
-  SourceVideo copyWith({
-    String? videoId,
-    String? title,
-    String? channel,
-    Duration? duration,
-  }) {
+  SourceVideo copyWith({String? videoId, String? title, Duration? duration}) {
     return SourceVideo(
       videoId: videoId ?? this.videoId,
       title: title ?? this.title,
-      channel: channel ?? this.channel,
       duration: duration ?? this.duration,
     );
   }
@@ -58,9 +50,8 @@ class SourceVideo {
       other is SourceVideo &&
       other.videoId == videoId &&
       other.title == title &&
-      other.channel == channel &&
       other.duration == duration;
 
   @override
-  int get hashCode => Object.hash(videoId, title, channel, duration);
+  int get hashCode => Object.hash(videoId, title, duration);
 }
