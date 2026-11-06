@@ -12,7 +12,6 @@ import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
-import 'package:status_studio/src/features/clip/domain/clip_warning.dart';
 import 'package:status_studio/src/features/clip/domain/waveform.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/clip/presentation/crop_keyframe_chips.dart';
@@ -317,11 +316,11 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       padding: const EdgeInsets.all(20),
       children: [
         _ClipSummary(clip: clip),
-        if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
+        // if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
         const SizedBox(height: 16),
         _ClipWaveform(video: video, clip: clip),
         const SizedBox(height: 16),
-        _WholeVideoBar(clip: clip, videoDuration: video.duration),
+        // _WholeVideoBar(clip: clip, videoDuration: video.duration),
         const SizedBox(height: 20),
         Row(
           children: [

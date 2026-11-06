@@ -289,7 +289,8 @@ class FollowSubjectController extends Notifier<FollowState> {
       );
       _ask(0);
       keptForTheChoice = true;
-    } on Object {
+    } on Object catch (error, stack) {
+      debugPrint('Follow the person failed: $error\n$stack');
       if (!_isStale(generation)) {
         state = const FollowFailed();
       }
