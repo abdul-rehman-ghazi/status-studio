@@ -57,7 +57,18 @@ class OnDeviceDetector implements SubjectDetector {
     await _faces?.close();
     final bodies = _bodies;
     if (bodies != null) {
-      await (await bodies).close();
+      await _closeBodies(bodies);
+    }
+  }
+
+  /// A model that never opened has nothing to close, and its failure was
+  /// already reported by the call that needed it; closing must not throw it
+  /// again and end a run that can go on with faces and spots.
+  Future<void> _closeBodies(Future<BodyModel> opening) async {
+    try {
+      await (await opening).close();
+    } on Object {
+      return;
     }
   }
 }

@@ -155,6 +155,17 @@ class _Walk {
 
   /// Where in the track's samples the scene's frames start.
   int firstFrameOf(int scene) => scenes[scene].firstIndex;
+
+  /// The scene's picture among the scene's own frames.
+  int pictureIndexOf(int scene) =>
+      pictures[scene].sampleIndex - scenes[scene].firstIndex;
+
+  /// How many frames of the scene a body detector looks at: every other one,
+  /// and not the picture's, whose boxes are known.
+  int framesToLookAt(int scene) {
+    final everyOther = (scenes[scene].samples.length + 1) ~/ 2;
+    return pictureIndexOf(scene).isEven ? everyOther - 1 : everyOther;
+  }
 }
 
 /// What looking for the bodies of the answered scenes needs, and how far it
@@ -263,6 +274,11 @@ class FollowSubjectController extends Notifier<FollowState> {
       if (_isStale(generation)) {
         return;
       }
+      // Looking for the bodies took a moment; a hand edit in it still wins.
+      if (_handEdited(pathAtStart)) {
+        state = const FollowIdle();
+        return;
+      }
       _walk = _Walk(
         frames: frames,
         scenes: scenes,
@@ -358,11 +374,8 @@ class FollowSubjectController extends Notifier<FollowState> {
     final work = _BodyWork(
       detector: ref.read(subjectDetectorProvider)(),
       generation: generation,
-      // Every other frame of each scene is looked at.
-      totalFrames: [
-        for (final index in bodyScenes)
-          (walk.scenes[index].samples.length + 1) ~/ 2,
-      ].fold(0, (sum, frames) => sum + frames),
+      totalFrames: [for (final index in bodyScenes) walk.framesToLookAt(index)]
+          .fold(0, (sum, frames) => sum + frames),
     );
     try {
       return [
@@ -402,7 +415,7 @@ class FollowSubjectController extends Notifier<FollowState> {
   ) async {
     final scene = walk.scenes[sceneIndex];
     final picture = walk.pictures[sceneIndex];
-    final pictureIndex = picture.sampleIndex - walk.firstFrameOf(sceneIndex);
+    final pictureIndex = walk.pictureIndexOf(sceneIndex);
     final chosen =
         picture.bodies[(walk.answers[sceneIndex]! as PickedBody).index];
     final samples = <SubjectSample>[];
@@ -425,6 +438,10 @@ class FollowSubjectController extends Notifier<FollowState> {
 
   Future<List<SubjectBox>> _lookForBodies(File frame, _BodyWork work) async {
     final bodies = await work.detector.bodiesIn(frame);
+    if (_isStale(work.generation)) {
+      // Stopped meanwhile: the state is already Idle and must stay so.
+      throw const FollowFailedException('stopped');
+    }
     state = FollowRunning(++work.framesLooked / work.totalFrames);
     return bodies;
   }

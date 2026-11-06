@@ -12,6 +12,10 @@ const _personClass = 0.0;
 const _leastScore = 0.4;
 const _threads = 4;
 
+/// A frame takes about a quarter of a second; a run that takes this long has
+/// died in its isolate, which then never answers.
+const _longestInference = Duration(seconds: 15);
+
 /// EfficientDet-Lite0 on TensorFlow Lite, on the phone: the people in a frame
 /// as boxes (spec FR-27, §10 item 7). The model has non-max suppression built
 /// in and sees the frame squeezed to 320 × 320, so its boxes are fractions of
@@ -30,10 +34,15 @@ class BodyModel {
       _modelAsset,
       options: InterpreterOptions()..threads = _threads,
     );
-    final isolate = await IsolateInterpreter.create(
-      address: interpreter.address,
-    );
-    return BodyModel._(interpreter, isolate);
+    try {
+      final isolate = await IsolateInterpreter.create(
+        address: interpreter.address,
+      );
+      return BodyModel._(interpreter, isolate);
+    } on Object {
+      interpreter.close();
+      rethrow;
+    }
   }
 
   /// The people in the JPEG [frame], left to right in no particular order.
@@ -52,16 +61,18 @@ class BodyModel {
       0,
     ).reshape<double>([1, _mostDetections]);
     final count = List<double>.filled(1, 0);
-    await _isolate.runForMultipleInputs(
-      [input],
-      {0: boxes, 1: firstScores, 2: secondScores, 3: count},
-    );
-    return _peopleFrom(
+    await _isolate
+        .runForMultipleInputs(
+          [input],
+          {0: boxes, 1: firstScores, 2: secondScores, 3: count},
+        )
+        .timeout(_longestInference);
+    return _peopleFrom((
       boxes: boxes,
       firstRow: firstScores,
       secondRow: secondScores,
       count: count.first.toInt(),
-    );
+    ));
   }
 
   Future<void> close() async {
@@ -77,9 +88,10 @@ Future<Uint8List> _rgbOf(File frame) async {
     targetWidth: _inputSide,
     targetHeight: _inputSide,
   );
-  final image = (await codec.getNextFrame()).image;
   try {
+    final image = (await codec.getNextFrame()).image;
     final rgba = (await image.toByteData())!.buffer.asUint8List();
+    image.dispose();
     final rgb = Uint8List(_inputSide * _inputSide * 3);
     for (var pixel = 0; pixel < _inputSide * _inputSide; pixel++) {
       rgb[pixel * 3] = rgba[pixel * 4];
@@ -88,7 +100,6 @@ Future<Uint8List> _rgbOf(File frame) async {
     }
     return rgb;
   } finally {
-    image.dispose();
     codec.dispose();
   }
 }
@@ -96,15 +107,18 @@ Future<Uint8List> _rgbOf(File frame) async {
 /// The model's two `[1, 25]` outputs are the classes (whole numbers) and the
 /// scores, in an order that differs between builds of it; the classes are the
 /// row whose values are all whole.
-List<SubjectBox> _peopleFrom({
-  required List<Object?> boxes,
-  required List<Object?> firstRow,
-  required List<Object?> secondRow,
-  required int count,
-}) {
-  final boxRows = (boxes.first! as List<Object?>).cast<List<Object?>>();
-  final first = (firstRow.first! as List<Object?>).cast<double>();
-  final second = (secondRow.first! as List<Object?>).cast<double>();
+typedef _Outputs = ({
+  List<Object?> boxes,
+  List<Object?> firstRow,
+  List<Object?> secondRow,
+  int count,
+});
+
+List<SubjectBox> _peopleFrom(_Outputs outputs) {
+  final count = outputs.count;
+  final boxRows = (outputs.boxes.first! as List<Object?>).cast<List<Object?>>();
+  final first = (outputs.firstRow.first! as List<Object?>).cast<double>();
+  final second = (outputs.secondRow.first! as List<Object?>).cast<double>();
   final firstAreClasses = first
       .take(count)
       .every((value) => value == value.roundToDouble());
