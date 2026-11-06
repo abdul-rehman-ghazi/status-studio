@@ -20,9 +20,18 @@ class ScriptPieces {
 
 const segmentListName = 'pieces.csv';
 
-/// The video's first audio stream as 16 kHz mono FLAC pieces of about
-/// [ScriptPieces.chunkSeconds] each, the small files Groq is sent (spec
-/// FR-3, FR-12a). The video stream is dropped.
+/// What Groq hears instead of the raw audio (spec FR-26): rumble and hiss
+/// cut, steady noise reduced, loudness evened out. Only built-in FFmpeg
+/// filters, so the bundled build has them all. It cannot separate a voice
+/// from a harmonium or a daf.
+const cleanVoiceFilter =
+    'highpass=f=80,lowpass=f=7500,afftdn=nr=12:nf=-30:tn=1,'
+    'dynaudnorm=f=200:g=11:p=0.9';
+
+/// The video's first audio stream, cleaned with [cleanVoiceFilter], as
+/// 16 kHz mono FLAC pieces of about [ScriptPieces.chunkSeconds] each, the
+/// small files Groq is sent (spec FR-3, FR-12a, FR-26). The video stream is
+/// dropped.
 ///
 /// Cuts fall on audio frames, so a piece starts a fraction of a second
 /// after a multiple of the length; the segment list has the exact times.
@@ -34,6 +43,8 @@ List<String> scriptPiecesArguments(ScriptPieces pieces) {
     '-vn',
     '-map',
     '0:a:0',
+    '-af',
+    cleanVoiceFilter,
     '-ac',
     '1',
     '-ar',
