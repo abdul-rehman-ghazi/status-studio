@@ -861,7 +861,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M32 Clear scene markers | Face and body boxes on the scene picture no longer cover the person: corners only, number tag outside (FR-27) | Built, branch `m32-clear-scene-markers` (stacked on M31), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
 | M33 Support and About | Settings becomes a list with one screen per category; Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`), pushed, not merged; tests not run; device checks pending (§14) |
 | M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33); tests not run; device checks pending (§14) |
-| M35 Theme choice | Light, dark or system theme in Settings | Asked by the owner (2026-11-10); not started, design questions first |
+| M35 Theme choice | Light, dark or system theme in Settings | Asked by the owner (2026-11-10); not started. Decided: in Light everything goes light, the video areas too (player, crop editor, scene strip). Open: the light colours, where the choice sits in Settings |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
