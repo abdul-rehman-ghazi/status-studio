@@ -10,7 +10,10 @@ import UIKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  private var videoIn: VideoInChannel?
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    videoIn = VideoInChannel(messenger: engineBridge.applicationRegistrar.messenger())
   }
 }

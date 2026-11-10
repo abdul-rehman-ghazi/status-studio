@@ -8,8 +8,8 @@ abstract interface class FreeStorage {
   Future<int> freeBytes();
 }
 
-/// Asked of the Kotlin side of `status_studio/video_in`, which reads the
-/// app's data folder. Where that channel doesn't exist (iOS until M26) or
+/// Asked of the native side of `status_studio/video_in` (Kotlin, Swift), which
+/// reads the app's data folder. Where that channel doesn't exist or
 /// can't tell, the answer is unknown: a copy that runs out of space still
 /// fails, as [InsufficientStorageException] from the file system's error.
 class PlatformFreeStorage implements FreeStorage {

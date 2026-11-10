@@ -46,8 +46,9 @@ IncomingVideo _videoFrom(Map<Object?, Object?> message) {
   );
 }
 
-/// The Android side, `VideoInChannel` in Kotlin. Where the channel
-/// doesn't exist (iOS until M26, tests) no video ever arrives.
+/// The platform side: `VideoInChannel` in Kotlin on Android, in Swift on iOS
+/// (fed by the Share Extension). Where the channel doesn't exist (tests) no
+/// video ever arrives.
 class PlatformIncomingVideoSource implements IncomingVideoSource {
   PlatformIncomingVideoSource() {
     // The controller buffers until the first listener subscribes, so the
