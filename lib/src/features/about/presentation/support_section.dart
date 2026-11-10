@@ -29,7 +29,7 @@ class _SupportSectionState extends ConsumerState<SupportSection> {
   }
 
   Future<SupportMessage> _composeMessage() async {
-    final device = await ref.read(deviceDetailsProvider.future);
+    final device = await ref.read(deviceDetailsReaderProvider).read();
     return SupportMessage(
       topic: _topic,
       text: _messageField.text,
@@ -68,9 +68,10 @@ class _SupportSectionState extends ConsumerState<SupportSection> {
       children: [
         const SectionLabel('Support'),
         const HintText(
-          'Tell us what you like or what went wrong. Your phone model, system '
-          'version and app version are added to the message, so you can see '
-          'them before you send.',
+          'Tell us what you like or what went wrong. Details of your phone '
+          '(model, system, processor, memory, screen, network) and the app '
+          'version are added to the message, so you can see them before you '
+          'send.',
         ),
         const SizedBox(height: 12),
         SegmentedButton<SupportTopic>(

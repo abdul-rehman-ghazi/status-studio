@@ -2,6 +2,7 @@ package com.hotmail.arehmananis.statusstudio
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import com.hotmail.arehmananis.statusstudio.render.RenderChannel
@@ -47,6 +48,7 @@ class MainActivity : FlutterActivity() {
                     openAppSettings()
                     result.success(null)
                 }
+                "processorName" -> result.success(processorName())
                 else -> result.notImplemented()
             }
         }
@@ -63,6 +65,16 @@ class MainActivity : FlutterActivity() {
         shareIntent.setDataAndType(null, null)
         shareIntent.clipData = null
         shareIntent.replaceExtras(Bundle())
+    }
+
+    /**
+     * For support messages (spec FR-31). The chip's maker and model exist only from Android 12;
+     * before that, and on phones that leave them unknown, the hardware name is the best there is.
+     */
+    private fun processorName(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return Build.HARDWARE
+        if (Build.SOC_MODEL == Build.UNKNOWN) return Build.HARDWARE
+        return "${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}"
     }
 
     /** The app's page in system Settings, where a refused permission can be granted. */

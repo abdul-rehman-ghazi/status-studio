@@ -29,6 +29,7 @@ dependencies:
   url_launcher: ^6.3.3
   device_info_plus: ^13.3.0
   package_info_plus: ^10.2.2
+  connectivity_plus: ^7.3.2
 
 # 2.5.x unregisters its one shared "data_store" instance whenever any Flutter
 # engine detaches. The foreground service's engine detaches when a script or an
