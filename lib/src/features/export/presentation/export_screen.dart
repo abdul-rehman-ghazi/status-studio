@@ -214,7 +214,7 @@ List<String> _summaryLines(ReelDraft draft, OutputSize sourceSize) {
     if (draft.clip case final clip?)
       'Clip ${formatClipTime(clip.start)} – ${formatClipTime(clip.end)}',
     '${_frameSummary(draft.frame)} at $output',
-    'Caption in ${_captionLanguage(draft)}',
+    _captionSummary(draft),
     'App name and logo',
   ];
 }
@@ -226,6 +226,16 @@ String _frameSummary(FrameSettings frame) {
     FrameSettings(fill: FillMode.crop) => 'Cropped',
     FrameSettings(fill: FillMode.blur) => 'Blurred background',
   };
+}
+
+String _captionSummary(ReelDraft draft) {
+  if (draft.caption.text.trim().isEmpty) {
+    return 'No caption';
+  }
+  if (draft.lyricsSkipped) {
+    return 'Your own caption';
+  }
+  return 'Caption in ${_captionLanguage(draft)}';
 }
 
 String _captionLanguage(ReelDraft draft) {

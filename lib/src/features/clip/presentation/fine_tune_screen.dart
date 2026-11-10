@@ -102,9 +102,9 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     final follow = ref.watch(followSubjectProvider);
     ref.listen(followSubjectProvider, _showHowFollowEnded);
     return Scaffold(
-      appBar: const FlowAppBar(
+      appBar: FlowAppBar(
         title: 'Fine-tune · Video',
-        stepLabel: 'Step 2 of 4',
+        stepLabel: draft.lyricsSkipped ? 'Step 2 of 3' : 'Step 2 of 4',
       ),
       // The player and the crop keyframes stay put while the rest scrolls,
       // so the crop can be moved with the video in view.
@@ -157,8 +157,8 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       ),
       bottomNavigationBar: BottomAction(
         child: FilledButton(
-          onPressed: _openLyrics,
-          child: const Text('Next: lyrics'),
+          onPressed: _openNextStep,
+          child: Text(draft.lyricsSkipped ? 'Next: caption' : 'Next: lyrics'),
         ),
       ),
     );
@@ -249,10 +249,11 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
   }
 
-  /// Lyrics starts its own player only once this step's is gone, and this
-  /// step makes its player again only once Lyrics has slid away: never two
-  /// decoders at a time (spec FR-22).
-  Future<void> _openLyrics() async {
+  /// Lyrics, or Caption for a reel without lyrics (spec FR-29), starts its
+  /// own player only once this step's is gone, and this step makes its
+  /// player again only once that step has slid away: never two decoders at a
+  /// time (spec FR-22).
+  Future<void> _openNextStep() async {
     if (_playerReleased) {
       return;
     }
@@ -267,7 +268,10 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       return;
     }
     final covered = ModalRoute.of(context)?.secondaryAnimation;
-    await context.push(AppRoutes.lyrics);
+    final nextStep = ref.read(reelDraftProvider).lyricsSkipped
+        ? AppRoutes.style
+        : AppRoutes.lyrics;
+    await context.push(nextStep);
     await untilDismissed(covered);
     if (mounted) {
       setState(() => _playerReleased = false);

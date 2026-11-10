@@ -24,6 +24,7 @@ class ReelDraft {
     this.frame = const FrameSettings(),
     this.caption = const CaptionSettings(),
     this.linesEdited = false,
+    this.lyricsSkipped = false,
   });
 
   final SourceVideo? video;
@@ -37,6 +38,10 @@ class ReelDraft {
   /// Whether lines were edited on Fine-tune (FR-21); lines still being
   /// written no longer replace the edited ones.
   final bool linesEdited;
+
+  /// Whether the user chose to make the reel without a script (spec FR-29):
+  /// lines a script run still sends are not added.
+  final bool lyricsSkipped;
 
   /// Starts the reel on [video]: the clip is the whole video, which the user
   /// trims on Fine-tune (spec FR-1, FR-5). The same video again (Back to
@@ -52,6 +57,20 @@ class ReelDraft {
     );
   }
 
+  /// The reel without a script (spec FR-29): the lines and the caption text
+  /// go; the clip, the frame and the caption's look stay.
+  ReelDraft withoutLyrics() => ReelDraft(
+    video: video,
+    language: language,
+    clip: clip ?? _wholeVideo(video),
+    frame: frame,
+    caption: caption.copyWith(variant: CaptionVariant.original, text: ''),
+    lyricsSkipped: true,
+  );
+
+  /// The reel with a script again, which Processing writes (spec FR-29).
+  ReelDraft withLyrics() => copyWith(lyricsSkipped: false);
+
   /// A new transcript replaces the lines and the caption text filled from
   /// them; the clip, its nudges and the crop keyframes stay (spec FR-5). The
   /// lines inside the clip are the selected ones: nothing is picked (spec
@@ -65,7 +84,7 @@ class ReelDraft {
   /// being written) keeps what the user edited; any other replaces it.
   ReelDraft withGrowingTranscript(Transcript transcript) {
     final current = this.transcript;
-    if (linesEdited) {
+    if (linesEdited || lyricsSkipped) {
       return this;
     }
     if (current == null || !_extends(transcript, current)) {
@@ -279,6 +298,7 @@ class ReelDraft {
     FrameSettings? frame,
     CaptionSettings? caption,
     bool? linesEdited,
+    bool? lyricsSkipped,
   }) {
     return ReelDraft(
       video: video ?? this.video,
@@ -289,6 +309,7 @@ class ReelDraft {
       frame: frame ?? this.frame,
       caption: caption ?? this.caption,
       linesEdited: linesEdited ?? this.linesEdited,
+      lyricsSkipped: lyricsSkipped ?? this.lyricsSkipped,
     );
   }
 
@@ -302,7 +323,8 @@ class ReelDraft {
       other.clip == clip &&
       other.frame == frame &&
       other.caption == caption &&
-      other.linesEdited == linesEdited;
+      other.linesEdited == linesEdited &&
+      other.lyricsSkipped == lyricsSkipped;
 
   @override
   int get hashCode => Object.hash(
@@ -314,6 +336,7 @@ class ReelDraft {
     frame,
     caption,
     linesEdited,
+    lyricsSkipped,
   );
 }
 

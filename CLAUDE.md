@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository.
 
 ## What this is
 
-Status Studio: a general-purpose Flutter app (Android and iOS) that turns a video the user already trimmed elsewhere, in any language, into a short status clip. Flow: share or pick a trimmed video → clean the voice → Groq script (with the user's key; language auto-detected or chosen) → review → fine-tune ±0.5 s and lyrics → crop with a per-scene choice of face, body or spot → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share. Until M22 the input was a YouTube link; YouTube was dropped in the 2026-11-05 pivot (M23–M27, spec §12).
+Status Studio: a general-purpose Flutter app (Android and iOS) that turns a video the user already trimmed elsewhere, in any language, into a short status clip. Flow: share or pick a trimmed video → clean the voice → Groq script (with the user's key; language auto-detected or chosen) → review → fine-tune ±0.5 s and lyrics (or skip the script, voice cleaning and lyrics entirely, FR-29) → crop with a per-scene choice of face, body or spot → size (9:16, 4:5, 1:1, 16:9 or free crop) → caption → export with app name and logo → save or share. Until M22 the input was a YouTube link; YouTube was dropped in the 2026-11-05 pivot (M23–M27, spec §12).
 
 Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
