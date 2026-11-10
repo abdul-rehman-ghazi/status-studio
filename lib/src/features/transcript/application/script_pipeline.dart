@@ -11,12 +11,12 @@ enum ScriptStage {
   preparingAudio('Cleaning the voice'),
   detectingLanguage('Detecting the language'),
   transcribing('Writing the script'),
-  // The last step Processing shows; once it's reached the script is done.
+  // The last step the run shows; once it's reached the script is done.
   done('Lining up timestamps');
 
   const ScriptStage(this.label);
 
-  /// The step's name on Processing and in the background notification.
+  /// The step's name on Lyrics and in the background notification.
   final String label;
 }
 

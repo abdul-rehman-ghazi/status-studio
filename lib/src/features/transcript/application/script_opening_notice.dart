@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// (spec FR-24, §8).
 enum ScriptOpeningNotice {
   fineTuneScriptGone(
-    "This fine-tune's script had to be written again. Check the clip's start "
-    'and end; the size and caption style are kept.',
+    "This fine-tune's script is gone. Get the lyrics again on the Lyrics "
+    "step; the clip's size and caption style are kept.",
   ),
   fineTuneScriptChanged(
     'The script changed since this fine-tune was saved. Check the start and '

@@ -282,8 +282,9 @@ class _SavedScriptRow extends ConsumerWidget {
   bool _isKept(WidgetRef ref) =>
       ref.watch(isVideoKeptProvider(script.video.videoId)).value ?? true;
 
-  /// Processing finds the saved script and goes straight on to Script. With
-  /// the kept video gone the user is asked for it again first (spec FR-1).
+  /// Opens Fine-tune · Video with the saved script read back into the reel
+  /// (nothing is uploaded for a saved script, FR-14). With the kept video
+  /// gone the user is asked for it again first (spec FR-1).
   Future<void> _openScript(BuildContext context, WidgetRef ref) async {
     if (!await _isStillKept(ref, script.video.videoId)) {
       if (context.mounted) {
@@ -302,7 +303,7 @@ class _SavedScriptRow extends ConsumerWidget {
     ref
         .read(scriptProgressProvider.notifier)
         .start(script.video, script.language);
-    unawaited(context.push(AppRoutes.processing));
+    unawaited(context.push(AppRoutes.fineTune));
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
@@ -443,9 +444,9 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
         context.push(AppRoutes.fineTune);
       case FineTuneScriptGone(:final startOver):
         draft.restore(startOver);
+        // Lyrics offers to get the script again; nothing starts unasked.
         notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptGone);
-        _startScript(ref);
-        context.push(AppRoutes.processing);
+        context.push(AppRoutes.fineTune);
       case FineTuneScriptChanged(:final startOver):
         draft.restore(startOver);
         notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptChanged);

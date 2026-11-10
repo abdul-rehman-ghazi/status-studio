@@ -20,7 +20,7 @@ class FineTuneReady extends FineTuneResume {
 }
 
 /// No script is saved any more; [startOver] has the carried-over look and
-/// waits for Processing to write the script again.
+/// waits for the user to get the lyrics again on Lyrics (M30).
 class FineTuneScriptGone extends FineTuneResume {
   const FineTuneScriptGone(this.startOver);
 

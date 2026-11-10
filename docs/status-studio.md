@@ -1167,7 +1167,7 @@ Builds the M30 design above, task by task, one commit each. The repo has no `tes
   - Lyrics opens on the newest saved script of the video in any language when the reel has none (`TranscriptStore.list()`, filtered by video).
   - `style_screen.dart` and `AppRoutes.style` are deleted.
   - §13 cases: hiding keeps lines and gives no cues; showing again restores them; a typed first line is 2 s and cut at the clip end.
-- [ ] **4. Flow: Source, Processing and Recent (FR-1, FR-3, FR-11, FR-16).**
+- [x] **4. Flow: Source, Processing and Recent (FR-1, FR-3, FR-11, FR-16).** Done. The notification needed no change: it has no tap target of its own, so a tap returns to the screen the user left, which is Video or Lyrics while the reel is open. Source has no step label any more. A kept fine-tune whose script is gone opens Video without starting a run.
   - Source keeps the card and one button, Next: video (`setVideo`, push `fineTune`). The language dropdown, the two buttons and the Groq note go.
   - `processing_screen.dart` and `AppRoutes.processing` are deleted. Home's script row loads the script into the reel and opens Fine-tune · Video. "Script gone" opens Fine-tune · Video too.
   - `shared_video_listener.dart` loses the removed routes. The script notification opens Lyrics while the reel is open.
