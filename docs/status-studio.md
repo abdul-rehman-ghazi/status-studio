@@ -1,6 +1,6 @@
 # Status Studio
 
-**Updated 2026-11-05.** The one project document: product spec, engineering rules, milestones, device checks and known issues. It is the source of truth for behaviour, copy, sizes and error messages. Code cites its section (§) and FR numbers, so keep them stable and add new sections at the end. Design canvas: <https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN>
+**Updated 2026-11-05.** The one project document: product spec, engineering rules, milestones and known issues. It is the source of truth for behaviour, copy, sizes and error messages. Code cites its section (§) and FR numbers, so keep them stable and add new sections at the end. Design canvas: <https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN>
 
 ## 1. Summary
 
@@ -523,7 +523,7 @@ The target aspect is `aw:ah` and the source is `sw × sh`. Crop sizes are even i
   - `GaussianBlurWithFrameOverlaid` (σ ≈ 20), then `Presentation`.
   - The effect draws the whole input frame sharp, scaled to fit the output width (or its height for a taller source), over a blurred copy stretched to the output's shape. That blur is stretched, not covering.
   - It can't follow a covering `Presentation`.
-  - If it looks wrong on a phone, switch to a two-sequence `Composition` (device check pending, §14).
+  - If it looks wrong on a phone, switch to a two-sequence `Composition`.
 - **16:9:** `Presentation` only.
 
 ### 6.3.2 Moving crop for Media3 (M19)
@@ -532,7 +532,7 @@ With keyframes, `Crop` is replaced by a `MatrixTransformation` whose matrix is c
 - **Rectangle at a time:** a pure function `ndcRectAt(keyframes, timeMs)` (unit-tested without Android): before the first keyframe the first rectangle; after the last the last; between two a Glide interpolates each edge linearly and a Cut holds the earlier until the later's time, and from that time on is the later. This is the same rule as `CropPath.anchorAt` in Dart.
 - **Matrix:** the rectangle in NDC (§6.3.1) scaled to fill the frame (`scale = 2/(right−left)`, `2/(top−bottom)`, translated by `−(right+left)/(right−left)`, `−(top+bottom)/(top−bottom)`), built as a plain 4 × 4 array (no `android.graphics.Matrix`, which unit tests can't use).
 - **Size:** `configure` returns the window's pixel size, as `Crop` does, so the `Presentation.createForWidthAndHeight(outW, outH, LAYOUT_STRETCH_TO_FIT)` after it is the same near-1:1 step as the fixed crop's.
-- **Unchanged:** the overlay still comes last, and Blur and 16:9 never send keyframes. Device check pending (§14).
+- **Unchanged:** the overlay still comes last, and Blur and 16:9 never send keyframes.
 - **iOS (M26):** the same rule in Swift (`ios/Runner/Render/MovingCrop.swift`: `ndcRectAt`, `clipTimeMs`). The time is each decoded frame's own presentation time in the clip's composition, which starts at zero, floored to whole milliseconds like Android's `presentationTimeUs / 1000`, so a Cut (the keyframe 10 ms before the cut, FR-27) lands on the same frame as the picture. The window is a Core Image rectangle (`pixelRect`) taken from the whole, already upright frame, scaled to the output and stretched (the same near-1:1 stretch), not a GL matrix, so `glMatrixFor` has no Swift twin. There is no fade at cuts.
 
 ### 6.4 Language inference (automatic)
@@ -722,7 +722,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
    **Decision:** quantised files for every model (q5_1 for tiny to small, q5_0 for medium and large-v3); small stays the default. **Redmi Note 11 (Snapdragon 680, 5.5 GB, no dot-product), profile build, 2026-11-04:** medium q5_0 ran at 0.2× real time by the app's own meter ("39:50 left" for a 9:08 video), about 7½ minutes per 90 s piece. Cancelled; this is why on-device Whisper was dropped (M10). Text quality on a Mac, same weights, piece 1 of the sung clip: medium best, small garbles and merges lines, base loops; Groq turbo is clean but merges whole choruses into 30 s segments.
 
    **Why it's slow:** `whisper_ggml` builds whisper.cpp for baseline ARMv8 (no dot-product, so it doesn't crash on old phones) and CPU only. Speed-ups for later: runtime CPU-variant dispatch, the built-in Silero VAD (`vadModelPath`), and no temperature fallback.
-3. **WhatsApp Status limit (2026-11-02).** 60 s is the general limit, and 90 s has been seen only in beta. The 60 s warning stays; confirm on a phone (§14).
+3. **WhatsApp Status limit (2026-11-02).** 60 s is the general limit, and 90 s has been seen only in beta. The 60 s warning stays; confirm on a phone.
 4. **YouTube reading.** YouTube refused every `youtube_explode_dart` 3.1.0 stream URL (HTTP 403), so the app moved to yt-dlp, whose URLs download at about 10 MB/s. Redmi Note 11, 9-minute video:
    - Python start: 2.7 s.
    - yt-dlp with QuickJS: 12–16 s, or about 30 s after updating to 2026.10.26.
@@ -734,7 +734,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
    - **Key check:** `GET /models` gives 200.
    - **Piece size:** 0.55 MB per 90 s, as the spec says.
    - **Offsets:** FFmpeg's segment list starts pieces at 90.000544 s, 180.001088 s and so on. They match the nominal 90 s multiples to under 1 ms, so `transcriptionChunk * position` is accurate enough.
-   - **Speed:** about 1.4–2.2 s per piece (0.55 MB up), roughly 45× real time. Mobile data and the phone are still to measure (§14).
+   - **Speed:** about 1.4–2.2 s per piece (0.55 MB up), roughly 45× real time. Mobile data and the phone are still to measure.
    - **Automatic language:** detected "Urdu" correctly; forcing `ur` gave the same lines, with segment times differing by under 0.1 s.
    - **Segments:** sung audio comes back in long segments (up to 30 s) with the same text repeated across the chorus; speech comes back as sentence-sized lines.
    - **`no_speech_prob` does not work on `whisper-large-v3-turbo`.** It is 0.000 on every segment, including a 90 s piano-only piece and 60 s of digital silence. Both came back as invented text ("Thank you." in 30 s segments, with `avg_logprob` −0.3 to −0.6 and `compression_ratio` 0.58). Those values overlap real sung Urdu (0.74–0.88), so no cut-off on them separates the two. `whisper-large-v3` (not turbo) does report it: 0.701 on silence. So the 0.6 cut-off in `groqNoSpeechCutoff` does nothing today. **Decided 2026-11-04 (M10 task 6): (a), keeping turbo.** Options were: (a) drop segments that are known hallucinations ("Thank you.", "you", "Thanks for watching.") or identical text repeated over 30 s segments, keeping turbo; or (b) use `whisper-large-v3`, which costs more per audio hour (check Groq's pricing page) and has a working `no_speech_prob`.
@@ -804,7 +804,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
    - **Result (2026-11-10; Xcode 27.2, CocoaPods 1.16.2, Flutter 3.47.8 through FVM):** the app and every plugin build for a device. `pod install` first needed `fvm flutter precache --ios` (without `Flutter.xcframework` the Podfile's post-install hook stops). Deployment target 15.5 is set in the Podfile (`platform :ios, '15.5'`) and in the project. `fvm flutter build ios --no-codesign` (release) ended with no error: `Runner.app` is **132.5 MB** unsigned (arm64 only; `Runner` binary 76.8 MB, `App.framework` 15 MB, `Flutter.framework` 10 MB, FFmpeg's libav frameworks about 13 MB), and zipped as an unsigned `Payload/Runner.app` it is **53.8 MB** (51.3 MiB); a signed IPA needs the Apple Developer account and was not made (compare the arm64 release APK, 78.3 MB). The bundle ID is `com.hotmail.arehmananis.statusstudio`, `MinimumOSVersion` 15.5, display name "Status Studio".
    - **Plugins, each resolved and linked:** `ffmpeg_kit_flutter_new_min` (7.1.1: `ffmpegkit` and the `libav*` frameworks), `google_mlkit_face_detection` and `google_mlkit_translation` with `google_mlkit_commons` (ML Kit pods plus `GoogleMVFaceDetectorResources.bundle` and `MLKitTranslate_resource.bundle`), `tflite_flutter` (TensorFlowLiteC 2.12.0 linked statically; `TfLiteModelCreate`, `TfLiteInterpreterCreate` and the rest are exported by `Runner`, which is where `DynamicLibrary.process()` looks; the 4.4 MB `assets/models/efficientdet_lite0.tflite` is in `flutter_assets`), `gal`, `flutter_secure_storage` (darwin), `flutter_local_notifications`, `image_picker` (PHPicker), `share_plus`, `video_player` (AVFoundation), `shared_preferences`, `path_provider` and `flutter_foreground_task`. No plugin failed.
    - **Notes, none of which stopped the build:** (a) five plugins have no Swift Package Manager support (`ffmpeg_kit_flutter_new_min`, `google_mlkit_commons`, `google_mlkit_face_detection`, `google_mlkit_translation` and `tflite_flutter`); Flutter says this "will become an error in a future version", so a Flutter upgrade can break the iOS build until they ship it. (b) `ffmpeg_kit_flutter_new_min` and the ML Kit pods have no arm64 simulator slice, as the item above says; simulator runs need x86_64 (Rosetta) and ML Kit's face detection still has to be tried on a device. (c) CocoaPods prints "Can't merge user_target_xcconfig … `EXCLUDED_ARCHS[sdk=iphonesimulator*]` has different values" and "did not set the base configuration" for the Profile configuration (it reuses `Release.xcconfig`); neither affects a device build.
-   - **Not checked here (needs an iPhone or the Apple Developer account, §14):** signing, a run on a device, whether `tflite_flutter`'s `Interpreter.fromAsset` and the `IsolateInterpreter` run on iOS, ML Kit face detection, the Share Extension on a device, FFmpeg's speed on the phone's CPU, and the render matching Android.
+   - **Not checked here (needs an iPhone or the Apple Developer account):** signing, a run on a device, whether `tflite_flutter`'s `Interpreter.fromAsset` and the `IsolateInterpreter` run on iOS, ML Kit face detection, the Share Extension on a device, FFmpeg's speed on the phone's CPU, and the render matching Android.
 
 
 ## 11. Out of scope for v1
@@ -823,7 +823,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 - Merge when `tool/check.sh` (format, analyze, all tests) passes.
 - If code and this document disagree, this document wins; fix it in the same commit.
 - Spike results go into §10 before dependent tasks start.
-- Device checks go into §14.
+- Device testing is the owner's, outside this document (§14).
 
 | Milestone | Delivered | Status |
 |---|---|---|
@@ -834,38 +834,38 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M4 Fine-tune | Waveform, long-clip warning, language re-run | Done, in `dev` |
 | M5 Render | Overlay PNG, Roman Urdu, translation, Media3 export | Done, in `dev` |
 | M6 Library and settings | Save/share, Recent, Settings, launcher icon, cache cleanup, §8 errors | Done, in `dev` |
-| M7 yt-dlp | yt-dlp source, self-updating; percent, sizes and speed per step | Done, in `dev`; device check pending |
-| M8 Background work | Foreground service, result notifications, battery access (FR-16) | Done, in `dev`; device check pending |
+| M7 yt-dlp | yt-dlp source, self-updating; percent, sizes and speed per step | Done, in `dev` |
+| M8 Background work | Foreground service, result notifications, battery access (FR-16) | Done, in `dev` |
 | Speech models | Quantised files for all models, with pros and cons | Done, in `dev` |
 | Saved scripts in Recent | Script rows in Recent (FR-11) | Done, branch `saved-scripts-in-recent` |
 | Model download controls | Pause, resume, cancel (FR-12) | Done, branch `model-download-controls` |
 | M9 Groq | Optional cloud transcription (FR-12a, §8) | Spec done; tasks to write, branch `m9-groq-transcription` |
-| M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–7 done, branch `m10-groq-only` (stacked on M9); device check pending |
-| M11 Timed captions | One caption line at a time (FR-7a) | Done, branch `m11-timed-captions` (stacked on M10); device check pending |
-| M12 Real lyrics | Lyrics from lrclib.net replace the script (FR-17) | Done, branch `m12-online-lyrics` (stacked on M11); device check pending; removed in M17 |
-| M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12); device check pending |
-| M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13); device check pending |
-| M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Done, branch `m15-groq-script-fix` (stacked on M14); device check pending |
-| M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main`; device check pending |
-| M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only`; device check pending |
-| M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17); device check pending |
-| M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18); device check pending |
+| M10 Groq only | Remove on-device Whisper; Groq writes every script that has no captions | Tasks 1–7 done, branch `m10-groq-only` (stacked on M9) |
+| M11 Timed captions | One caption line at a time (FR-7a) | Done, branch `m11-timed-captions` (stacked on M10) |
+| M12 Real lyrics | Lyrics from lrclib.net replace the script (FR-17) | Done, branch `m12-online-lyrics` (stacked on M11); removed in M17 |
+| M13 AI script fix | Copy the script with a prompt for an AI agent; paste its corrected reply (FR-18) | Done, branch `m13-ai-script-fix` (stacked on M12) |
+| M14 Preview and file name | Done plays the reel; the file is named `<kalam>-<start>-<end>` (FR-9, FR-10) | Done, branch `m14-reel-preview` (stacked on M13) |
+| M15 Fix with Groq | Script button that fixes the lines with a Groq web-search model and the existing key (FR-19) | Done, branch `m15-groq-script-fix` (stacked on M14) |
+| M16 Launch animation | Dark native splash with the logo; Flutter animates the logo, then shows Home (FR-20) | Done, merged into `main` |
+| M17 Fix with Groq only | Script keeps only the Fix with Groq button; Real lyrics, Copy for AI and Paste AI reply and the lyrics feature are removed | Done, branch `m17-groq-fix-only` |
+| M18 Fine-tune lines | Play, pause and seek; edit, reorder, add and delete lines; tap a line while playing to time it (FR-5, FR-21) | Done, branch `m18-fine-tune-lines` (stacked on M17) |
+| M19 Fine-tune steps | Fine-tune in two steps: Video (nudges, size, crop that can move) and Lyrics (the clip's lines, timing, video with the lyrics on it) (FR-5, FR-21, FR-22) | Done, branch `m19-fine-tune-steps` (stacked on M18) |
 | M20 Follow the person | A button that makes the moving crop follow a person, by on-device face detection (FR-23) | Built, branch `m20-follow-subject` (stacked on M19); its automatic pick is replaced by FR-27 (M25); the face half of the spike ran in M25 (§10 item 7: 102 ms a frame) |
-| M21 Continue later | Fine-tune is kept as it changes and continued from Recent (FR-24) | Built, branch `m21-fine-tune-drafts` (stacked on M20); device checks pending (§14) |
+| M21 Continue later | Fine-tune is kept as it changes and continued from Recent (FR-24) | Built, branch `m21-fine-tune-drafts` (stacked on M20) |
 | M22 Choose the person | Tap a face to choose whom Follow the person follows (FR-25) | Built, branch `m22-choose-person` (stacked on M20); replaced by FR-27 (M25) |
-| M23 Local video in | Share or pick a trimmed video instead of a YouTube link; whole-video clip; YouTube removed (FR-1, FR-3, FR-4, FR-5, FR-14, FR-15) | Built and reviewed, branch `m23-local-video` (from `dev`), pushed, not merged; tests not run (the user tests from task 5, stale ones listed in §12); device checks pending (§14) |
+| M23 Local video in | Share or pick a trimmed video instead of a YouTube link; whole-video clip; YouTube removed (FR-1, FR-3, FR-4, FR-5, FR-14, FR-15) | Built and reviewed, branch `m23-local-video` (from `dev`), pushed, not merged; tests not run (the user tests from task 5, stale ones listed in §12) |
 | M24 Clean voice | FFmpeg filters clean the audio before Groq (FR-26, §10 item 8) | Built and reviewed, branch `m24-clean-voice` (stacked on M23), pushed, not merged; the lyrics check (§10 item 8) ran and failed: cleaned 43.2 % against raw 42.3 % on the reference clip, so the filters are unproven; tests not run |
-| M25 Choose per scene | At every scene the user picks a face, a body or a fixed spot (FR-27) | Built and reviewed (Opus, several passes), branch `m25-choose-per-scene` (stacked on M24), pushed, not merged. The spike ran on the Redmi (§10 item 7: ML Kit pose no-go, EfficientDet-Lite0 used; APK +11.4 MB accepted by the owner). The owner confirmed on the phone (2026-11-06) that the faces, bodies and spots walk works. Fixed on the way, from phone logs: exact Cut keyframe timing, the preview players released before Caption and Export (decoder error -12), preferences lost after a service ends (§5), Export's Retry after a failed save. Tests not run (the user tests; stale ones in §12); device checks pending (§14) |
-| M26 iOS | iOS build, Share Extension, AVFoundation renderer, background work (§10 item 9) | Built, branch `m26-ios` (stacked on M25), pushed, merged into `dev` (2026-11-10). `fvm flutter build ios --no-codesign` succeeds (§10 item 9). The Share Extension, the AVFoundation renderer and the iOS background work were **never run**: they need an iPhone and the Apple Developer account (signing, the App Group). Opus reviewed tasks 1–4; tasks 5–7 and the whole branch were not reviewed at the owner's request. Tests not run (the owner tests; stale and new ones in §12); device checks pending (§14) |
-| M27 Store readiness | Consent, privacy policy, store answers and release builds for Play and the App Store (§9) | Built, branch `m27-store-readiness` (from `dev`, which holds M26 and M28), pushed, merged into `dev` (2026-11-10). Consent before Groq (FR-30), no battery-optimisation request, §9.1–9.3, a privacy manifest, a signed Play bundle and an unsigned iOS archive. Pending the owner: policy hosting, the store forms, and the Apple account for signing and TestFlight (§14). Tests not run; device checks pending (§14) |
-| M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`), merged into `dev`; tests not run; device checks pending (§14) |
-| M29 Free crop on the player | Edit the free crop over the video on Fine-tune · Video instead of a separate editor (FR-6) | Built, branch `m29-free-crop-on-player` (from `dev`), merged into `dev` with M30 (2026-11-10); tests not run; device checks pending (§14) |
-| M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | Built, branch `m30-crop-and-lyrics-flow` (stacked on M29), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
-| M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | Built, branch `m31-av1-to-h264` (from `dev`), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
-| M32 Clear scene markers | Face and body boxes on the scene picture no longer cover the person: corners only, number tag outside (FR-27) | Built, branch `m32-clear-scene-markers` (stacked on M31), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
-| M33 Support and About | Settings becomes a list with one screen per category; Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`), merged into `dev` with M35 (2026-11-10); tests not run; device checks pending (§14) |
-| M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33), merged into `dev` with M35 (2026-11-10); tests not run; device checks pending (§14) |
-| M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Built, branch `m35-theme-choice` (stacked on M34), merged into `dev` (2026-11-10); designed with the owner from mockups (2026-11-10); tests not run; device checks pending (§14) |
+| M25 Choose per scene | At every scene the user picks a face, a body or a fixed spot (FR-27) | Built and reviewed (Opus, several passes), branch `m25-choose-per-scene` (stacked on M24), pushed, not merged. The spike ran on the Redmi (§10 item 7: ML Kit pose no-go, EfficientDet-Lite0 used; APK +11.4 MB accepted by the owner). The owner confirmed on the phone (2026-11-06) that the faces, bodies and spots walk works. Fixed on the way, from phone logs: exact Cut keyframe timing, the preview players released before Caption and Export (decoder error -12), preferences lost after a service ends (§5), Export's Retry after a failed save. Tests not run (the user tests; stale ones in §12) |
+| M26 iOS | iOS build, Share Extension, AVFoundation renderer, background work (§10 item 9) | Built, branch `m26-ios` (stacked on M25), pushed, merged into `dev` (2026-11-10). `fvm flutter build ios --no-codesign` succeeds (§10 item 9). The Share Extension, the AVFoundation renderer and the iOS background work were **never run**: they need an iPhone and the Apple Developer account (signing, the App Group). Opus reviewed tasks 1–4; tasks 5–7 and the whole branch were not reviewed at the owner's request. Tests not run (the owner tests; stale and new ones in §12) |
+| M27 Store readiness | Consent, privacy policy, store answers and release builds for Play and the App Store (§9) | Built, branch `m27-store-readiness` (from `dev`, which holds M26 and M28), pushed, merged into `dev` (2026-11-10). Consent before Groq (FR-30), no battery-optimisation request, §9.1–9.3, a privacy manifest, a signed Play bundle and an unsigned iOS archive. Pending the owner: policy hosting, the store forms, and the Apple account for signing and TestFlight (§14). Tests not run |
+| M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`), merged into `dev`; tests not run |
+| M29 Free crop on the player | Edit the free crop over the video on Fine-tune · Video instead of a separate editor (FR-6) | Built, branch `m29-free-crop-on-player` (from `dev`), merged into `dev` with M30 (2026-11-10); tests not run |
+| M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | Built, branch `m30-crop-and-lyrics-flow` (stacked on M29), merged into `dev` (2026-11-10); tests not run |
+| M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | Built, branch `m31-av1-to-h264` (from `dev`), merged into `dev` (2026-11-10); tests not run |
+| M32 Clear scene markers | Face and body boxes on the scene picture no longer cover the person: corners only, number tag outside (FR-27) | Built, branch `m32-clear-scene-markers` (stacked on M31), merged into `dev` (2026-11-10); tests not run |
+| M33 Support and About | Settings becomes a list with one screen per category; Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`), merged into `dev` with M35 (2026-11-10); tests not run |
+| M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33), merged into `dev` with M35 (2026-11-10); tests not run |
+| M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Built, branch `m35-theme-choice` (stacked on M34), merged into `dev` (2026-11-10); designed with the owner from mockups (2026-11-10); tests not run |
 | M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`); in progress |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
@@ -882,7 +882,7 @@ Each task: test first, tick it, commit.
 - [x] **6. Pipeline engine choice.** (Superseded by M10: Groq is the only engine.) Groq when on and a key is saved, else Whisper; skip the model step; save under `groq-whisper-large-v3-turbo`; partial progress per piece.
 - [x] **7. Errors and Use on-device.** (Use on-device was removed in M10.) §8 messages and actions on Processing; Use on-device keeps Groq's lines and continues from the next piece on the phone.
 - [ ] **8. Settings section.** Key field (Paste, Show, Remove, check result), ⓘ help sheet with Copy link, switch with subtext.
-- [ ] **9. Docs.** §13 tests list, §14 device checks, milestone status.
+- [ ] **9. Docs.** §13 tests list, milestone status.
 
 ### M10 tasks (branch `m10-groq-only`)
 
@@ -1498,241 +1498,9 @@ Asked by the owner (2026-11-10), after asking why the button exists: remove Fix 
 - The reel preview's caption and branding colours are the same in Light and Dark.
 - The launch splash's first frame uses the phone's brightness, not the saved choice.
 
-## 14. Device checks
+## 14. Device checks (removed)
 
-Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a (Tensor, 6 GB, Android 17) and Redmi Note 11 (Snapdragon 680, 5.5 GB, Android 13).
-
-**Pivot note (2026-11-05):** the YouTube-specific checks below (Video source, the yt-dlp ones, clip-only download, captions, tapping lines) no longer apply after M23; they stay as history, unticked checks are void. The new checks follow the Library group.
-
-**Passed (Pixel 6a, M4 build, 2026-10-30):**
-- Real metadata.
-- The captions path.
-- Clip-only download: 5.4 MB for a 35 s window.
-- Clip-only preview.
-- Waveform matches desktop FFmpeg.
-- Lines appear progressively.
-- Urdu in right-to-left Nastaliq.
-
-**To check:**
-- **Video source:**
-  - [ ] Lip sync in the Fine-tune preview.
-  - [ ] A nudge past the window downloads a new one.
-  - [ ] A stream without range support falls back to the whole video.
-  - [ ] A cached clip is reused after a restart.
-  - [ ] Without captions, the title shows in about 10 s and "Downloading audio" shows percent, MB and speed.
-  - [ ] Manual captions become the script.
-  - [ ] Wi-Fi ↔ mobile data on Fine-tune still downloads (fresh URLs after a 403).
-  - [ ] The yt-dlp version and Update in Settings.
-  - [ ] The first-run weekly update.
-  - [ ] A private video and airplane mode give the right messages.
-  - [ ] The first read is about 13 s, later reads about 8 s.
-  - [ ] Each step's bar shows percent, done of total, speed, and a time left that counts down and then disappears.
-- **Script:**
-  - [ ] Groq on a 5-minute speech clip and on singing; quality and speed (§10 Q5).
-  - [ ] Lines at piece boundaries.
-  - [ ] A killed run resumes.
-  - [ ] The saved-script banner and "Write it again".
-  - [ ] Airplane mode with a saved script still opens it; a new script says "You're offline."
-  - [ ] Back on Processing stops all CPU work.
-- **Fine-tune:**
-  - [ ] The waveform lines up with the sound.
-  - [ ] The warning appears above 60 s.
-  - [ ] A language change reuses the audio.
-  - [ ] Play, pause and the seek bar work over the window; playback runs past the clip end; the bar and its time move without jerks or width changes.
-  - [ ] Tapping lines while a naat plays times them, and the highlight follows without lag.
-  - [ ] Editing, reordering, adding and deleting lines with Urdu text; the edited script reopens for the same video.
-  - [ ] Free crop on the player (M29): the rectangle drags under a thumb on a landscape and on a vertical (260 dp) video; the corner is reachable and doesn't fight the play button; Reset works.
-  - [ ] Moving crop, on a phone: the window drags under a thumb (the play button sits in the corner), the keyframe chips are usable above the scrolling frame controls, and the preview glides smoothly.
-  - [ ] Moving crop, render: a Cut lines up with a caption line that starts at the same time (both read the clip's clock); a Glide is smooth; the picture is no softer or stretched compared with a fixed crop of the same size; the render matches the Lyrics preview.
-  - [ ] Follow the person (M20; the automatic pick and the "No person found" message went in M25, FR-27, where a person-free clip offers a spot; face timing was measured in M25's spike): the crop follows a singer who sways without jitter; a cut in the video lines up in the render; Cancel responds within 1 s; 12 chips stay usable.
-  - [ ] Choose the person (M22; replaced by the per-scene sheet of FR-27, whose checks are under "Choose per scene (M25)"): a two-person wide shot opens the chooser; a small face in the background can be tapped; the chosen person is followed through the render; a repeated camera angle after a cut still follows them; TalkBack reads "Person 1"; a portrait phone video shows the picture at the right aspect (rotation).
-  - [ ] Opening Lyrics releases the Video step's player with no stutter, and Back brings it back.
-  - [ ] Lyrics on a small phone: the reel-shaped player (at most 260 dp high) leaves enough lines to tap.
-- **Render:**
-  - [ ] A 10 s clip with each fill (9:16 crop and blur, 4:5, 16:9, free) is H.264, matches the layout, with a sharp full-frame overlay and audio in sync.
-  - [ ] The stretched blur looks acceptable (§6.3.1).
-  - [ ] Each preset plays in the gallery, shares to WhatsApp Status, matches the preview and shows Nastaliq.
-- **Library:**
-  - [ ] The longest trim WhatsApp Status allows (§10 Q3).
-  - [ ] Save on Android 10+ with no prompt; on Android 7–9, one prompt, and a refusal leads to Open settings.
-  - [ ] The adaptive launcher icon under every mask.
-  - [ ] Each §8 condition shows its message and actions.
-  - [ ] The full smoke test, from link to share.
-- **Background:**
-  - [ ] The notification prompt comes once (the battery prompt went in M27).
-  - [ ] Locking within 2 s of starting still finishes the run.
-  - [ ] The notification survives Home, lock and dialogs, and goes when the app is swiped away.
-  - [ ] The step and percent update.
-  - [ ] A locked run of 5+ minutes finishes and "Script ready" opens Fine-tune.
-  - [ ] "Reel ready" opens Done.
-  - [ ] Airplane mode while hidden gives "Script stopped".
-  - [ ] No result notification while the app is on screen.
-  - [ ] Export over a running script: the notification switches and the service stops last.
-  - [ ] Redmi with the default battery saver; note whether "No restrictions" was needed (since M27 the app doesn't ask; only the Settings hint points to App info).
-  - [ ] The Background work rows update after "Allow".
-  - [ ] Small plus the service on a 4 GB phone without running out of memory.
-  - [ ] The notification icon isn't a white square.
-- **Saved scripts in Recent:**
-  - [ ] A processed video's row is above older reels.
-  - [ ] Tapping it opens Fine-tune with no download.
-  - [ ] Deleting it means the next paste writes the script again.
-- **Preview and file name (M14):**
-  - [ ] Done plays the reel with sound; tap pauses; the bar can be dragged; it rewinds at the end.
-  - [ ] A reel with timed captions shows each line when expected (this is the first place the Media3 timing can be seen).
-  - [ ] The saved file in the gallery and the shared file show the `<kalam>-<start>-<end>` name, with Urdu words intact.
-  - [ ] The Recent list thumbnail still appears for a file with an Urdu name (FFmpeg reads the path).
-  - [ ] Exporting the same clip twice gives `…-2.mp4`.
-- **Caption lines (M11):**
-  - [ ] A reel with 3+ lines shows one line at a time, each when it is said, and only the branding between lines.
-  - [ ] Cue times line up with the video (Media3 hands the overlay times counted from the clip start; if the first line is early or late by the clip's lead-in, fix the offset in `TimedCaptionOverlay`).
-  - [ ] A 60 s clip with ~20 lines renders without running out of memory.
-  - [ ] Cancel mid-render leaves no overlay PNGs in the reels folder.
-- **Groq script fix (M15):** removed with the feature in M36.
-- **Groq (M9):**
-  - [ ] The key check, help sheet and Copy link.
-  - [ ] A 10-minute video's script time.
-  - [ ] Data used.
-  - [ ] A revoked key, the rate limit, and no key at all (Settings opens).
-  - [ ] Settings: Paste, Show, Save and Remove; help sheet and Copy link.
-
-**Local video in (M23), reference clip: a 1080p mehfil:**
-- [ ] Share the video from the trimming app with Status Studio closed: it opens on Source with the card and starts the script.
-- [ ] Share a video while the app is open: no second app window, the "Start a new reel from this video?" question appears.
-- [ ] Share a video, then reopen the app from Recents: the share is not replayed (no second copy, no second question).
-- [ ] Share a video with the phone almost full: "Not enough space on your phone." instead of a crash.
-- [ ] The same with the app already open on Fine-tune: it asks "Start a new reel from this video?"; Keep leaves the work as it was.
-- [ ] Choose a video from the gallery picker (no permission prompt).
-- [ ] A rotated portrait phone recording: the preview, the crop and the render are the right way up.
-- [ ] A 4K HEVC source renders through Media3.
-- [ ] Recent reopens a script after a restart with no copy; delete the kept file and it says "Video not found, choose it again".
-- [ ] The first start after M23 deletes old YouTube folders and keeps scripts of `v_` videos.
-- [x] Record the APK size change from removing yt-dlp. (Done 2026-11-05: arm64 67.1 MB, see M23 task 9.)
-
-**Clean the voice (M24):**
-- [ ] The reference clip, cleaned against raw, in the app on the Redmi: the transcript is within 2 points of the Mac CER (§10 item 8).
-- [ ] A mehfil with harmonium or daf: note how much of the lyrics the instruments still spoil.
-- [ ] "Cleaning the voice" shows on Processing and in the notification.
-- [ ] Time the cleaning of a 60 s video on the Redmi. The chain runs on the source's full-rate stereo audio; if it takes more than the Groq upload and transcription together, put `aresample=16000,aformat=channel_layouts=mono,` in front of the chain (and rerun §10 item 8).
-- [ ] Model (large-v3, §10 item 8): write the script for a 5-minute video and note the time against turbo's, the usage Groq's console shows for the key, and whether any sung line is dropped by the 0.6 no-speech cutoff (compare the line count with the raw segments).
-- [ ] A video scripted before M24 (turbo) still opens from Recent; "Write it again" gives a large-v3 script under the new source.
-- [ ] Write the script twice for the same video (another language the second time): the second run skips "Cleaning the voice" at once.
-
-**Choose per scene (M25):**
-- [x] (Owner, 2026-11-06: "working fine on phone real app"; no times were recorded, so the release-build timing is still open.) Bodies: a scene with two people side by side offers two bodies ("Body 1", "Body 2", outlined in white) as well as faces; tap one: the next scenes ask as before, and after the last answer the bar shows again for a few seconds and then the crop follows that body. In a release build, time the whole run (faces, pictures, bodies) on a 30 s clip; the debug build's per-frame numbers are in §10 item 7.
-- [ ] Export, then Recent: the reel is in the list (no "No instance named data_store" in `adb logcat`), and Done opens; after a script or an export has run, Settings and Recent still read and write.
-- [ ] From Done, go back to Caption: its preview shows the video again.
-- [ ] Export from Caption after playing Lyrics: the export starts and finishes (no `MediaCodec` error -12 in `adb logcat`); going back from Export, Caption's preview and Lyrics' player come back.
-- [x] **Spike (M25 task 1, §10 item 7), run 2026-11-06:** the numbers and the verdict are in §10 item 7. Still to check on the phone with the real app: bodies offered in the sheet (two people side by side give two bodies), the wait after the last answer in a clip whose scenes were answered with bodies, and a release build's times.
-- [ ] A mehfil with cut-aways: every scene is asked, including the cut-aways and a scene with one face.
-- [ ] Export a clip with hard cuts and a different crop in each scene: at every cut the crop changes on the same frame as the picture, with no frame of the old shot in the new crop and none of the new shot in the old one (step through the file frame by frame).
-- [ ] A scene with no face offers a spot, and the crop holds there with a Cut at the scene start.
-- [ ] Back changes an earlier answer; Cancel changes nothing.
-- [ ] TalkBack on the scene sheet reads "Person 1", "Body 1" and offers "Keep the centre".
-- [ ] A portrait phone video shows each scene's picture at the right aspect (rotation).
-- [ ] Bodies (if the spike chose a detector): two people side by side give two bodies to pick.
-
-**iOS (M26), on an iPhone:**
-- [ ] Share from Photos and from the trimming app opens Source (App Group and Share Extension signed with the Apple Developer account; the responder-chain open works on the phone's iOS version). If the app doesn't open by itself, opening it by hand shows the video on Source. A share that fails because the phone is full says "Not enough space on your phone." (§8).
-- [ ] "Choose a video" (PHPicker) on iPhone: the picked file's copy in `tmp/` is gone after the import.
-- [ ] The render with a moving crop and Urdu captions matches the Android output frame by frame (same clip, same keyframes). The file plays in Photos and WhatsApp, has sound in sync, is the size of the chosen preset (1080 × 1920 for 9:16), and has no black or green frame at the start.
-- [ ] A hard cut with a different crop on each side: the crop changes on the same frame as the picture (step through the file frame by frame), as on Android. If it is a frame off, the 10 ms lead (`cutKeyframeLead`) is wrong for the phone's clock.
-- [ ] A portrait phone video (rotation metadata), a landscape one, Blur and 16:9 each export upright and filling the frame as Android does; an iPhone HDR clip's colours (§15).
-- [ ] Cancel during an export leaves no file in `reels/`, and no overlay PNG is left after Done or Cancel.
-- [ ] Time a 60 s clip, release build, and note the memory: Blur on a 4K source is the slow case.
-- [ ] Leaving the app mid-script and coming back resumes from the last saved piece.
-- [ ] Face detection finds faces (ML Kit has no arm64 simulator support, so devices only).
-- [ ] Save to Photos asks once, and Share works.
-- [ ] Leave the app during a script (home button, then lock): after tens of seconds "Work paused" is posted (if notifications are allowed); coming back resumes from the last saved piece, with no piece written again.
-- [ ] Leave the app during an export: nothing is written wrongly (the file has no black stretch), the export carries on when the app is back in front, and a swiped-away app leaves no broken file and the user can export again. Cancel during the pause leaves no file.
-- [ ] Settings on iOS: the notification row (Allow asks once; a refusal opens Settings), no battery row, "Open Settings" opens the app's page.
-- [ ] Lyrics, Caption and Export in a row on a long clip: the export starts (the previews' decoders are released) and no "Couldn't" error appears; time the export, release build, on the oldest iPhone available.
-- [ ] Bodies: the body model loads and finds people on an iPhone (the milliseconds a frame and the first-frame load), and the face walk runs with ML Kit.
-- [ ] The simulator can't run face detection or FFmpeg on arm64 (§10 item 9); everything here is a device check.
-
-**Store readiness (M27):**
-- [ ] With a key and no consent, Get the script opens the consent screen before "Cleaning the voice"; Not now leaves Processing with Continue and Back and nothing reaches Groq (check with the phone offline: no offline error, because no send was tried).
-- [ ] Agree, then the script is written; a second video asks nothing.
-- [ ] Withdraw during a long script: it stops before the next piece; Retry on the Lyrics footer asks again and resumes from the saved piece.
-- [ ] Without a key: Get the script shows the no-key message, not the consent screen. Make it without lyrics never asks.
-- [ ] The consent screen and the Settings row on a small phone, and on iOS.
-- [ ] Before the first App Store submission: Xcode's privacy report for the archive (Organizer → Generate Privacy Report) matches §9.2's label, and App Store Connect accepts the build without ITMS-91053 or an encryption question.
-- [ ] The privacy policy URL opens without signing in, and Play Console's and App Store Connect's forms are filled from §9.2.
-- [ ] **Apple account (pending, could not run here):** register the App ID and `…statusstudio.ShareExtension`, both with the App Group `group.com.hotmail.arehmananis.statusstudio`; archive in Xcode with automatic signing (team as in the project); upload to TestFlight; install from TestFlight and run §14's iOS checks, sharing a video from Photos first (it needs the App Group).
-- [ ] **Play:** upload `app-release.aab` to internal testing; check Play Console's pre-launch report and the "App bundle explorer" permissions match task 6's list; a new personal developer account must run a closed test (12 testers, 14 days) before production.
-- [ ] Install the release bundle's APK (from internal testing) on the Pixel and the Redmi: the app opens, a script runs after consent, an export saves to the gallery.
-- [ ] No battery-optimisation prompt is left, Settings shows only the notification row, and the merged manifest of the release bundle has no `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (task 6 checks this).
-- [ ] A 5-minute script with the screen locked, on the Pixel and on the Redmi with default battery settings, still finishes without the exemption; if the Redmi pauses it, note it in §15 (the Settings hint is the answer).
-
-**Launch animation (M16), on both phones:**
-- [ ] Cold start from the launcher: dark background with the logo from the first moment, no white flash.
-- [ ] The native logo hands over to Flutter's without a jump in size or position (Android 13 splash API on the Redmi, and with three-button navigation if possible).
-- [ ] The animation plays once and Home is usable straight after; with "Remove animations" on, Home shows at once.
-- [ ] Returning to the app from Recents doesn't replay it.
-
-**Continue later (M21):**
-- [ ] Swipe the app away 2 s after a nudge on a moving-crop clip; Continue restores the clip, keyframes and caption, with no download while cached.
-- [ ] Lock within 1 s of an Urdu line edit, kill the process (`adb shell am kill`); Continue brings back the edited lines and the range.
-- [ ] After the media cache is cleared, Continue downloads only the clip window; in airplane mode Fine-tune shows the offline error.
-- [ ] Export, then Home: the Continue row is gone and the reel row is there.
-- [ ] Write it again, then Continue: Fine-tune opens with the "script changed" snackbar.
-- [ ] A long Urdu title in the Continue row on a small phone.
-
-**Without lyrics (M28):**
-- [ ] Make it without lyrics with no Groq key saved: Fine-tune, Caption and Export work, and nothing is uploaded.
-- [ ] Export with an empty caption: only the app name and logo show; the file is named after the video.
-- [ ] A typed two-line caption: each line shows for its share of the clip.
-- [ ] Share a video in: Source waits; both buttons work.
-- [ ] Get the script, Back on Processing, then Make it without lyrics: no lines appear later on Fine-tune or Caption.
-- [ ] Fine-tune → Caption → Export → Back: no `MediaCodec` error -12, and the players come back.
-
-**Crop and lyrics flow (M30).** These replace the checks above that mention Processing, Caption (Style), Get the script, Make it without lyrics, the keyframe chips or the caption variants.
-- [ ] Fine-tune · Video on a small phone: the player leaves room for the tabs; Trim and Crop scroll on their own; the tab stays when coming back from Lyrics.
-- [ ] Crop tab: turning on Move the crop at each scene shows one block over the whole clip; New position here at 5 s splits it in two, sized by time; dragging the crop moves the selected position; Glide/Cut and Delete on the card work.
-- [ ] Follow the person from the Crop tab: the scene walk runs as before, and the strip shows one block per scene, Cuts marked.
-- [ ] A nudged clip: blocks start at the new clip start; a keyframe before the clip shows as the first block.
-- [ ] Lyrics with no saved script: the Get card; Get lyrics from Groq asks for consent the first time; progress and Cancel show; lines appear while writing; Export reel is off until it ends.
-- [ ] Lyrics on a video with a saved script: it opens on the newest one with "Using the saved script from …", and nothing is uploaded.
-- [ ] Type them myself with no key: one line at the playhead; Add line and timing work; Export renders it.
-- [ ] Show lyrics off: no caption on the player and the export; on again: the lines come back.
-- [ ] Get again in the same language rewrites with Groq; in another language opens its saved script; edited lines ask "Replace your edited lines?" first.
-- [ ] Style sheet: Top/Bottom and S/M/L change the player at once.
-- [ ] Lyrics → Export → Back: no `MediaCodec` error -12, and the player comes back. Cancel on Export returns to Lyrics.
-- [ ] Leave on the Video step without lyrics, then Continue from Recent: the clip and crop come back; one row per video.
-- [ ] An install with M29 drafts in two languages of one video: Recent shows one Continue row, the newer one.
-- [ ] Share a video in: Source shows the card and Next: video; nothing starts by itself.
-- [x] Run `pod install` once: the ML Kit translation pod leaves `Podfile.lock`, and the iOS build still succeeds. (Done 2026-11-10 in M31: `fvm flutter build ios --no-codesign --debug` ran it and built.)
-
-**AV1 to H.264 (M31):**
-- [ ] Share or pick an AV1 video (Android 10 or newer): the card's bar fills from 0 % with "Converting this AV1 video…", then shows the video; the Crop tab's scene strip and Follow the person work, Recent has a thumbnail, and the log has no "hardware accelerated AV1 decoding" error.
-- [ ] Share the same AV1 video again: no converting message, and it opens at once.
-- [ ] The converted copy: the picture is turned the right way, the sound is in sync, and the export matches what Fine-tune shows.
-- [ ] Record how long a 60 s 1080p AV1 video takes to convert on the Redmi Note 11.
-- [ ] An AV1 video on an iPhone without AV1 hardware: the §8 message, not a crash.
-
-**Clear scene markers (M32):**
-- [ ] Follow the person on a close-up and on a crowd shot: every face and body shows only its corners, and no number tag covers a face; the people are clear to see.
-- [ ] A face at the top edge: its tag sits below the box. A face at the right edge: its tag stays inside the picture.
-- [ ] Tapping a tag picks that face or body; tapping inside a box still picks it.
-
-**Support and About (M33), Android and iPhone:**
-- [ ] Settings lists four categories and each opens its screen; Back returns to the list; About shows the same version and build as `pubspec.yaml`, and Open-source licences opens.
-- [ ] Email with Gmail (or Mail on iPhone): the subject and the message, ending with the right phone model and system version, are filled in; spaces are spaces, not `+`.
-- [ ] WhatsApp: the chat with +92 347 8330955 opens with the text filled in; on a phone without WhatsApp the browser opens wa.me.
-- [ ] Call opens the dialer with the number. An Urdu message survives Email and WhatsApp intact.
-- [ ] The details are right: on the Redmi Note 11 the processor reads "QTI SM6225 · arm64-v8a" (or its hardware name), RAM is near the phone's own figure, the screen matches its resolution, and Network changes between Wi-Fi, Mobile data and None (airplane mode).
-
-**Large text (M34), at the largest system font size, Android and iPhone:**
-- [ ] No app bar title wraps or is cut off; "Fine-tune · Lyrics" with its step label fits on one line.
-- [ ] Every section title reads larger than the text under it (Settings pages, Source, Fine-tune, Lyrics, Export).
-- [ ] No button label, list row or card is cut off; the caption preview matches the exported clip.
-
-**Theme choice (M35), Android and iPhone:**
-- [ ] Phone in light mode, theme System: the launch screen is light with the logo (on iPhone, light without it, §15), the animation is light, Home is light; no dark or white flash anywhere. On iPhone, sharing a video into the app shows a light Share Extension screen.
-- [ ] Phone in dark mode, theme System: everything is dark as before M35.
-- [ ] Phone in dark mode, theme Light: the launch screen and animation are dark, then fade into a light Home with no flash between.
-- [ ] Every screen in Light: Home, Source, Fine-tune · Video (player, Trim, Crop, scene strip, person chooser), Fine-tune · Lyrics (lines, Style sheet), Export, Done, Settings and its pages, the consent screen, dialogs and snack bars. No dark leftovers, no text that's hard to read outdoors, readable status bar and navigation bar icons.
-- [ ] Choosing a theme in Appearance changes the app at once; Back returns to Settings with the new subtitle; the choice survives closing the app. With System, switching the phone's dark mode changes the open app.
-- [ ] A reel exported in Light looks the same as the same reel exported in Dark (caption, backing, branding).
+Removed on 2026-11-10: the owner does all device testing themselves and keeps the checklist outside this document. The number stays so references keep working; new milestones add no device checks here.
 
 ## 15. Known issues (found on the phone, not fixed)
 

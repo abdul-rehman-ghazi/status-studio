@@ -11,7 +11,7 @@ Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact
 ## The project document
 
 - Everything lives in one file: `docs/status-studio.md`. "The spec" means this file. It is the source of truth for behaviour, copy, sizes and error messages.
-- It holds the product spec (§1–§11), milestones and their task lists (§12), behaviour that tests must cover (§13), device checks (§14) and known issues (§15).
+- It holds the product spec (§1–§11), milestones and their task lists (§12), behaviour that tests must cover (§13) and known issues (§15). §14 (device checks) was emptied on 2026-11-10: the owner does all device testing outside the document.
 - Code cites its § and FR numbers, so never renumber them; add new sections at the end.
 - Workflow:
   - Work on one milestone per branch (`m9-groq-transcription`, …).
@@ -19,7 +19,7 @@ Design canvas (prototype, screens, build plan, logo): https://claude.ai/artifact
   - Tick each checkbox as you go, and commit after each task.
   - Merge when `tool/check.sh` passes.
 - If code and the document disagree, the document wins. Fix whichever is wrong in the same commit and say so in the commit message.
-- Spikes record their results in §10 before dependent tasks start. Device checks go into §14, not onto the phone mid-milestone.
+- Spikes record their results in §10 before dependent tasks start. Don't write device checks into the document or run them on a phone: the owner tests on devices themselves.
 - Update the milestone's status in §12 when it is merged.
 
 ## Commands
@@ -94,7 +94,7 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 - Application ID (Android) and bundle ID (iOS): `com.hotmail.arehmananis.statusstudio`.
 - Android `minSdk` is 24 (FFmpeg Kit requirement).
 - Release signing reads `android/key.properties` and `android/app/upload-keystore.jks`. Both are committed intentionally because the repo is private. Never print their contents, never make the repo public, and never switch release builds back to debug signing.
-- iOS was built in M26 (branch `m26-ios`) and builds with `fvm flutter build ios --no-codesign`, but **its Share Extension, AVFoundation renderer and background work have never run**: they need an iPhone and the Apple Developer account (signing and the App Group `group.com.hotmail.arehmananis.statusstudio`), and the checks are in spec §14.
+- iOS was built in M26 (branch `m26-ios`) and builds with `fvm flutter build ios --no-codesign`, but **its Share Extension, AVFoundation renderer and background work have never run**: they need an iPhone and the Apple Developer account (signing and the App Group `group.com.hotmail.arehmananis.statusstudio`).
   - Deployment target 15.5 (ML Kit 9 face detection). Five plugins have no Swift Package Manager support (CocoaPods stays); ML Kit and `ffmpeg_kit` have no arm64 simulator slice, so use a device. After `fvm flutter pub get`, `fvm flutter precache --ios` is needed once before `pod install`.
   - Native iOS code is in `ios/Runner/` (`VideoIn/`, `Render/`, `System/`), `ios/ShareExtension/` and `ios/Shared/`. The Xcode project is edited by script with the `xcodeproj` gem that CocoaPods bundles (no Xcode GUI needed); new Swift files must be added to the target that way. The Share Extension uses our own `status_studio/video_in` channel, not `receive_sharing_intent`.
   - iOS has no foreground service: scripts get a short background task and resume per saved piece; an export waits while the app is not in front (`ForegroundGate`), because Core Image can't use the GPU in the background.
