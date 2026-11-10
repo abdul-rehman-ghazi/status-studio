@@ -5,20 +5,26 @@ import 'package:status_studio/src/core/json_files.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft_json.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
-import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 
-final _draftFileName = RegExp(r'^draft-([^-.]+)\.json$');
+const _draftFileName = 'draft.json';
 
-/// Kept fine-tunes beside the saved scripts, as
-/// `transcripts/<videoId>/draft-<language>.json` (spec FR-24). They go with
-/// the video's folder when the scripts are pruned.
+/// Version 1 kept one draft per video and language (M21–M29).
+final _languageDraftFileName = RegExp(r'^draft-([^-.]+)\.json$');
+
+/// Kept fine-tunes beside the saved scripts, one per video, as
+/// `transcripts/<videoId>/draft.json` (spec FR-24, M30). They go with the
+/// video's folder when the scripts are pruned.
 class FineTuneDraftStore {
   FineTuneDraftStore(this.root);
 
   final Directory root;
 
-  Future<void> save(FineTuneDraft draft) =>
-      writeJsonAtomically(_file(draft.script), fineTuneDraftToJson(draft));
+  /// Writes [draft] and drops any version 1 drafts of its video, which it
+  /// replaces.
+  Future<void> save(FineTuneDraft draft) async {
+    await writeJsonAtomically(_file(draft.videoId), fineTuneDraftToJson(draft));
+    await _deleteLanguageDrafts(_folder(draft.videoId));
+  }
 
   /// Every readable draft, newest first. A file that can't be read, comes
   /// from a newer version or sits in the wrong place is skipped and left on
@@ -29,49 +35,93 @@ class FineTuneDraftStore {
     }
     final drafts = <FineTuneDraft>[];
     await for (final entry in root.list()) {
-      if (entry is Directory) {
-        drafts.addAll(await _draftsIn(entry));
+      if (entry is! Directory) {
+        continue;
+      }
+      if (await _draftIn(entry) case final draft?) {
+        drafts.add(draft);
       }
     }
     drafts.sort((a, b) => b.savedAt.compareTo(a.savedAt));
     return drafts;
   }
 
-  /// Whether a file is kept for [key], readable or not.
-  Future<bool> has(TranscriptKey key) => _file(key).exists();
+  /// Whether a draft file is kept for [videoId], readable or not.
+  Future<bool> has(String videoId) async {
+    if (await _file(videoId).exists()) {
+      return true;
+    }
+    return (await _languageDraftFiles(_folder(videoId))).isNotEmpty;
+  }
 
-  Future<void> delete(TranscriptKey key) async {
-    final file = _file(key);
+  Future<void> delete(String videoId) async {
+    final file = _file(videoId);
     if (await file.exists()) {
       await file.delete();
     }
+    await _deleteLanguageDrafts(_folder(videoId));
   }
 
-  File _file(TranscriptKey key) => File(
-    '${root.path}/${key.videoId}/draft-${key.language.whisperCode}.json',
-  );
+  Directory _folder(String videoId) => Directory('${root.path}/$videoId');
 
-  /// A draft counts only in its own place: the folder and file name must
-  /// say what the draft says.
-  Future<List<FineTuneDraft>> _draftsIn(Directory folder) async {
-    final drafts = <FineTuneDraft>[];
-    await for (final entry in folder.list()) {
-      final draft = entry is File ? await _readDraft(entry) : null;
-      if (draft != null && _file(draft.script).path == entry.path) {
-        drafts.add(draft);
+  File _file(String videoId) =>
+      File('${_folder(videoId).path}/$_draftFileName');
+
+  /// The video's draft: `draft.json`, or else the newest version 1 draft,
+  /// whose older siblings are deleted (one draft per video since M30).
+  Future<FineTuneDraft?> _draftIn(Directory folder) async {
+    final videoId = folder.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+    final current = await _readDraft(_file(videoId), videoId);
+    if (current != null) {
+      return current;
+    }
+    final older = <(File, FineTuneDraft)>[];
+    for (final file in await _languageDraftFiles(folder)) {
+      if (await _readDraft(file, videoId) case final draft?) {
+        older.add((file, draft));
       }
     }
-    return drafts;
+    if (older.isEmpty) {
+      return null;
+    }
+    final newest = older.reduce(
+      (a, b) => a.$2.savedAt.isAfter(b.$2.savedAt) ? a : b,
+    );
+    await _deleteLanguageDrafts(folder, keep: newest.$1);
+    return newest.$2;
   }
 
-  /// The draft in [file], or `null` when [file] isn't a readable draft.
-  Future<FineTuneDraft?> _readDraft(File file) async {
-    final name = file.uri.pathSegments.last;
-    if (!_draftFileName.hasMatch(name)) {
+  Future<List<File>> _languageDraftFiles(Directory folder) async {
+    if (!await folder.exists()) {
+      return const [];
+    }
+    final files = <File>[];
+    await for (final entry in folder.list()) {
+      final name = entry.uri.pathSegments.last;
+      if (entry is File && _languageDraftFileName.hasMatch(name)) {
+        files.add(entry);
+      }
+    }
+    return files;
+  }
+
+  Future<void> _deleteLanguageDrafts(Directory folder, {File? keep}) async {
+    for (final file in await _languageDraftFiles(folder)) {
+      if (file.path != keep?.path) {
+        await file.delete();
+      }
+    }
+  }
+
+  /// The draft in [file], or `null` when it isn't a readable draft of
+  /// [videoId]: a draft counts only in its own video's folder.
+  Future<FineTuneDraft?> _readDraft(File file, String videoId) async {
+    if (!await file.exists()) {
       return null;
     }
     try {
-      return fineTuneDraftFromJson(await readJsonObject(file));
+      final draft = fineTuneDraftFromJson(await readJsonObject(file));
+      return draft.videoId == videoId ? draft : null;
     } on Exception {
       return null;
     }

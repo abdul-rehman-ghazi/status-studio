@@ -455,9 +455,17 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
     }
   }
 
-  void _startScript(WidgetRef ref) => ref
-      .read(scriptProgressProvider.notifier)
-      .start(fineTune.video, fineTune.draft.script.language);
+  /// Reads the saved script back, or resumes one still being written. A
+  /// fine-tune kept before it had lines starts nothing: Lyrics offers the
+  /// script (M30).
+  void _startScript(WidgetRef ref) {
+    if (fineTune.draft.lines == null) {
+      return;
+    }
+    ref
+        .read(scriptProgressProvider.notifier)
+        .start(fineTune.video, fineTune.draft.language);
+  }
 
   Future<void> _offerDeleteProgress(BuildContext context, WidgetRef ref) async {
     if (!await _confirmAction(context, 'Delete')) {
@@ -468,12 +476,16 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
   }
 
   /// Without this the script row would show again where the fine-tune was.
+  /// A fine-tune that never had lines leaves the video's scripts alone.
   Future<void> _deleteItsScript(WidgetRef ref) async {
+    if (fineTune.draft.lines == null) {
+      return;
+    }
     final scripts = await ref.read(savedScriptsProvider.future);
     final script = scripts.where(
       (saved) =>
           saved.video.videoId == fineTune.video.videoId &&
-          saved.language == fineTune.draft.script.language,
+          saved.language == fineTune.draft.language,
     );
     for (final saved in script) {
       await ref.read(savedScriptsProvider.notifier).delete(saved);

@@ -5,9 +5,11 @@ import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
-import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 
-const fineTuneDraftVersion = 1;
+const fineTuneDraftVersion = 2;
+
+/// Version 1 kept one draft per video and language, always with lines.
+const _versionWithLanguageFiles = 1;
 
 // A rounding slack so a free crop saved at the frame's edge still reads back.
 const _edgeSlack = 1e-9;
@@ -15,11 +17,11 @@ const _edgeSlack = 1e-9;
 Map<String, Object?> fineTuneDraftToJson(FineTuneDraft draft) => {
   'version': fineTuneDraftVersion,
   'savedAt': draft.savedAt.toUtc().toIso8601String(),
-  'videoId': draft.script.videoId,
-  'language': draft.script.language.whisperCode,
+  'videoId': draft.videoId,
+  'language': draft.language.whisperCode,
+  'lyricsShown': draft.lyricsShown,
   'linesEdited': draft.linesEdited,
-  'scriptFingerprint': draft.scriptFingerprint,
-  'selection': {'start': draft.selection.start, 'end': draft.selection.end},
+  if (draft.lines case final lines?) 'lines': _linesToJson(lines),
   'clip': {
     'startMs': draft.clip.start.inMilliseconds,
     'endMs': draft.clip.end.inMilliseconds,
@@ -28,25 +30,58 @@ Map<String, Object?> fineTuneDraftToJson(FineTuneDraft draft) => {
   'caption': _captionToJson(draft.caption),
 };
 
-/// Throws [FormatException] when [json] is not a version 1 fine-tune.
+/// Throws [FormatException] when [json] is not a version 1 or 2 fine-tune.
 FineTuneDraft fineTuneDraftFromJson(Map<String, Object?> json) {
-  if (json['version'] != fineTuneDraftVersion) {
-    throw const FormatException('Not a version 1 fine-tune.');
-  }
-  return FineTuneDraft(
-    script: TranscriptKey(
-      videoId: _string(json['videoId']),
-      language: _language(json['language']),
+  return switch (json['version']) {
+    fineTuneDraftVersion => _draftFromJson(json, lines: _optionalLines(json)),
+    _versionWithLanguageFiles => _draftFromJson(
+      json,
+      lines: KeptLines(
+        selection: _selectionFromJson(_object(json['selection'])),
+        fingerprint: _integer(json['scriptFingerprint']),
+      ),
     ),
-    selection: _selectionFromJson(_object(json['selection'])),
+    _ => throw const FormatException('Not a version 1 or 2 fine-tune.'),
+  };
+}
+
+FineTuneDraft _draftFromJson(
+  Map<String, Object?> json, {
+  required KeptLines? lines,
+}) {
+  return FineTuneDraft(
+    videoId: _string(json['videoId']),
+    language: _language(json['language']),
+    // Version 1 had no switch: its reels always had lyrics.
+    lyricsShown: json['lyricsShown'] == null
+        ? true
+        : _boolean(json['lyricsShown']),
+    lines: lines,
     clip: _clipFromJson(_object(json['clip'])),
     frame: _frameFromJson(_object(json['frame'])),
     caption: _captionFromJson(_object(json['caption'])),
     linesEdited: _boolean(json['linesEdited']),
-    scriptFingerprint: _integer(json['scriptFingerprint']),
     savedAt: DateTime.parse(_string(json['savedAt'])),
   );
 }
+
+KeptLines? _optionalLines(Map<String, Object?> json) {
+  final lines = json['lines'];
+  if (lines == null) {
+    return null;
+  }
+  final object = _object(lines);
+  return KeptLines(
+    selection: _selectionFromJson(object),
+    fingerprint: _integer(object['fingerprint']),
+  );
+}
+
+Map<String, Object?> _linesToJson(KeptLines lines) => {
+  'start': lines.selection.start,
+  'end': lines.selection.end,
+  'fingerprint': lines.fingerprint,
+};
 
 Map<String, Object?> _frameToJson(FrameSettings frame) => {
   'preset': frame.preset.name,

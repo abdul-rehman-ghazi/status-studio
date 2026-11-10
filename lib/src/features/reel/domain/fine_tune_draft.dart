@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/lines_in_clip.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
@@ -11,129 +12,178 @@ import 'package:status_studio/src/features/transcript/domain/line_selection.dart
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
-/// Fine-tune work kept to continue later (spec FR-24). The script itself is
-/// not copied: [script] names it, and [scriptFingerprint] tells a changed
-/// script apart.
+/// The script lines a kept fine-tune was working on: which ones were inside
+/// the clip, and a fingerprint that tells a changed script apart.
+@immutable
+class KeptLines {
+  const KeptLines({required this.selection, required this.fingerprint});
+
+  final RangeSelected selection;
+  final int fingerprint;
+
+  @override
+  bool operator ==(Object other) =>
+      other is KeptLines &&
+      other.selection == selection &&
+      other.fingerprint == fingerprint;
+
+  @override
+  int get hashCode => Object.hash(selection, fingerprint);
+}
+
+/// Fine-tune work kept to continue later, one per video (spec FR-24, M30).
+/// It is kept from the moment Fine-tune · Video opens, with or without
+/// lyrics. The script itself is not copied: [scriptKey] names it, and
+/// [lines] is set only once there were lines inside the clip.
 @immutable
 class FineTuneDraft {
   const FineTuneDraft({
-    required this.script,
-    required this.selection,
+    required this.videoId,
+    required this.language,
+    required this.lyricsShown,
+    required this.lines,
     required this.clip,
     required this.frame,
     required this.caption,
     required this.linesEdited,
-    required this.scriptFingerprint,
     required this.savedAt,
   });
 
-  /// Throws [StateError] when [draft] has no picked range or clip yet
-  /// (see [canKeep]).
+  /// Throws [StateError] when [draft] has no video or clip yet (see
+  /// [canKeep]).
   factory FineTuneDraft.of(ReelDraft draft, {required DateTime savedAt}) {
-    final transcript = draft.transcript;
-    final selection = draft.selection;
     final clip = draft.clip;
     final video = draft.video;
-    if (video == null ||
-        transcript == null ||
-        selection is! RangeSelected ||
-        clip == null) {
-      throw StateError('Nothing to keep before a range and clip are picked.');
+    if (video == null || clip == null) {
+      throw StateError('Nothing to keep before a video and a clip are set.');
     }
     return FineTuneDraft(
-      script: TranscriptKey(videoId: video.videoId, language: draft.language),
-      selection: selection,
+      videoId: video.videoId,
+      language: draft.language,
+      lyricsShown: draft.lyricsShown,
+      lines: _keptLines(draft),
       clip: clip,
       frame: draft.frame,
       caption: draft.caption,
       linesEdited: draft.linesEdited,
-      scriptFingerprint: _fingerprint(transcript, selection.end),
       savedAt: savedAt,
     );
   }
 
-  /// Whether [draft] has reached Fine-tune: a video, a script, a picked
-  /// range and a clip.
+  /// Whether [draft] has reached Fine-tune: a video and a clip.
   static bool canKeep(ReelDraft draft) =>
-      draft.video != null &&
-      draft.transcript != null &&
-      draft.selection is RangeSelected &&
-      draft.clip != null;
+      draft.video != null && draft.clip != null;
 
-  final TranscriptKey script;
-  final RangeSelected selection;
+  final String videoId;
+  final ScriptLanguage language;
+  final bool lyricsShown;
+  final KeptLines? lines;
   final ClipRange clip;
   final FrameSettings frame;
   final CaptionSettings caption;
   final bool linesEdited;
-  final int scriptFingerprint;
   final DateTime savedAt;
 
-  /// Whether [transcript] is still the script this was picked from: the same
-  /// lines up to the last picked one, with the clip inside [video].
+  /// The saved script this fine-tune's lines come from (FR-14).
+  TranscriptKey get scriptKey =>
+      TranscriptKey(videoId: videoId, language: language);
+
+  /// Whether [transcript] is still the script the kept lines came from: the
+  /// same lines up to the last one inside the clip, with the clip inside
+  /// [video]. Without kept lines only the clip is checked.
   bool fits(SourceVideo video, Transcript transcript) {
-    if (selection.end >= transcript.lines.length) {
+    final lines = this.lines;
+    if (lines == null) {
+      return clipFits(video);
+    }
+    if (lines.selection.end >= transcript.lines.length) {
       return false;
     }
-    return _fingerprint(transcript, selection.end) == scriptFingerprint &&
-        clip.end <= video.duration;
+    return _fingerprint(transcript, lines.selection.end) == lines.fingerprint &&
+        clipFits(video);
   }
 
-  /// The reel as it was left, on [transcript]; call only when [fits].
-  ReelDraft restoredOnto(SourceVideo video, Transcript transcript) {
+  /// Whether the kept clip is still inside [video].
+  bool clipFits(SourceVideo video) => clip.end <= video.duration;
+
+  /// The reel as it was left, on [transcript] when it had lines; call only
+  /// when it [fits].
+  ReelDraft restoredOnto(SourceVideo video, {Transcript? transcript}) {
     return ReelDraft(
       video: video,
-      language: script.language,
+      language: language,
       transcript: transcript,
       // The script may have grown since this was kept (it can be saved while
       // still being written): the lines inside the clip are the selected ones.
-      selection: linesInClip(transcript, clip),
+      selection: transcript == null
+          ? const NoSelection()
+          : linesInClip(transcript, clip),
       clip: clip,
       frame: frame,
       caption: caption,
       linesEdited: linesEdited,
+      lyricsShown: lyricsShown,
     );
   }
 
-  /// What carries over when the lines can't (spec FR-24): size, fill, the
-  /// crop where it was at the clip start, and the caption's position and
-  /// size.
+  /// What carries over when the lines can't (spec FR-24, M30): the clip and
+  /// the crop when the clip still fits [video], and the caption's position
+  /// and size. A clip past the video's end starts over as the whole video,
+  /// with the crop stopped where it was at the old clip start.
   ReelDraft startOver(SourceVideo video) {
+    final look = CaptionSettings(
+      position: caption.position,
+      size: caption.size,
+    );
+    if (clipFits(video)) {
+      return ReelDraft(
+        video: video,
+        language: language,
+        clip: clip,
+        frame: frame,
+        caption: look,
+        lyricsShown: lyricsShown,
+      );
+    }
     final stopped = ReelDraft(
       video: video,
-      language: script.language,
+      language: language,
       clip: clip,
       frame: frame,
     ).withMovingCropStopped();
     return ReelDraft(
       video: video,
-      language: script.language,
+      language: language,
+      clip: ClipRange(start: Duration.zero, end: video.duration),
       frame: stopped.frame,
-      caption: CaptionSettings(position: caption.position, size: caption.size),
+      caption: look,
+      lyricsShown: lyricsShown,
     );
   }
 
   @override
   bool operator ==(Object other) =>
       other is FineTuneDraft &&
-      other.script == script &&
-      other.selection == selection &&
+      other.videoId == videoId &&
+      other.language == language &&
+      other.lyricsShown == lyricsShown &&
+      other.lines == lines &&
       other.clip == clip &&
       other.frame == frame &&
       other.caption == caption &&
       other.linesEdited == linesEdited &&
-      other.scriptFingerprint == scriptFingerprint &&
       other.savedAt == savedAt;
 
   @override
   int get hashCode => Object.hash(
-    script,
-    selection,
+    videoId,
+    language,
+    lyricsShown,
+    lines,
     clip,
     frame,
     caption,
     linesEdited,
-    scriptFingerprint,
     savedAt,
   );
 }
@@ -145,8 +195,18 @@ class SavedFineTune {
 
   final SourceVideo video;
   final FineTuneDraft draft;
+}
 
-  TranscriptKey get key => draft.script;
+KeptLines? _keptLines(ReelDraft draft) {
+  final transcript = draft.transcript;
+  final selection = draft.selection;
+  if (transcript == null || selection is! RangeSelected) {
+    return null;
+  }
+  return KeptLines(
+    selection: selection,
+    fingerprint: _fingerprint(transcript, selection.end),
+  );
 }
 
 /// FNV-1a over the lines up to [lastLine]. `String.hashCode` is not stable

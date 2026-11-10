@@ -40,18 +40,18 @@ class FineTuneEntry extends RecentEntry {
 }
 
 /// Reels, scripts and kept fine-tunes in one list, newest first. A kept
-/// fine-tune replaces the script row of its video and language, so the
-/// video shows once.
+/// fine-tune replaces every script row of its video, so the video shows
+/// once (M30: one fine-tune per video).
 List<RecentEntry> recentEntries({
   required List<RecentReel> reels,
   required List<SavedScript> scripts,
   required List<SavedFineTune> fineTunes,
 }) {
-  final continued = {for (final fineTune in fineTunes) fineTune.key};
+  final continued = {for (final fineTune in fineTunes) fineTune.draft.videoId};
   return [
     for (final reel in reels) ReelEntry(reel),
     for (final script in scripts)
-      if (!continued.contains(script.key)) ScriptEntry(script),
+      if (!continued.contains(script.video.videoId)) ScriptEntry(script),
     for (final fineTune in fineTunes) FineTuneEntry(fineTune),
   ]..sort((a, b) => b.sortedAt.compareTo(a.sortedAt));
 }

@@ -61,21 +61,23 @@ class FineTuneDraftSaver {
     final store = await stores.drafts();
     // The file can be deleted elsewhere (Delete progress, a failed Continue),
     // so "already written" only counts while it is still there.
-    final alreadyKept = work == _lastWritten && await store.has(work.script);
+    final alreadyKept = work == _lastWritten && await store.has(work.videoId);
     if (alreadyKept || work == _lastDiscarded) {
       return;
     }
     final kept = FineTuneDraft.of(draft, savedAt: _clock());
+    final scripts = await stores.scripts();
+    // A reel with no script yet still needs its video's details for Recent.
+    await scripts.saveVideo(draft.video!);
     await store.save(kept);
     _lastWritten = work;
     _lastDiscarded = null;
-    await (await stores.scripts()).markUsed(kept.script.videoId);
     onChanged();
   }
 
   Future<void> _delete(ReelDraft draft) async {
     final work = FineTuneDraft.of(draft, savedAt: _noTime);
-    await (await stores.drafts()).delete(work.script);
+    await (await stores.drafts()).delete(work.videoId);
     _lastWritten = null;
     _lastDiscarded = work;
     onChanged();

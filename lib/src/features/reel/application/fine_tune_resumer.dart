@@ -43,6 +43,9 @@ class FineTuneResumer {
   /// Finds the script [saved] was picked from. When it can't be continued
   /// the kept fine-tune is deleted, since it would never open again.
   Future<FineTuneResume> resume(SavedFineTune saved) async {
+    if (saved.draft.lines == null) {
+      return _readyWithoutLines(saved);
+    }
     final scripts = await stores.scripts();
     final SavedTranscript script;
     try {
@@ -78,7 +81,18 @@ class FineTuneResumer {
   }
 
   FineTuneResume _ready(SavedFineTune saved, Transcript transcript) =>
-      FineTuneReady(saved.draft.restoredOnto(saved.video, transcript));
+      FineTuneReady(
+        saved.draft.restoredOnto(saved.video, transcript: transcript),
+      );
+
+  /// Kept before there were lines inside the clip: only the clip and the
+  /// look come back, and Lyrics offers the script (M30).
+  Future<FineTuneResume> _readyWithoutLines(SavedFineTune saved) async {
+    if (!saved.draft.clipFits(saved.video)) {
+      return _gone(saved);
+    }
+    return FineTuneReady(saved.draft.restoredOnto(saved.video));
+  }
 
   Future<FineTuneResume> _gone(SavedFineTune saved) async {
     await _discard(saved.draft);
@@ -92,12 +106,12 @@ class FineTuneResumer {
     FineTuneDraft draft,
   ) async {
     if (!draft.linesEdited) {
-      return scripts.load(draft.script);
+      return scripts.load(draft.scriptKey);
     }
     try {
-      return await scripts.loadFromSource(draft.script, editedSource);
+      return await scripts.loadFromSource(draft.scriptKey, editedSource);
     } on NoSavedTranscriptException {
-      return scripts.load(draft.script);
+      return scripts.load(draft.scriptKey);
     }
   }
 
@@ -107,15 +121,15 @@ class FineTuneResumer {
     TranscriptStore scripts,
     FineTuneDraft draft,
   ) async {
-    final partial = await scripts.loadPartial(draft.script, groqSource);
+    final partial = await scripts.loadPartial(draft.scriptKey, groqSource);
     return Transcript(
-      languageCode: draft.script.language.whisperCode,
+      languageCode: draft.language.whisperCode,
       lines: partial.lines,
     );
   }
 
   Future<void> _discard(FineTuneDraft draft) async =>
-      (await stores.drafts()).delete(draft.script);
+      (await stores.drafts()).delete(draft.videoId);
 }
 
 final fineTuneResumerProvider = Provider<FineTuneResumer>(

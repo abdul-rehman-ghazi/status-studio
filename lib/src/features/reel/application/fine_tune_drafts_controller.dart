@@ -19,7 +19,7 @@ class FineTuneDraftsController extends AsyncNotifier<List<SavedFineTune>> {
     final listed = <SavedFineTune>[];
     for (final draft in drafts) {
       try {
-        final video = await scripts.loadVideo(draft.script.videoId);
+        final video = await scripts.loadVideo(draft.videoId);
         listed.add(SavedFineTune(video: video, draft: draft));
       } on NoSavedVideoException {
         continue;
@@ -31,7 +31,7 @@ class FineTuneDraftsController extends AsyncNotifier<List<SavedFineTune>> {
   /// Deletes the kept fine-tune only; the video's script stays.
   Future<void> delete(SavedFineTune saved) async {
     final stores = ref.read(fineTuneStoresProvider);
-    await (await stores.drafts()).delete(saved.key);
+    await (await stores.drafts()).delete(saved.draft.videoId);
     ref.invalidateSelf();
     await future;
   }

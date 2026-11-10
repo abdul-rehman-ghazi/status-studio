@@ -1171,7 +1171,7 @@ Builds the M30 design above, task by task, one commit each. The repo has no `tes
   - Source keeps the card and one button, Next: video (`setVideo`, push `fineTune`). The language dropdown, the two buttons and the Groq note go.
   - `processing_screen.dart` and `AppRoutes.processing` are deleted. Home's script row loads the script into the reel and opens Fine-tune · Video. "Script gone" opens Fine-tune · Video too.
   - `shared_video_listener.dart` loses the removed routes. The script notification opens Lyrics while the reel is open.
-- [ ] **5. One kept fine-tune per video (FR-24).**
+- [x] **5. One kept fine-tune per video (FR-24).** Done. The kept lines are `KeptLines` (`selection` and `fingerprint`), stored as `"lines"` in version 2. Saving a draft also writes the video's `video.json`, so a reel without a script still has a title in Recent. Continuing a fine-tune that never had lines starts no run. Long-press Delete removes the video's script only when the fine-tune had lines.
   - `FineTuneDraft` version 2 in `transcripts/<videoId>/draft.json`, with `videoId`, `language`, `lyricsShown`, `clip`, `frame`, `caption` and `linesEdited`. `selection` and `scriptFingerprint` are present only when there is a script.
   - `canKeep` needs only a video and a clip. Reading version 1: the newest `draft-*.json` of a video wins, and the others are deleted.
   - `FineTuneResumer`: a draft without a script is Ready with no transcript. Gone or changed keeps the clip and the crop as well.
