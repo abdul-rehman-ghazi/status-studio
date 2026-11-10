@@ -3,21 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/features/about/data/device_details_reader.dart';
+import 'package:status_studio/src/features/appearance/application/theme_choice_controller.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
-/// The Settings categories, each opening its own screen: the Groq key,
-/// background work, support and about (spec FR-12a, FR-16, FR-31).
+/// The Settings categories, each opening its own screen: appearance, the
+/// Groq key, background work, support and about (spec FR-12a, FR-16,
+/// FR-31, FR-32).
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final versionShown = ref.watch(appVersionProvider).value?.shown;
+    final themeChoice = ref.watch(themeChoiceProvider);
     return Scaffold(
       appBar: AppBar(title: const ScreenTitle('Settings')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          _CategoryRow(
+            icon: Icons.contrast,
+            title: 'Appearance',
+            subtitle: 'Theme: ${themeChoice.label}',
+            route: AppRoutes.appearanceSettings,
+          ),
           const _CategoryRow(
             icon: Icons.key_outlined,
             title: 'Groq key',

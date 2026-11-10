@@ -23,6 +23,7 @@ const _screensWithoutAReel = {
   AppRoutes.source,
   AppRoutes.done,
   AppRoutes.settings,
+  AppRoutes.appearanceSettings,
   AppRoutes.groqSettings,
   AppRoutes.backgroundSettings,
   AppRoutes.supportSettings,

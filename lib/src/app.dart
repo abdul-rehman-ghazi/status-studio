@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/appearance/application/theme_choice_controller.dart';
 import 'package:status_studio/src/features/branding/presentation/launch_splash.dart';
 import 'package:status_studio/src/features/source/presentation/shared_video_listener.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -17,7 +18,9 @@ class StatusStudioApp extends ConsumerWidget {
     final splashEnabled = ref.watch(launchSplashEnabledProvider);
     return MaterialApp.router(
       title: 'Status Studio',
-      theme: AppTheme.dark(),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ref.watch(themeChoiceProvider).mode,
       routerConfig: ref.watch(appRouterProvider),
       debugShowCheckedModeBanner: false,
       builder: (context, router) {
