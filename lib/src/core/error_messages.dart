@@ -1,7 +1,6 @@
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
-import 'package:status_studio/src/features/style/domain/translation_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/script_exchange.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
@@ -30,7 +29,6 @@ String errorMessageFor(Object error) {
       'Too many lines for an AI to check. Shorten the clip on the next step '
           'first.',
     RenderFailedException() => "Couldn't make the reel.",
-    TranslationPackMissingException() => 'English needs a one-time download.',
     FollowFailedException() => "Couldn't follow the person. Try again.",
     _ => 'Something went wrong. Try again.',
   };

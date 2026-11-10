@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -16,13 +15,9 @@ import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
-import 'package:status_studio/src/features/source/domain/script_language.dart';
-import 'package:status_studio/src/features/style/data/caption_translator.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
-import 'package:status_studio/src/features/style/domain/roman_urdu.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
-import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 const _previewMaxHeight = 380.0;
@@ -38,11 +33,6 @@ class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
   late final TextEditingController _captionController = TextEditingController(
     text: ref.read(reelDraftProvider).caption.text,
   );
-
-  /// Bumped by every variant tap and edit, so a translation that finishes
-  /// after the user moved on is dropped instead of overwriting their choice.
-  var _variantRequest = 0;
-  var _translating = false;
 
   /// True while Export is open: the preview's player holds a video decoder,
   /// and the phone's 1080p decoder has no memory left for the export's own
@@ -95,18 +85,6 @@ class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
             _framePreview(draft),
             const SizedBox(height: 24),
             const SectionLabel('Caption'),
-            // Without a script there is nothing to translate (spec FR-29).
-            if (!draft.lyricsSkipped)
-              OptionRow<CaptionVariant>(
-                options: _variantOptions(
-                  draft,
-                  ref.watch(captionTranslatorProvider),
-                ),
-                selected: caption.variant,
-                onSelected: (variant) =>
-                    unawaited(_switchVariant(draft, variant)),
-              ),
-            if (_translating) const _TranslatingNote(),
             const SizedBox(height: 10),
             TextField(
               controller: _captionController,
@@ -115,10 +93,8 @@ class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
               style: scriptTextStyle(_captionController.text),
               textDirection: _captionDirection(_captionController.text),
               decoration: const InputDecoration(border: OutlineInputBorder()),
-              onChanged: (text) {
-                _dropPendingVariant();
-                controller.updateCaption(caption.copyWith(text: text));
-              },
+              onChanged: (text) =>
+                  controller.updateCaption(caption.copyWith(text: text)),
             ),
             const SizedBox(height: 8),
             HintText(
@@ -189,135 +165,18 @@ class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
       },
     );
   }
-
-  /// Replaces the caption with [variant]'s text, discarding edits (FR-7).
-  Future<void> _switchVariant(ReelDraft draft, CaptionVariant variant) async {
-    // Re-tapping the current chip is not a switch; keep the user's edits.
-    if (variant == draft.caption.variant) {
-      _dropPendingVariant();
-      return;
-    }
-    if (_translating && variant == CaptionVariant.english) {
-      return;
-    }
-    final request = ++_variantRequest;
-    setState(() => _translating = variant == CaptionVariant.english);
-    try {
-      final text = await _variantText(draft, variant);
-      if (!mounted || request != _variantRequest) {
-        return;
-      }
-      _captionController.text = text;
-      final controller = ref.read(reelDraftProvider.notifier);
-      controller.updateCaption(
-        ref
-            .read(reelDraftProvider)
-            .caption
-            .copyWith(variant: variant, text: text),
-      );
-    } on Object catch (error) {
-      if (request == _variantRequest) {
-        _showTranslationFailure(error, () => _switchVariant(draft, variant));
-      }
-    } finally {
-      if (mounted && request == _variantRequest) {
-        setState(() => _translating = false);
-      }
-    }
-  }
-
-  /// The user chose something else: a translation still running is ignored.
-  void _dropPendingVariant() {
-    _variantRequest++;
-    if (_translating) {
-      setState(() => _translating = false);
-    }
-  }
-
-  Future<String> _variantText(ReelDraft draft, CaptionVariant variant) {
-    final original = _selectedLinesText(draft);
-    return switch (variant) {
-      CaptionVariant.original => Future.value(original),
-      CaptionVariant.roman => Future.value(romanizeUrdu(original)),
-      CaptionVariant.english =>
-        ref
-            .read(captionTranslatorProvider)
-            .toEnglish(original, _languageCode(draft)),
-    };
-  }
-
-  /// Spec §8: "English needs a one-time download." with Retry, or the
-  /// general message for any other failure.
-  void _showTranslationFailure(Object error, VoidCallback retry) {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(errorMessageFor(error)),
-        action: SnackBarAction(label: 'Retry', onPressed: retry),
-      ),
-    );
-  }
-}
-
-class _TranslatingNote extends StatelessWidget {
-  const _TranslatingNote();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          SizedBox.square(
-            dimension: 14,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          SizedBox(width: 8),
-          HintText('Translating…'),
-        ],
-      ),
-    );
-  }
 }
 
 const _scriptCaptionHint =
     'Filled from the lines inside the clip. Each line shows on its own, '
-    'when it is said. Translation runs on your phone. Edit anything.';
+    'when it is said. Edit anything.';
 
 const _ownCaptionHint =
     'Optional. Leave it empty for a reel with no caption. Each line shows on '
     'its own; the clip is shared out between them.';
 
-String _languageCode(ReelDraft draft) =>
-    draft.transcript?.languageCode ?? ScriptLanguage.auto.whisperCode;
-
-String _selectedLinesText(ReelDraft draft) {
-  final lines = draft.transcript?.lines ?? const [];
-  return switch (draft.selection) {
-    RangeSelected(:final start, :final end) =>
-      lines.sublist(start, end + 1).map((line) => line.text).join('\n'),
-    _ => draft.caption.text,
-  };
-}
-
 TextDirection _captionDirection(String text) =>
     isArabicScript(text) ? TextDirection.rtl : TextDirection.ltr;
-
-List<Option<CaptionVariant>> _variantOptions(
-  ReelDraft draft,
-  CaptionTranslator translator,
-) {
-  final languageCode = _languageCode(draft);
-  return [
-    (value: CaptionVariant.original, label: 'Original'),
-    if (languageCode == ScriptLanguage.urdu.whisperCode)
-      (value: CaptionVariant.roman, label: 'Roman'),
-    if (translator.supports(languageCode))
-      (value: CaptionVariant.english, label: 'English'),
-  ];
-}
 
 class _CaptionLayoutControls extends StatelessWidget {
   const _CaptionLayoutControls({

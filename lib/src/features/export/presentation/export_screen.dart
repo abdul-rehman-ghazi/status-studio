@@ -15,7 +15,6 @@ import 'package:status_studio/src/features/reel/application/fine_tune_draft_save
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
-import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -244,9 +243,5 @@ String _captionLanguage(ReelDraft draft) {
         (language) => language.whisperCode == draft.transcript?.languageCode,
       )
       .firstOrNull;
-  return switch (draft.caption.variant) {
-    CaptionVariant.original => transcriptLanguage?.label ?? 'the original',
-    CaptionVariant.roman => 'Roman Urdu',
-    CaptionVariant.english => 'English',
-  };
+  return transcriptLanguage?.label ?? 'the original';
 }

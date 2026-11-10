@@ -1151,7 +1151,7 @@ Builds the M30 design above, task by task, one commit each. The repo has no `tes
   - `fine_tune_screen.dart` keeps the pinned player and gets the two tabs. `fine_tune_trim_tab.dart` and `fine_tune_crop_tab.dart` hold their content. `scene_strip.dart` (`SceneStrip`) and `selected_position_card.dart` replace `crop_keyframe_chips.dart`, which is deleted. Follow the person sits beside New position here. The switch is renamed.
   - `clip_player.dart`: `_framedMaxHeight` becomes the smaller of 260 dp and 40 % of the screen height.
   - §13 cases: spans of a 3-keyframe path in a nudged clip; New position here at a keyframe's time selects it.
-- [ ] **2. Original captions only; translation removed (FR-7).**
+- [x] **2. Original captions only; translation removed (FR-7).** Done: the iOS target stays 15.5, because GoogleMLKit 9 (face detection) needs it too. `ios/Podfile.lock` still lists the translation pod until the next `pod install`. `PrivacyInfo.xcprivacy` declares nothing translation-specific. The §9.1–9.2 wording goes in task 6.
   - `CaptionVariant` goes from `CaptionSettings`. Its JSON field is ignored on read and no longer written (FR-24 files stay readable).
   - Deleted: `caption_translator.dart`, `roman_urdu.dart`, `translation_errors.dart`, the variant chips on Caption, and `google_mlkit_translation` in `pubspec.yaml`. Export's summary loses the variant names. Check `ios/Podfile`, `PrivacyInfo.xcprivacy` and §9.2 for the removed SDK, and record whether the iOS target 15.5 is still needed.
   - §13 cases: a version-1 draft with `"variant": "english"` still reads.

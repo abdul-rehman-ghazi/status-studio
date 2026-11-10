@@ -73,7 +73,6 @@ Map<String, Object?> _keyframeToJson(CropKeyframe keyframe) => {
 };
 
 Map<String, Object?> _captionToJson(CaptionSettings caption) => {
-  'variant': caption.variant.name,
   'text': caption.text,
   'position': caption.position.name,
   'size': caption.size.name,
@@ -162,7 +161,6 @@ CropKeyframe _keyframeFromJson(Map<String, Object?> json) {
 }
 
 CaptionSettings _captionFromJson(Map<String, Object?> json) => CaptionSettings(
-  variant: _enumByName(CaptionVariant.values, json['variant']),
   text: _string(json['text']),
   position: _enumByName(CaptionPosition.values, json['position']),
   size: _enumByName(CaptionSize.values, json['size']),

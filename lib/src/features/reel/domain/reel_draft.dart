@@ -64,7 +64,7 @@ class ReelDraft {
     language: language,
     clip: clip ?? _wholeVideo(video),
     frame: frame,
-    caption: caption.copyWith(variant: CaptionVariant.original, text: ''),
+    caption: caption.copyWith(text: ''),
     lyricsSkipped: true,
   );
 
@@ -109,7 +109,7 @@ class ReelDraft {
 
   /// Selects the lines inside [clip], or inside the whole video when there
   /// is no clip yet. The caption is refilled only while it is still the
-  /// lines' own text, so a caption the user typed or translated stays.
+  /// lines' own text, so a caption the user typed stays.
   ReelDraft _selectingLinesInClip(Transcript transcript, ClipRange? clip) {
     final inClip = clip ?? _wholeVideo(video);
     final followsLines = _captionFollowsLines;
@@ -126,24 +126,15 @@ class ReelDraft {
       selection: selection,
       clip: inClip,
       caption: followsLines
-          ? caption.copyWith(
-              variant: CaptionVariant.original,
-              text: _selectedText(transcript, selection),
-            )
+          ? caption.copyWith(text: _selectedText(transcript, selection))
           : caption,
     );
   }
 
-  bool get _captionFollowsLines =>
-      caption.variant == CaptionVariant.original &&
-      caption.text == _selectedLinesText;
+  bool get _captionFollowsLines => caption.text == _selectedLinesText;
 
-  ReelDraft _withCaptionFromLines() => copyWith(
-    caption: caption.copyWith(
-      variant: CaptionVariant.original,
-      text: _selectedLinesText,
-    ),
-  );
+  ReelDraft _withCaptionFromLines() =>
+      copyWith(caption: caption.copyWith(text: _selectedLinesText));
 
   String get _selectedLinesText =>
       _selectedLines.map((line) => line.text).join('\n');
@@ -269,10 +260,7 @@ class ReelDraft {
       selection: selection,
       clip: ClipRange.fromLines(transcript, selection),
       frame: _frameWithoutMovingCrop,
-      caption: caption.copyWith(
-        variant: CaptionVariant.original,
-        text: _selectedText(transcript, selection),
-      ),
+      caption: caption.copyWith(text: _selectedText(transcript, selection)),
     );
   }
 
