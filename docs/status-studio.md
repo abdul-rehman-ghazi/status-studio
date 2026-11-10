@@ -25,7 +25,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | 6 | Style (removed) | — | Removed in M30: caption position and size are in the Style sheet on Lyrics (FR-7); the caption is always the lines, in their own language |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Lyrics |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
-| 9 | Settings | `/settings` | A list of categories, each on its own screen since M33: Groq key `/settings/groq` (FR-12a), Background work `/settings/background` (FR-16), Support `/settings/support` and About `/settings/about` (FR-31). The YouTube reader section was removed in M23 |
+| 9 | Settings | `/settings` | A list of categories, each on its own screen since M33: Appearance `/settings/appearance` (FR-32, M35), Groq key `/settings/groq` (FR-12a), Background work `/settings/background` (FR-16), Support `/settings/support` and About `/settings/about` (FR-31). The YouTube reader section was removed in M23 |
 
 - **Visual reference:** the design canvas prototype for screens 1–8. Settings follows the same visual language.
 - **Progress of a script run (on Lyrics since M30):** the step under way, with its bar and percent (`45 %`) and time left (`1:24 left`) once it can be told, and Cancel. Nothing is downloaded, so there is no speed or size line (changed in M23).
@@ -216,6 +216,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 
 **FR-20 Launch animation (M16).** Opening the app never shows a white screen.
 - **Native splash:** Android's launch window is the app background `#0E1311` with the §7 logo (light variant) centred at 144 dp. Android 12+ shows the same logo through its splash API (`windowSplashScreenAnimatedIcon`, a 288 dp icon with the 144 dp logo in the middle). iOS's launch screen has the same background.
+- **Light phones (M35, FR-32):** on a phone in light mode the launch window, the Android 12+ splash, the window behind Flutter and iOS's launch screen use the light page `#F5F8F6` instead, with the same logo and dark status bar icons; the animation's first frame matches them. On iOS only the background follows: its launch logo is still the §15 placeholder, which M35 doesn't fix (Claude's call). The iOS Share Extension's screen follows the phone's mode the same way, since it can't read the saved choice either (Claude's call). Flutter's animation follows the phone's mode, not the saved theme; its exit fade reveals Home in the chosen theme.
 - **Animation:** Flutter's first frame matches the native splash exactly, then plays for 1.7 s over Home, which is already built underneath:
   - the five bars move like a voice waveform and settle back;
   - the brackets close in on the bars and open again, like trimming a clip;
@@ -391,6 +392,29 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Not in M33:** a privacy policy row (§9.1, waits for hosting).
 - **Calls made by Claude, not the owner:** the category names, icons and subtitles; Email and WhatsApp stay off until there's text; the message layout above.
 
+**FR-32 Theme choice (M35).** Until M35 the app was dark only. Asked by the owner (2026-11-10); the owner chose the light colours, the place in Settings, the default and the launch behaviour from mockups the same day.
+- **Choices:** Light, Dark and System. **System is the default**, for new installs and for people updating alike, so after the update a phone in light mode shows the app light. System follows the phone's dark mode and changes with it while the app is open.
+- **Where:** a new Settings category, **Appearance**, the first row of the list (FR-31), icon `Icons.contrast`, subtitle "Theme: Light", "Theme: Dark" or "Theme: System". It opens `/settings/appearance` titled "Appearance": a "Theme" section label, then three radio rows, Light, Dark, and System with the subtitle "Follows the phone's dark mode". Tapping a row applies it at once, with no Save button and no restart.
+- **Saved:** in shared preferences under `appearance.theme` (`light`, `dark` or `system`), read before the first Flutter frame, so the app never draws a frame in the wrong theme. Nothing saved, or a value the app doesn't know, means System.
+- **Light colours** (owner's choice C: one deeper green on a soft mint page; the bright green fails as text on white, 1.9:1):
+
+  | Role | Dark (unchanged) | Light |
+  |---|---|---|
+  | Page background | `#0E1311` | `#F5F8F6` |
+  | Cards and panels (surface) | `#18201C` | `#FFFFFF` |
+  | Accent: buttons, switches, tabs, links, selection | `#3DD68C` | `#0F7D4C` (5.2:1 on white) |
+  | Text and icons on the accent | `#06140D` | `#FFFFFF` |
+  | Text | `#EEF3F0` | `#0E1311` |
+  | Muted text, hints, subtitles | `#A3AFA8` | `#5B6862` (5.5:1 on the page) |
+
+  The two themes differ in colour only: fonts, sizes, the list-row hierarchy and the text cap (§4) are the same.
+- **Everything goes light** (owner's decision): every screen and sheet, the video areas included (the players' backgrounds and letterboxing, the crop editor's panels, the scene strip, the person chooser, the waveform, Done's player bar).
+- **What never follows the theme:**
+  - **The exported reel.** Caption text, its backing, the branding pill and logo in the overlay PNG (`overlay_painter.dart`) and the same parts of the reel preview (`reel_preview.dart`) keep their colours, so a reel looks the same whichever theme made it.
+  - **The logo:** the green tile `#3DD68C` with ink `#06140D` (§7), in both themes, as on the launcher icon.
+  - **Marks drawn on the video picture** (Claude's call): the dimming outside the crop window, the crop frame and its handles, the face and body corners and their number tags, and the dark scrims under player controls keep their dark-theme colours, because the picture, not the page, is behind them.
+- **Launch (FR-20, owner's choice B):** the native launch screen follows the phone's dark mode, not the saved choice, because it shows before the app can read it. Flutter's launch animation matches the native screen (the phone's mode), then its exit fade reveals Home in the chosen theme; when the two differ, that fade is the only change.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -564,7 +588,7 @@ Removed with the caption variants (FR-7). It was a rule-based, letter-by-letter 
 | Tile | rx 24 |
 | Brackets | `M33 24 H24 V76 H33` and `M67 24 H76 V76 H67`, stroke 6, round caps and joins |
 | Bars | x = 38, 44, 50, 56, 62 spanning y 42–58, 35–65, 30–70, 37–63, 43–57, stroke 4.5, round caps |
-| Colours | tile `#3DD68C`, ink `#06140D`; dark variant tile `#18201C`, ink `#3DD68C` |
+| Colours | tile `#3DD68C`, ink `#06140D`; dark variant tile `#18201C`, ink `#3DD68C`. The green tile is used in both app themes (FR-32); the logo never follows the theme |
 
 The Android launch screen (FR-20) draws the same shapes as vector drawables (`launch_logo.xml`, `splash_icon.xml`), since it shows before Flutter starts; keep them in step with `LogoPainter`. `LogoPainter` also takes a `LogoPose` (bracket inset, bar half-lengths) for the launch animation; the rest pose is the table above.
 
@@ -861,7 +885,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M32 Clear scene markers | Face and body boxes on the scene picture no longer cover the person: corners only, number tag outside (FR-27) | Built, branch `m32-clear-scene-markers` (stacked on M31), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
 | M33 Support and About | Settings becomes a list with one screen per category; Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`), pushed, not merged; tests not run; device checks pending (§14) |
 | M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33); tests not run; device checks pending (§14) |
-| M35 Theme choice | Light, dark or system theme in Settings | Asked by the owner (2026-11-10); not started. Decided: in Light everything goes light, the video areas too (player, crop editor, scene strip). Open: the light colours, where the choice sits in Settings |
+| M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Asked by the owner (2026-11-10); designed with the owner the same day; branch `m35-theme-choice` (stacked on M34); in progress |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1249,6 +1273,16 @@ Found by the owner on a phone set to large text (2026-11-10): app bar titles ove
 - [x] **1. Cap, titles and hierarchy (§4).** `app.dart` clamps text scaling to `maxTextScale` (1.3). New `ScreenTitle` (`core/presentation/screen_title.dart`) on every app bar (Settings and its pages, Source, Fine-tune and Lyrics through `FlowAppBar`, the consent screen, Export, Done). `SectionLabel` goes from `titleSmall` (14) to `titleMedium` (16) semi-bold and gains `styleOf` for the Groq key heading; Home's "Recent" uses it. `AppTheme.dark()` sets `listTileTheme` (title `bodyMedium`, subtitle `bodySmall` muted). The bottom button bar (52 dp) and Home's 48 × 64 thumbnails stay fixed: at 1.3× their text fits. `fvm flutter analyze` clean; tests not run. **Stale tests:** golden or size checks on section labels, list rows or app bar titles, if any.
 - [ ] **2. Tests (owner).** §13 "Large text (M34)".
 
+### M35 tasks (branch `m35-theme-choice`)
+
+Asked by the owner (2026-11-10): Light, Dark and System in Settings. The owner decided from mockups: everything goes light, the video areas too; light colours "one deeper green on a soft mint page"; a new Appearance category first in the list; System by default; the launch screen follows the phone's mode (FR-32, FR-20).
+
+- [x] **1. Spec.** FR-32; FR-20 light phones; §2 Settings row; §7 logo colours; §13 "Theme choice (M35)"; §14.
+- [ ] **2. Colours from the theme (FR-32).** `app_theme.dart`: one palette value object per theme (the FR-32 table), `AppTheme.light()` and `AppTheme.dark()` built from it by one shared function, mapped onto the `ColorScheme` (primary = accent, onPrimary, surface = page, surfaceContainer = cards, onSurface = text, onSurfaceVariant = muted) and `listTileTheme`. Every widget reads colours from the theme instead of `AppColors`; painters (waveform, crop overlay) get them passed in from `build`. The fixed colours FR-32 lists (exported reel, logo, marks on the picture) move to their own constants that name what they are for, used only there. `app.dart` still sets the dark theme only, so the app looks unchanged after this task. `fvm flutter analyze` clean; tests not run. **Stale tests:** any that compare a widget's colour with an `AppColors` constant.
+- [ ] **3. Appearance setting (FR-32).** New feature folder `lib/src/features/appearance/`: the choice (Light, Dark, System, mapped to `ThemeMode`), a store on `preferencesProvider` (`appearance.theme`), a Riverpod controller that loads, applies and saves it, and `appearance_section.dart`. The saved choice is read in `main` before `runApp` and handed to the provider, so the first frame is right. `MaterialApp` gets `theme: light`, `darkTheme: dark`, `themeMode` from the controller. Settings gets the Appearance row first; route `AppRoutes.appearanceSettings` under `/settings`; `shared_video_listener.dart` counts it as a screen without a reel. `fvm flutter analyze` clean; tests not run. **Stale tests:** tests that pump `StatusStudioApp` must override the stored choice; any that expect four Settings rows.
+- [ ] **4. Launch follows the phone (FR-20).** Android: light `launch_background` (`#F5F8F6`) and light parent themes with `windowLightStatusBar` in `values/` and `values-v31/`, the dark ones moved to `values-night/` and `values-night-v31/`; the vector logo is unchanged. iOS: a `LaunchBackground` colour set in `Assets.xcassets` (Any `#F5F8F6`, Dark `#0E1311`) used by `LaunchScreen.storyboard`; `ShareViewController.swift` uses a dynamic colour with the same two values instead of the fixed dark one. `LaunchSplash` picks its background and wordmark colour from the phone's brightness (`MediaQuery.platformBrightnessOf`), not from the app theme. `fvm flutter analyze` clean; tests not run. **Stale tests:** launch splash tests that expect the dark background.
+- [ ] **5. Tests (owner).** §13 "Theme choice (M35)".
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1475,6 +1509,18 @@ Found by the owner on a phone set to large text (2026-11-10): app bar titles ove
 - At a system text scale of 2.0, text is drawn at most 1.3× its size.
 - A long app bar title shrinks onto one line instead of wrapping.
 - A section label's font is larger than a list row's title in the same theme.
+
+**Theme choice (M35):**
+- With nothing saved, the app follows the phone's mode (`ThemeMode.system`).
+- A stored value the app doesn't know reads as System.
+- Choosing Light saves `light` and the app's theme turns light without a restart.
+- A saved choice is applied on the next start.
+- Settings lists Appearance first, with "Theme: <choice>" as its subtitle; tapping it opens Appearance with the saved choice selected.
+- The light and dark themes have the same text styles and sizes.
+- The light theme's accent and muted text reach 4.5:1 against the page and the cards.
+- The overlay PNG is identical whether the app is in Light or Dark.
+- The reel preview's caption and branding colours are the same in Light and Dark.
+- The launch splash's first frame uses the phone's brightness, not the saved choice.
 
 ## 14. Device checks
 
@@ -1708,6 +1754,14 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] No app bar title wraps or is cut off; "Fine-tune · Lyrics" with its step label fits on one line.
 - [ ] Every section title reads larger than the text under it (Settings pages, Source, Fine-tune, Lyrics, Export).
 - [ ] No button label, list row or card is cut off; the caption preview matches the exported clip.
+
+**Theme choice (M35), Android and iPhone:**
+- [ ] Phone in light mode, theme System: the launch screen is light with the logo (on iPhone, light without it, §15), the animation is light, Home is light; no dark or white flash anywhere. On iPhone, sharing a video into the app shows a light Share Extension screen.
+- [ ] Phone in dark mode, theme System: everything is dark as before M35.
+- [ ] Phone in dark mode, theme Light: the launch screen and animation are dark, then fade into a light Home with no flash between.
+- [ ] Every screen in Light: Home, Source, Fine-tune · Video (player, Trim, Crop, scene strip, person chooser), Fine-tune · Lyrics (lines, Style sheet), Export, Done, Settings and its pages, the consent screen, dialogs and snack bars. No dark leftovers, no text that's hard to read outdoors, readable status bar and navigation bar icons.
+- [ ] Choosing a theme in Appearance changes the app at once; Back returns to Settings with the new subtitle; the choice survives closing the app. With System, switching the phone's dark mode changes the open app.
+- [ ] A reel exported in Light looks the same as the same reel exported in Dark (caption, backing, branding).
 
 ## 15. Known issues (found on the phone, not fixed)
 
