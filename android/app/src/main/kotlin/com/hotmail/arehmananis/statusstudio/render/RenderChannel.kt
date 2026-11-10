@@ -7,13 +7,15 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /**
- * `status_studio/render` (`start`, `cancel`) and `status_studio/render/events`, which sends
+ * `status_studio/render` (`start`, `cancel`, and `convert`, which answers when the file is
+ * written) and `status_studio/render/events`, which sends
  * `{type: progress, value}`, `{type: done, path}` and `{type: error, message}`.
  */
 class RenderChannel(context: Context, messenger: BinaryMessenger) :
     MethodChannel.MethodCallHandler,
     EventChannel.StreamHandler {
     private val renderer = ReelRenderer(context)
+    private val converter = VideoConverter(context)
     private var events: EventChannel.EventSink? = null
 
     init {
@@ -24,6 +26,7 @@ class RenderChannel(context: Context, messenger: BinaryMessenger) :
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "start" -> start(call, result)
+            "convert" -> convert(call, result)
             "cancel" -> {
                 renderer.cancel()
                 result.success(null)
@@ -52,6 +55,27 @@ class RenderChannel(context: Context, messenger: BinaryMessenger) :
             result.error("start_failed", error.message, null)
         }
     }
+
+    private fun convert(call: MethodCall, result: MethodChannel.Result) {
+        val inputPath = call.argument<String>("inputPath")
+        val outputPath = call.argument<String>("outputPath")
+        if (inputPath == null || outputPath == null) {
+            result.error("bad_spec", "convert needs inputPath and outputPath.", null)
+            return
+        }
+        try {
+            converter.convert(inputPath, outputPath, conversionListener(result))
+        } catch (error: RuntimeException) {
+            result.error("convert_failed", error.message, null)
+        }
+    }
+
+    private fun conversionListener(result: MethodChannel.Result) =
+        object : VideoConverter.Listener {
+            override fun onDone() = result.success(null)
+
+            override fun onError(message: String) = result.error("convert_failed", message, null)
+        }
 
     private val eventsListener = object : ReelRenderer.Listener {
         override fun onProgress(fraction: Double) {
