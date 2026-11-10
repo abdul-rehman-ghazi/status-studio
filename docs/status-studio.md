@@ -830,6 +830,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`), merged into `dev`; tests not run; device checks pending (§14) |
 | M29 Free crop on the player | Edit the free crop over the video on Fine-tune · Video instead of a separate editor (FR-6) | Built, branch `m29-free-crop-on-player` (from `dev`), merged into `dev` with M30 (2026-11-10); tests not run; device checks pending (§14) |
 | M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | Built, branch `m30-crop-and-lyrics-flow` (stacked on M29), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
+| M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | In progress, branch `m31-av1-to-h264` (from `dev`) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1177,6 +1178,21 @@ Builds the M30 design above, task by task, one commit each. The repo has no `tes
   - §13 cases: v1 migration picks the newest; a no-script draft resumes with its clip and keyframes.
 - [x] **6. Docs.** §1, §2, FR-1, FR-2, FR-5, FR-7, FR-7a, FR-9, FR-13, FR-14, FR-21, FR-22, FR-24, FR-26, FR-27, FR-29, FR-30, §4, §5, §6.6, §8, §9.1–9.2, §13 ("Crop and lyrics flow (M30)"), §14 (the same) and CLAUDE.md. Older milestones' §13 and §14 entries stay as history; the M30 entries say which they replace.
 - [ ] **7. Tests (owner).** The §13 cases under "Crop and lyrics flow (M30)". Every test of `ProcessingScreen`, `StyleScreen`, `CropKeyframeChips`, `ScriptTools`, `ScriptWritingFooter`, `CaptionTranslator`, `romanizeUrdu`, `CaptionVariant`, `ReelDraft.withoutLyrics` and `lyricsSkipped`, and of `draft-<language>.json` as the current file name, is stale.
+
+### M31 tasks (branch `m31-av1-to-h264`)
+
+The bundled FFmpeg (`ffmpeg_kit_flutter_new_min`, built with no external libraries, `--disable-mediacodec` and `--disable-autodetect`) has no AV1 decoder: its own `av1` decoder only works through a hardware decoder, and it has none. An AV1 video then fails every FFmpeg run that decodes frames (Crop's frame sampling and scene detection, the Recent thumbnail) with "Your platform doesn't support hardware accelerated AV1 decoding" (found on the phone, 2026-11-10). The owner chose to convert such a video once, when it comes in, with the native renderer, over swapping to the larger `ffmpeg_kit_flutter_new_video` build or refusing the video. No `test/` folder exists, so no test goes stale; each task names the §13 cases the owner will want. Each task ends with `fvm flutter analyze` clean and a commit that says tests were not run.
+
+- [ ] **1. Import: convert an AV1 video (FR-1, §8).**
+  - `LocalVideoFacts.videoCodec` (ffprobe's `codec_name` of the first video stream) and `needsH264Copy` (`av1`).
+  - `VideoConverter` (`video_converter.dart`, `videoConverterProvider`): `convertToH264(inputPath, outputPath)` over `convert` on `status_studio/render`; a failure is `VideoNotConvertibleException`.
+  - `LocalVideoImporter`: a video that needs it is converted into `sources/<videoId>/converting.mp4` (deleted first and on failure), renamed to `source.h264.mp4`, and the other kept files of the ID are deleted. A kept `source.h264.mp4` is reused without converting again. The free-space check asks for twice the incoming size plus 50 MiB. `importVideo` takes `onConverting`, called when a conversion starts.
+  - Source's card shows "Converting this AV1 video so the app can edit it…" under its progress bar while that import converts.
+  - §8 row and `errorMessageFor`: "This phone can't convert this AV1 video. Save it as H.264 (MP4) in your editor and share it again."
+  - §13 cases: an AV1 probe needs a copy and an H.264 one doesn't; an AV1 import keeps `source.h264.mp4` and deletes the incoming file; a second import reuses it without converting; a failed conversion leaves no `converting.mp4` and throws `VideoNotConvertibleException`.
+- [ ] **2. Native `convert` (Android and iOS).** Android: `VideoConverter.kt` beside `ReelRenderer`, Media3 Transformer with H.264 video and AAC audio and no effects; `RenderChannel` answers `convert` when it finishes, or `convert_failed`. Android's own AV1 decoder exists from Android 10; older phones fail with the §8 message. iOS: `AVAssetExportSession` with `AVAssetExportPresetHighestQuality` to MP4 in `RenderChannel.swift`; AVFoundation decodes AV1 only on A17 Pro and M3 chips or newer, so most iPhones get the §8 message.
+- [ ] **3. Docs.** FR-1, §4, §8, §10 item 7 (the AV1 answer), §13, §14 and CLAUDE.md.
+- [ ] **4. Tests (owner).** The §13 cases of task 1.
 
 ## 13. Behaviour that must stay covered by tests
 
