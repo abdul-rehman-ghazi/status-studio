@@ -7,7 +7,7 @@
 Status Studio turns a video the user has already trimmed in another app, in any language, into a short clip for WhatsApp Status, Reels, TikTok or Shorts. The user shares the video into the app or picks it from the gallery. The app cleans the voice and writes out the script. The user fine-tunes the start and end by ±0.5 s and the lyrics, picks a size, and chooses what the crop follows at every scene: a face, a body or a fixed spot. Then a caption. The export is an MP4 with the Status Studio name and logo.
 
 - **On the phone:** voice cleaning (FFmpeg), translation (ML Kit) and rendering (Media3 Transformer on Android, AVFoundation on iOS from M26). No accounts, no servers, no analytics.
-- **Groq writes scripts:** every script is written by Groq's hosted Whisper, with the user's own free API key (FR-12a), from the cleaned audio (FR-26). Script audio leaves the phone only then, and only to Groq. The same key also powers Fix with Groq (FR-19), which sends the clip's lines and the title when the user taps it. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
+- **Groq writes scripts:** every script is written by Groq's hosted Whisper, with the user's own free API key (FR-12a), from the cleaned audio (FR-26), once the user has agreed to sending (FR-30). Script audio leaves the phone only then, and only to Groq. The same key also powers Fix with Groq (FR-19), which sends the clip's lines and the title when the user taps it. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
 - **No media downloads:** the video comes in as a local file, copied into the app's storage. Nothing is fetched from the internet except language packs and the Groq requests above.
 - **Saves work:** scripts are saved by the video's fingerprint, so the same video opens straight to its script next time.
 - **Pivot (2026-11-05, M23):** until M22 the input was a YouTube link. YouTube is dropped entirely: no links, yt-dlp, stream downloads or caption tracks.
@@ -164,6 +164,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Privacy note** under the heading: "Writes the script. Your video's audio (cleaned, mono, 16 kHz) is sent to Groq in pieces. Tapping Fix with Groq on Fine-tune · Lyrics also sends the lines and the title. Groq's terms apply." (FR-19; changed in M23: no link is sent) There is no switch: a saved key turns Groq on and Remove turns it off.
 - **Key storage:** `flutter_secure_storage` (Android Keystore). The key is never logged, and never written into saved files, notifications or error text. It goes only to `api.groq.com`.
 - **No key:** a new script stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is cut. Saved scripts need no key.
+- **Consent (M27):** the first send waits for the user's OK (FR-30); the "Sending to Groq" row under the key shows it and can withdraw it.
 
 **FR-17 Real lyrics (M12; removed in M17).** Script had a "Real lyrics" button that replaced the script with time-synced lyrics from lrclib.net. M17 removed the button and the whole lyrics feature (`lib/src/features/lyrics`) to keep only Fix with Groq (FR-19). Git history before M17 has the design. Scripts already saved with source `lrclib` still reopen like any saved script.
 
@@ -358,6 +359,19 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Continue later (FR-24):** a reel without lyrics is not kept: leaving Fine-tune loses it. Once exported it is in Recent like any reel, titled by the video's name when the caption is empty (FR-11).
 - **File name (FR-9):** with an empty caption it is the `<kalam>` part only, or `reel` when the title has no words.
 
+**FR-30 Consent before sending to Groq (M27).** Nothing of the user's goes to Groq until they agree, once, on a consent screen (App Store guideline 5.1.2(i); Google Play User Data policy, prominent disclosure and consent).
+- **When:** right before the first send: a script that Groq must write (not a saved one, FR-14), or a tap on Fix with Groq (FR-19). The key is checked first, so a user without one gets the §8 "needs a free Groq key" message and no consent screen. A reel without lyrics (FR-29) never asks.
+- **Screen** (full screen, `groq_consent_screen.dart`), title "Send audio to Groq?":
+  - "To write the lyrics, Status Studio sends your video's sound to Groq, a third-party AI service, using your own Groq key."
+  - "What is sent: the sound only, cleaned to one channel, in pieces. Fix with Groq also sends the lines and the video's name, only when you tap it."
+  - "What is not sent: the picture. Nothing goes to us: Status Studio has no server and no account."
+  - "Groq's terms and privacy policy apply (groq.com). You can withdraw this any time in Settings."
+  - Hint: "Without lyrics, nothing leaves your phone and you need no key." Buttons: Not now, Agree.
+- **Answer:** Agree is kept (`groq.uploadConsent` in shared preferences) and the work carries on: Processing starts the run again, Fix with Groq runs again. Not now keeps nothing and sends nothing: Processing shows the §8 message with Continue (the screen again) and Back, and Fix leaves the lines as they are. The user is asked again the next time.
+- **Enforced at the send:** `GroqClient` takes a required `beforeUpload`, which the app sets to the consent check (`GroqConsentStore.requireGiven`); it runs before every audio piece and every Fix request and throws `NoGroqConsentException`. The key check (`GET /models`) sends nothing of the user's and doesn't call it. The script pipeline also checks right after the key, before any audio is cleaned, so the user isn't made to wait for nothing.
+- **Settings:** under the Groq key, "Sending to Groq": "Allowed" with Withdraw, or "Not allowed: you will be asked before anything is sent". Consent is given only on the consent screen. Withdrawing while a script is being written stops it before its next piece; the pieces already written stay saved (FR-14), and the Lyrics footer's Retry asks again. Removing the key doesn't withdraw consent.
+- **Privacy:** the answer is never logged and, like the key, never written into saved files, notifications or error text.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit translation). iOS is built in M26. Store builds become possible (§9, M27).
@@ -543,6 +557,7 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | The video has no audio track, or can't be read (M23) | Source / Processing | Can't read this video. | Choose another video, Back |
 | The kept source file is missing (M23) | Recent / Continue | Video not found, choose it again. | Choose a video, Back |
 | No Groq key saved | Processing | Writing a script needs a free Groq key. | Settings, Back |
+| The user hasn't agreed to sending to Groq, or said Not now (M27, FR-30) | Processing / Lyrics footer | Writing a script needs your OK to send the audio to Groq. | Continue (opens the consent screen), Back; Retry on the footer opens it too. Fix with Groq shows no message: the consent screen opens, and Not now leaves the lines |
 | Groq rejected the key (401/403) | Processing / Script | Groq didn't accept your API key. | Settings, Back |
 | Groq limit (429, wait over 60 s) | Processing / Script | Groq's free limit is used up for now. Try again in <n> min. | Back |
 | Groq failed (other error, or 5xx/498 twice) | Processing | Groq couldn't write this script. | Retry, Back |
@@ -953,9 +968,9 @@ Request, 2026-11-05: the app must also build for iOS. Stacked on M25. Xcode and 
 
 ### M27 tasks (branch `m27-store-readiness`)
 
-Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone nothing downloads third-party media or runs code fetched at runtime, which was the blocker in both stores; what remains is policy hygiene. Stacked on M26. Same execution model as M23. Each task: test first where code allows, one commit, tick it.
+Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone nothing downloads third-party media or runs code fetched at runtime, which was the blocker in both stores; what remains is policy hygiene. Branched from `dev` on 2026-11-10 (the owner's choice: `dev` already holds M26 and M28, so consent covers FR-29's path too), not stacked on `m26-ios`. Tests are the owner's; `fvm flutter analyze lib tool` only (plus the Kotlin compile and the iOS build where native code changes). One commit per task.
 
-- [ ] **1. Consent before the first Groq upload.** A one-time screen says the audio is sent to Groq, a third-party AI service, with the user's key, to write the lyrics; the user agrees or cancels. The answer is kept and Settings can withdraw it. (App Store guideline 5.1.2(i); Play User Data policy.)
+- [x] **1. Consent before the first Groq upload.** A one-time screen says the audio is sent to Groq, a third-party AI service, with the user's key, to write the lyrics; the user agrees or cancels. The answer is kept and Settings can withdraw it. (App Store guideline 5.1.2(i); Play User Data policy.) Done as FR-30: `GroqConsentStore` (shared preferences, only an agreement is kept) and `groqConsentProvider`; `GroqClient` takes a required `beforeUpload` that the app sets to the consent check, so no audio piece and no Fix request is sent without it; the pipeline checks it after the key and before cleaning; Processing opens the consent screen by itself and offers Continue, Fix with Groq and the Lyrics footer's Retry open it; Settings has the "Sending to Groq" row with Withdraw; §8 has the message. Also corrected in Settings: the Groq hint still said "when a video has no captions" and "the link", so it now reads as FR-12a's privacy note. `tool/voice_check.dart` passes a no-op `beforeUpload` (the owner's own audio). Tests not run. **New tests for the owner:** the "Store readiness (M27)" cases in §13; any test that builds a `GroqClient` now passes `beforeUpload`.
 - [ ] **2. Drop `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`** and its prompt (`background_work_platform.dart`); Play allows it only for listed uses. Keep `FOREGROUND_SERVICE_DATA_SYNC` (uploading to Groq) and write its Play Console justification in §9. Update FR-16 and the Settings rows.
 - [ ] **3. Privacy policy text in §9.** What is stored on the phone, that audio and the Fix with Groq lines go to Groq, the key in secure storage, no analytics. It needs a public URL; the repo is private, so the user chooses where to host it.
 - [ ] **4. Store answers in §9.** Play Data safety (audio shared with a third party for app functionality, not collected by us, no account); the Apple App Privacy label; export compliance (HTTPS only, exempt); content rating.
@@ -1139,6 +1154,15 @@ Request, 2026-11-10: "Make lyrics optional". The owner chose to skip lyrics enti
 - Fine-tune · Video without lyrics says "Step 2 of 3" and "Next: caption", and opens Caption; with lyrics it still opens Lyrics.
 - Caption without lyrics hides the variant chips and shows the optional hint; Export's summary says "No caption" for an empty caption.
 
+**Store readiness (M27):**
+- `GroqConsentStore`: not given at first; `give` makes `isGiven` true; `withdraw` makes it false; `requireGiven` throws `NoGroqConsentException` unless given.
+- `GroqClient.transcribe` and `fixScript` call `beforeUpload` before sending, and send nothing (the fake `HttpClient` sees no request) when it throws; `checkKey` doesn't call it.
+- `RealScriptPipeline`: no key gives `NoGroqKeyException` even without consent; a key without consent gives `NoGroqConsentException` before any audio work (the fake `AudioPreparer` is not called); a saved script opens without consent.
+- Withdrawing during a run: the next piece throws `NoGroqConsentException` and the pieces already written stay saved.
+- Processing: a consent failure opens the consent screen once; Agree starts the run again; Not now shows the §8 message with Continue and Back.
+- Fix with Groq without consent opens the consent screen; Agree sends; Not now sends nothing and changes no line.
+- Settings: "Sending to Groq" reads "Allowed" with Withdraw after agreeing, and Withdraw turns it to "Not allowed: …".
+
 ## 14. Device checks
 
 Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a (Tensor, 6 GB, Android 17) and Redmi Note 11 (Snapdragon 680, 5.5 GB, Android 13).
@@ -1294,7 +1318,12 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] The simulator can't run face detection or FFmpeg on arm64 (§10 item 9); everything here is a device check.
 
 **Store readiness (M27):**
-- [ ] The consent screen shows before the first Groq upload, and Settings can withdraw it.
+- [ ] With a key and no consent, Get the script opens the consent screen before "Cleaning the voice"; Not now leaves Processing with Continue and Back and nothing reaches Groq (check with the phone offline: no offline error, because no send was tried).
+- [ ] Agree, then the script is written; a second video asks nothing.
+- [ ] Withdraw in Settings, then Fix with Groq: the consent screen opens; Not now leaves the lines.
+- [ ] Withdraw during a long script: it stops before the next piece; Retry on the Lyrics footer asks again and resumes from the saved piece.
+- [ ] Without a key: Get the script shows the no-key message, not the consent screen. Make it without lyrics never asks.
+- [ ] The consent screen and the Settings row on a small phone, and on iOS.
 - [ ] No battery-optimisation prompt is left; the service still runs a long script.
 
 **Launch animation (M16), on both phones:**

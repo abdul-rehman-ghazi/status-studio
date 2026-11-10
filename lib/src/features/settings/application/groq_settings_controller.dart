@@ -1,12 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
+import 'package:status_studio/src/features/transcript/data/groq_consent_store.dart';
 import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
 
 /// Asks Groq whether [apiKey] is accepted; throws a `Groq…Exception` if not.
 /// A provider so tests never reach the network.
 final groqKeyCheckerProvider = Provider<Future<void> Function(String apiKey)>(
   (ref) =>
-      (apiKey) => GroqClient(apiKey: apiKey.trim()).checkKey(),
+      (apiKey) => GroqClient(
+        apiKey: apiKey.trim(),
+        beforeUpload: ref.read(groqConsentStoreProvider).requireGiven,
+      ).checkKey(),
 );
 
 /// Whether a Groq key is saved (spec FR-12a). A saved key has always

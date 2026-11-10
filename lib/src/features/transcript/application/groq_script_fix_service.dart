@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
+import 'package:status_studio/src/features/transcript/data/groq_consent_store.dart';
 import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/script_exchange.dart';
@@ -38,8 +39,11 @@ class GroqScriptFixService {
 
 final groqScriptFixServiceProvider = Provider<GroqScriptFixService>((ref) {
   final keys = ref.watch(groqKeyStoreProvider);
+  final consent = ref.watch(groqConsentStoreProvider);
   return GroqScriptFixService(
-    askGroq: (prompt) async =>
-        GroqClient(apiKey: await keys.savedKey()).fixScript(prompt),
+    askGroq: (prompt) async => GroqClient(
+      apiKey: await keys.savedKey(),
+      beforeUpload: consent.requireGiven,
+    ).fixScript(prompt),
   );
 });

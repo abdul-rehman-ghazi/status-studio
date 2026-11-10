@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +18,7 @@ import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
 import 'package:status_studio/src/features/transcript/domain/script_exchange.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 /// The script's own controls, shown above the lines on Fine-tune · Lyrics
@@ -224,6 +227,10 @@ class _GroqFixActionState extends ConsumerState<_GroqFixAction> {
       messenger.showSnackBar(
         SnackBar(content: Text(_correctedMessage(corrected))),
       );
+    } on NoGroqConsentException {
+      if (run == _wantedRun && mounted) {
+        unawaited(_askConsentThenFix());
+      }
     } on Exception catch (error) {
       if (run == _wantedRun) {
         messenger.showSnackBar(_fixFailedSnackBar(error, router));
@@ -232,6 +239,13 @@ class _GroqFixActionState extends ConsumerState<_GroqFixAction> {
       if (run == _wantedRun && mounted) {
         _setRunning(false);
       }
+    }
+  }
+
+  /// Nothing was sent (FR-30); "Not now" leaves the lines as they are.
+  Future<void> _askConsentThenFix() async {
+    if (await askForGroqConsent(context) && mounted) {
+      await _fix();
     }
   }
 }

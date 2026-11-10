@@ -7,6 +7,7 @@ import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/features/settings/application/groq_settings_controller.dart';
 import 'package:status_studio/src/features/settings/presentation/groq_key_help_sheet.dart';
+import 'package:status_studio/src/features/transcript/application/groq_consent_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 
 /// What the last Save found, shown under the key field.
@@ -82,11 +83,9 @@ class _GroqSectionState extends ConsumerState<GroqSection> {
       children: [
         const _Heading(),
         const HintText(
-          'Writes the script when a video has no captions. Your video\'s '
-          'audio is sent to Groq, which uses about as much data again as '
-          'downloading it. Tapping Fix with Groq on the Lyrics screen also '
-          "sends the lines you picked, the title and the link. Groq's terms "
-          'apply.',
+          "Writes the script. Your video's audio (cleaned, mono, 16 kHz) is "
+          'sent to Groq in pieces. Tapping Fix with Groq on Fine-tune · '
+          "Lyrics also sends the lines and the title. Groq's terms apply.",
         ),
         const SizedBox(height: 8),
         TextField(
@@ -111,6 +110,7 @@ class _GroqSectionState extends ConsumerState<GroqSection> {
           ),
         ),
         _status(context, hasKey),
+        const _ConsentRow(),
       ],
     );
   }
@@ -126,6 +126,33 @@ class _GroqSectionState extends ConsumerState<GroqSection> {
       null when hasKey => const HintText('Key works'),
       null => const SizedBox.shrink(),
     };
+  }
+}
+
+/// The answer to the consent screen, which Settings can withdraw (spec
+/// FR-30). It is given only on that screen, right before the first send.
+class _ConsentRow extends ConsumerWidget {
+  const _ConsentRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final given = ref.watch(groqConsentProvider).value ?? false;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Sending to Groq'),
+      subtitle: Text(
+        given
+            ? 'Allowed'
+            : 'Not allowed: you will be asked before anything is sent',
+      ),
+      trailing: given
+          ? TextButton(
+              onPressed: () =>
+                  unawaited(ref.read(groqConsentProvider.notifier).withdraw()),
+              child: const Text('Withdraw'),
+            )
+          : null,
+    );
   }
 }
 
