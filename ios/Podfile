@@ -1,4 +1,4 @@
-# Uncomment this line to define a global platform for your project
+# ML Kit translation needs 15.5 (spec §10 item 9).
 platform :ios, '15.5'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
