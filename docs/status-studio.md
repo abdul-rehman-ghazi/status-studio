@@ -39,7 +39,8 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Already kept:** a video kept under the same ID is reused only if its length equals the incoming file's; a shorter or missing one is replaced (written as `.part`, then renamed), and only one `source.<ext>` is ever kept per ID. Two imports of the same video at once keep it once.
 - **Lost pick (Android):** the system may close the app while the picker is open. Source asks the picker for a lost result when it starts (`VideoPicker.retrieveLostVideo`) and imports it if there is one.
 - **Video ID:** `v_<16 hex>`, a fingerprint of the file: its size and the SHA-256 of its first and last 1 MiB. The same bytes give the same ID, so the same video is recognised however it arrives. The name `videoId` is kept in code.
-- **Probe:** FFprobe reads the duration, size, rotation and whether there is an audio track. A video with no audio track, or one that can't be read, gives "Can't read this video." (§8).
+- **Probe:** FFprobe reads the duration, size, rotation and whether there is an audio track. A video with no audio track, or one that can't be read, gives "Can't read this video." (§8). It also reads the video codec (M31).
+- **AV1 (M31).** The bundled FFmpeg can't decode AV1 (§10 item 7), so an AV1 video is not kept as it came. The native renderer (Media3 Transformer on Android, `AVAssetExportSession` on iOS, the `convert` method on `status_studio/render`) writes it once as H.264 video and AAC audio to `sources/<videoId>/converting.mp4`, which is renamed to `source.h264.mp4` when it is whole, and that copy is kept in its place. The video ID is still the fingerprint of the file that came in, so the same AV1 video arriving again reuses the copy without converting. The free-space check asks for twice the incoming size plus 50 MiB. While it converts, the Source card says "Converting this AV1 video so the app can edit it…" under its progress bar. A phone that can't decode AV1 (Android 9 or older; iPhones before the A17 Pro) gives "This phone can't convert this AV1 video. Save it as H.264 (MP4) in your editor and share it again." (§8). The copy is the app's own file: the video the user shared or picked is never changed.
 - **Card:** thumbnail, display name (the file's name without its extension; the file's own name when the sender gave none) and length (`SourceVideo.title`, §6.1). Under the button Source says "Trim it in another app first, or share it to Status Studio."
 - **Old IDs:** folders whose ID doesn't start with `v_` belong to YouTube videos and are deleted at every start (a quick listing; once they are gone it finds nothing). A folder counts as a video's only when its name is `v_` and 16 hex digits.
 
@@ -375,7 +376,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
 - **Responsiveness:** transcription, FFmpeg, waveform peaks and file I/O never block the UI isolate. Every long step shows progress and can be cancelled.
 - **Storage (changed in M23):**
-  - Kept videos: `sources/<videoId>/source.<ext>` in app support, the file the user shared or picked, kept once (FR-1). It stays while its script or fine-tune is kept (FR-14 retention) and is deleted with them; imported but never scripted, it is deleted after 7 days. Saving a video's title counts as a use, so a video just imported isn't pruned. Cleaned audio pieces (FR-26) are cached beside it.
+  - Kept videos: `sources/<videoId>/source.<ext>` in app support, the file the user shared or picked, kept once (FR-1); for an AV1 video, its H.264 copy `source.h264.mp4` instead (M31). It stays while its script or fine-tune is kept (FR-14 retention) and is deleted with them; imported but never scripted, it is deleted after 7 days. Saving a video's title counts as a use, so a video just imported isn't pruned. Cleaned audio pieces (FR-26) are cached beside it.
   - Saved scripts: `transcripts/` in app support (FR-14).
   - Unfinished fine-tunes: `draft-<requested>.json` beside the scripts in `transcripts/<videoId>/` (FR-24); they go with the folder.
   - Exports: `reels/` in app documents.
@@ -738,7 +739,8 @@ Not collected: photos and videos (the video never leaves the phone), personal in
      - **The body's anchor** (`_bodyAnchorFor`: the box's horizontal centre, and the point a third of the way down its box placed a third of the way down the window) is one reading of FR-27's "centre, in its upper third" and is still provisional: check it on the phone with a body chosen.
      - **Not measured:** a release build's times, the GPU or NNAPI delegates (which could cut the 255 ms), a person-free clip, a second device, and whether the plugin's native library is 16 KB page aligned (a Play Store rule for newer targets; M27).
      - **Verdict:** pose: no-go. EfficientDet-Lite0: recall good, time fine only on demand, **size over the limit by 3.4 MB**. M25 task 5 was built because the owner asked for it ("do task 1 and 5", 2026-11-06), and the owner accepted the size ("no issue for apk size", same day), so the 8 MB limit is waived for the body detector. Its commits are separate, so the 11.4 MB could still be taken back later.
-   - **Not checked yet:** which face-detection plugin version resolves against `google_mlkit_commons` ^0.13.0, whether AV1 clips decode in software, whether `scdet` with `metadata=file=` behaves as FR-23 assumes (if the build lacks the filter the run is repeated without it; the jump rule applies either way).
+   - **AV1 (answered 2026-11-10, on the phone):** the bundled FFmpeg can't decode AV1. Its build has no external libraries (no dav1d or libaom), `--disable-mediacodec` and `--disable-autodetect`, and FFmpeg's own `av1` decoder only works through a hardware decoder, so every frame-decoding run fails with "Your platform doesn't support hardware accelerated AV1 decoding … Function not implemented". Runs that drop the video (`-vn`, audio only) are not affected. M31 converts AV1 videos to H.264 on import.
+   - **Not checked yet:** which face-detection plugin version resolves against `google_mlkit_commons` ^0.13.0, whether `scdet` with `metadata=file=` behaves as FR-23 assumes (if the build lacks the filter the run is repeated without it; the jump rule applies either way).
 8. **Voice cleaning (M24 task 3, desktop plus device; tool built, run pending).** Question: do the FFmpeg filters of FR-26 make Groq's lyrics more accurate? The defaults in FR-26 stand until this check tunes them.
    - **Clip:** `assets/videos/Wasif Attari qadri - Arshe Haq He … FAISALABAD.mp4` (69 s, 1080p H.264, AAC stereo 44.1 kHz). `assets/videos/` is in `.gitignore` and the file is never declared in `pubspec.yaml`, so it stays out of the repo and the app.
    - **Expected lyrics:** 10 lines, committed as `tool/voice_check/arshe-haq-expected.txt`. They start with "دیکھ لے دامن خیرات کیا ان سے ملا" and end with "بٹتی ہے کونین میں نعمت رسول اللہ کی", written twice.
@@ -1192,7 +1194,7 @@ The bundled FFmpeg (`ffmpeg_kit_flutter_new_min`, built with no external librari
   - §8 row and `errorMessageFor`: "This phone can't convert this AV1 video. Save it as H.264 (MP4) in your editor and share it again."
   - §13 cases: an AV1 probe needs a copy and an H.264 one doesn't; an AV1 import keeps `source.h264.mp4` and deletes the incoming file; a second import reuses it without converting; a failed conversion leaves no `converting.mp4` and throws `VideoNotConvertibleException`.
 - [x] **2. Native `convert` (Android and iOS).** Done: the Kotlin compiles and `fvm flutter build ios --no-codesign --debug` builds; neither has run on a phone (§14). The iOS converter is a private enum in `RenderChannel.swift`, so the Xcode project needs no new file. Android: `VideoConverter.kt` beside `ReelRenderer`, Media3 Transformer with H.264 video and AAC audio and no effects; `RenderChannel` answers `convert` when it finishes, or `convert_failed`. Android's own AV1 decoder exists from Android 10; older phones fail with the §8 message. iOS: `AVAssetExportSession` with `AVAssetExportPresetHighestQuality` to MP4 in `RenderChannel.swift`; AVFoundation decodes AV1 only on A17 Pro and M3 chips or newer, so most iPhones get the §8 message.
-- [ ] **3. Docs.** FR-1, §4, §8, §10 item 7 (the AV1 answer), §13, §14 and CLAUDE.md.
+- [x] **3. Docs.** FR-1, §4, §8, §10 item 7 (the AV1 answer), §13, §14 and CLAUDE.md.
 - [ ] **4. Tests (owner).** The §13 cases of task 1.
 
 ## 13. Behaviour that must stay covered by tests
@@ -1390,6 +1392,13 @@ The bundled FFmpeg (`ffmpeg_kit_flutter_new_min`, built with no external librari
 - `recentEntries` hides every script row of a video that has a kept fine-tune.
 - Lyrics: with no lines and no run, the Get card shows; Get starts the run in the chosen language; with lines, Style, Fix with Groq and Get again show; Export reel is off while writing.
 - Source: Next: video is off until a video is chosen and opens Fine-tune · Video without starting a script.
+
+**AV1 to H.264 (M31):**
+- `parseLocalVideoFacts` reads `codec_name`; `needsH264Copy` is true for `av1` and false for `h264`.
+- An AV1 import calls the converter with the incoming file and `converting.mp4`, keeps `source.h264.mp4`, and deletes an owned incoming file.
+- A second import of the same AV1 video reuses `source.h264.mp4` and doesn't call the converter or `onConverting`.
+- A failed conversion throws `VideoNotConvertibleException` and leaves no `converting.mp4`; `errorMessageFor` gives the §8 copy.
+- An H.264 import never calls the converter.
 
 ## 14. Device checks
 
@@ -1598,7 +1607,14 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] Leave on the Video step without lyrics, then Continue from Recent: the clip and crop come back; one row per video.
 - [ ] An install with M29 drafts in two languages of one video: Recent shows one Continue row, the newer one.
 - [ ] Share a video in: Source shows the card and Next: video; nothing starts by itself.
-- [ ] Run `pod install` once: the ML Kit translation pod leaves `Podfile.lock`, and the iOS build still succeeds.
+- [x] Run `pod install` once: the ML Kit translation pod leaves `Podfile.lock`, and the iOS build still succeeds. (Done 2026-11-10 in M31: `fvm flutter build ios --no-codesign --debug` ran it and built.)
+
+**AV1 to H.264 (M31):**
+- [ ] Share or pick an AV1 video (Android 10 or newer): the card says it is converting, then shows the video; the Crop tab's scene strip and Follow the person work, Recent has a thumbnail, and the log has no "hardware accelerated AV1 decoding" error.
+- [ ] Share the same AV1 video again: no converting message, and it opens at once.
+- [ ] The converted copy: the picture is turned the right way, the sound is in sync, and the export matches what Fine-tune shows.
+- [ ] Record how long a 60 s 1080p AV1 video takes to convert on the Redmi Note 11.
+- [ ] An AV1 video on an iPhone without AV1 hardware: the §8 message, not a crash.
 
 ## 15. Known issues (found on the phone, not fixed)
 
