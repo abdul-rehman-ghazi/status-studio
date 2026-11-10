@@ -1077,6 +1077,69 @@ Request, 2026-11-10: "Free crop size should be on video preview rather than sepa
 - [x] **2. Docs.** FR-6, FR-22, §12, §13, §14.
 - [ ] **3. Tests (owner).** Stale: any test of `FreeCropEditor` or the `free-crop-area` key (the widget is gone; drag the `crop-window` key and the `free-crop-corner` key on the player instead). New: the §13 case "Free crop on the player (M29)".
 
+### M30 design: the flow built around the moving crop and the lyrics (2026-11-10)
+
+Request, 2026-11-10: "improve UI/UX. Move crop during scene change is [a] main feature along with auto AI lyrics." Agreed with the owner over mockups (not kept). Branch `m30-crop-and-lyrics-flow`, stacked on `m29-free-crop-on-player`. Tests are the owner's; `fvm flutter analyze` only. Items marked **(Claude's call)** were not discussed with the owner; the rest were.
+
+**Why.** The two features that make the app worth using are scattered. On Fine-tune · Video, the "Move the crop during the clip" switch and Follow the person sit at the bottom of the scrolling list, while the keyframe chips sit under the player. The chips show only a start time, so how long the crop stays at each position must be worked out by hand. The chips don't scroll well, and the pinned player plus chips leave a small scrolling area. Lyrics are spread over Source (Get the script / Make it without lyrics, language), Processing, Fine-tune · Lyrics and Caption.
+
+**Goals.**
+- Everything about the moving crop is in one place, and each position shows how long it lasts.
+- Everything about lyrics is on one screen: whether there are any, getting them from Groq, editing them, and how they look.
+- Fewer screens: Processing and Caption go.
+
+**Non-goals.** No change to how the crop is computed or rendered (FR-22 keyframes, §6.3), to the scene walk (FR-27), to Groq requests, voice cleaning or saved scripts (FR-3, FR-26, FR-14), to the render (FR-7a, FR-9) or to Home, Export and Done beyond their links.
+
+**Anti-goals.** Anything uploaded without a tap on Get lyrics from Groq or Fix with Groq, or before consent (FR-30). Two video decoders alive when Export starts (FR-22 "One decoder at a time"). The crop's subject chosen for the user (FR-27).
+
+**New flow.** Home → Source (choose the video) → Fine-tune · Video ("Step 1 of 2") → Fine-tune · Lyrics ("Step 2 of 2") → Export → Done.
+- **Source:** the card, and one button, **Next: video**, which opens Fine-tune · Video with the clip as the whole video. "Get the script", "Make it without lyrics", the language dropdown and the Groq note go. A shared video shows its card and waits for Next, as now. Nothing is uploaded from Source. **(Claude's call:** a button rather than opening Video by itself, so the user sees the right video was picked.)
+- **Processing** (`/processing`, `processing_screen.dart`) is removed. Its progress moves onto Lyrics. Background work (FR-16) and its notification stay.
+- **Caption** (`/style`, `style_screen.dart`) is removed. Its position and size move into the Style sheet on Lyrics. Export's Cancel returns to Lyrics.
+
+**Fine-tune · Video: Trim and Crop tabs.**
+- The player stays pinned at the top. Under it there are two tabs, **Trim** and **Crop**, and only the tab's content scrolls. The bottom button is **Next: lyrics**.
+- **Trim tab:** the clip summary, the waveform, the Start and End nudge cards and their hint, as today (FR-5).
+- **Crop tab**, top to bottom:
+  1. Size, fill and Keep in view (FR-6). With Free crop, its hint and Reset.
+  2. The switch, renamed **Move the crop at each scene**, shown under the same rules as today (FR-22).
+  3. **Scene strip** (switch on). One block per crop position across the clip, as wide as it lasts, labelled with its length ("5 s"). A position lasts from its keyframe's time to the next keyframe's time, or to the clip end. The strip covers the clip only and always fits the screen width, with no sideways scrolling. A block reached by Cut is marked as a cut. A white line follows the playhead. Tapping a block selects it and seeks there. The strip replaces `CropKeyframeChips`.
+  4. **Selected position card:** "0:04–0:09 · 5 s", Arrives by Glide / Cut (hidden on the first), and Delete (off when only one is left).
+  5. **New position here** and **Follow the person** side by side. Follow keeps its progress, its scene walk and its "Replace your crop keyframes?" question (FR-27).
+- **Dragging the crop on the player** writes a keyframe as today (FR-22) and selects the block it lands in.
+- **New position here (Claude's call):** adds a Glide keyframe at the playhead holding the crop where it is at that moment, then selects it, so the user drags it next. The playhead must be inside the clip. The 0.1 s snap and the 0.25 s replace rule apply, so a tap close to an existing position selects that position instead.
+- **Keyframes outside the clip (Claude's call):** the strip draws only the clip. The position in force at the clip start is the first block, even when its keyframe sits before the clip. Keyframes after the clip end are not drawn. Deleting a block deletes the keyframe it shows.
+- **Tab memory (Claude's call):** Trim opens first, and the tab last used is kept while the reel is open (not saved in the kept fine-tune).
+- **Player height (Claude's call):** at most 260 dp and at most 40 % of the screen height, so the tab content keeps room on small phones. This applies to both Fine-tune players.
+
+**Fine-tune · Lyrics: one screen.**
+- The player is pinned at the top and shows the reel as it will look: the crop, the line due, the caption's position and size, and the branding (FR-8). The separate Caption preview goes. Below it, top to bottom:
+  1. **Show lyrics on the clip**, a switch, on by default. Off: everything under it is hidden apart from the hint "Nothing leaves your phone and you need no key". The reel has no caption, only the branding, and no script is written or uploaded. This replaces FR-29's "Make it without lyrics". Turning it off while a script is being written stops the run, as FR-29 does today.
+  2. **Before any lines:** a card with the Language dropdown (FR-2, default automatic), **Get lyrics from Groq** and the note "Sends the cleaned voice to Groq with your key." Get runs FR-3 as Processing does today: key check (§8 message with Settings when there is none), then consent (FR-30), then cleaning and writing. Under the card is **Type them myself**, which starts an empty line list. Add line works on it as FR-21 says, without a key and with nothing uploaded.
+  3. **While writing:** the step and its percent ("Cleaning the voice", "Writing… 55 %"), time left once known, and Cancel, with lines appearing below as they arrive. The player stays usable. Errors show here with Retry, as the writing footer does today.
+  4. **With lines:** a row of tools, **Aa Style**, **Fix with Groq** (FR-19), **Get again** and **Add line**, above today's line list (FR-21: tap to jump or time, edit, reorder, delete). A saved script (FR-14) opens straight into this state with "Using the saved script from <d MMM>".
+- **Get again** asks for the language (Claude's call: a dialog with the dropdown and Get). When lines were edited it asks first, "Replace your edited lines?" with Replace and Keep **(Claude's call)**. It replaces today's "Write it again" and the language change that sent the user back to Processing.
+- **Aa Style** opens a half-height bottom sheet, "Caption style", with **Position** (Top / Bottom) and **Size** (S / M / L), so the player stays visible above it. It is shown only when there are lines.
+- **Bottom button: Export reel.** It releases this screen's player before Export opens (FR-22, one decoder at a time).
+
+**Caption text: original only.** The Original / Roman / English choice goes. The caption is always the clip's lines as they appear in the list, so there is no separate caption text field. FR-29's typed caption is replaced by Type them myself. Remove on-device translation: the `google_mlkit_translation` dependency, `caption_translator.dart`, the language-pack downloads, the Roman Urdu transliteration (§6.6) and the caption-variant settings. Re-check §9.2 and `PrivacyInfo.xcprivacy` for the removed SDK, and check whether the iOS deployment target 15.5 is still needed (it was set for ML Kit translation; face detection may still need it).
+
+**Kept fine-tune (FR-24, Claude's call).** Today a reel without lyrics is not kept, and a fine-tune always names a script. Since Video now comes before any script, a fine-tune is kept from the moment Fine-tune · Video opens, with or without a script. The draft gains the lyrics switch and an optional script reference (version 2; version-1 files still read). Recent's "Continue" opens Fine-tune · Video. When the draft names a script that is gone or changed, the clip and crop are kept and Lyrics shows the Get card, instead of sending the user to Processing.
+
+**Groq still hears the whole video (Claude's call, against what was said in the conversation).** In the conversation Claude guessed that Groq would hear only the trimmed clip. The design keeps today's behaviour: the whole kept video is cleaned and written, and Lyrics lists only the clip's lines (FR-21). The video arrives already trimmed and the nudges move its ends by half seconds, so the upload saved is small. Keeping it means saved scripts, cleaned pieces and resume (FR-14, FR-26) work unchanged, and a nudge after the lyrics never needs a new script.
+
+**Scripts, drafts and runs (Claude's calls, after a builder's review).**
+- **One draft per video.** The draft becomes `transcripts/<videoId>/draft.json` (version 2), holding the requested language once one is chosen. When several version-1 `draft-<requested>.json` files exist for a video, the newest is read as the draft and the others are deleted. Recent shows a video's draft row in place of all its script rows.
+- **Which lines Lyrics opens with:** the script the draft names. Otherwise the newest saved script of the video in any language (FR-14), with "Using the saved script from <d MMM>". Otherwise the Get card. Get, or Get again, in a language that already has a saved script opens that script without uploading (FR-3 rule 1). Write it again's forced rewrite stays available as Get again's "Write it again" in the dialog when a saved script exists.
+- **The run belongs to the reel, not the screen.** Back from Lyrics to Video keeps it running, and Lyrics shows it again on return. Cancel on Lyrics, or the switch turned off, stops it. **Export reel is off while a script is being written**, with the hint "Wait for the lyrics, or Cancel", so a reel never goes out with half its lines. The FR-16 notification opens the app, and opens Fine-tune · Lyrics when the reel is still open.
+- **Typed lines** (Type them myself, and any edit) are saved as today's `edited` script (FR-14, FR-21) under the language in the dropdown (default automatic). Get, or Get again, over typed or edited lines asks "Replace your edited lines?" first.
+- **Switch off keeps the lines.** Turning Show lyrics off hides the lines and leaves them out of the reel, but keeps them, and turning it back on shows them again. A run still writing is stopped. (Today's `withoutLyrics()` drops them; that changes.)
+- **Retention:** a draft with no script still lives in `transcripts/<videoId>/`, so the video follows the 90-day / 200-video rule like any scripted one, not the 7-day rule for imported-only sources (FR-14). That is intended: the user did work on it.
+
+**Left to the builder.** Widget structure and file split; how the tabs are built (`TabBar` or segmented buttons); the strip's exact look (colours from `AppColors`, label format below about 1 s, how a very short block shows its length); naming of new providers; how the writing state moves from the Processing controller into a Lyrics section; the order of the tasks.
+
+**Spec sections to update when built.** §1, §2 (screens 2, 3, 5, 5b, 6, 7), FR-1, FR-2, FR-3, FR-5, FR-7, FR-7a (Translation and Roman), FR-13, FR-14, FR-16, FR-21, FR-22 (switch name, chips → strip, "One decoder at a time", Height), FR-24, FR-26, FR-29, FR-30, §6.6, §8 (messages shown on Processing), §9.2, §13 and §14. Then CLAUDE.md's opening flow sentence. Tests made stale must be listed in the task text.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
