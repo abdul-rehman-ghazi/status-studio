@@ -25,7 +25,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | 6 | Style (removed) | — | Removed in M30: caption position and size are in the Style sheet on Lyrics (FR-7); the caption is always the lines, in their own language |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Lyrics |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
-| 9 | Settings | `/settings` | Groq key with step-by-step help (FR-12a); background work; Support and About (FR-31). The YouTube reader section was removed in M23 |
+| 9 | Settings | `/settings` | A list of categories, each on its own screen since M33: Groq key `/settings/groq` (FR-12a), Background work `/settings/background` (FR-16), Support `/settings/support` and About `/settings/about` (FR-31). The YouTube reader section was removed in M23 |
 
 - **Visual reference:** the design canvas prototype for screens 1–8. Settings follows the same visual language.
 - **Progress of a script run (on Lyrics since M30):** the step under way, with its bar and percent (`45 %`) and time left (`1:24 left`) once it can be told, and Cancel. Nothing is downloaded, so there is no speed or size line (changed in M23).
@@ -145,7 +145,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 
 **FR-12 Settings: speech models (retired in M10, 2026-11-04).** On-device Whisper and its model downloads were removed; the number stays so code and history keep their references. The Settings screen now starts with FR-12a.
 
-**FR-12a Settings: script writing (Groq).** The first section of Settings. Every script needs a saved key.
+**FR-12a Settings: script writing (Groq).** The first category of Settings, on its own screen "Groq key" since M33 (FR-31). Every script needs a saved key.
 - **Key field:** "Groq API key", masked, with Paste, Show, Save and Remove (Remove appears while a key is saved). Save is off while the field is empty.
   - Save checks the key with `GET https://api.groq.com/openai/v1/models`, which is free and sends no audio, and stores it only if Groq accepts it. A wrong key never replaces a good one.
   - The field then reads "Key works", "Groq didn't accept this key." or, offline, "You're offline. Connect and try again."
@@ -372,8 +372,9 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Settings:** under the Groq key, "Sending to Groq": "Allowed" with Withdraw, or "Not allowed: you will be asked before anything is sent". Consent is given only on the consent screen. Withdrawing while a script is being written stops it before its next piece; the pieces already written stay saved (FR-14), and the Lyrics footer's Retry asks again. Removing the key doesn't withdraw consent.
 - **Privacy:** the answer is never logged and, like the key, never written into saved files, notifications or error text.
 
-**FR-31 Support and About (M33).** The last two sections of Settings, after Background work. Until M33 the app version was shown nowhere.
-- **Support** (`support_section.dart`): label "Support", hint "Tell us what you like or what went wrong. Details of your phone (model, system, processor, memory, screen, network) and the app version are added to the message, so you can see them before you send." Then a Feedback | Complaint choice (Feedback first and selected), a message box ("Your message", 3 to 6 lines), and three buttons: **Email**, **WhatsApp**, **Call**.
+**FR-31 Settings categories, Support and About (M33).** Until M33 the app version was shown nowhere.
+- **Settings is a list** (task 4): one row per category, each with an icon, a subtitle and a chevron, opening its own screen with the category as its title. Groq key ("Writes the lyrics, and what is sent to Groq"), Background work ("Notifications when work is done"), Support ("Feedback or a complaint, by email, WhatsApp or a call"), About ("Version <version> (<build>) and licences"). The screens drop their own section heading, since the title says it. The §8 "needs a free Groq key" Settings actions open the Groq key screen directly. A shared video arriving on any Settings screen opens Source without asking, as on the list (FR-1).
+- **Support** (`support_section.dart`): hint "Tell us what you like or what went wrong. Details of your phone (model, system, processor, memory, screen, network) and the app version are added to the message, so you can see them before you send." Then a Feedback | Complaint choice (Feedback first and selected), a message box ("Your message", 3 to 6 lines), and three buttons: **Email**, **WhatsApp**, **Call**.
   - Email and WhatsApp are off until the box has text. Each opens the user's own app with the message filled in; the user sends it there, and the app sends nothing itself. The text stays in the box afterwards, because the app can't know whether it was sent.
   - **Email:** `mailto:arehmananis@hotmail.com`, subject "Status Studio feedback" or "Status Studio complaint", body = the message.
   - **WhatsApp:** `https://wa.me/923478330955?text=…`, text = the subject line, a blank line, then the message. Without WhatsApp the phone opens wa.me in the browser, which offers to install it.
@@ -386,9 +387,9 @@ Status Studio turns a video the user has already trimmed in another app, in any 
     - "Network:" the connection types from `connectivity_plus`, joined by commas: Wi-Fi, Mobile data, Ethernet, VPN, Bluetooth, Satellite, Other or None. It is the connection type only: it can't tell whether the internet is reachable, so it isn't called "Internet".
     - Read fresh for every message (free memory and the network change), on the phone only. The version comes from `package_info_plus`.
   - **No app for it** (no mail app, a tablet that can't call): a snack bar "No email app found. Write to arehmananis@hotmail.com.", "Couldn't open WhatsApp. Message +92 347 8330955.", or "This device can't make calls. Call +92 347 8330955."
-- **About** (`about_section.dart`): label "About"; the Trim logo (§7) at 48 dp, "Status Studio", "Version <version> (<build>)" (from `package_info_plus`, so it follows `pubspec.yaml`), and "Turns a video you have trimmed into a short status clip, with its lyrics in any language." Then "Open-source licences", Flutter's licence page with the same name, version and logo.
+- **About** (`about_section.dart`): the Trim logo (§7) at 48 dp, "Status Studio", "Version <version> (<build>)" (from `package_info_plus`, so it follows `pubspec.yaml`), and "Turns a video you have trimmed into a short status clip, with its lyrics in any language." Then "Open-source licences", Flutter's licence page with the same name, version and logo.
 - **Not in M33:** a privacy policy row (§9.1, waits for hosting).
-- **Calls made by Claude, not the owner:** Support sits inline in Settings, not on its own screen; Email and WhatsApp stay off until there's text; the message layout above.
+- **Calls made by Claude, not the owner:** the category names, icons and subtitles; Email and WhatsApp stay off until there's text; the message layout above.
 
 ## 4. Non-functional requirements
 
@@ -1233,6 +1234,7 @@ Asked by the owner (2026-11-10): an About section, and a Support section for fee
 
 - [x] **1. Support and About in Settings (FR-31).** New feature folder `lib/src/features/about/`: `domain/support_message.dart` (topic, device details, the message text), `data/device_details_reader.dart` (`device_info_plus`, `package_info_plus`), `data/support_launcher.dart` (`url_launcher`; throws `ContactAppMissingException` when no app opens the link), `presentation/support_section.dart` and `presentation/about_section.dart`, added after Background work in `settings_screen.dart`. Android `<queries>` for `mailto`, `tel` and `https`; iOS needs no `LSApplicationQueriesSchemes` because `canLaunchUrl` isn't used. §9.1 and §9.2 updated for the new packages. `fvm flutter analyze` clean; tests not run.
 - [x] **3. More device details (FR-31).** Asked by the owner the same day: screen resolution, RAM, processor and internet state. `DeviceDetails` gets `system`, `processor`, `memory` (`MemorySize`), `screen` (`ScreenSize`) and `network`; `deviceDetailsProvider` becomes `deviceDetailsReaderProvider` (`DeviceDetailsReader.read()`, fresh each message). The processor comes from a new `processorName` method on the Android `status_studio/system` channel (`MainActivity.kt`). Network from `connectivity_plus`, which needs `ACCESS_NETWORK_STATE`, already in the merged manifest for Media3 (M27 task 6), so no new permission. §9.1 and §9.2 updated. `fvm flutter analyze` clean; tests not run.
+- [x] **4. One screen per Settings category (FR-31).** Asked by the owner the same day. `settings_screen.dart` is now the list; `settings_page.dart` shows one section under an app bar; routes `AppRoutes.groqSettings`, `backgroundSettings`, `supportSettings`, `aboutSettings` nest under `/settings`. `lyrics_tools.dart` and `script_run_section.dart` push the Groq key screen; `shared_video_listener.dart` counts the four as screens without a reel. `fvm flutter analyze` clean; tests not run. **Stale tests:** any that find "Background work", "Support" or "About" as section labels on Settings, or expect the no-key action to open `/settings`.
 - [ ] **2. Tests (owner).** §13 "Support and About (M33)". No existing test goes stale (there are no Settings tests). Tests that pump `SettingsScreen` must override `appVersionProvider` and `deviceDetailsReaderProvider`, which read the platform.
 
 ## 13. Behaviour that must stay covered by tests
@@ -1454,6 +1456,8 @@ Asked by the owner (2026-11-10): an About section, and a Support section for fee
 - Call opens `tel:+923478330955`.
 - When no app opens the link, the snack bar names the address or number.
 - About shows "Version <version> (<build>)" from the app's package details.
+- Settings lists Groq key, Background work, Support and About; tapping a row opens its screen.
+- The no-key Settings action on Lyrics and on Fix with Groq opens the Groq key screen.
 
 ## 14. Device checks
 
@@ -1677,7 +1681,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] Tapping a tag picks that face or body; tapping inside a box still picks it.
 
 **Support and About (M33), Android and iPhone:**
-- [ ] Settings shows Support and About after Background work; About shows the same version and build as `pubspec.yaml`, and Open-source licences opens.
+- [ ] Settings lists four categories and each opens its screen; Back returns to the list; About shows the same version and build as `pubspec.yaml`, and Open-source licences opens.
 - [ ] Email with Gmail (or Mail on iPhone): the subject and the message, ending with the right phone model and system version, are filled in; spaces are spaces, not `+`.
 - [ ] WhatsApp: the chat with +92 347 8330955 opens with the text filled in; on a phone without WhatsApp the browser opens wa.me.
 - [ ] Call opens the dialer with the number. An Urdu message survives Email and WhatsApp intact.

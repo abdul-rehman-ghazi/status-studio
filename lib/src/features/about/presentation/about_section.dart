@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
-import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/about/data/device_details_reader.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-const _appName = 'Status Studio';
+const appName = 'Status Studio';
 
 /// The logo, name, version and open-source licences (spec FR-31).
 class AboutSection extends ConsumerWidget {
@@ -18,7 +17,6 @@ class AboutSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel('About'),
         _NameAndVersion(versionShown: versionShown),
         const SizedBox(height: 12),
         const HintText(
@@ -30,7 +28,7 @@ class AboutSection extends ConsumerWidget {
           style: TextButton.styleFrom(padding: EdgeInsets.zero),
           onPressed: () => showLicensePage(
             context: context,
-            applicationName: _appName,
+            applicationName: appName,
             applicationVersion: versionShown,
             applicationIcon: const Padding(
               padding: EdgeInsets.all(12),
@@ -60,7 +58,7 @@ class _NameAndVersion extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(_appName, style: textTheme.titleMedium),
+            Text(appName, style: textTheme.titleMedium),
             if (versionShown != null)
               Text(
                 'Version $versionShown',

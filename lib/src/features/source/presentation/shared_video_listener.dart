@@ -23,6 +23,10 @@ const _screensWithoutAReel = {
   AppRoutes.source,
   AppRoutes.done,
   AppRoutes.settings,
+  AppRoutes.groqSettings,
+  AppRoutes.backgroundSettings,
+  AppRoutes.supportSettings,
+  AppRoutes.aboutSettings,
 };
 
 /// Whether opening a shared video would close a reel the user is making.

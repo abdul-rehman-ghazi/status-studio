@@ -1,11 +1,16 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/features/about/presentation/about_section.dart';
+import 'package:status_studio/src/features/about/presentation/support_section.dart';
 import 'package:status_studio/src/features/clip/presentation/fine_tune_screen.dart';
 import 'package:status_studio/src/features/clip/presentation/lyrics_screen.dart';
 import 'package:status_studio/src/features/export/presentation/done_screen.dart';
 import 'package:status_studio/src/features/export/presentation/export_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
+import 'package:status_studio/src/features/settings/presentation/background_work_section.dart';
+import 'package:status_studio/src/features/settings/presentation/groq_section.dart';
+import 'package:status_studio/src/features/settings/presentation/settings_page.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
@@ -22,6 +27,12 @@ abstract final class AppRoutes {
   static String doneFor(String reelId) =>
       Uri(path: done, queryParameters: {'id': reelId}).toString();
   static const settings = '/settings';
+
+  /// One screen per Settings category (spec FR-12a, FR-16, FR-31).
+  static const groqSettings = '/settings/groq';
+  static const backgroundSettings = '/settings/background';
+  static const supportSettings = '/settings/support';
+  static const aboutSettings = '/settings/about';
 }
 
 /// Lets screens react when another screen covers them, e.g. to pause.
@@ -66,6 +77,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.settings,
         builder: (context, state) => const SettingsScreen(),
+        routes: [
+          GoRoute(
+            path: 'groq',
+            builder: (context, state) =>
+                const SettingsPage(title: 'Groq key', section: GroqSection()),
+          ),
+          GoRoute(
+            path: 'background',
+            builder: (context, state) => const SettingsPage(
+              title: 'Background work',
+              section: BackgroundWorkSection(),
+            ),
+          ),
+          GoRoute(
+            path: 'support',
+            builder: (context, state) =>
+                const SettingsPage(title: 'Support', section: SupportSection()),
+          ),
+          GoRoute(
+            path: 'about',
+            builder: (context, state) =>
+                const SettingsPage(title: 'About', section: AboutSection()),
+          ),
+        ],
       ),
     ],
   );

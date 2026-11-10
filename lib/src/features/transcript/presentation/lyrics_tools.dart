@@ -201,7 +201,7 @@ SnackBar _fixFailedSnackBar(Object error, GoRouter router) {
       content: const Text('Fixing a script needs a free Groq key.'),
       action: SnackBarAction(
         label: 'Settings',
-        onPressed: () => router.push(AppRoutes.settings),
+        onPressed: () => router.push(AppRoutes.groqSettings),
       ),
     );
   }

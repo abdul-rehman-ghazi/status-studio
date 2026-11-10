@@ -205,7 +205,7 @@ class _RunFailed extends ConsumerWidget {
       case _FailureAction.consent:
         unawaited(_askConsentThenRetry(context, ref));
       case _FailureAction.settings:
-        context.push(AppRoutes.settings);
+        context.push(AppRoutes.groqSettings);
       // The Get card comes back, with its language choice.
       case _FailureAction.dismiss || _FailureAction.anotherLanguage:
         ref.read(scriptProgressProvider.notifier).cancel();

@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
-import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/background/application/background_access.dart';
 
 final _notificationsEnabledProvider = FutureProvider.autoDispose<bool>(
@@ -48,7 +47,6 @@ class _BackgroundWorkSectionState extends ConsumerState<BackgroundWorkSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel('Background work'),
         HintText(
           onIos
               ? 'iOS lets work go on for only a short while after you leave '

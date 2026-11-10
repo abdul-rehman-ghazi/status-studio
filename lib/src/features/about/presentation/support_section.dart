@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
-import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/about/data/device_details_reader.dart';
 import 'package:status_studio/src/features/about/data/support_launcher.dart';
 import 'package:status_studio/src/features/about/domain/support_contact.dart';
@@ -66,7 +65,6 @@ class _SupportSectionState extends ConsumerState<SupportSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel('Support'),
         const HintText(
           'Tell us what you like or what went wrong. Details of your phone '
           '(model, system, processor, memory, screen, network) and the app '
