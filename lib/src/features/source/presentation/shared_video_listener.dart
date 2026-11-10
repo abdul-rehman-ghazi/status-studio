@@ -92,7 +92,6 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
   bool _isOnFineTune(GoRouter router) => const {
     AppRoutes.fineTune,
     AppRoutes.lyrics,
-    AppRoutes.style,
   }.contains(_currentPath(router));
 
   /// The shared file waits in the app's incoming folder; leaving it would

@@ -48,8 +48,8 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   /// any audio work, and the consent screen opens by itself, once per
   /// failure. "Continue" on the failure opens it again.
   void _askConsentOnArrival(
-    AsyncValue<ScriptProgress>? previous,
-    AsyncValue<ScriptProgress> next,
+    AsyncValue<ScriptProgress?>? previous,
+    AsyncValue<ScriptProgress?> next,
   ) {
     if (next.error is! NoGroqConsentException ||
         previous?.error is NoGroqConsentException) {
@@ -86,7 +86,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
 
   /// Checked on every build, not only on change: a saved script can be
   /// done before this screen is even built.
-  void _openScriptIfDone(AsyncValue<ScriptProgress> run) {
+  void _openScriptIfDone(AsyncValue<ScriptProgress?> run) {
     if (_leaving) {
       return;
     }

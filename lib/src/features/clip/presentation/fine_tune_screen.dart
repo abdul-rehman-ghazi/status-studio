@@ -55,7 +55,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     // Read now: dispose keeps the latest work and can't use ref.
     _saver = ref.read(fineTuneDraftSaverProvider);
     _latestDraft = ref.read(reelDraftProvider);
-    // This step stays open under Lyrics, Style and Export, so it sees every
+    // This step stays open under Lyrics and Export, so it sees every
     // change to the reel (spec FR-24).
     ref.listenManual(reelDraftProvider, (_, next) {
       _latestDraft = next;
@@ -91,9 +91,9 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     final isFreeCrop = draft.frame.preset == AspectPreset.free;
     ref.listen(followSubjectProvider, _showHowFollowEnded);
     return Scaffold(
-      appBar: FlowAppBar(
+      appBar: const FlowAppBar(
         title: 'Fine-tune · Video',
-        stepLabel: draft.lyricsSkipped ? 'Step 2 of 3' : 'Step 2 of 4',
+        stepLabel: 'Step 1 of 2',
       ),
       // The player stays put while the tab under it scrolls, so the crop can
       // be moved with the video in view.
@@ -157,7 +157,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       bottomNavigationBar: BottomAction(
         child: FilledButton(
           onPressed: _openNextStep,
-          child: Text(draft.lyricsSkipped ? 'Next: caption' : 'Next: lyrics'),
+          child: const Text('Next: lyrics'),
         ),
       ),
     );
@@ -248,7 +248,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
   }
 
-  /// Lyrics, or Caption for a reel without lyrics (spec FR-29), starts its
+  /// Lyrics starts its
   /// own player only once this step's is gone, and this step makes its
   /// player again only once that step has slid away: never two decoders at a
   /// time (spec FR-22).
@@ -267,10 +267,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       return;
     }
     final covered = ModalRoute.of(context)?.secondaryAnimation;
-    final nextStep = ref.read(reelDraftProvider).lyricsSkipped
-        ? AppRoutes.style
-        : AppRoutes.lyrics;
-    await context.push(nextStep);
+    await context.push(AppRoutes.lyrics);
     await untilDismissed(covered);
     if (mounted) {
       setState(() => _playerReleased = false);

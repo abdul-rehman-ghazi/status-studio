@@ -31,11 +31,12 @@ class ReelDraftController extends Notifier<ReelDraft> {
   /// shielding the lines from it (spec FR-21).
   void forgetLineEdits() => state = state.copyWith(linesEdited: false);
 
-  /// Makes the reel without a script (spec FR-29).
-  void skipLyrics() => state = state.withoutLyrics();
+  void hideLyrics() => state = state.withLyricsHidden();
 
-  /// Makes the reel with a script again (spec FR-29).
-  void useLyrics() => state = state.withLyrics();
+  void showLyrics() => state = state.withLyricsShown();
+
+  void startTypedLyrics(String text, Duration at) =>
+      state = state.withTypedFirstLine(text, at);
 
   void setTranscript(Transcript transcript) =>
       state = state.withTranscript(transcript);

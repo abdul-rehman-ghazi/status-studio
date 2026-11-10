@@ -8,14 +8,15 @@ import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_notices.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 
-/// The script run in progress, shared by Processing and Script so the
-/// user can open Fine-tune while the rest is still being written.
+/// The script run of the reel being made (spec FR-3, M30). It belongs to the
+/// reel, not to a screen: it keeps going when Lyrics closes. `null` means no
+/// run was started, or the last one was cancelled.
 final scriptProgressProvider =
-    NotifierProvider<ScriptProgressController, AsyncValue<ScriptProgress>>(
+    NotifierProvider<ScriptProgressController, AsyncValue<ScriptProgress?>>(
       ScriptProgressController.new,
     );
 
-class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
+class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress?>> {
   StreamSubscription<ScriptProgress>? _subscription;
 
   /// Completes once the last cancelled run has stopped.
@@ -26,15 +27,15 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
   var _generation = 0;
 
   @override
-  AsyncValue<ScriptProgress> build() {
+  AsyncValue<ScriptProgress?> build() {
     ref
-      ..onDispose(cancel)
+      ..onDispose(_stop)
       // A new reel or another video makes the running script useless.
       ..listen(
         reelDraftProvider.select((draft) => draft.video),
         (previous, next) => cancel(),
       );
-    return const AsyncLoading();
+    return const AsyncData(null);
   }
 
   /// Saved script, captions or Groq, whichever comes first (FR-3).
@@ -50,8 +51,13 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
     ),
   );
 
-  /// Stops the run.
+  /// Stops the run and forgets it.
   void cancel() {
+    _stop();
+    state = const AsyncData(null);
+  }
+
+  void _stop() {
     _generation++;
     _stopListening();
   }
@@ -64,7 +70,7 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress>> {
   ) => ref.read(backgroundWorkProvider).keepRunning(run, ScriptNotices(video));
 
   void _follow(Stream<ScriptProgress> run) {
-    cancel();
+    _stop();
     state = const AsyncLoading();
     unawaited(_followOnceStopped(run, _generation));
   }

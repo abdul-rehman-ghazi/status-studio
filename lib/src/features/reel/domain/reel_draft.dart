@@ -24,7 +24,7 @@ class ReelDraft {
     this.frame = const FrameSettings(),
     this.caption = const CaptionSettings(),
     this.linesEdited = false,
-    this.lyricsSkipped = false,
+    this.lyricsShown = true,
   });
 
   final SourceVideo? video;
@@ -39,9 +39,10 @@ class ReelDraft {
   /// written no longer replace the edited ones.
   final bool linesEdited;
 
-  /// Whether the user chose to make the reel without a script (spec FR-29):
-  /// lines a script run still sends are not added.
-  final bool lyricsSkipped;
+  /// Whether the lyrics are on the reel (spec FR-29, M30). Off, the lines
+  /// are kept but the reel has no caption, and lines a script run still
+  /// sends are not added.
+  final bool lyricsShown;
 
   /// Starts the reel on [video]: the clip is the whole video, which the user
   /// trims on Fine-tune (spec FR-1, FR-5). The same video again (Back to
@@ -57,19 +58,34 @@ class ReelDraft {
     );
   }
 
-  /// The reel without a script (spec FR-29): the lines and the caption text
-  /// go; the clip, the frame and the caption's look stay.
-  ReelDraft withoutLyrics() => ReelDraft(
-    video: video,
-    language: language,
-    clip: clip ?? _wholeVideo(video),
-    frame: frame,
-    caption: caption.copyWith(text: ''),
-    lyricsSkipped: true,
-  );
+  /// The reel without lyrics (spec FR-29): the caption is emptied, but the
+  /// lines stay, so turning the lyrics back on brings them back.
+  ReelDraft withLyricsHidden() =>
+      copyWith(lyricsShown: false, caption: caption.copyWith(text: ''));
 
-  /// The reel with a script again, which Processing writes (spec FR-29).
-  ReelDraft withLyrics() => copyWith(lyricsSkipped: false);
+  /// The lyrics on the reel again, the caption refilled from the lines.
+  ReelDraft withLyricsShown() =>
+      copyWith(lyricsShown: true)._withCaptionFromLines();
+
+  /// Lyrics the user types (spec FR-21, "Type them myself"): one line of
+  /// [text] from [at], 2 s long and cut at the clip end, counted as edited
+  /// so it is saved as the `edited` script.
+  ReelDraft withTypedFirstLine(String text, Duration at) {
+    final clip = _requireClip();
+    final latestStart = clip.end - _typedLineLength ~/ 2;
+    final start = at < clip.start
+        ? clip.start
+        : (at > latestStart ? latestStart : at);
+    final end = start + _typedLineLength;
+    final line = TranscriptLine(
+      index: 0,
+      text: text,
+      start: start,
+      end: end < clip.end ? end : clip.end,
+    );
+    final typed = Transcript(languageCode: language.whisperCode, lines: [line]);
+    return withTranscript(typed).copyWith(linesEdited: true);
+  }
 
   /// A new transcript replaces the lines and the caption text filled from
   /// them; the clip, its nudges and the crop keyframes stay (spec FR-5). The
@@ -84,7 +100,7 @@ class ReelDraft {
   /// being written) keeps what the user edited; any other replaces it.
   ReelDraft withGrowingTranscript(Transcript transcript) {
     final current = this.transcript;
-    if (linesEdited || lyricsSkipped) {
+    if (linesEdited || !lyricsShown) {
       return this;
     }
     if (current == null || !_extends(transcript, current)) {
@@ -133,8 +149,10 @@ class ReelDraft {
 
   bool get _captionFollowsLines => caption.text == _selectedLinesText;
 
-  ReelDraft _withCaptionFromLines() =>
-      copyWith(caption: caption.copyWith(text: _selectedLinesText));
+  /// Hidden lyrics leave the caption empty (spec FR-29).
+  ReelDraft _withCaptionFromLines() => copyWith(
+    caption: caption.copyWith(text: lyricsShown ? _selectedLinesText : ''),
+  );
 
   String get _selectedLinesText =>
       _selectedLines.map((line) => line.text).join('\n');
@@ -296,7 +314,7 @@ class ReelDraft {
     FrameSettings? frame,
     CaptionSettings? caption,
     bool? linesEdited,
-    bool? lyricsSkipped,
+    bool? lyricsShown,
   }) {
     return ReelDraft(
       video: video ?? this.video,
@@ -307,7 +325,7 @@ class ReelDraft {
       frame: frame ?? this.frame,
       caption: caption ?? this.caption,
       linesEdited: linesEdited ?? this.linesEdited,
-      lyricsSkipped: lyricsSkipped ?? this.lyricsSkipped,
+      lyricsShown: lyricsShown ?? this.lyricsShown,
     );
   }
 
@@ -322,7 +340,7 @@ class ReelDraft {
       other.frame == frame &&
       other.caption == caption &&
       other.linesEdited == linesEdited &&
-      other.lyricsSkipped == lyricsSkipped;
+      other.lyricsShown == lyricsShown;
 
   @override
   int get hashCode => Object.hash(
@@ -334,7 +352,7 @@ class ReelDraft {
     frame,
     caption,
     linesEdited,
-    lyricsSkipped,
+    lyricsShown,
   );
 }
 
@@ -342,6 +360,7 @@ ClipRange? _wholeVideo(SourceVideo? video) =>
     video == null ? null : ClipRange(start: Duration.zero, end: video.duration);
 
 const _tenth = Duration(milliseconds: 100);
+const _typedLineLength = Duration(seconds: 2);
 
 Duration _roundedUpToTenth(Duration time) {
   final tenths = (time.inMicroseconds / _tenth.inMicroseconds).ceil();

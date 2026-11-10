@@ -1155,7 +1155,11 @@ Builds the M30 design above, task by task, one commit each. The repo has no `tes
   - `CaptionVariant` goes from `CaptionSettings`. Its JSON field is ignored on read and no longer written (FR-24 files stay readable).
   - Deleted: `caption_translator.dart`, `roman_urdu.dart`, `translation_errors.dart`, the variant chips on Caption, and `google_mlkit_translation` in `pubspec.yaml`. Export's summary loses the variant names. Check `ios/Podfile`, `PrivacyInfo.xcprivacy` and §9.2 for the removed SDK, and record whether the iOS target 15.5 is still needed.
   - §13 cases: a version-1 draft with `"variant": "english"` still reads.
-- [ ] **3. One Lyrics screen (FR-21, FR-29, FR-30).**
+- [x] **3. One Lyrics screen (FR-21, FR-29, FR-30).** Done, with these differences from the list below (Claude's calls):
+  - Add line stays at the end of the line list, where `ClipLinesList` handles its playhead rules, rather than in the tools row.
+  - `scriptProgressProvider` is now `AsyncValue<ScriptProgress?>`: `null` means no run, and Cancel returns to it.
+  - Get again in the same language writes the script again with Groq (it was Write it again); another language opens its saved script or writes one.
+  - `script_tools.dart` became `lyrics_tools.dart`. `script_writing_footer.dart` is gone, because the run section shows its errors with Retry.
   - `ReelDraft.lyricsSkipped` becomes `lyricsShown` (default true). `withLyricsHidden()` keeps the lines and empties the caption text. `withLyricsShown()` refills it from the lines. `withTypedFirstLine(String text, Duration at)` makes a one-line transcript, 2 s from `at` and cut at the clip end, with `linesEdited` true. Controller: `hideLyrics()`, `showLyrics()`, `startTypedLyrics(String text, Duration at)`.
   - `script_run_section.dart` (`ScriptRunSection`) takes Processing's steps, amounts, §8 failure actions and the consent prompt, as a section on Lyrics. Back on its failures becomes Dismiss.
   - On `lyrics_screen.dart`: the switch; `lyrics_get_card.dart` (language, Get lyrics from Groq, Type them myself); `lyrics_tools.dart` (Aa Style, Fix with Groq, Get again, Add line) replacing `ScriptTools`' language row and saved-script banner; the Get again dialog; "Replace your edited lines?"; and Export reel, off while writing, releasing the player before Export.

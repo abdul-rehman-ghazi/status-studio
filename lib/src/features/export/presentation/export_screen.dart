@@ -228,11 +228,8 @@ String _frameSummary(FrameSettings frame) {
 }
 
 String _captionSummary(ReelDraft draft) {
-  if (draft.caption.text.trim().isEmpty) {
+  if (!draft.lyricsShown || draft.caption.text.trim().isEmpty) {
     return 'No caption';
-  }
-  if (draft.lyricsSkipped) {
-    return 'Your own caption';
   }
   return 'Caption in ${_captionLanguage(draft)}';
 }

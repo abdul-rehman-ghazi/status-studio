@@ -182,7 +182,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     final languageChanged = ref.read(reelDraftProvider).language != _language;
     draft
       ..setVideo(video)
-      ..useLyrics()
+      ..showLyrics()
       ..setLanguage(_language);
     if (languageChanged) {
       // A script in another language replaces the edited lines (FR-21).
@@ -198,7 +198,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     ref.read(scriptProgressProvider.notifier).cancel();
     ref.read(reelDraftProvider.notifier)
       ..setVideo(video)
-      ..skipLyrics();
+      ..hideLyrics();
     await context.push(AppRoutes.fineTune);
   }
 }

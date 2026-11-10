@@ -9,7 +9,6 @@ import 'package:status_studio/src/features/home/presentation/home_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
-import 'package:status_studio/src/features/style/presentation/style_screen.dart';
 import 'package:status_studio/src/features/transcript/presentation/processing_screen.dart';
 
 abstract final class AppRoutes {
@@ -18,7 +17,6 @@ abstract final class AppRoutes {
   static const processing = '/processing';
   static const fineTune = '/fine-tune';
   static const lyrics = '/fine-tune/lyrics';
-  static const style = '/style';
   static const export = '/export';
   static const done = '/done';
 
@@ -61,10 +59,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.lyrics,
         builder: (context, state) => const LyricsScreen(),
-      ),
-      GoRoute(
-        path: AppRoutes.style,
-        builder: (context, state) => const StyleScreen(),
       ),
       GoRoute(
         path: AppRoutes.export,
