@@ -72,6 +72,9 @@ class ReelDraftController extends Notifier<ReelDraft> {
   void moveCropTo(Duration videoTime, CropAnchor anchor) =>
       state = state.withCropAnchorAt(videoTime, anchor);
 
+  void addCropPosition(Duration videoTime) =>
+      state = state.withCropPositionAt(videoTime);
+
   void followCrop(CropPath path) => state = state.withFollowedCrop(path);
 
   void setCropArrival(int index, CropArrival arrival) =>
@@ -91,6 +94,16 @@ class ReelDraftController extends Notifier<ReelDraft> {
       nudgeClipEnd(_roundedToTenth(videoTime) - _requireClip().end);
 
   void updateFrame(FrameSettings frame) => state = state.copyWith(frame: frame);
+
+  /// While the crop moves its keyframes place the window, so only the free
+  /// crop's size may change then (spec FR-6, FR-22).
+  void resizeFreeCrop(FreeCropRect crop) {
+    final frame = state.frame;
+    final kept = frame.cropPath.isEmpty
+        ? crop
+        : frame.freeCrop.copyWith(width: crop.width, height: crop.height);
+    updateFrame(frame.copyWith(freeCrop: kept));
+  }
 
   void updateCaption(CaptionSettings caption) =>
       state = state.copyWith(caption: caption);

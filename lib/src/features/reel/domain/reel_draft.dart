@@ -211,6 +211,16 @@ class ReelDraft {
     return _withCropPath(frame.cropPath.withAnchorAt(inClip, anchor));
   }
 
+  /// Adds a crop position at [videoTime] holding the crop where it is at that
+  /// moment (spec FR-22, "New position here"); it is then dragged into place.
+  ReelDraft withCropPositionAt(Duration videoTime) {
+    final anchor = frame.cropPath.anchorAt(
+      videoTime,
+      base: baseAnchorFor(frame),
+    );
+    return withCropAnchorAt(videoTime, anchor);
+  }
+
   /// Replaces the crop's keyframes with [path], which followed a person
   /// (spec FR-23). Throws for an empty path: that would end the moving crop,
   /// which has its own method.

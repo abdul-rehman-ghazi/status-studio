@@ -6,34 +6,24 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
-import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/route_animation.dart';
-import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
-import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
-import 'package:status_studio/src/features/clip/domain/clip_range.dart';
-import 'package:status_studio/src/features/clip/domain/waveform.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
-import 'package:status_studio/src/features/clip/presentation/crop_keyframe_chips.dart';
 import 'package:status_studio/src/features/clip/presentation/crop_window_overlay.dart';
-import 'package:status_studio/src/features/clip/presentation/follow_subject_section.dart';
+import 'package:status_studio/src/features/clip/presentation/fine_tune_crop_tab.dart';
+import 'package:status_studio/src/features/clip/presentation/fine_tune_trim_tab.dart';
 import 'package:status_studio/src/features/clip/presentation/person_chooser_sheet.dart';
-import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
-import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
-import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/application/follow_subject_controller.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
-import 'package:status_studio/src/features/style/presentation/frame_controls.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/transcript/presentation/script_opening_notice_host.dart';
 import 'package:status_studio/src/routing/app_router.dart';
-import 'package:status_studio/src/theme/app_theme.dart';
 
 /// Step 1 of Fine-tune: the clip's start and end, and how the video is
 /// framed (spec FR-5, FR-6, FR-22).
@@ -99,63 +89,70 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     final path = draft.frame.cropPath;
     final canMove = canMoveCrop(draft.frame, sourceSize);
     final isFreeCrop = draft.frame.preset == AspectPreset.free;
-    final follow = ref.watch(followSubjectProvider);
     ref.listen(followSubjectProvider, _showHowFollowEnded);
     return Scaffold(
       appBar: FlowAppBar(
         title: 'Fine-tune · Video',
         stepLabel: draft.lyricsSkipped ? 'Step 2 of 3' : 'Step 2 of 4',
       ),
-      // The player and the crop keyframes stay put while the rest scrolls,
-      // so the crop can be moved with the video in view.
-      body: Column(
-        children: [
-          const ScriptOpeningNoticeHost(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: _playerReleased
-                ? const ClipPlayerPlaceholder()
-                : ClipSourcePlayer(
+      // The player stays put while the tab under it scrolls, so the crop can
+      // be moved with the video in view.
+      body: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            const ScriptOpeningNoticeHost(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: _playerReleased
+                  ? const ClipPlayerPlaceholder()
+                  : ClipSourcePlayer(
+                      video: video,
+                      clip: clip,
+                      playhead: _playhead,
+                      videoOverlay: canMove || isFreeCrop
+                          ? CropWindowOverlay(
+                              frame: draft.frame,
+                              sourceSize: sourceSize,
+                              playhead: _playhead,
+                              editable: !path.isEmpty || isFreeCrop,
+                              onMoved: (time, anchor) =>
+                                  _onCropDragged(controller, time, anchor),
+                              onResized: controller.resizeFreeCrop,
+                            )
+                          : null,
+                    ),
+            ),
+            const TabBar(
+              tabs: [
+                Tab(text: 'Trim'),
+                Tab(text: 'Crop'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  FineTuneTrimTab(
                     video: video,
                     clip: clip,
                     playhead: _playhead,
-                    videoOverlay: canMove || isFreeCrop
-                        ? CropWindowOverlay(
-                            frame: draft.frame,
-                            sourceSize: sourceSize,
-                            playhead: _playhead,
-                            editable: !path.isEmpty || isFreeCrop,
-                            onMoved: (time, anchor) =>
-                                _onCropDragged(controller, time, anchor),
-                            onResized: (crop) =>
-                                _changeFreeCrop(controller, crop),
-                          )
-                        : null,
                   ),
-          ),
-          if (!path.isEmpty && canMove)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: CropKeyframeChips(
-                path: path,
-                clip: clip,
-                selected: _selectedKeyframe,
-                onSelected: (index) => _selectKeyframe(path, index),
-                onArrival: controller.setCropArrival,
-                onDelete: controller.removeCropKeyframe,
+                  FineTuneCropTab(
+                    selectedKeyframe: _selectedKeyframe,
+                    playhead: _playhead,
+                    actions: CropTabActions(
+                      onSpanSelected: _selectSpan,
+                      onMovingChanged: (moving) =>
+                          _setMoving(controller, moving),
+                      onAddPosition: () => _addPosition(controller),
+                      onFollow: () => unawaited(_follow()),
+                    ),
+                  ),
+                ],
               ),
             ),
-          Expanded(
-            child: _scrollingBody(
-              draft,
-              video,
-              clip,
-              controller,
-              sourceSize,
-              follow,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: BottomAction(
         child: FilledButton(
@@ -228,7 +225,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
       FollowDone(:final keyframeCount) =>
         'The crop follows your choices ($keyframeCount '
             '${keyframeCount == 1 ? 'keyframe' : 'keyframes'}). '
-            'Drag or tap a chip to adjust.',
+            'Drag the crop or tap a position to adjust.',
       FollowFailed() => errorMessageFor(const FollowFailedException('')),
       _ => null,
     };
@@ -280,13 +277,6 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
   }
 
-  /// Tapping a clip time sets it to where the video is now (spec FR-5).
-  void _setEdgeToPlayhead(void Function(Duration videoTime) setEdge) {
-    if (_playhead.isReady) {
-      setEdge(_playhead.position);
-    }
-  }
-
   /// A still free crop is moved itself; any other drag writes a keyframe.
   void _onCropDragged(
     ReelDraftController controller,
@@ -316,16 +306,6 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     );
   }
 
-  /// While the crop moves its keyframes place the window, so only its size
-  /// may change.
-  void _changeFreeCrop(ReelDraftController controller, FreeCropRect crop) {
-    final frame = ref.read(reelDraftProvider).frame;
-    final kept = frame.cropPath.isEmpty
-        ? crop
-        : frame.freeCrop.copyWith(width: crop.width, height: crop.height);
-    controller.updateFrame(frame.copyWith(freeCrop: kept));
-  }
-
   /// One keyframe is written when a drag ends; it becomes the selected one.
   void _moveCropTo(
     ReelDraftController controller,
@@ -333,6 +313,32 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     CropAnchor anchor,
   ) {
     controller.moveCropTo(time, anchor);
+    _selectKeyframeNearest(time);
+  }
+
+  /// New position here (spec FR-22): a keyframe at the playhead holding the
+  /// crop where it is, selected so it can be dragged next.
+  void _addPosition(ReelDraftController controller) {
+    final clip = ref.read(reelDraftProvider).clip;
+    if (clip == null || !_playhead.isReady) {
+      return;
+    }
+    final time = _playhead.position;
+    if (time < clip.start || time > clip.end) {
+      _showSnackBar('Play or seek inside the clip first.');
+      return;
+    }
+    controller.addCropPosition(time);
+    _selectKeyframeNearest(time);
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _selectKeyframeNearest(Duration time) {
     final keyframes = ref.read(reelDraftProvider).frame.cropPath.keyframes;
     final nearest = keyframes.indexed.reduce(
       (best, next) => (next.$2.time - time).abs() < (best.$2.time - time).abs()
@@ -342,363 +348,25 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     setState(() => _selectedKeyframe = nearest.$1);
   }
 
-  void _selectKeyframe(CropPath path, int index) {
-    setState(() => _selectedKeyframe = index);
-    if (_playhead.isReady) {
-      unawaited(_playhead.seekTo(path.keyframes[index].shownAt));
+  /// Seeks to where the block's crop shows: a Cut's keyframe sits just
+  /// before its cut, and the first block may start after its keyframe.
+  void _selectSpan(CropSpan span) {
+    setState(() => _selectedKeyframe = span.keyframeIndex);
+    if (!_playhead.isReady) {
+      return;
     }
+    final keyframes = ref.read(reelDraftProvider).frame.cropPath.keyframes;
+    final keyframe = keyframes[span.keyframeIndex];
+    final at = keyframe.time == span.start ? keyframe.shownAt : span.start;
+    unawaited(_playhead.seekTo(at));
   }
 
-  Widget _scrollingBody(
-    ReelDraft draft,
-    SourceVideo video,
-    ClipRange clip,
-    ReelDraftController controller,
-    OutputSize sourceSize,
-    FollowState follow,
-  ) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _ClipSummary(clip: clip),
-        // if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
-        const SizedBox(height: 16),
-        _ClipWaveform(video: video, clip: clip),
-        const SizedBox(height: 16),
-        // _WholeVideoBar(clip: clip, videoDuration: video.duration),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: _NudgeCard(
-                edge: _ClipEdge.start,
-                time: clip.start,
-                onNudge: controller.nudgeClipStart,
-                onSetToPlayhead: () =>
-                    _setEdgeToPlayhead(controller.setClipStartAt),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _NudgeCard(
-                edge: _ClipEdge.end,
-                time: clip.end,
-                onNudge: controller.nudgeClipEnd,
-                onSetToPlayhead: () =>
-                    _setEdgeToPlayhead(controller.setClipEndAt),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const HintText(
-          'Tap a time to set it to where the video is now, or nudge it.',
-        ),
-        const SizedBox(height: 24),
-        FrameControls(
-          frame: draft.frame,
-          sourceSize: sourceSize,
-          onChanged: controller.updateFrame,
-        ),
-        if (draft.frame.preset == AspectPreset.free)
-          _FreeCropHint(
-            onReset: () => _changeFreeCrop(controller, FreeCropRect.initial),
-          ),
-        // Kept while moving, so a crop that can no longer move (Blur, 16:9)
-        // can still be turned off.
-        if (canMoveCrop(draft.frame, sourceSize) ||
-            !draft.frame.cropPath.isEmpty)
-          _MovingCropSwitch(
-            moving: !draft.frame.cropPath.isEmpty,
-            onChanged: (moving) {
-              setState(() => _selectedKeyframe = 0);
-              if (moving) {
-                controller.startMovingCrop();
-              } else {
-                controller.stopMovingCrop();
-              }
-            },
-          ),
-        if (canMoveCrop(draft.frame, sourceSize) &&
-            !draft.frame.cropPath.isEmpty)
-          FollowSubjectSection(
-            state: follow,
-            canStart:
-                ref.watch(clipSourceProvider(video.videoId)).value != null,
-            onStart: _follow,
-            onCancel: ref.read(followSubjectProvider.notifier).cancel,
-          ),
-      ],
-    );
-  }
-}
-
-/// The waveform of the downloaded window; empty space until it's ready.
-class _ClipWaveform extends ConsumerWidget {
-  const _ClipWaveform({required this.video, required this.clip});
-
-  final SourceVideo video;
-  final ClipRange clip;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final source = ref
-        .watch(clipSourceProvider(video.videoId))
-        .unwrapPrevious()
-        .value;
-    if (source == null) {
-      return const SizedBox(height: 56);
+  void _setMoving(ReelDraftController controller, bool moving) {
+    setState(() => _selectedKeyframe = 0);
+    if (moving) {
+      controller.startMovingCrop();
+    } else {
+      controller.stopMovingCrop();
     }
-    final shown = waveformWindowFor(source, clip, video.duration);
-    final peaks = ref
-        .watch(waveformProvider((source: source, shown: shown)))
-        .value;
-    if (peaks == null) {
-      return const SizedBox(height: 56);
-    }
-    return WaveformView(peaks: peaks, window: shown, clip: clip);
-  }
-}
-
-class _LongClipWarning extends StatelessWidget {
-  const _LongClipWarning();
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.tertiary;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Icon(Icons.warning_amber_rounded, size: 18, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Longer than 60 s. WhatsApp Status may cut it.',
-              style: TextStyle(color: color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ClipSummary extends StatelessWidget {
-  const _ClipSummary({required this.clip});
-
-  final ClipRange clip;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '${formatClipTime(clip.start)} – ${formatClipTime(clip.end)}',
-            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-        Text(
-          formatSeconds(clip.length),
-          style: textTheme.titleMedium?.copyWith(color: AppColors.accent),
-        ),
-      ],
-    );
-  }
-}
-
-class _WholeVideoBar extends StatelessWidget {
-  const _WholeVideoBar({required this.clip, required this.videoDuration});
-
-  final ClipRange clip;
-  final Duration videoDuration;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = videoDuration.inMilliseconds;
-    final startFraction = clip.start.inMilliseconds / total;
-    final lengthFraction = clip.length.inMilliseconds / total;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const Expanded(child: HintText('Whole video')),
-            HintText(formatTimestamp(videoDuration)),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            height: 8,
-            child: LayoutBuilder(
-              builder: (context, constraints) => Stack(
-                children: [
-                  const Positioned.fill(
-                    child: ColoredBox(color: AppColors.surface),
-                  ),
-                  Positioned(
-                    left: constraints.maxWidth * startFraction,
-                    width: constraints.maxWidth * lengthFraction,
-                    top: 0,
-                    bottom: 0,
-                    child: const ColoredBox(color: AppColors.accent),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-enum _ClipEdge {
-  start('Start'),
-  end('End');
-
-  const _ClipEdge(this.label);
-
-  final String label;
-}
-
-class _NudgeCard extends StatelessWidget {
-  const _NudgeCard({
-    required this.edge,
-    required this.time,
-    required this.onNudge,
-    required this.onSetToPlayhead,
-  });
-
-  final _ClipEdge edge;
-  final Duration time;
-  final ValueChanged<Duration> onNudge;
-  final VoidCallback onSetToPlayhead;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          HintText(edge.label),
-          Semantics(
-            label: 'Set ${edge.label.toLowerCase()} to the playhead',
-            button: true,
-            excludeSemantics: true,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: onSetToPlayhead,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                child: Text(
-                  formatClipTime(time),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _NudgeButton(
-                  label: '${edge.label} half a second earlier',
-                  text: '−0.5s',
-                  onPressed: () => onNudge(-ClipRange.nudgeStep),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _NudgeButton(
-                  label: '${edge.label} half a second later',
-                  text: '+0.5s',
-                  onPressed: () => onNudge(ClipRange.nudgeStep),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NudgeButton extends StatelessWidget {
-  const _NudgeButton({
-    required this.label,
-    required this.text,
-    required this.onPressed,
-  });
-
-  final String label;
-  final String text;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: label,
-      button: true,
-      excludeSemantics: true,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-        onPressed: onPressed,
-        child: Text(text),
-      ),
-    );
-  }
-}
-
-class _MovingCropSwitch extends StatelessWidget {
-  const _MovingCropSwitch({required this.moving, required this.onChanged});
-
-  final bool moving;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Move the crop during the clip'),
-        subtitle: const HintText(
-          'Play the video and drag the crop window to where it should be at '
-          'that moment. It glides or cuts to each new place.',
-        ),
-        value: moving,
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
-/// The free crop is edited on the player (spec FR-6); this says how.
-class _FreeCropHint extends StatelessWidget {
-  const _FreeCropHint({required this.onReset});
-
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(
-          child: HintText(
-            'Drag the crop on the video to move it. Drag its corner to resize.',
-          ),
-        ),
-        TextButton(onPressed: onReset, child: const Text('Reset')),
-      ],
-    );
   }
 }

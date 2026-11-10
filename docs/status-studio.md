@@ -1145,7 +1145,7 @@ Request, 2026-11-10: "improve UI/UX. Move crop during scene change is [a] main f
 
 Builds the M30 design above, task by task, one commit each. The repo has no `test/` folder yet, so no test goes stale; each task names the §13 cases the owner will want. Each task ends with `fvm flutter analyze` clean and a commit that says tests were not run.
 
-- [ ] **1. Video: Trim and Crop tabs with the scene strip (FR-5, FR-22).**
+- [x] **1. Video: Trim and Crop tabs with the scene strip (FR-5, FR-22).**
   - `CropPath.spansIn(ClipRange clip) → List<CropSpan>` in `crop_path.dart`. `CropSpan` holds `keyframeIndex`, `start`, `end` (video time, inside the clip) and `arrival`. The first span starts at the clip start and shows the keyframe in force there.
   - `ReelDraft.withCropPositionAt(Duration videoTime)`, which adds a Glide keyframe holding the anchor the path gives at that time, through `withCropAnchorAt`. Controller: `addCropPosition(Duration videoTime)`.
   - `fine_tune_screen.dart` keeps the pinned player and gets the two tabs. `fine_tune_trim_tab.dart` and `fine_tune_crop_tab.dart` hold their content. `scene_strip.dart` (`SceneStrip`) and `selected_position_card.dart` replace `crop_keyframe_chips.dart`, which is deleted. Follow the person sits beside New position here. The switch is renamed.

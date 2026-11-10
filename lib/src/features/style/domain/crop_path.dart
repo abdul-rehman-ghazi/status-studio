@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 
 const _snap = Duration(milliseconds: 100);
 const _replaceWithin = Duration(milliseconds: 250);
@@ -138,6 +139,38 @@ class CropPath {
     return CropPath([...keyframes, added]..sort(_byTime));
   }
 
+  /// How long each keyframe's position lasts inside [clip], in time order,
+  /// for the scene strip (spec FR-22). The first span starts at the clip
+  /// start with the keyframe in force there, even one before the clip;
+  /// keyframes after the clip end have no span.
+  List<CropSpan> spansIn(ClipRange clip) {
+    if (keyframes.isEmpty) {
+      return const [];
+    }
+    final inForce = keyframes.lastIndexWhere(
+      (keyframe) => keyframe.time <= clip.start,
+    );
+    final first = inForce < 0 ? 0 : inForce;
+    final spans = <CropSpan>[];
+    for (var index = first; index < keyframes.length; index++) {
+      final start = index == first ? clip.start : keyframes[index].time;
+      if (start >= clip.end) {
+        break;
+      }
+      final isLast = index + 1 == keyframes.length;
+      final nextTime = isLast ? clip.end : keyframes[index + 1].time;
+      spans.add(
+        CropSpan(
+          keyframeIndex: index,
+          start: start,
+          end: nextTime < clip.end ? nextTime : clip.end,
+          arrival: keyframes[index].arrival,
+        ),
+      );
+    }
+    return spans;
+  }
+
   CropPath withArrival(int index, CropArrival arrival) =>
       _replacing(index, keyframes[index].copyWith(arrival: arrival));
 
@@ -160,6 +193,38 @@ class CropPath {
 
   @override
   int get hashCode => Object.hashAll(keyframes);
+}
+
+/// One crop position on the scene strip: keyframe [keyframeIndex] holds
+/// (or glides to) its place from [start] to [end], in video time.
+@immutable
+class CropSpan {
+  const CropSpan({
+    required this.keyframeIndex,
+    required this.start,
+    required this.end,
+    required this.arrival,
+  });
+
+  final int keyframeIndex;
+  final Duration start;
+  final Duration end;
+  final CropArrival arrival;
+
+  Duration get length => end - start;
+
+  bool contains(Duration time) => time >= start && time < end;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CropSpan &&
+      other.keyframeIndex == keyframeIndex &&
+      other.start == start &&
+      other.end == end &&
+      other.arrival == arrival;
+
+  @override
+  int get hashCode => Object.hash(keyframeIndex, start, end, arrival);
 }
 
 CropAnchor _between(CropKeyframe from, CropKeyframe to, Duration time) {

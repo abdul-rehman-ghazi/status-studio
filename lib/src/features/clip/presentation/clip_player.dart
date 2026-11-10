@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,9 @@ import 'package:video_player/video_player.dart';
 /// The tallest the player gets: a vertical video or a 9:16 reel at full width
 /// would fill the screen and push the controls off it.
 const _framedMaxHeight = 260.0;
+
+/// On a small phone the player gives way to the controls under it.
+const _framedMaxScreenShare = 0.4;
 
 typedef VideoPlayerFactory = VideoPlayerController Function(File source);
 
@@ -238,7 +242,12 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
             width: double.infinity,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: _framedMaxHeight),
+                constraints: BoxConstraints(
+                  maxHeight: math.min(
+                    _framedMaxHeight,
+                    MediaQuery.sizeOf(context).height * _framedMaxScreenShare,
+                  ),
+                ),
                 child: stage,
               ),
             ),
