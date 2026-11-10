@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/background/data/ios_background_work_platform.dart';
 import 'package:status_studio/src/features/background/domain/work_notice.dart';
 
 /// The phone's side of background work: the foreground service, its
-/// notifications and the permissions they need (spec FR-16).
+/// notifications and the permissions they need (spec FR-16). Android's is
+/// [PluginBackgroundWorkPlatform]; iOS's is [IosBackgroundWorkPlatform].
 abstract interface class BackgroundWorkPlatform {
   /// Starts the foreground service on the first call; later calls update
   /// its notification.
@@ -152,6 +156,9 @@ void _throwIfFailed(ServiceRequestResult result) {
   }
 }
 
+/// Android's foreground service, or iOS's short background task (FR-16).
 final backgroundWorkPlatformProvider = Provider<BackgroundWorkPlatform>(
-  (ref) => PluginBackgroundWorkPlatform(),
+  (ref) => Platform.isIOS
+      ? IosBackgroundWorkPlatform()
+      : PluginBackgroundWorkPlatform(),
 );
