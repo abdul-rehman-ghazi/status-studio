@@ -35,8 +35,10 @@ class RenderServices {
   final Future<Directory> outputDirectory;
 }
 
-/// Renders through the Kotlin Media3 Transformer on `status_studio/render`
-/// (spec §5, FR-9).
+/// Renders through the native renderer on `status_studio/render` (spec §5,
+/// FR-9): Media3 Transformer in Kotlin on Android, AVFoundation in Swift on
+/// iOS. Both take the same spec map and send the same events, so there is one
+/// Dart class for both.
 class Media3Renderer implements Renderer {
   Media3Renderer(this.services);
 

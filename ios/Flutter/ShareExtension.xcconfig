@@ -1,0 +1,3 @@
+// The extension has no Pods; it only needs the app's version numbers, which Flutter writes to
+// Generated.xcconfig, so it can carry the same version as the app (a store upload requires it).
+#include "Generated.xcconfig"

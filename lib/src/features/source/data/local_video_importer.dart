@@ -36,8 +36,7 @@ class LocalVideoImporterServices {
   /// Where shared videos are staged (`files/incoming/`, spec FR-1).
   final Directory incomingFolder;
 
-  /// The app's cache folder, where `image_picker` puts its copy of a picked
-  /// video.
+  /// The folder where `image_picker` puts its copy of a picked video.
   final Directory pickerCacheFolder;
 
   /// Moves a file to a new path; replaceable so tests can make it fail the
@@ -261,11 +260,18 @@ String _extensionOf(String displayName, String path) {
   return 'mp4';
 }
 
+/// Where `image_picker` leaves its copy of a picked video: the cache folder
+/// on Android, but iOS's `tmp` folder, which is not what `path_provider` calls
+/// the temporary folder there (it answers `Library/Caches`). Dart's
+/// `systemTemp` is `tmp` on iOS.
+Future<Directory> _pickerCopyFolder() async =>
+    Platform.isIOS ? Directory.systemTemp : getTemporaryDirectory();
+
 final localVideoImporterProvider = FutureProvider<LocalVideoImporter>((
   ref,
 ) async {
   final support = await getApplicationSupportDirectory();
-  final cacheFolder = await getTemporaryDirectory();
+  final pickerFolder = await _pickerCopyFolder();
   return LocalVideoImporter(
     LocalVideoImporterServices(
       cache: await ref.watch(sourceCacheProvider.future),
@@ -273,7 +279,7 @@ final localVideoImporterProvider = FutureProvider<LocalVideoImporter>((
       probe: ref.watch(mediaProbeProvider),
       storage: ref.watch(freeStorageProvider),
       incomingFolder: Directory('${support.path}/incoming'),
-      pickerCacheFolder: cacheFolder,
+      pickerCacheFolder: pickerFolder,
     ),
   );
 });

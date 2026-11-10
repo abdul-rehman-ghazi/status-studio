@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -44,51 +45,60 @@ class _BackgroundWorkSectionState extends ConsumerState<BackgroundWorkSection> {
   Widget build(BuildContext context) {
     final access = ref.read(backgroundAccessProvider);
     final status = ref.watch(_accessStatusProvider).value;
+    final onIos = defaultTargetPlatform == TargetPlatform.iOS;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionLabel('Background work'),
-        const HintText(
-          'Keeps writing scripts and exporting when you leave the app or '
-          'lock the phone.',
+        HintText(
+          onIos
+              ? 'iOS lets work go on for only a short while after you leave '
+                    'the app. A script then pauses and carries on from its '
+                    'last saved piece when you come back. Keep the app open '
+                    'while it exports.'
+              : 'Keeps writing scripts and exporting when you leave the app '
+                    'or lock the phone.',
         ),
-        if (status != null) ..._accessRows(access, status),
+        if (status != null) _notificationsRow(access, status),
+        if (status != null && !onIos) _batteryRow(access, status),
         const SizedBox(height: 8),
-        const HintText(
-          'On Xiaomi and some other phones, also set Battery saver to No '
-          'restrictions in App info.',
-        ),
+        if (!onIos)
+          const HintText(
+            'On Xiaomi and some other phones, also set Battery saver to No '
+            'restrictions in App info.',
+          ),
         TextButton(
           onPressed: () => unawaited(access.openAppInfo()),
-          child: const Text('Open App info'),
+          child: Text(onIos ? 'Open Settings' : 'Open App info'),
         ),
       ],
     );
   }
 
-  List<Widget> _accessRows(
+  Widget _notificationsRow(
     BackgroundAccess access,
     BackgroundAccessStatus status,
-  ) => [
-    _AccessRow(
-      title: 'Notifications',
-      subtitle: status.notifications
-          ? 'On'
-          : "Off: you won't hear when work is done",
-      onAllow: status.notifications
-          ? null
-          : () => unawaited(_allow(access.allowNotifications)),
-    ),
-    _AccessRow(
-      title: 'Battery optimisation',
-      subtitle: status.unrestricted
-          ? 'Off: work keeps going with the screen locked'
-          : 'On: Android may pause work in the background',
-      onAllow: status.unrestricted
-          ? null
-          : () => unawaited(_allow(access.allowUnrestricted)),
-    ),
-  ];
+  ) => _AccessRow(
+    title: 'Notifications',
+    subtitle: status.notifications
+        ? 'On'
+        : "Off: you won't hear when work is done",
+    onAllow: status.notifications
+        ? null
+        : () => unawaited(_allow(access.allowNotifications)),
+  );
+
+  /// Android only: iOS has no battery optimisation to switch off.
+  Widget _batteryRow(BackgroundAccess access, BackgroundAccessStatus status) =>
+      _AccessRow(
+        title: 'Battery optimisation',
+        subtitle: status.unrestricted
+            ? 'Off: work keeps going with the screen locked'
+            : 'On: Android may pause work in the background',
+        onAllow: status.unrestricted
+            ? null
+            : () => unawaited(_allow(access.allowUnrestricted)),
+      );
 
   Future<void> _allow(Future<void> Function() request) async {
     await request();
