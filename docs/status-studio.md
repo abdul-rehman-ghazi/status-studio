@@ -25,7 +25,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | 6 | Style (removed) | — | Removed in M30: caption position and size are in the Style sheet on Lyrics (FR-7); the caption is always the lines, in their own language |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Lyrics |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
-| 9 | Settings | `/settings` | Groq key with step-by-step help (FR-12a); background work. The YouTube reader section was removed in M23 |
+| 9 | Settings | `/settings` | Groq key with step-by-step help (FR-12a); background work; Support and About (FR-31). The YouTube reader section was removed in M23 |
 
 - **Visual reference:** the design canvas prototype for screens 1–8. Settings follows the same visual language.
 - **Progress of a script run (on Lyrics since M30):** the step under way, with its bar and percent (`45 %`) and time left (`1:24 left`) once it can be told, and Cancel. Nothing is downloaded, so there is no speed or size line (changed in M23).
@@ -372,6 +372,18 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Settings:** under the Groq key, "Sending to Groq": "Allowed" with Withdraw, or "Not allowed: you will be asked before anything is sent". Consent is given only on the consent screen. Withdrawing while a script is being written stops it before its next piece; the pieces already written stay saved (FR-14), and the Lyrics footer's Retry asks again. Removing the key doesn't withdraw consent.
 - **Privacy:** the answer is never logged and, like the key, never written into saved files, notifications or error text.
 
+**FR-31 Support and About (M33).** The last two sections of Settings, after Background work. Until M33 the app version was shown nowhere.
+- **Support** (`support_section.dart`): label "Support", hint "Tell us what you like or what went wrong. Your phone model, system version and app version are added to the message, so you can see them before you send." Then a Feedback | Complaint choice (Feedback first and selected), a message box ("Your message", 3 to 6 lines), and three buttons: **Email**, **WhatsApp**, **Call**.
+  - Email and WhatsApp are off until the box has text. Each opens the user's own app with the message filled in; the user sends it there, and the app sends nothing itself. The text stays in the box afterwards, because the app can't know whether it was sent.
+  - **Email:** `mailto:arehmananis@hotmail.com`, subject "Status Studio feedback" or "Status Studio complaint", body = the message.
+  - **WhatsApp:** `https://wa.me/923478330955?text=…`, text = the subject line, a blank line, then the message. Without WhatsApp the phone opens wa.me in the browser, which offers to install it.
+  - **Call:** `tel:+923478330955`, the dialer with the number; nothing else is carried. Always on.
+  - **The message:** the typed text, a blank line, a `—` line, then "Feedback" or "Complaint" · "Status Studio <version> (<build>)", and "Phone: <maker> <model> (Android <release>, SDK <n>)" or "Phone: <model name> (iOS <version>)". Device details come from `device_info_plus` and the version from `package_info_plus`, read on the phone only.
+  - **No app for it** (no mail app, a tablet that can't call): a snack bar "No email app found. Write to arehmananis@hotmail.com.", "Couldn't open WhatsApp. Message +92 347 8330955.", or "This device can't make calls. Call +92 347 8330955."
+- **About** (`about_section.dart`): label "About"; the Trim logo (§7) at 48 dp, "Status Studio", "Version <version> (<build>)" (from `package_info_plus`, so it follows `pubspec.yaml`), and "Turns a video you have trimmed into a short status clip, with its lyrics in any language." Then "Open-source licences", Flutter's licence page with the same name, version and logo.
+- **Not in M33:** a privacy policy row (§9.1, waits for hosting).
+- **Calls made by Claude, not the owner:** Support sits inline in Settings, not on its own screen; Email and WhatsApp stay off until there's text; the message layout above.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -605,7 +617,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 
 ### 9.1 Privacy policy (M27 task 3)
 
-**Hosting (the owner's choice, not made):** both stores need the policy at a public URL that opens without signing in: Play Console (App content → Privacy policy) and App Store Connect (App Privacy → Privacy Policy URL). This repo is private, so it can't host it. Options: a page on a site the owner already has, a public repository holding only this text (GitHub Pages), or Google Sites. Play also wants the policy reachable inside the app: once the URL exists, add a "Privacy policy" row to Settings that copies it (the app doesn't open a browser itself, FR-12a). Fill the two `<…>` fields before publishing.
+**Hosting (the owner's choice, not made):** both stores need the policy at a public URL that opens without signing in: Play Console (App content → Privacy policy) and App Store Connect (App Privacy → Privacy Policy URL). This repo is private, so it can't host it. Options: a page on a site the owner already has, a public repository holding only this text (GitHub Pages), or Google Sites. Play also wants the policy reachable inside the app: once the URL exists, add a "Privacy policy" row to Settings that copies it (the app doesn't open a browser itself, FR-12a). Fill the `<date>` field before publishing (the contact email was filled in M33).
 
 > **Status Studio privacy policy**
 >
@@ -619,6 +631,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 > - *Groq.* When you tap Get lyrics from Groq and agree, the app sends your video's sound (cleaned, one channel, in pieces) to Groq, an AI service run by Groq, Inc., using your own Groq key, to write the lyrics. When you tap Fix with Groq, it sends the lyric lines and the video's name. The picture is never sent. Groq handles this under its own terms and privacy policy (groq.com), as the service you signed up for when you made your key. You can withdraw your agreement in Settings at any time, and nothing more is sent after that. A clip made without lyrics sends nothing.
 > - *Google ML Kit.* Face detection runs on your phone. ML Kit sends Google usage and performance information to keep it working: device and app details, a per-installation identifier that does not identify you, performance measures, sizes of what was processed, and error codes. Google describes this at developers.google.com/ml-kit.
 > - *Saving and sharing.* Save puts the clip in your photo library. Share hands it to the app you choose in your phone's share sheet.
+> - *Support.* If you write to us from Settings, the app opens your own email or WhatsApp app with your message, your phone's model and system version and the app's version filled in. You see it before you send it, and we receive only what you send. Nothing is sent by Status Studio itself.
 >
 > **What we don't do.** No advertising, no analytics of our own, no tracking, no selling or sharing of your data, no accounts.
 >
@@ -628,11 +641,11 @@ Each error is a typed exception from the data layer. Screens map them to these m
 >
 > **Changes.** A new version of this policy will be posted at this address with a new date.
 >
-> **Contact.** `<the owner's contact email>`
+> **Contact.** arehmananis@hotmail.com
 
 ### 9.2 Store answers (M27 task 4)
 
-**What the answers rest on (checked 2026-11-10):** our code sends data only to Groq (FR-12a, FR-19, after FR-30's consent). The SDKs in the app send more: Google ML Kit (face detection; translation until M30) declares in its iOS privacy manifests, all not linked to the user and not used for tracking: device ID, product interaction, performance data and other data types (analytics and app functionality), other diagnostic data (analytics), and other user content (analytics and app functionality). Google's Android disclosure (developers.google.com/ml-kit/android-data-disclosure) lists device and app information, per-installation identifiers, performance metrics, API configuration, input and output sizes, event types, error codes and, for Translate, the chosen languages; HTTPS; not transferred to third parties. GoogleDataTransport (pulled in by ML Kit) declares other diagnostic data. FFmpeg Kit, `tflite_flutter` and the other plugins send nothing. The answers below are cautious where it was unclear: Groq's retention is Groq's, so nothing is called ephemeral.
+**What the answers rest on (checked 2026-11-10):** our code sends data only to Groq (FR-12a, FR-19, after FR-30's consent). The SDKs in the app send more: Google ML Kit (face detection; translation until M30) declares in its iOS privacy manifests, all not linked to the user and not used for tracking: device ID, product interaction, performance data and other data types (analytics and app functionality), other diagnostic data (analytics), and other user content (analytics and app functionality). Google's Android disclosure (developers.google.com/ml-kit/android-data-disclosure) lists device and app information, per-installation identifiers, performance metrics, API configuration, input and output sizes, event types, error codes and, for Translate, the chosen languages; HTTPS; not transferred to third parties. GoogleDataTransport (pulled in by ML Kit) declares other diagnostic data. FFmpeg Kit, `tflite_flutter` and the other plugins send nothing. `device_info_plus`, `package_info_plus` and `url_launcher` (M33) send nothing either: Support (FR-31) hands a message to the user's own email or WhatsApp app, which the user sends, like the share sheet. Play doesn't count data the user sends through another app as collected, so the forms below are unchanged; Apple counts only data the app itself transmits, so the label is unchanged too (Claude's reading of the stores' rules, M33; not checked against their latest text. Recheck before submitting, and again if Support ever sends anything in the app). The answers below are cautious where it was unclear: Groq's retention is Groq's, so nothing is called ephemeral.
 
 **Google Play, Data safety:**
 - Collects or shares required user data: **Yes**. All data encrypted in transit: **Yes** (HTTPS). Account creation: **none**. Deletion: data lives on the phone and is deleted in the app (Recent → Delete) or by uninstalling; the developer holds no copy. Groq data sits in the user's own Groq account.
@@ -836,6 +849,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | Built, branch `m30-crop-and-lyrics-flow` (stacked on M29), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
 | M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | Built, branch `m31-av1-to-h264` (from `dev`), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
 | M32 Clear scene markers | Face and body boxes on the scene picture no longer cover the person: corners only, number tag outside (FR-27) | Built, branch `m32-clear-scene-markers` (stacked on M31), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
+| M33 Support and About | Settings gets Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`); tests not run; device checks pending (§14) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1207,6 +1221,13 @@ Found on the phone (2026-11-10): the face and body boxes on the scene picture hi
 - [x] **1. Corners and outside tags (FR-27).** `person_chooser_sheet.dart`: `_CornersPainter` draws the four corners; `_Tag` holds the number above the box (below it at the top edge, kept inside the picture's width) and picks its face or body on a tap, hidden from screen readers since the marker is the button. Tags are drawn after every box. FR-27 and §14 updated. `fvm flutter analyze` clean; tests not run.
 - [ ] **2. Tests (owner).** §13: a tag sits above its box, and below it when the box touches the top; tapping a tag picks its face or body; the screen reader still finds "Person 1" and "Body 1" once each.
 
+### M33 tasks (branch `m33-about-support`)
+
+Asked by the owner (2026-11-10): an About section, and a Support section for feedback and complaints by email, WhatsApp or a call, with device details; the app version was not visible anywhere. The owner agreed the outline in chat; the calls left to Claude are listed in FR-31.
+
+- [x] **1. Support and About in Settings (FR-31).** New feature folder `lib/src/features/about/`: `domain/support_message.dart` (topic, device details, the message text), `data/device_details_reader.dart` (`device_info_plus`, `package_info_plus`), `data/support_launcher.dart` (`url_launcher`; throws `ContactAppMissingException` when no app opens the link), `presentation/support_section.dart` and `presentation/about_section.dart`, added after Background work in `settings_screen.dart`. Android `<queries>` for `mailto`, `tel` and `https`; iOS needs no `LSApplicationQueriesSchemes` because `canLaunchUrl` isn't used. §9.1 and §9.2 updated for the new packages. `fvm flutter analyze` clean; tests not run.
+- [ ] **2. Tests (owner).** §13 "Support and About (M33)". No existing test goes stale (there are no Settings tests). Tests that pump `SettingsScreen` must override `appVersionProvider` and `deviceDetailsProvider`, which read the platform.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1415,6 +1436,15 @@ Found on the phone (2026-11-10): the face and body boxes on the scene picture hi
 - A face box with room above gets its tag above it; one touching the top gets it below.
 - Tapping a face's tag picks that face; tapping a body's tag picks that body.
 - The screen reader finds "Person 1" and "Body 1" once each (the tags are hidden from it).
+
+**Support and About (M33):**
+- The message ends with the topic, the app version and build, and the phone line for Android or iOS.
+- Email and WhatsApp are off while the box is empty or only spaces; Call is always on.
+- Email opens a `mailto:` link with the subject for the chosen topic and the message as the body, spaces encoded as `%20`, not `+`.
+- WhatsApp opens `https://wa.me/923478330955` with the subject line and the message as `text`.
+- Call opens `tel:+923478330955`.
+- When no app opens the link, the snack bar names the address or number.
+- About shows "Version <version> (<build>)" from the app's package details.
 
 ## 14. Device checks
 
@@ -1636,6 +1666,12 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] Follow the person on a close-up and on a crowd shot: every face and body shows only its corners, and no number tag covers a face; the people are clear to see.
 - [ ] A face at the top edge: its tag sits below the box. A face at the right edge: its tag stays inside the picture.
 - [ ] Tapping a tag picks that face or body; tapping inside a box still picks it.
+
+**Support and About (M33), Android and iPhone:**
+- [ ] Settings shows Support and About after Background work; About shows the same version and build as `pubspec.yaml`, and Open-source licences opens.
+- [ ] Email with Gmail (or Mail on iPhone): the subject and the message, ending with the right phone model and system version, are filled in; spaces are spaces, not `+`.
+- [ ] WhatsApp: the chat with +92 347 8330955 opens with the text filled in; on a phone without WhatsApp the browser opens wa.me.
+- [ ] Call opens the dialer with the number. An Urdu message survives Email and WhatsApp intact.
 
 ## 15. Known issues (found on the phone, not fixed)
 
