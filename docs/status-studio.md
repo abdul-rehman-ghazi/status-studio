@@ -384,7 +384,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Copies and other files are written to `.part` files and renamed when complete.
   - Every start deletes folders whose name isn't a fingerprint ID (`v_` and 16 hex digits): old YouTube data.
 - **Data use:** nothing is downloaded. The only uploads are the cleaned script audio pieces (about 16 kHz mono FLAC) and the Fix with Groq lines, both to Groq.
-- **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key, and, when the user taps Fix with Groq (FR-19), the clip's lines and the video's name. The video itself never leaves the phone.
+- **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key, and, when the user taps Fix with Groq (FR-19), the clip's lines and the video's name. The video itself never leaves the phone The SDKs send their own usage metrics: Google ML Kit's anonymous usage, performance and per-installation ID (§9.2, found in M27; the policy in §9.1 says so).
 
 ## 5. Architecture
 
@@ -601,6 +601,83 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Battery optimisation (M27) | Not requested. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is removed from the merged manifest: Play allows it only for listed uses (an app whose core function breaks under Doze, such as a companion device or a task automation app), and the foreground service keeps the work running without it. Settings still points to App info on phones (Xiaomi and others) that need "No restrictions" |
 | Foreground service type (M27) | `FOREGROUND_SERVICE_DATA_SYNC`, kept. The Play Console declaration (App content → Foreground service permissions), ready to paste: **Type:** Data sync. **What the user does and sees:** "The user picks a video and taps Get the script. The app uploads the video's sound, in pieces, to a speech-to-text service (Groq) with the user's own API key and receives the timed lyrics. When the user taps Export, the app encodes the finished video into a file on the phone. Each job starts only when the user taps its button, shows an ongoing notification with the step and percent, and stops as soon as it finishes or the user cancels." **Why it must run now and not be paused:** "A long video takes several minutes to upload and transcribe, and an export several minutes to encode. Users lock the phone or switch apps while waiting. If the system paused the work, the upload would break between pieces and the export would be lost, and the user would have to start again. The result is wanted right away, so deferring it with WorkManager would break the feature." **Impact if interrupted:** user-noticeable (the lyrics or the reel are not ready, work is lost). Play also asks for a link to a short screen recording: pick a video, tap Get the script, press Home, show the notification's progress, come back to the finished lyrics. Recording and hosting it are the owner's. Note: Android 15 added the `mediaProcessing` type, which fits the export better than `dataSync` (Android's guide lists "local file processing" under `dataSync`, so this is allowed today); `dataSync` is also the type Android says it will restrict further, so move the export to `mediaProcessing` on API 35+ if Play's review asks |
 | Crop subject (M25) | The user chooses a face, a body or a fixed spot at every scene (FR-27). The app never assumes, so automatic follow and look-alike carry-over are dropped |
+
+### 9.1 Privacy policy (M27 task 3)
+
+**Hosting (the owner's choice, not made):** both stores need the policy at a public URL that opens without signing in: Play Console (App content → Privacy policy) and App Store Connect (App Privacy → Privacy Policy URL). This repo is private, so it can't host it. Options: a page on a site the owner already has, a public repository holding only this text (GitHub Pages), or Google Sites. Play also wants the policy reachable inside the app: once the URL exists, add a "Privacy policy" row to Settings that copies it (the app doesn't open a browser itself, FR-12a). Fill the two `<…>` fields before publishing.
+
+> **Status Studio privacy policy**
+>
+> Effective `<date it is published>`.
+>
+> Status Studio turns a video you choose into a short clip with lyrics. It has no server and no accounts. We, the developer, receive none of your data.
+>
+> **What stays on your phone.** The videos you share into the app or pick, copied into the app's own storage. The lyrics written for them, kept for 90 days. Unfinished work, so you can carry on later. The clips you export. Your settings, including whether you agreed to send audio to Groq. If you add a Groq API key, it is kept in the phone's secure storage (Android Keystore or iOS Keychain) and is sent only to Groq, to authorise your own requests. You can delete videos, lyrics and clips in the app, and uninstalling the app deletes all of it.
+>
+> **What leaves your phone, and only when you ask.**
+> - *Groq.* When you tap Get the script and agree, the app sends your video's sound (cleaned, one channel, in pieces) to Groq, an AI service run by Groq, Inc., using your own Groq key, to write the lyrics. When you tap Fix with Groq, it sends the lyric lines and the video's name. The picture is never sent. Groq handles this under its own terms and privacy policy (groq.com), as the service you signed up for when you made your key. You can withdraw your agreement in Settings at any time, and nothing more is sent after that. A clip made without lyrics sends nothing.
+> - *Google ML Kit.* Face detection and caption translation run on your phone. Translating a caption into English downloads a language pack from Google once. ML Kit sends Google usage and performance information to keep these features working: device and app details, a per-installation identifier that does not identify you, performance measures, sizes of what was processed, error codes, and the languages chosen for translation. Google describes this at developers.google.com/ml-kit.
+> - *Saving and sharing.* Save puts the clip in your photo library. Share hands it to the app you choose in your phone's share sheet.
+>
+> **What we don't do.** No advertising, no analytics of our own, no tracking, no selling or sharing of your data, no accounts.
+>
+> **Permissions.** Photo library (add only), to save clips. Notifications, to tell you when work is done. Internet, for Groq and the language packs. On Android, a foreground service, so writing lyrics and exporting continue when you leave the app.
+>
+> **Children.** Status Studio is not directed at children under 13.
+>
+> **Changes.** A new version of this policy will be posted at this address with a new date.
+>
+> **Contact.** `<the owner's contact email>`
+
+### 9.2 Store answers (M27 task 4)
+
+**What the answers rest on (checked 2026-11-10):** our code sends data only to Groq (FR-12a, FR-19, after FR-30's consent). The SDKs in the app send more: Google ML Kit (face detection, translation) declares in its iOS privacy manifests, all not linked to the user and not used for tracking: device ID, product interaction, performance data and other data types (analytics and app functionality), other diagnostic data (analytics), and other user content (analytics and app functionality). Google's Android disclosure (developers.google.com/ml-kit/android-data-disclosure) lists device and app information, per-installation identifiers, performance metrics, API configuration, input and output sizes, event types, error codes and, for Translate, the chosen languages; HTTPS; not transferred to third parties. GoogleDataTransport (pulled in by ML Kit) declares other diagnostic data. FFmpeg Kit, `tflite_flutter` and the other plugins send nothing. The answers below are cautious where it was unclear: Groq's retention is Groq's, so nothing is called ephemeral.
+
+**Google Play, Data safety:**
+- Collects or shares required user data: **Yes**. All data encrypted in transit: **Yes** (HTTPS). Account creation: **none**. Deletion: data lives on the phone and is deleted in the app (Recent → Delete) or by uninstalling; the developer holds no copy. Groq data sits in the user's own Groq account.
+- Independent security review: no.
+
+| Data type (Play's names) | Collected | Shared | Processed ephemerally | Required or optional | Purposes | Why |
+|---|---|---|---|---|---|---|
+| Audio → Other audio files | Yes | No (sent to a service the user chose, by their own action) | No | Optional (FR-29: lyrics are optional) | App functionality | Script audio to Groq |
+| App activity → Other user-generated content | Yes | No | No | Optional | App functionality | Fix with Groq's lines and the video's name |
+| App info and performance → Diagnostics | Yes | No | No | Required | Analytics | ML Kit |
+| App info and performance → Other app performance data | Yes | No | No | Required | Analytics | ML Kit |
+| Device or other IDs | Yes | No | No | Required | Analytics | ML Kit's per-installation ID |
+
+Not collected: photos and videos (the video never leaves the phone), personal info, location, contacts, messages, financial info, health, web history, files and docs, calendar, app interactions beyond ML Kit's.
+
+**Google Play, other App content forms:** Ads: **no ads**. App access: **some functionality is restricted**: "Make it without lyrics needs nothing. Writing lyrics needs a free Groq API key, which the reviewer can create at console.groq.com/keys and paste in Settings." If the owner chooses to give reviewers a key, it goes into Play Console's App access field only, never into the repo, the app or this document. Government, financial, health, news, COVID: no. Foreground service: the `dataSync` text in §9's table. Photo and video permissions: none requested (the picker needs none; `WRITE_EXTERNAL_STORAGE` only up to Android 10, task 6 checks the merged manifest). Target audience: **13 and over**, not designed for children; choosing under 13 would bring the Families policy and its SDK rules.
+
+**Apple, App Privacy label:**
+- Data used to track you: **none**. Data linked to you: **none**.
+- Data not linked to you:
+  - **User Content → Audio Data:** App Functionality (Groq).
+  - **User Content → Other User Content:** App Functionality (Fix with Groq's lines and video name), Analytics (ML Kit).
+  - **Identifiers → Device ID:** Analytics, App Functionality (ML Kit).
+  - **Usage Data → Product Interaction:** Analytics, App Functionality (ML Kit).
+  - **Diagnostics → Performance Data:** Analytics, App Functionality; **Other Diagnostic Data:** Analytics (ML Kit, GoogleDataTransport).
+  - **Other Data → Other Data Types:** Analytics, App Functionality (ML Kit).
+- Before submitting, compare with Xcode's privacy report (Organizer → the archive → Generate Privacy Report), which merges every manifest; the label must cover it.
+- Our own manifest is `ios/Runner/PrivacyInfo.xcprivacy` (added in this task, in the Runner target): no tracking; audio data and other user content for app functionality; required-reason APIs used by `ShareInbox.swift`: disk space (`E174.1`, room to copy a share) and file timestamps (`C617.1`, staged shares older than a day in the app's and the App Group's containers). Without it App Store Connect rejects the upload (ITMS-91053). The Share Extension uses neither API, so it has no manifest.
+- Guideline 5.1.2(i): FR-30. Guideline 5.1.1(v) (account deletion): no accounts.
+
+**Export compliance:** the only encryption is HTTPS (TLS from the OS and Dart's `HttpClient`) and the platform's own key storage; the app implements no cryptography. That is exempt, so `ios/Runner/Info.plist` has `ITSAppUsesNonExemptEncryption` = NO (added in this task) and App Store Connect won't ask per build; no documentation is uploaded. Play asks nothing; the same exemption applies.
+
+**Content rating:**
+- Play (IARC questionnaire): category "All other app types". Violence, fear, sexuality, language, controlled substances, gambling, crude humour: no. Users interact or exchange content: no (no in-app communication; sharing goes through the system share sheet). Shares location: no. Digital purchases: no. Unrestricted internet: no (only Groq's API). Expected: Everyone, PEGI 3, USK 0.
+- Apple: every content question "None" or "No"; no unrestricted web access, no user-generated content shown to other users, no messaging, no ads. Expected 4+. The user's own videos are not rated: the app doesn't publish them.
+
+### 9.3 Listing rules (M27 task 5)
+
+- **No other brands:** "YouTube", "WhatsApp" and also Instagram, TikTok, Snapchat, Facebook stay out of the app name, subtitle, short and full description, keywords, promotional text, screenshots and preview video, and so do their logos (Play's metadata and impersonation rules; Apple guideline 2.3.7 and 5.2). "Status" alone is a generic word and is fine. Don't say "for WhatsApp Status".
+- **Screenshots and preview:** the owner's own footage, with lyrics the owner may show (own words, or text in the public domain); no third-party video, music video or TV clip. The Size step's preset hints name Reels, TikTok, Shorts, Instagram and Facebook (`frame_controls.dart`), so that screen stays out of screenshots unless the hints are changed (the owner's call; the dead "WhatsApp Status may cut it" warning in `fine_tune_screen.dart` is never shown).
+- **Claims:** no "best", "#1", rankings or prices in the name or icon; describe only what the app does. Say that writing lyrics needs a free Groq key and sends the audio to Groq, and that clips without lyrics need nothing.
+- **Drafts (no brands):**
+  - Name: Status Studio. Apple subtitle (30): "Lyric clips for your status". Play short description (80): "Turn your own videos into short lyric clips for your status, in any language."
+  - Apple keywords (100): `status,lyrics,captions,video,clip,urdu,arabic,naat,subtitles,story,reel,editor`.
+  - Full description: "Status Studio turns a video you have already trimmed into a short, captioned clip. Share a video in or pick one from your gallery. Get the lyrics written for you by Groq's speech-to-text with your own free Groq key, in Urdu, Arabic, Punjabi, Persian, Hindi, Bengali or English, or make the clip without lyrics. Fine-tune each line to half a second, choose who stays in frame in every scene, pick a size (9:16, 4:5, 1:1, 16:9 or your own crop), style the caption, including Nastaliq for Urdu, and export. Save the clip to your gallery or share it. Your video stays on your phone: only the sound goes to Groq, and only after you agree. Use videos you have the right to share."
+- **Icon and graphics:** the Trim logo (§7); Play's feature graphic without other brands.
 
 ## 10. Spikes and measurements
 
@@ -974,9 +1051,9 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
 
 - [x] **1. Consent before the first Groq upload.** A one-time screen says the audio is sent to Groq, a third-party AI service, with the user's key, to write the lyrics; the user agrees or cancels. The answer is kept and Settings can withdraw it. (App Store guideline 5.1.2(i); Play User Data policy.) Done as FR-30: `GroqConsentStore` (shared preferences, only an agreement is kept) and `groqConsentProvider`; `GroqClient` takes a required `beforeUpload` that the app sets to the consent check, so no audio piece and no Fix request is sent without it; the pipeline checks it after the key and before cleaning; Processing opens the consent screen by itself and offers Continue, Fix with Groq and the Lyrics footer's Retry open it; Settings has the "Sending to Groq" row with Withdraw; §8 has the message. Also corrected in Settings: the Groq hint still said "when a video has no captions" and "the link", so it now reads as FR-12a's privacy note. `tool/voice_check.dart` passes a no-op `beforeUpload` (the owner's own audio). Tests not run. **New tests for the owner:** the "Store readiness (M27)" cases in §13; any test that builds a `GroqClient` now passes `beforeUpload`.
 - [x] **2. Drop `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`** and its prompt (`background_work_platform.dart`); Play allows it only for listed uses. Keep `FOREGROUND_SERVICE_DATA_SYNC` (uploading to Groq) and write its Play Console justification in §9. Update FR-16 and the Settings rows. Done: the manifest removes the permission with `tools:node="remove"` (no plugin declares it today; this keeps it out if one starts to); `runsUnrestricted` and `askToRunUnrestricted` are gone from `BackgroundWorkPlatform` and both platforms (iOS's class keeps the rest unchanged); `BackgroundAccess.askOnce` asks for notifications only and `status()` became `notificationsEnabled()`; Settings shows the notification row, the Xiaomi hint and Open App info. FR-16 and §9 (two rows: battery optimisation, and the `dataSync` declaration text) updated. Tests not run. **Tests for the owner:** the new §13 background access case; any fake `BackgroundWorkPlatform` drops the two methods, and Settings tests that looked for "Battery optimisation" go.
-- [ ] **3. Privacy policy text in §9.** What is stored on the phone, that audio and the Fix with Groq lines go to Groq, the key in secure storage, no analytics. It needs a public URL; the repo is private, so the user chooses where to host it.
-- [ ] **4. Store answers in §9.** Play Data safety (audio shared with a third party for app functionality, not collected by us, no account); the Apple App Privacy label; export compliance (HTTPS only, exempt); content rating.
-- [ ] **5. Listing rules in §9.** No "YouTube" or "WhatsApp" in the name, description or screenshots, and neither brand's logo; screenshots use the user's own footage; "Status" alone is fine.
+- [x] **3. Privacy policy text in §9.** What is stored on the phone, that audio and the Fix with Groq lines go to Groq, the key in secure storage, no analytics. It needs a public URL; the repo is private, so the user chooses where to host it. Done: §9.1. Found on the way: "no analytics" is true of our code but not of the SDKs, because Google ML Kit sends anonymous usage and performance metrics with a per-installation ID; the policy says so and §4's privacy line is corrected. **Pending, the owner's:** where to host it, the effective date and the contact address, and then a Settings row that copies the URL (Play wants the policy reachable in the app).
+- [x] **4. Store answers in §9.** Play Data safety (audio shared with a third party for app functionality, not collected by us, no account); the Apple App Privacy label; export compliance (HTTPS only, exempt); content rating. Done: §9.2. Two departures from the text above: by Play's definitions the audio is *collected* (it leaves the phone through the app), not shared (the user sends it, by their own action, to a service they chose), and ML Kit's metrics add Diagnostics, performance data and Device IDs to both forms. Added to the iOS project: `ios/Runner/PrivacyInfo.xcprivacy` in the Runner target (with the `xcodeproj` gem), which declares the disk-space and file-timestamp APIs `ShareInbox.swift` uses (App Store Connect rejects an upload without it), and `ITSAppUsesNonExemptEncryption` = NO in `ios/Runner/Info.plist`. `fvm flutter build ios --no-codesign` builds (`Runner.app` 132.9 MB) with the manifest in the bundle and the key in its Info.plist. Tests not run.
+- [x] **5. Listing rules in §9.** No "YouTube" or "WhatsApp" in the name, description or screenshots, and neither brand's logo; screenshots use the user's own footage; "Status" alone is fine. Done: §9.3, with drafts of the subtitle, short and full description and keywords. Found: the Size step's preset hints name Reels, TikTok, Shorts, Instagram and Facebook; not changed (product copy, the owner's call), so that screen stays out of screenshots. `README.md` still describes the YouTube app; it is not a listing and was left.
 - [ ] **6. Release builds.** A signed Play App Bundle (`fvm flutter build appbundle`) and an iOS archive for TestFlight.
 
 ### M28 tasks (branch `m28-lyrics-optional`)
@@ -1328,6 +1405,8 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] Withdraw during a long script: it stops before the next piece; Retry on the Lyrics footer asks again and resumes from the saved piece.
 - [ ] Without a key: Get the script shows the no-key message, not the consent screen. Make it without lyrics never asks.
 - [ ] The consent screen and the Settings row on a small phone, and on iOS.
+- [ ] Before the first App Store submission: Xcode's privacy report for the archive (Organizer → Generate Privacy Report) matches §9.2's label, and App Store Connect accepts the build without ITMS-91053 or an encryption question.
+- [ ] The privacy policy URL opens without signing in, and Play Console's and App Store Connect's forms are filled from §9.2.
 - [ ] No battery-optimisation prompt is left, Settings shows only the notification row, and the merged manifest of the release bundle has no `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (task 6 checks this).
 - [ ] A 5-minute script with the screen locked, on the Pixel and on the Redmi with default battery settings, still finishes without the exemption; if the Redmi pauses it, note it in §15 (the Settings hint is the answer).
 
