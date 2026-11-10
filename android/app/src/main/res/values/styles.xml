@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The app is dark in both system modes, so one dark launch theme (FR-20).
+    <!-- A phone in light mode; values-night holds the dark ones. They follow the phone,
+         not the in-app theme, which can't be read this early (FR-20, FR-32).
          Shown while the process starts; removed when Flutter draws its first frame. -->
-    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
     <!-- Behind the Flutter UI while it runs and while the engine starts. -->
-    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

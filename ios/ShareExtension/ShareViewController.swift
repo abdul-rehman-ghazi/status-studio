@@ -9,18 +9,32 @@ final class ShareViewController: UIViewController {
 
     private static let failureShownSeconds = 2.0
 
+    /// The app's page and text colours for the phone's mode, like the launch screen: the
+    /// extension can't read the theme chosen in the app (spec FR-32).
+    private static let pageColor = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.055, green: 0.075, blue: 0.067, alpha: 1)
+            : UIColor(red: 0.961, green: 0.973, blue: 0.965, alpha: 1)
+    }
+
+    private static let textColor = UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.933, green: 0.953, blue: 0.941, alpha: 1)
+            : UIColor(red: 0.055, green: 0.075, blue: 0.067, alpha: 1)
+    }
+
     private let statusLabel = UILabel()
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.055, green: 0.075, blue: 0.067, alpha: 1)
+        view.backgroundColor = Self.pageColor
         showStatus("Opening in Status Studio…")
         stageSharedMovie()
     }
 
     private func showStatus(_ text: String) {
         statusLabel.text = text
-        statusLabel.textColor = .white
+        statusLabel.textColor = Self.textColor
         statusLabel.numberOfLines = 0
         statusLabel.textAlignment = .center
         statusLabel.translatesAutoresizingMaskIntoConstraints = false

@@ -88,15 +88,25 @@ class _LaunchFrameView extends StatelessWidget {
   static const _logoSize = 144.0;
   static const _wordmarkGap = 28.0;
 
+  /// The phone's mode, not the saved theme: the native launch screen can
+  /// only follow the phone, and this frame must match it. The fade at the
+  /// end reveals Home in the chosen theme (spec FR-20, FR-32).
+  static AppPalette _phonePalette(BuildContext context) {
+    return MediaQuery.platformBrightnessOf(context) == Brightness.dark
+        ? AppPalette.dark
+        : AppPalette.light;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = _phonePalette(context);
     return Opacity(
       opacity: frame.splashOpacity,
       child: ColoredBox(
-        color: AppPalette.dark.background,
+        color: palette.background,
         child: Stack(
           alignment: Alignment.center,
-          children: [_buildLogo(), _buildWordmark()],
+          children: [_buildLogo(), _buildWordmark(palette.textPrimary)],
         ),
       ),
     );
@@ -118,7 +128,7 @@ class _LaunchFrameView extends StatelessWidget {
     );
   }
 
-  Widget _buildWordmark() {
+  Widget _buildWordmark(Color wordmarkColor) {
     return Transform.translate(
       offset: Offset(0, _logoSize / 2 + _wordmarkGap + frame.wordmark.lift),
       child: Opacity(
@@ -130,7 +140,7 @@ class _LaunchFrameView extends StatelessWidget {
             fontSize: 24,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.2,
-            color: AppPalette.dark.textPrimary,
+            color: wordmarkColor,
             decoration: TextDecoration.none,
           ),
         ),
