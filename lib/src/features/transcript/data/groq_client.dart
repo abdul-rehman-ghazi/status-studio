@@ -17,9 +17,6 @@ const scriptModel = 'whisper-large-v3';
 /// transcriber, so tool/voice_check.dart can apply the same rule.
 const groqNoSpeechCutoff = 0.6;
 
-// The only Groq model the key can call that searches the web (spec §10 #6).
-const _scriptFixModel = 'openai/gpt-oss-120b';
-
 /// One stretch of speech Groq reports for a piece, timed within the piece.
 class GroqSegment {
   const GroqSegment({
@@ -95,31 +92,6 @@ class GroqClient {
       return request;
     });
     return _segmentsOf(reply);
-  }
-
-  /// The reply of Groq's web-search model to [prompt] (spec FR-19). Empty
-  /// when the model answers with no text.
-  Future<String> fixScript(String prompt) async {
-    await beforeUpload();
-    final body = utf8.encode(
-      jsonEncode({
-        'model': _scriptFixModel,
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-        'tools': [
-          {'type': 'browser_search'},
-        ],
-        'tool_choice': 'auto',
-      }),
-    );
-    final reply = await _send(() async {
-      final request = await _open('POST', '/chat/completions');
-      request.headers.contentType = ContentType.json;
-      request.add(body);
-      return request;
-    });
-    return _replyTextOf(reply);
   }
 
   Future<HttpClientRequest> _open(String method, String path) async {
@@ -218,16 +190,6 @@ class GroqClient {
       ..add(audio)
       ..add(utf8.encode('\r\n--$boundary--\r\n'));
     return bytes.takeBytes();
-  }
-
-  String _replyTextOf(String reply) {
-    final decoded = jsonDecode(reply) as Map<String, dynamic>;
-    final choices = (decoded['choices'] as List<dynamic>?) ?? const [];
-    if (choices.isEmpty) {
-      return '';
-    }
-    final message = (choices.first as Map<String, dynamic>)['message'];
-    return ((message as Map<String, dynamic>)['content'] as String?) ?? '';
   }
 
   List<GroqSegment> _segmentsOf(String reply) {

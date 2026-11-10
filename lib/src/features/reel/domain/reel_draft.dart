@@ -109,11 +109,6 @@ class ReelDraft {
     return _selectingLinesInClip(transcript, clip);
   }
 
-  /// [corrected] has the same lines with better text. The clip stays, and
-  /// so does a caption the user changed.
-  ReelDraft withCorrectedLines(Transcript corrected) =>
-      _selectingLinesInClip(corrected, clip);
-
   /// Moves the clip to [newClip]; the selected lines follow it, and so does
   /// the caption while it is still the lines' own text (spec FR-5).
   ReelDraft withClip(ClipRange newClip) {

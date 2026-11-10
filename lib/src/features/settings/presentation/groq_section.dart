@@ -85,8 +85,7 @@ class _GroqSectionState extends ConsumerState<GroqSection> {
         const _Heading(),
         const HintText(
           "Writes the script. Your video's audio (cleaned, mono, 16 kHz) is "
-          'sent to Groq in pieces. Tapping Fix with Groq on Fine-tune · '
-          "Lyrics also sends the lines and the title. Groq's terms apply.",
+          "sent to Groq in pieces. Groq's terms apply.",
         ),
         const SizedBox(height: 8),
         TextField(

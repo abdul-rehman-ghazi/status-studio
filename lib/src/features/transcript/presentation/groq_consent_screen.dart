@@ -10,9 +10,7 @@ import 'package:status_studio/src/features/transcript/application/groq_consent_c
 const _points = [
   'To write the lyrics, Status Studio sends your video\'s sound to Groq, '
       'a third-party AI service, using your own Groq key.',
-  'What is sent: the sound only, cleaned to one channel, in pieces. Fix '
-      'with Groq also sends the lines and the video\'s name, only when you '
-      'tap it.',
+  'What is sent: the sound only, cleaned to one channel, in pieces.',
   'What is not sent: the picture. Nothing goes to us: Status Studio has '
       'no server and no account.',
   "Groq's terms and privacy policy apply (groq.com). You can withdraw "

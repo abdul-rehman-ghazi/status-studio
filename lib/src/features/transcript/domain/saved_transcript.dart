@@ -9,7 +9,8 @@ import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 /// partial run of one is never resumed under another.
 const groqSource = 'groq-whisper-large-v3';
 
-/// Source name of a script whose text was corrected by an AI agent (FR-18).
+/// Source name of a script the user edited on Lyrics (FR-21), or that an
+/// AI fixed before M36 (FR-18, FR-19).
 const editedSource = 'edited';
 
 /// Which saved scripts belong together: one video, one requested language
