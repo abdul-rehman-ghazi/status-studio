@@ -55,7 +55,13 @@ Future<void> main(List<String> arguments) async {
     final scores = await _scoreAllVariants(
       {
         for (final model in _models)
-          model: GroqClient(apiKey: apiKey, model: model),
+          model: GroqClient(
+            apiKey: apiKey,
+            // The owner runs this on their own audio; FR-30's consent is
+            // the app user's.
+            beforeUpload: () async {},
+            model: model,
+          ),
       },
       expectedLines,
       await _cutBothKinds(File(arguments[0]), workFolder),

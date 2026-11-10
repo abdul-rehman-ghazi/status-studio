@@ -7,7 +7,7 @@
 Status Studio turns a video the user has already trimmed in another app, in any language, into a short clip for WhatsApp Status, Reels, TikTok or Shorts. The user shares the video into the app or picks it from the gallery. The app cleans the voice and writes out the script. The user fine-tunes the start and end by ±0.5 s and the lyrics, picks a size, and chooses what the crop follows at every scene: a face, a body or a fixed spot. Then a caption. The export is an MP4 with the Status Studio name and logo.
 
 - **On the phone:** voice cleaning (FFmpeg), translation (ML Kit) and rendering (Media3 Transformer on Android, AVFoundation on iOS from M26). No accounts, no servers, no analytics.
-- **Groq writes scripts:** every script is written by Groq's hosted Whisper, with the user's own free API key (FR-12a), from the cleaned audio (FR-26). Script audio leaves the phone only then, and only to Groq. The same key also powers Fix with Groq (FR-19), which sends the clip's lines and the title when the user taps it. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
+- **Groq writes scripts:** every script is written by Groq's hosted Whisper, with the user's own free API key (FR-12a), from the cleaned audio (FR-26), once the user has agreed to sending (FR-30). Script audio leaves the phone only then, and only to Groq. The same key also powers Fix with Groq (FR-19), which sends the clip's lines and the title when the user taps it. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
 - **No media downloads:** the video comes in as a local file, copied into the app's storage. Nothing is fetched from the internet except language packs and the Groq requests above.
 - **Saves work:** scripts are saved by the video's fingerprint, so the same video opens straight to its script next time.
 - **Pivot (2026-11-05, M23):** until M22 the input was a YouTube link. YouTube is dropped entirely: no links, yt-dlp, stream downloads or caption tracks.
@@ -164,6 +164,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Privacy note** under the heading: "Writes the script. Your video's audio (cleaned, mono, 16 kHz) is sent to Groq in pieces. Tapping Fix with Groq on Fine-tune · Lyrics also sends the lines and the title. Groq's terms apply." (FR-19; changed in M23: no link is sent) There is no switch: a saved key turns Groq on and Remove turns it off.
 - **Key storage:** `flutter_secure_storage` (Android Keystore). The key is never logged, and never written into saved files, notifications or error text. It goes only to `api.groq.com`.
 - **No key:** a new script stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is cut. Saved scripts need no key.
+- **Consent (M27):** the first send waits for the user's OK (FR-30); the "Sending to Groq" row under the key shows it and can withdraw it.
 
 **FR-17 Real lyrics (M12; removed in M17).** Script had a "Real lyrics" button that replaced the script with time-synced lyrics from lrclib.net. M17 removed the button and the whole lyrics feature (`lib/src/features/lyrics`) to keep only Fix with Groq (FR-19). Git history before M17 has the design. Scripts already saved with source `lrclib` still reopen like any saved script.
 
@@ -209,10 +210,10 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Result notification:** posted only when the app isn't on screen; tapping it opens the app where the work left off. Cancel posts nothing.
   - Script done: "Script ready" · video title. Failed: "Script stopped" · the §8 message.
   - Export done: "Reel ready" · "Tap to save or share it." Failed: "Export stopped" · the §8 message.
-- **iOS (M26):** there is no foreground service. While a job runs the app holds a background task (`beginBackgroundTask`, `SystemChannel.swift`), which lets it go on for tens of seconds after the user leaves; then iOS suspends the app and the native side posts "Work paused" · "Open Status Studio to carry on. A script resumes from its last saved piece." (nothing if notifications were refused). A script resumes from its last saved 90 s piece when the user comes back (FR-14). An export does not run in the background at all: iOS refuses GPU work then and Core Image would draw nothing without an error, so the renderer's frame loop waits (`ForegroundGate`) while the app is not in front, draws again a frame that was cut by the app leaving, and goes on when the user returns (if iOS ends the process meanwhile, the user exports again). The ongoing progress notification, the battery question and its Settings row do not exist on iOS; the result notification is the same local notification (`flutter_local_notifications`, permission asked the first time work starts); `flutter_foreground_task` is Android only, behind `backgroundWorkPlatformProvider` (`PluginBackgroundWorkPlatform` or `IosBackgroundWorkPlatform`). Settings shows the notification row and "Open Settings", and a hint that says iOS lets work go on for a short while only.
-- **Asking once:** the first time work starts, the app asks for notifications (Android 13+; iOS asks once), then for exemption from battery optimisation (Android only). It never asks again on its own. M27 task 2 drops the battery-optimisation request and its Settings row.
+- **iOS (M26):** there is no foreground service. While a job runs the app holds a background task (`beginBackgroundTask`, `SystemChannel.swift`), which lets it go on for tens of seconds after the user leaves; then iOS suspends the app and the native side posts "Work paused" · "Open Status Studio to carry on. A script resumes from its last saved piece." (nothing if notifications were refused). A script resumes from its last saved 90 s piece when the user comes back (FR-14). An export does not run in the background at all: iOS refuses GPU work then and Core Image would draw nothing without an error, so the renderer's frame loop waits (`ForegroundGate`) while the app is not in front, draws again a frame that was cut by the app leaving, and goes on when the user returns (if iOS ends the process meanwhile, the user exports again). The ongoing progress notification does not exist on iOS (the battery question and its Settings row went on Android too in M27); the result notification is the same local notification (`flutter_local_notifications`, permission asked the first time work starts); `flutter_foreground_task` is Android only, behind `backgroundWorkPlatformProvider` (`PluginBackgroundWorkPlatform` or `IosBackgroundWorkPlatform`). Settings shows the notification row and "Open Settings", and a hint that says iOS lets work go on for a short while only.
+- **Asking once (changed in M27):** the first time work starts, the app asks for notifications (Android 13+; iOS asks once). It never asks again on its own. Until M27 it then asked for exemption from battery optimisation (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`); Google Play allows that request only for listed uses, which this app is not, so the permission is removed from the manifest (`tools:node="remove"`, in case a plugin brings it back) and the app no longer asks. The `dataSync` foreground service keeps running under Doze and battery saving without it.
 - **Settings, "Background work":**
-  - Two rows: notifications on, and battery optimisation off. Each shows "Allow" when it isn't so; a refused notification permission opens App info instead.
+  - One row: notifications on. It shows "Allow" when they're off; a refused notification permission opens App info instead. (The battery optimisation row went in M27.)
   - A hint: "On Xiaomi and some other phones, also set Battery saver to No restrictions in App info." with "Open App info".
 - **Lifetime:** the service survives Home and lock, and stops when the task is swiped away (manifest `android:stopWithTask`), because the work's Flutter engine ends with the task. The plugin's own `stopWithTask` option isn't used: it stops whenever the app leaves the screen.
 - **Limits:** Android 15+ gives `dataSync` 6 hours a day. After that the service stops, and work continues only while the app is open.
@@ -358,6 +359,19 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Continue later (FR-24):** a reel without lyrics is not kept: leaving Fine-tune loses it. Once exported it is in Recent like any reel, titled by the video's name when the caption is empty (FR-11).
 - **File name (FR-9):** with an empty caption it is the `<kalam>` part only, or `reel` when the title has no words.
 
+**FR-30 Consent before sending to Groq (M27).** Nothing of the user's goes to Groq until they agree, once, on a consent screen (App Store guideline 5.1.2(i); Google Play User Data policy, prominent disclosure and consent).
+- **When:** right before the first send: a script that Groq must write (not a saved one, FR-14), or a tap on Fix with Groq (FR-19). The key is checked first, so a user without one gets the §8 "needs a free Groq key" message and no consent screen. A reel without lyrics (FR-29) never asks.
+- **Screen** (full screen, `groq_consent_screen.dart`), title "Send audio to Groq?":
+  - "To write the lyrics, Status Studio sends your video's sound to Groq, a third-party AI service, using your own Groq key."
+  - "What is sent: the sound only, cleaned to one channel, in pieces. Fix with Groq also sends the lines and the video's name, only when you tap it."
+  - "What is not sent: the picture. Nothing goes to us: Status Studio has no server and no account."
+  - "Groq's terms and privacy policy apply (groq.com). You can withdraw this any time in Settings."
+  - Hint: "Without lyrics, nothing leaves your phone and you need no key." Buttons: Not now, Agree.
+- **Answer:** Agree is kept (`groq.uploadConsent` in shared preferences) and the work carries on: Processing starts the run again, Fix with Groq runs again. Not now keeps nothing and sends nothing: Processing shows the §8 message with Continue (the screen again) and Back, and Fix leaves the lines as they are. The user is asked again the next time.
+- **Enforced at the send:** `GroqClient` takes a required `beforeUpload`, which the app sets to the consent check (`GroqConsentStore.requireGiven`); it runs before every audio piece and every Fix request and throws `NoGroqConsentException`. The key check (`GET /models`) sends nothing of the user's and doesn't call it. The script pipeline also checks right after the key, before any audio is cleaned, so the user isn't made to wait for nothing.
+- **Settings:** under the Groq key, "Sending to Groq": "Allowed" with Withdraw, or "Not allowed: you will be asked before anything is sent". Consent is given only on the consent screen. Withdrawing while a script is being written stops it before its next piece; the pieces already written stay saved (FR-14), and the Lyrics footer's Retry asks again. Removing the key doesn't withdraw consent.
+- **Privacy:** the answer is never logged and, like the key, never written into saved files, notifications or error text.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit translation). iOS is built in M26. Store builds become possible (§9, M27).
@@ -370,7 +384,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Copies and other files are written to `.part` files and renamed when complete.
   - Every start deletes folders whose name isn't a fingerprint ID (`v_` and 16 hex digits): old YouTube data.
 - **Data use:** nothing is downloaded. The only uploads are the cleaned script audio pieces (about 16 kHz mono FLAC) and the Fix with Groq lines, both to Groq.
-- **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key, and, when the user taps Fix with Groq (FR-19), the clip's lines and the video's name. The video itself never leaves the phone.
+- **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key, and, when the user taps Fix with Groq (FR-19), the clip's lines and the video's name. The video itself never leaves the phone The SDKs send their own usage metrics: Google ML Kit's anonymous usage, performance and per-installation ID (§9.2, found in M27; the policy in §9.1 says so).
 
 ## 5. Architecture
 
@@ -543,6 +557,7 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | The video has no audio track, or can't be read (M23) | Source / Processing | Can't read this video. | Choose another video, Back |
 | The kept source file is missing (M23) | Recent / Continue | Video not found, choose it again. | Choose a video, Back |
 | No Groq key saved | Processing | Writing a script needs a free Groq key. | Settings, Back |
+| The user hasn't agreed to sending to Groq, or said Not now (M27, FR-30) | Processing / Lyrics footer | Writing a script needs your OK to send the audio to Groq. | Continue (opens the consent screen), Back; Retry on the footer opens it too. Fix with Groq shows no message: the consent screen opens, and Not now leaves the lines |
 | Groq rejected the key (401/403) | Processing / Script | Groq didn't accept your API key. | Settings, Back |
 | Groq limit (429, wait over 60 s) | Processing / Script | Groq's free limit is used up for now. Try again in <n> min. | Back |
 | Groq failed (other error, or 5xx/498 twice) | Processing | Groq couldn't write this script. | Retry, Back |
@@ -583,7 +598,86 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Name, logo, IDs | Status Studio; Trim; `com.hotmail.arehmananis.statusstudio` |
 | Fonts | Inter (UI), Noto Nastaliq Urdu, Noto Naskh Arabic (OFL) |
 | Signing | Upload keystore and `key.properties` committed, because the repo is private |
+| Battery optimisation (M27) | Not requested. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is removed from the merged manifest: Play allows it only for listed uses (an app whose core function breaks under Doze, such as a companion device or a task automation app), and the foreground service keeps the work running without it. Settings still points to App info on phones (Xiaomi and others) that need "No restrictions" |
+| Foreground service type (M27) | `FOREGROUND_SERVICE_DATA_SYNC`, kept. The Play Console declaration (App content → Foreground service permissions), ready to paste: **Type:** Data sync. **What the user does and sees:** "The user picks a video and taps Get the script. The app uploads the video's sound, in pieces, to a speech-to-text service (Groq) with the user's own API key and receives the timed lyrics. When the user taps Export, the app encodes the finished video into a file on the phone. Each job starts only when the user taps its button, shows an ongoing notification with the step and percent, and stops as soon as it finishes or the user cancels." **Why it must run now and not be paused:** "A long video takes several minutes to upload and transcribe, and an export several minutes to encode. Users lock the phone or switch apps while waiting. If the system paused the work, the upload would break between pieces and the export would be lost, and the user would have to start again. The result is wanted right away, so deferring it with WorkManager would break the feature." **Impact if interrupted:** user-noticeable (the lyrics or the reel are not ready, work is lost). Play also asks for a link to a short screen recording: pick a video, tap Get the script, press Home, show the notification's progress, come back to the finished lyrics. Recording and hosting it are the owner's. Note: Android 15 added the `mediaProcessing` type, which fits the export better than `dataSync` (Android's guide lists "local file processing" under `dataSync`, so this is allowed today); `dataSync` is also the type Android says it will restrict further, so move the export to `mediaProcessing` on API 35+ if Play's review asks |
 | Crop subject (M25) | The user chooses a face, a body or a fixed spot at every scene (FR-27). The app never assumes, so automatic follow and look-alike carry-over are dropped |
+
+### 9.1 Privacy policy (M27 task 3)
+
+**Hosting (the owner's choice, not made):** both stores need the policy at a public URL that opens without signing in: Play Console (App content → Privacy policy) and App Store Connect (App Privacy → Privacy Policy URL). This repo is private, so it can't host it. Options: a page on a site the owner already has, a public repository holding only this text (GitHub Pages), or Google Sites. Play also wants the policy reachable inside the app: once the URL exists, add a "Privacy policy" row to Settings that copies it (the app doesn't open a browser itself, FR-12a). Fill the two `<…>` fields before publishing.
+
+> **Status Studio privacy policy**
+>
+> Effective `<date it is published>`.
+>
+> Status Studio turns a video you choose into a short clip with lyrics. It has no server and no accounts. We, the developer, receive none of your data.
+>
+> **What stays on your phone.** The videos you share into the app or pick, copied into the app's own storage. The lyrics written for them, kept for 90 days. Unfinished work, so you can carry on later. The clips you export. Your settings, including whether you agreed to send audio to Groq. If you add a Groq API key, it is kept in the phone's secure storage (Android Keystore or iOS Keychain) and is sent only to Groq, to authorise your own requests. You can delete videos, lyrics and clips in the app, and uninstalling the app deletes all of it.
+>
+> **What leaves your phone, and only when you ask.**
+> - *Groq.* When you tap Get the script and agree, the app sends your video's sound (cleaned, one channel, in pieces) to Groq, an AI service run by Groq, Inc., using your own Groq key, to write the lyrics. When you tap Fix with Groq, it sends the lyric lines and the video's name. The picture is never sent. Groq handles this under its own terms and privacy policy (groq.com), as the service you signed up for when you made your key. You can withdraw your agreement in Settings at any time, and nothing more is sent after that. A clip made without lyrics sends nothing.
+> - *Google ML Kit.* Face detection and caption translation run on your phone. Translating a caption into English downloads a language pack from Google once. ML Kit sends Google usage and performance information to keep these features working: device and app details, a per-installation identifier that does not identify you, performance measures, sizes of what was processed, error codes, and the languages chosen for translation. Google describes this at developers.google.com/ml-kit.
+> - *Saving and sharing.* Save puts the clip in your photo library. Share hands it to the app you choose in your phone's share sheet.
+>
+> **What we don't do.** No advertising, no analytics of our own, no tracking, no selling or sharing of your data, no accounts.
+>
+> **Permissions.** Photo library (add only), to save clips. Notifications, to tell you when work is done. Internet, for Groq and the language packs. On Android, a foreground service, so writing lyrics and exporting continue when you leave the app.
+>
+> **Children.** Status Studio is not directed at children under 13.
+>
+> **Changes.** A new version of this policy will be posted at this address with a new date.
+>
+> **Contact.** `<the owner's contact email>`
+
+### 9.2 Store answers (M27 task 4)
+
+**What the answers rest on (checked 2026-11-10):** our code sends data only to Groq (FR-12a, FR-19, after FR-30's consent). The SDKs in the app send more: Google ML Kit (face detection, translation) declares in its iOS privacy manifests, all not linked to the user and not used for tracking: device ID, product interaction, performance data and other data types (analytics and app functionality), other diagnostic data (analytics), and other user content (analytics and app functionality). Google's Android disclosure (developers.google.com/ml-kit/android-data-disclosure) lists device and app information, per-installation identifiers, performance metrics, API configuration, input and output sizes, event types, error codes and, for Translate, the chosen languages; HTTPS; not transferred to third parties. GoogleDataTransport (pulled in by ML Kit) declares other diagnostic data. FFmpeg Kit, `tflite_flutter` and the other plugins send nothing. The answers below are cautious where it was unclear: Groq's retention is Groq's, so nothing is called ephemeral.
+
+**Google Play, Data safety:**
+- Collects or shares required user data: **Yes**. All data encrypted in transit: **Yes** (HTTPS). Account creation: **none**. Deletion: data lives on the phone and is deleted in the app (Recent → Delete) or by uninstalling; the developer holds no copy. Groq data sits in the user's own Groq account.
+- Independent security review: no.
+
+| Data type (Play's names) | Collected | Shared | Processed ephemerally | Required or optional | Purposes | Why |
+|---|---|---|---|---|---|---|
+| Audio → Other audio files | Yes | No (sent to a service the user chose, by their own action) | No | Optional (FR-29: lyrics are optional) | App functionality | Script audio to Groq |
+| App activity → Other user-generated content | Yes | No | No | Optional | App functionality | Fix with Groq's lines and the video's name |
+| App info and performance → Diagnostics | Yes | No | No | Required | Analytics | ML Kit |
+| App info and performance → Other app performance data | Yes | No | No | Required | Analytics | ML Kit |
+| Device or other IDs | Yes | No | No | Required | Analytics | ML Kit's per-installation ID |
+
+Not collected: photos and videos (the video never leaves the phone), personal info, location, contacts, messages, financial info, health, web history, files and docs, calendar, app interactions beyond ML Kit's.
+
+**Google Play, other App content forms:** Ads: **no ads**. App access: **some functionality is restricted**: "Make it without lyrics needs nothing. Writing lyrics needs a free Groq API key, which the reviewer can create at console.groq.com/keys and paste in Settings." If the owner chooses to give reviewers a key, it goes into Play Console's App access field only, never into the repo, the app or this document. Government, financial, health, news, COVID: no. Foreground service: the `dataSync` text in §9's table. Photo and video permissions: none requested (the picker needs none; `WRITE_EXTERNAL_STORAGE` only up to Android 10, task 6 checks the merged manifest). Target audience: **13 and over**, not designed for children; choosing under 13 would bring the Families policy and its SDK rules.
+
+**Apple, App Privacy label:**
+- Data used to track you: **none**. Data linked to you: **none**.
+- Data not linked to you:
+  - **User Content → Audio Data:** App Functionality (Groq).
+  - **User Content → Other User Content:** App Functionality (Fix with Groq's lines and video name), Analytics (ML Kit).
+  - **Identifiers → Device ID:** Analytics, App Functionality (ML Kit).
+  - **Usage Data → Product Interaction:** Analytics, App Functionality (ML Kit).
+  - **Diagnostics → Performance Data:** Analytics, App Functionality; **Other Diagnostic Data:** Analytics (ML Kit, GoogleDataTransport).
+  - **Other Data → Other Data Types:** Analytics, App Functionality (ML Kit).
+- Before submitting, compare with Xcode's privacy report (Organizer → the archive → Generate Privacy Report), which merges every manifest; the label must cover it.
+- Our own manifest is `ios/Runner/PrivacyInfo.xcprivacy` (added in this task, in the Runner target): no tracking; audio data and other user content for app functionality; required-reason APIs used by `ShareInbox.swift`: disk space (`E174.1`, room to copy a share) and file timestamps (`C617.1`, staged shares older than a day in the app's and the App Group's containers). Without it App Store Connect rejects the upload (ITMS-91053). The Share Extension uses neither API, so it has no manifest.
+- Guideline 5.1.2(i): FR-30. Guideline 5.1.1(v) (account deletion): no accounts.
+
+**Export compliance:** the only encryption is HTTPS (TLS from the OS and Dart's `HttpClient`) and the platform's own key storage; the app implements no cryptography. That is exempt, so `ios/Runner/Info.plist` has `ITSAppUsesNonExemptEncryption` = NO (added in this task) and App Store Connect won't ask per build; no documentation is uploaded. Play asks nothing; the same exemption applies.
+
+**Content rating:**
+- Play (IARC questionnaire): category "All other app types". Violence, fear, sexuality, language, controlled substances, gambling, crude humour: no. Users interact or exchange content: no (no in-app communication; sharing goes through the system share sheet). Shares location: no. Digital purchases: no. Unrestricted internet: no (only Groq's API). Expected: Everyone, PEGI 3, USK 0.
+- Apple: every content question "None" or "No"; no unrestricted web access, no user-generated content shown to other users, no messaging, no ads. Expected 4+. The user's own videos are not rated: the app doesn't publish them.
+
+### 9.3 Listing rules (M27 task 5)
+
+- **No other brands:** "YouTube", "WhatsApp" and also Instagram, TikTok, Snapchat, Facebook stay out of the app name, subtitle, short and full description, keywords, promotional text, screenshots and preview video, and so do their logos (Play's metadata and impersonation rules; Apple guideline 2.3.7 and 5.2). "Status" alone is a generic word and is fine. Don't say "for WhatsApp Status".
+- **Screenshots and preview:** the owner's own footage, with lyrics the owner may show (own words, or text in the public domain); no third-party video, music video or TV clip. The Size step's preset hints name Reels, TikTok, Shorts, Instagram and Facebook (`frame_controls.dart`), so that screen stays out of screenshots unless the hints are changed (the owner's call; the dead "WhatsApp Status may cut it" warning in `fine_tune_screen.dart` is never shown).
+- **Claims:** no "best", "#1", rankings or prices in the name or icon; describe only what the app does. Say that writing lyrics needs a free Groq key and sends the audio to Groq, and that clips without lyrics need nothing.
+- **Drafts (no brands):**
+  - Name: Status Studio. Apple subtitle (30): "Lyric clips for your status". Play short description (80): "Turn your own videos into short lyric clips for your status, in any language."
+  - Apple keywords (100): `status,lyrics,captions,video,clip,urdu,arabic,naat,subtitles,story,reel,editor`.
+  - Full description: "Status Studio turns a video you have already trimmed into a short, captioned clip. Share a video in or pick one from your gallery. Get the lyrics written for you by Groq's speech-to-text with your own free Groq key, in Urdu, Arabic, Punjabi, Persian, Hindi, Bengali or English, or make the clip without lyrics. Fine-tune each line to half a second, choose who stays in frame in every scene, pick a size (9:16, 4:5, 1:1, 16:9 or your own crop), style the caption, including Nastaliq for Urdu, and export. Save the clip to your gallery or share it. Your video stays on your phone: only the sound goes to Groq, and only after you agree. Use videos you have the right to share."
+- **Icon and graphics:** the Trim logo (§7); Play's feature graphic without other brands.
 
 ## 10. Spikes and measurements
 
@@ -734,7 +828,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M24 Clean voice | FFmpeg filters clean the audio before Groq (FR-26, §10 item 8) | Built and reviewed, branch `m24-clean-voice` (stacked on M23), pushed, not merged; the lyrics check (§10 item 8) ran and failed: cleaned 43.2 % against raw 42.3 % on the reference clip, so the filters are unproven; tests not run |
 | M25 Choose per scene | At every scene the user picks a face, a body or a fixed spot (FR-27) | Built and reviewed (Opus, several passes), branch `m25-choose-per-scene` (stacked on M24), pushed, not merged. The spike ran on the Redmi (§10 item 7: ML Kit pose no-go, EfficientDet-Lite0 used; APK +11.4 MB accepted by the owner). The owner confirmed on the phone (2026-11-06) that the faces, bodies and spots walk works. Fixed on the way, from phone logs: exact Cut keyframe timing, the preview players released before Caption and Export (decoder error -12), preferences lost after a service ends (§5), Export's Retry after a failed save. Tests not run (the user tests; stale ones in §12); device checks pending (§14) |
 | M26 iOS | iOS build, Share Extension, AVFoundation renderer, background work (§10 item 9) | Built, branch `m26-ios` (stacked on M25), pushed, merged into `dev` (2026-11-10). `fvm flutter build ios --no-codesign` succeeds (§10 item 9). The Share Extension, the AVFoundation renderer and the iOS background work were **never run**: they need an iPhone and the Apple Developer account (signing, the App Group). Opus reviewed tasks 1–4; tasks 5–7 and the whole branch were not reviewed at the owner's request. Tests not run (the owner tests; stale and new ones in §12); device checks pending (§14) |
-| M27 Store readiness | Consent, privacy policy, store answers and release builds for Play and the App Store (§9) | Planned, branch `m27-store-readiness` (stacked on M26) |
+| M27 Store readiness | Consent, privacy policy, store answers and release builds for Play and the App Store (§9) | Built, branch `m27-store-readiness` (from `dev`, which holds M26 and M28), pushed, not merged. Consent before Groq (FR-30), no battery-optimisation request, §9.1–9.3, a privacy manifest, a signed Play bundle and an unsigned iOS archive. Pending the owner: policy hosting, the store forms, and the Apple account for signing and TestFlight (§14). Tests not run; device checks pending (§14) |
 | M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`), merged into `dev`; tests not run; device checks pending (§14) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
@@ -953,14 +1047,18 @@ Request, 2026-11-05: the app must also build for iOS. Stacked on M25. Xcode and 
 
 ### M27 tasks (branch `m27-store-readiness`)
 
-Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone nothing downloads third-party media or runs code fetched at runtime, which was the blocker in both stores; what remains is policy hygiene. Stacked on M26. Same execution model as M23. Each task: test first where code allows, one commit, tick it.
+Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone nothing downloads third-party media or runs code fetched at runtime, which was the blocker in both stores; what remains is policy hygiene. Branched from `dev` on 2026-11-10 (the owner's choice: `dev` already holds M26 and M28, so consent covers FR-29's path too), not stacked on `m26-ios`. Tests are the owner's; `fvm flutter analyze lib tool` only (plus the Kotlin compile and the iOS build where native code changes). One commit per task.
 
-- [ ] **1. Consent before the first Groq upload.** A one-time screen says the audio is sent to Groq, a third-party AI service, with the user's key, to write the lyrics; the user agrees or cancels. The answer is kept and Settings can withdraw it. (App Store guideline 5.1.2(i); Play User Data policy.)
-- [ ] **2. Drop `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`** and its prompt (`background_work_platform.dart`); Play allows it only for listed uses. Keep `FOREGROUND_SERVICE_DATA_SYNC` (uploading to Groq) and write its Play Console justification in §9. Update FR-16 and the Settings rows.
-- [ ] **3. Privacy policy text in §9.** What is stored on the phone, that audio and the Fix with Groq lines go to Groq, the key in secure storage, no analytics. It needs a public URL; the repo is private, so the user chooses where to host it.
-- [ ] **4. Store answers in §9.** Play Data safety (audio shared with a third party for app functionality, not collected by us, no account); the Apple App Privacy label; export compliance (HTTPS only, exempt); content rating.
-- [ ] **5. Listing rules in §9.** No "YouTube" or "WhatsApp" in the name, description or screenshots, and neither brand's logo; screenshots use the user's own footage; "Status" alone is fine.
-- [ ] **6. Release builds.** A signed Play App Bundle (`fvm flutter build appbundle`) and an iOS archive for TestFlight.
+- [x] **1. Consent before the first Groq upload.** A one-time screen says the audio is sent to Groq, a third-party AI service, with the user's key, to write the lyrics; the user agrees or cancels. The answer is kept and Settings can withdraw it. (App Store guideline 5.1.2(i); Play User Data policy.) Done as FR-30: `GroqConsentStore` (shared preferences, only an agreement is kept) and `groqConsentProvider`; `GroqClient` takes a required `beforeUpload` that the app sets to the consent check, so no audio piece and no Fix request is sent without it; the pipeline checks it after the key and before cleaning; Processing opens the consent screen by itself and offers Continue, Fix with Groq and the Lyrics footer's Retry open it; Settings has the "Sending to Groq" row with Withdraw; §8 has the message. Also corrected in Settings: the Groq hint still said "when a video has no captions" and "the link", so it now reads as FR-12a's privacy note. `tool/voice_check.dart` passes a no-op `beforeUpload` (the owner's own audio). Tests not run. **New tests for the owner:** the "Store readiness (M27)" cases in §13; any test that builds a `GroqClient` now passes `beforeUpload`.
+- [x] **2. Drop `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`** and its prompt (`background_work_platform.dart`); Play allows it only for listed uses. Keep `FOREGROUND_SERVICE_DATA_SYNC` (uploading to Groq) and write its Play Console justification in §9. Update FR-16 and the Settings rows. Done: the manifest removes the permission with `tools:node="remove"` (no plugin declares it today; this keeps it out if one starts to); `runsUnrestricted` and `askToRunUnrestricted` are gone from `BackgroundWorkPlatform` and both platforms (iOS's class keeps the rest unchanged); `BackgroundAccess.askOnce` asks for notifications only and `status()` became `notificationsEnabled()`; Settings shows the notification row, the Xiaomi hint and Open App info. FR-16 and §9 (two rows: battery optimisation, and the `dataSync` declaration text) updated. Tests not run. **Tests for the owner:** the new §13 background access case; any fake `BackgroundWorkPlatform` drops the two methods, and Settings tests that looked for "Battery optimisation" go.
+- [x] **3. Privacy policy text in §9.** What is stored on the phone, that audio and the Fix with Groq lines go to Groq, the key in secure storage, no analytics. It needs a public URL; the repo is private, so the user chooses where to host it. Done: §9.1. Found on the way: "no analytics" is true of our code but not of the SDKs, because Google ML Kit sends anonymous usage and performance metrics with a per-installation ID; the policy says so and §4's privacy line is corrected. **Pending, the owner's:** where to host it, the effective date and the contact address, and then a Settings row that copies the URL (Play wants the policy reachable in the app).
+- [x] **4. Store answers in §9.** Play Data safety (audio shared with a third party for app functionality, not collected by us, no account); the Apple App Privacy label; export compliance (HTTPS only, exempt); content rating. Done: §9.2. Two departures from the text above: by Play's definitions the audio is *collected* (it leaves the phone through the app), not shared (the user sends it, by their own action, to a service they chose), and ML Kit's metrics add Diagnostics, performance data and Device IDs to both forms. Added to the iOS project: `ios/Runner/PrivacyInfo.xcprivacy` in the Runner target (with the `xcodeproj` gem), which declares the disk-space and file-timestamp APIs `ShareInbox.swift` uses (App Store Connect rejects an upload without it), and `ITSAppUsesNonExemptEncryption` = NO in `ios/Runner/Info.plist`. `fvm flutter build ios --no-codesign` builds (`Runner.app` 132.9 MB) with the manifest in the bundle and the key in its Info.plist. Tests not run.
+- [x] **5. Listing rules in §9.** No "YouTube" or "WhatsApp" in the name, description or screenshots, and neither brand's logo; screenshots use the user's own footage; "Status" alone is fine. Done: §9.3, with drafts of the subtitle, short and full description and keywords. Found: the Size step's preset hints name Reels, TikTok, Shorts, Instagram and Facebook; not changed (product copy, the owner's call), so that screen stays out of screenshots. `README.md` still describes the YouTube app; it is not a listing and was left.
+- [x] **6. Release builds.** A signed Play App Bundle (`fvm flutter build appbundle`) and an iOS archive for TestFlight. Done here (2026-11-10), as far as this Mac allows:
+  - **Play:** `fvm flutter build appbundle --release` builds `app-release.aab` (164.9 MB with all three ABIs; each phone downloads one), signed with the upload key from `android/key.properties` (verified, and not the debug key), version 0.1.0 (1), targetSdk 36. Every arm64 native library has 16 KB-aligned LOAD segments (`libflutter.so` and `libapp.so` 64 KB, the rest 16 KB, `libtensorflowlite_*` included), which settles §15's open question. **Merged-manifest permissions:** `INTERNET`, `ACCESS_NETWORK_STATE` (Media3), `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`, `WAKE_LOCK`, `POST_NOTIFICATIONS`, `VIBRATE` (notifications), `RECEIVE_BOOT_COMPLETED` (`flutter_foreground_task`'s boot receiver; it starts nothing, because auto-run on boot is off), `WRITE_EXTERNAL_STORAGE` up to Android 10, and the AndroidX dynamic-receiver permission. **Fixed:** `litert-gpu-api` (from `tflite_flutter`) declares no targetSdk, so the merger added `READ_PHONE_STATE` and `READ_EXTERNAL_STORAGE`, which Play treats as sensitive; the manifest now removes both (`tools:node="remove"`). `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is gone (task 2).
+  - **iOS:** `fvm flutter build ipa --no-codesign` builds `build/ios/archive/Runner.xcarchive` (289 MB). `ShareExtension.appex` is in `Runner.app/PlugIns`, bundle ID `com.hotmail.arehmananis.statusstudio.ShareExtension` (the app's ID plus a suffix, as required), with the app's version 0.1.0 (1); both entitlement files hold the same App Group `group.com.hotmail.arehmananis.statusstudio`, which `SharedIncoming.groupIdentifier` matches; deployment target 15.5 on both; the privacy manifest and `ITSAppUsesNonExemptEncryption` are in the app. **Fixed:** the ShareExtension target had no `DEVELOPMENT_TEAM` while Runner has one, so automatic signing would have stopped the archive ("requires a development team"); the extension now uses Runner's team (set with the `xcodeproj` gem).
+  - **Not done, needs the Apple Developer account (§14):** the signed archive, the App ID and App Group registration, the provisioning profiles for both targets, and the TestFlight upload. Not attempted here and no credentials were asked for.
+  - Each later upload needs a higher build number (`version:` in `pubspec.yaml`). Tests not run.
 
 ### M28 tasks (branch `m28-lyrics-optional`)
 
@@ -1130,7 +1228,7 @@ Request, 2026-11-10: "Make lyrics optional". The owner chose to skip lyrics enti
   - `ShareInbox.collect`: a finished share folder becomes a file in the staging folder named `<id>-<name>` with a `video/*` type and a fresh modification date; a `.part` folder and a hidden file are left alone; a `.failed` report becomes a failure with its code (and `copy_failed` when unreadable) and is deleted; stale entries older than a day are deleted in both folders.
   - `ShareDeliveries`: pushed while Dart listens, kept otherwise, `startListening` returns what was kept once.
   - The importer treats `Directory.systemTemp` as the picker's folder on iOS only (needs a fake platform).
-  - `IosBackgroundWorkPlatform`: `runsUnrestricted` is true and asking does nothing; `show` and `stop` call `beginBackgroundTask` and `endBackgroundTask` on `status_studio/system`; permission calls answer false when the plugin is missing. Settings on iOS shows the notification row and no battery row.
+  - `IosBackgroundWorkPlatform`: (`runsUnrestricted` and `askToRunUnrestricted` went in M27) `show` and `stop` call `beginBackgroundTask` and `endBackgroundTask` on `status_studio/system`; permission calls answer false when the plugin is missing. Settings on iOS shows the notification row and no battery row.
 
 **Without lyrics (M28, FR-29):**
 - `ReelDraft.withoutLyrics` drops the transcript, selection and caption text, keeps the clip, frame and caption position and size, and sets the clip to the whole video when there was none.
@@ -1138,6 +1236,17 @@ Request, 2026-11-10: "Make lyrics optional". The owner chose to skip lyrics enti
 - Source: Make it without lyrics is off until a video is chosen; it opens Fine-tune without starting a script and cancels a running one. A shared video starts no script.
 - Fine-tune · Video without lyrics says "Step 2 of 3" and "Next: caption", and opens Caption; with lyrics it still opens Lyrics.
 - Caption without lyrics hides the variant chips and shows the optional hint; Export's summary says "No caption" for an empty caption.
+
+**Store readiness (M27):**
+- `GroqConsentStore`: not given at first; `give` makes `isGiven` true; `withdraw` makes it false; `requireGiven` throws `NoGroqConsentException` unless given.
+- `GroqClient.transcribe` and `fixScript` call `beforeUpload` before sending, and send nothing (the fake `HttpClient` sees no request) when it throws; `checkKey` doesn't call it.
+- `RealScriptPipeline`: no key gives `NoGroqKeyException` even without consent; a key without consent gives `NoGroqConsentException` before any audio work (the fake `AudioPreparer` is not called); a saved script opens without consent.
+- Withdrawing during a run: the next piece throws `NoGroqConsentException` and the pieces already written stay saved.
+- Processing: a consent failure opens the consent screen once; Agree starts the run again; Not now shows the §8 message with Continue and Back.
+- Fix with Groq without consent opens the consent screen; Agree sends; Not now sends nothing and changes no line.
+- Settings: "Sending to Groq" reads "Allowed" with Withdraw after agreeing, and Withdraw turns it to "Not allowed: …".
+
+- Background access: `askOnce` asks for notifications only, once; Settings shows the notification row and no battery row on Android too.
 
 ## 14. Device checks
 
@@ -1199,7 +1308,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Each §8 condition shows its message and actions.
   - [ ] The full smoke test, from link to share.
 - **Background:**
-  - [ ] Notification and battery prompts each come once.
+  - [ ] The notification prompt comes once (the battery prompt went in M27).
   - [ ] Locking within 2 s of starting still finishes the run.
   - [ ] The notification survives Home, lock and dialogs, and goes when the app is swiped away.
   - [ ] The step and percent update.
@@ -1208,7 +1317,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Airplane mode while hidden gives "Script stopped".
   - [ ] No result notification while the app is on screen.
   - [ ] Export over a running script: the notification switches and the service stops last.
-  - [ ] Redmi with the default battery saver; note whether "No restrictions" was needed.
+  - [ ] Redmi with the default battery saver; note whether "No restrictions" was needed (since M27 the app doesn't ask; only the Settings hint points to App info).
   - [ ] The Background work rows update after "Allow".
   - [ ] Small plus the service on a 4 GB phone without running out of memory.
   - [ ] The notification icon isn't a white square.
@@ -1294,8 +1403,19 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] The simulator can't run face detection or FFmpeg on arm64 (§10 item 9); everything here is a device check.
 
 **Store readiness (M27):**
-- [ ] The consent screen shows before the first Groq upload, and Settings can withdraw it.
-- [ ] No battery-optimisation prompt is left; the service still runs a long script.
+- [ ] With a key and no consent, Get the script opens the consent screen before "Cleaning the voice"; Not now leaves Processing with Continue and Back and nothing reaches Groq (check with the phone offline: no offline error, because no send was tried).
+- [ ] Agree, then the script is written; a second video asks nothing.
+- [ ] Withdraw in Settings, then Fix with Groq: the consent screen opens; Not now leaves the lines.
+- [ ] Withdraw during a long script: it stops before the next piece; Retry on the Lyrics footer asks again and resumes from the saved piece.
+- [ ] Without a key: Get the script shows the no-key message, not the consent screen. Make it without lyrics never asks.
+- [ ] The consent screen and the Settings row on a small phone, and on iOS.
+- [ ] Before the first App Store submission: Xcode's privacy report for the archive (Organizer → Generate Privacy Report) matches §9.2's label, and App Store Connect accepts the build without ITMS-91053 or an encryption question.
+- [ ] The privacy policy URL opens without signing in, and Play Console's and App Store Connect's forms are filled from §9.2.
+- [ ] **Apple account (pending, could not run here):** register the App ID and `…statusstudio.ShareExtension`, both with the App Group `group.com.hotmail.arehmananis.statusstudio`; archive in Xcode with automatic signing (team as in the project); upload to TestFlight; install from TestFlight and run §14's iOS checks, sharing a video from Photos first (it needs the App Group).
+- [ ] **Play:** upload `app-release.aab` to internal testing; check Play Console's pre-launch report and the "App bundle explorer" permissions match task 6's list; a new personal developer account must run a closed test (12 testers, 14 days) before production.
+- [ ] Install the release bundle's APK (from internal testing) on the Pixel and the Redmi: the app opens, a script runs after consent, an export saves to the gallery.
+- [ ] No battery-optimisation prompt is left, Settings shows only the notification row, and the merged manifest of the release bundle has no `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (task 6 checks this).
+- [ ] A 5-minute script with the screen locked, on the Pixel and on the Redmi with default battery settings, still finishes without the exemption; if the Redmi pauses it, note it in §15 (the Settings hint is the answer).
 
 **Launch animation (M16), on both phones:**
 - [ ] Cold start from the launcher: dark background with the logo from the first moment, no white flash.
@@ -1323,11 +1443,12 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 
 - **iOS background work (M26):** iOS gives a script tens of seconds in the background and an export none (GPU work is refused in the background), so a long export needs the app in front; there is no ongoing progress notification. `ForegroundGate` waits on a state change, so an export interrupted by a phone call or a Control Centre pull-down also waits until the app is active again.
 - **iOS render (M26, from reading the code, not from a phone):** an iPhone HDR clip (10-bit HLG or Dolby Vision) is read as 8-bit Rec. 709, so its colours can look flat; no tone mapping is done. The renderer was never run, so every item under §14's iOS section is open.
+- **iOS launch image (found in M27):** `flutter build ipa` warns that the iOS launch image is still Flutter's placeholder, so iOS likely doesn't show FR-20's dark screen with the logo before Flutter starts. Not a store blocker; replace `LaunchImage` in `ios/Runner/Assets.xcassets` (or the launch storyboard's background) when iOS is next worked on.
 - (Removed in M23: there is no download; Processing's first step is "Preparing the audio".)
 - The language list shows both "English (detected)" and "English".
 - **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) (Gone in M23: the player holds the whole video, so timing a line anywhere needs no new file.) (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
 - **Moving crop (M19):** (a) Style's preview shows the first caption line whatever the time. (b) (Gone in M23: the player holds the whole video, so a keyframe outside the clip can be shown.)
 - **Clip over silence (M23):** when a trim leaves the clip over a stretch with no sung line, `linesInClip` selects every line (so Fix with Groq and Lyrics still have a script), which refills the caption with the whole script. The better rule is to select nothing and let Lyrics offer an empty list with "add a line"; not done because `PickedScript` needs a range.
 - **Preview timing (M25):** the Lyrics preview reads the crop from the playhead's estimated position (the platform reports about twice a second), so at a scene cut its crop can sit a few milliseconds off the picture while playing. The export reads each frame's own time and is exact (on the reference clip the detector's cut is the first new frame; a file whose first video timestamp is not 0 could still put FFmpeg's and Media3's clocks tens of milliseconds apart, which §14's frame-by-frame check would show). A fade at cuts was tried and removed at the owner's request.
-- **Bodies (M25):** the detector's output was only judged by eye on 11 frames; false positives on a clip with no person were not measured; a release build's times and the GPU or NNAPI delegates were not tried; the model loads on first use (about 0.8 s, twice per run: once for the pictures, once for the body phase); `tflite_flutter`'s native library has not been checked for 16 KB page alignment (a Play Store rule for newer targets, M27); the body anchor is provisional (§10 item 7).
+- **Bodies (M25):** the detector's output was only judged by eye on 11 frames; false positives on a clip with no person were not measured; a release build's times and the GPU or NNAPI delegates were not tried; the model loads on first use (about 0.8 s, twice per run: once for the pictures, once for the body phase); `tflite_flutter`'s native library is 16 KB page aligned (checked in M27 task 6); the body anchor is provisional (§10 item 7).
 - **Crowd shots (M25):** a shot with dozens of faces offers only the 6 biggest faces and the people the body detector finds (3 foreground people on the reference clip's crowd shots); a face in the crowd can't be chosen, but a spot can.

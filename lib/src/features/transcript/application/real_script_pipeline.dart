@@ -11,6 +11,7 @@ import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/data/audio_preparer.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
+import 'package:status_studio/src/features/transcript/data/groq_consent_store.dart';
 import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
 import 'package:status_studio/src/features/transcript/data/groq_transcriber.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
@@ -41,7 +42,8 @@ class ScriptPipelineServices {
   final Future<TranscriptStore> store;
 
   /// Groq's transcriber with the saved key; throws [NoGroqKeyException]
-  /// when there is none (FR-12a).
+  /// when there is none (FR-12a), then [NoGroqConsentException] when the
+  /// user hasn't agreed to sending (FR-30).
   final Future<GroqTranscriber> Function() groq;
 }
 
@@ -101,7 +103,8 @@ class RealScriptPipeline implements ScriptPipeline {
   }
 
   Stream<ScriptProgress> _write(SourceVideo video, TranscriptKey key) async* {
-    // Before any audio work: without a key there is nothing to wait for.
+    // Before any audio work: without a key or consent there is nothing to
+    // wait for.
     final groq = await services.groq();
     final keptVideo = await _keptVideo(video);
     final prepared = _PreparedPieces();
@@ -324,10 +327,24 @@ final realScriptPipelineProvider = Provider<ScriptPipeline>(
       sources: ref.watch(sourceCacheProvider.future),
       audio: ref.watch(audioPreparerProvider),
       store: ref.watch(transcriptStoreProvider.future),
-      groq: () => _groqTranscriber(ref.read(groqKeyStoreProvider)),
+      groq: () => _groqTranscriber(
+        ref.read(groqKeyStoreProvider),
+        ref.read(groqConsentStoreProvider),
+      ),
     ),
   ),
 );
 
-Future<GroqTranscriber> _groqTranscriber(GroqKeyStore keys) async =>
-    GroqTranscriber(GroqClient(apiKey: await keys.savedKey()));
+/// The key comes first, so a user without one is sent to Settings before
+/// being asked for consent. The client checks consent again before every
+/// piece, so withdrawing it stops a running script at the next piece.
+Future<GroqTranscriber> _groqTranscriber(
+  GroqKeyStore keys,
+  GroqConsentStore consent,
+) async {
+  final apiKey = await keys.savedKey();
+  await consent.requireGiven();
+  return GroqTranscriber(
+    GroqClient(apiKey: apiKey, beforeUpload: consent.requireGiven),
+  );
+}

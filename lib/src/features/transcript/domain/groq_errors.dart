@@ -42,3 +42,12 @@ class NoGroqKeyException implements Exception {
   @override
   String toString() => 'NoGroqKeyException';
 }
+
+/// The user hasn't agreed to send audio or lines to Groq (spec FR-30).
+/// Thrown before anything is sent.
+class NoGroqConsentException implements Exception {
+  const NoGroqConsentException();
+
+  @override
+  String toString() => 'NoGroqConsentException';
+}

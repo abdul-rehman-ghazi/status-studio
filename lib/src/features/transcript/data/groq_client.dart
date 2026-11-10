@@ -40,6 +40,7 @@ class GroqSegment {
 class GroqClient {
   GroqClient({
     required this.apiKey,
+    required this.beforeUpload,
     this.model = scriptModel,
     Uri? baseUri,
     HttpClient? httpClient,
@@ -49,6 +50,11 @@ class GroqClient {
        _wait = wait ?? Future<void>.delayed;
 
   final String apiKey;
+
+  /// Runs before anything of the user's is sent, and throws to stop it: the
+  /// app passes the consent check (spec FR-30). [checkKey] sends nothing of
+  /// theirs, so it doesn't call this.
+  final Future<void> Function() beforeUpload;
 
   /// Only tool/voice_check.dart passes another model, to compare them.
   final String model;
@@ -70,6 +76,7 @@ class GroqClient {
     required String? languageCode,
     String? prompt,
   }) async {
+    await beforeUpload();
     final audio = await piece.readAsBytes();
     final boundary = 'studio${DateTime.now().microsecondsSinceEpoch}';
     final body = _multipartBody(
@@ -93,6 +100,7 @@ class GroqClient {
   /// The reply of Groq's web-search model to [prompt] (spec FR-19). Empty
   /// when the model answers with no text.
   Future<String> fixScript(String prompt) async {
+    await beforeUpload();
     final body = utf8.encode(
       jsonEncode({
         'model': _scriptFixModel,

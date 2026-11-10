@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,7 @@ import 'package:status_studio/src/features/transcript/application/script_pipelin
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -35,11 +38,28 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen> {
   @override
   void initState() {
     super.initState();
-    ref.listenManual(
-      scriptProgressProvider,
-      (_, next) => _record(next.value),
-      fireImmediately: true,
-    );
+    ref.listenManual(scriptProgressProvider, (previous, next) {
+      _record(next.value);
+      _askConsentOnArrival(previous, next);
+    }, fireImmediately: true);
+  }
+
+  /// The first upload needs the user's OK (FR-30): the run stops before
+  /// any audio work, and the consent screen opens by itself, once per
+  /// failure. "Continue" on the failure opens it again.
+  void _askConsentOnArrival(
+    AsyncValue<ScriptProgress>? previous,
+    AsyncValue<ScriptProgress> next,
+  ) {
+    if (next.error is! NoGroqConsentException ||
+        previous?.error is NoGroqConsentException) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_askConsentThenRetry(context, ref));
+      }
+    });
   }
 
   void _record(ScriptProgress? progress) {
@@ -179,6 +199,7 @@ class _RunSteps extends StatelessWidget {
 /// What a failed run offers, spec §8.
 enum _FailureAction {
   retry('Retry'),
+  consent('Continue'),
   settings('Settings'),
   back('Back'),
   anotherLanguage('Try another language');
@@ -192,6 +213,10 @@ List<_FailureAction> _actionsFor(Object error) {
   return switch (error) {
     NoSpeechFoundException() => [_FailureAction.anotherLanguage],
     InsufficientStorageException() => const [],
+    NoGroqConsentException() => const [
+      _FailureAction.consent,
+      _FailureAction.back,
+    ],
     NoGroqKeyException() || GroqKeyRejectedException() => const [
       _FailureAction.settings,
       _FailureAction.back,
@@ -234,19 +259,28 @@ class _RunFailed extends ConsumerWidget {
   void _perform(_FailureAction action, BuildContext context, WidgetRef ref) {
     switch (action) {
       case _FailureAction.retry:
-        _retry(ref);
+        _retryScript(ref);
+      case _FailureAction.consent:
+        unawaited(_askConsentThenRetry(context, ref));
       case _FailureAction.settings:
         context.push(AppRoutes.settings);
       case _FailureAction.back || _FailureAction.anotherLanguage:
         context.pop();
     }
   }
+}
 
-  void _retry(WidgetRef ref) {
-    final draft = ref.read(reelDraftProvider);
-    if (draft.video case final video?) {
-      ref.read(scriptProgressProvider.notifier).start(video, draft.language);
-    }
+void _retryScript(WidgetRef ref) {
+  final draft = ref.read(reelDraftProvider);
+  if (draft.video case final video?) {
+    ref.read(scriptProgressProvider.notifier).start(video, draft.language);
+  }
+}
+
+/// "Not now" leaves the failure on screen, with Continue and Back.
+Future<void> _askConsentThenRetry(BuildContext context, WidgetRef ref) async {
+  if (await askForGroqConsent(context)) {
+    _retryScript(ref);
   }
 }
 

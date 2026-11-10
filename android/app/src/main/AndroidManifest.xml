@@ -1,9 +1,19 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Scripts and exports keep running in the background (spec FR-16). The plugins add
          FOREGROUND_SERVICE, WAKE_LOCK and POST_NOTIFICATIONS themselves. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Play allows the battery-optimisation request only for listed uses (spec M27 task 2);
+         removed even if a plugin brings it in. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:node="remove" />
+    <!-- Implied by litert-gpu-api (tflite_flutter), which declares no targetSdk; the app uses
+         neither: shared videos come as content URIs and the picker needs no permission
+         (spec §9.2). -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
     <!-- gal saves reels to the gallery; only Android 10 and older need storage access. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"

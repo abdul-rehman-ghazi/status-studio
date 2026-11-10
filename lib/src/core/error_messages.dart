@@ -16,6 +16,8 @@ String errorMessageFor(Object error) {
     KeptVideoMissingException() => 'Video not found, choose it again.',
     NoSpeechFoundException() => 'No speech found in this video.',
     NoGroqKeyException() => 'Writing a script needs a free Groq key.',
+    NoGroqConsentException() =>
+      'Writing a script needs your OK to send the audio to Groq.',
     GroqKeyRejectedException() => "Groq didn't accept your API key.",
     GroqRateLimitedException(:final retryAfter) => _groqLimitMessage(
       retryAfter,
