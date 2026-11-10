@@ -833,7 +833,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`), merged into `dev`; tests not run; device checks pending (§14) |
 | M29 Free crop on the player | Edit the free crop over the video on Fine-tune · Video instead of a separate editor (FR-6) | Built, branch `m29-free-crop-on-player` (from `dev`), merged into `dev` with M30 (2026-11-10); tests not run; device checks pending (§14) |
 | M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | Built, branch `m30-crop-and-lyrics-flow` (stacked on M29), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
-| M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | In progress, branch `m31-av1-to-h264` (from `dev`) |
+| M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | Built, branch `m31-av1-to-h264` (from `dev`), pushed, not merged; tests not run; device checks pending (§14) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
