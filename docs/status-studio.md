@@ -339,6 +339,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - a **fixed spot**, a point the user taps, held for the whole scene.
 - **Never chosen for the user:** there is no "Choose for me", no automatic pick, and no carry-over of a choice to another scene by look-alike.
 - **Picture:** each scene shows its fullest frame (the one with the most faces, then the biggest), at the clip's aspect ratio.
+- **Markers (changed in M32):** each face and body box is drawn as its four corners only (2 dp, at most 12 dp long; faces in the accent colour, bodies in white), and its number ("1", "B1") is in a small tag just outside the box: above it, or below it when the box touches the top. Tapping the tag picks its face or body too. Until M32 the outline was whole and the number sat inside the box's top-left corner, covering small faces and the head of a body.
 - **Sheet:** a bottom sheet per scene.
   - Title "Scene 2 of 5 · 0:07–0:12". Hint "Tap a face, a body, or the spot to keep in frame."
   - A tap within 24 dp of a face picks that face (the nearest). A tap inside a body box picks that body. A tap anywhere else picks that spot, and a pin shows where before the next scene. A pick moves on to the next scene; the last pick ends the walk.
@@ -834,6 +835,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M29 Free crop on the player | Edit the free crop over the video on Fine-tune · Video instead of a separate editor (FR-6) | Built, branch `m29-free-crop-on-player` (from `dev`), merged into `dev` with M30 (2026-11-10); tests not run; device checks pending (§14) |
 | M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | Built, branch `m30-crop-and-lyrics-flow` (stacked on M29), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
 | M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | Built, branch `m31-av1-to-h264` (from `dev`), pushed, not merged; tests not run; device checks pending (§14) |
+| M32 Clear scene markers | Face and body boxes on the scene picture no longer cover the person: corners only, number tag outside (FR-27) | Built, branch `m32-clear-scene-markers` (stacked on M31), pushed, not merged; tests not run; device checks pending (§14) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1198,6 +1200,13 @@ The bundled FFmpeg (`ffmpeg_kit_flutter_new_min`, built with no external librari
 - [ ] **4. Tests (owner).** The §13 cases of task 1.
 - [x] **5. Conversion progress (asked 2026-11-10).** Done: the Kotlin compiles and the iOS app builds; not run on a phone. Native: the converter sends `{outputPath, value}` (0 to 1) every 250 ms on a new event channel, `status_studio/render/conversion` (Media3 `getProgress`; `AVAssetExportSession.progress` on iOS). Dart: `convertToH264` takes `onProgress` and listens on one shared broadcast stream, keeping only its own `outputPath`'s events. `importVideo`'s `onConverting` becomes `onConversionProgress(double fraction)`, called with 0 when a conversion starts. The Source card's bar fills and the text reads "Converting this AV1 video so the app can edit it… 42 %". §13 case: the importer passes the converter's fractions to `onConversionProgress`, starting at 0.
 
+### M32 tasks (branch `m32-clear-scene-markers`)
+
+Found on the phone (2026-11-10): the face and body boxes on the scene picture hid the person. The number badge sat inside each box's top-left corner and covered most of a small face, and the head of a body. The owner chose corners only, with the number in a tag outside the box, from four mockups (the others were a thin outline with the tag outside, numbers in chips under the picture, and hold to hide the markers).
+
+- [x] **1. Corners and outside tags (FR-27).** `person_chooser_sheet.dart`: `_CornersPainter` draws the four corners; `_Tag` holds the number above the box (below it at the top edge, kept inside the picture's width) and picks its face or body on a tap, hidden from screen readers since the marker is the button. Tags are drawn after every box. FR-27 and §14 updated. `fvm flutter analyze` clean; tests not run.
+- [ ] **2. Tests (owner).** §13: a tag sits above its box, and below it when the box touches the top; tapping a tag picks its face or body; the screen reader still finds "Person 1" and "Body 1" once each.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1401,6 +1410,11 @@ The bundled FFmpeg (`ffmpeg_kit_flutter_new_min`, built with no external librari
 - A failed conversion throws `VideoNotConvertibleException` and leaves no `converting.mp4`; `errorMessageFor` gives the §8 copy.
 - An H.264 import never calls the converter.
 - An AV1 import passes the converter's fractions to `onConversionProgress`, starting at 0.
+
+**Clear scene markers (M32):**
+- A face box with room above gets its tag above it; one touching the top gets it below.
+- Tapping a face's tag picks that face; tapping a body's tag picks that body.
+- The screen reader finds "Person 1" and "Body 1" once each (the tags are hidden from it).
 
 ## 14. Device checks
 
@@ -1617,6 +1631,11 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] The converted copy: the picture is turned the right way, the sound is in sync, and the export matches what Fine-tune shows.
 - [ ] Record how long a 60 s 1080p AV1 video takes to convert on the Redmi Note 11.
 - [ ] An AV1 video on an iPhone without AV1 hardware: the §8 message, not a crash.
+
+**Clear scene markers (M32):**
+- [ ] Follow the person on a close-up and on a crowd shot: every face and body shows only its corners, and no number tag covers a face; the people are clear to see.
+- [ ] A face at the top edge: its tag sits below the box. A face at the right edge: its tag stays inside the picture.
+- [ ] Tapping a tag picks that face or body; tapping inside a box still picks it.
 
 ## 15. Known issues (found on the phone, not fixed)
 

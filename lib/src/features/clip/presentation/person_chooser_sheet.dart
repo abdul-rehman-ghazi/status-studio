@@ -24,6 +24,16 @@ const _smallestTarget = 48.0;
 const _pinShown = Duration(milliseconds: 450);
 const _pinSize = 28.0;
 
+/// A marker's number sits in a tag outside its box, so nothing covers the
+/// face or body itself (M32).
+const _tagHeight = 18.0;
+const _tagGap = 2.0;
+
+/// Room kept for a tag at the picture's right edge; "B12" fits.
+const _widestTag = 34.0;
+const _cornerStroke = 2.0;
+const _longestCorner = 12.0;
+
 /// Asks what the crop should keep in frame in one scene: its fullest frame,
 /// with a numbered outline on every face and body (spec FR-27). It answers
 /// once, through [onAnswered], and whatever shows it closes it with that
@@ -231,6 +241,15 @@ class _Picture extends StatelessWidget {
     return smallest;
   }
 
+  /// Just above the box, or just below it when there is no room above;
+  /// kept inside the picture's width.
+  Offset _tagPlaceFor(Rect box) {
+    final above = box.top - _tagGap - _tagHeight;
+    final top = above >= 0 ? above : box.bottom + _tagGap;
+    final left = math.max(0.0, math.min(box.left, size.width - _widestTag));
+    return Offset(left, top);
+  }
+
   Rect _rectOf(SubjectBox box) => Rect.fromLTWH(
     box.left * size.width,
     box.top * size.height,
@@ -282,24 +301,27 @@ class _Picture extends StatelessWidget {
             ),
             for (final (index, body) in choosing.bodies.indexed)
               _Marker(
-                style: _MarkerStyle(
-                  label: 'Body ${index + 1}',
-                  badge: 'B${index + 1}',
-                  color: AppColors.textPrimary,
-                  badgeTextColor: AppColors.background,
-                ),
+                style: _bodyStyle(index),
                 rect: _rectOf(body),
                 onTap: () => onBody(index),
               ),
             for (final (index, face) in choosing.faces.indexed)
               _Marker(
-                style: _MarkerStyle(
-                  label: 'Person ${index + 1}',
-                  badge: '${index + 1}',
-                  color: AppColors.accent,
-                  badgeTextColor: AppColors.onAccent,
-                ),
+                style: _faceStyle(index),
                 rect: _rectOf(face),
+                onTap: () => onFace(index),
+              ),
+            // Tags after every box, so no box's corners are drawn over one.
+            for (final (index, body) in choosing.bodies.indexed)
+              _Tag(
+                style: _bodyStyle(index),
+                at: _tagPlaceFor(_rectOf(body)),
+                onTap: () => onBody(index),
+              ),
+            for (final (index, face) in choosing.faces.indexed)
+              _Tag(
+                style: _faceStyle(index),
+                at: _tagPlaceFor(_rectOf(face)),
                 onTap: () => onFace(index),
               ),
             if (pin case final spot?) _Pin(at: spot, size: size),
@@ -309,6 +331,20 @@ class _Picture extends StatelessWidget {
     );
   }
 }
+
+_MarkerStyle _bodyStyle(int index) => _MarkerStyle(
+  label: 'Body ${index + 1}',
+  badge: 'B${index + 1}',
+  color: AppColors.textPrimary,
+  badgeTextColor: AppColors.background,
+);
+
+_MarkerStyle _faceStyle(int index) => _MarkerStyle(
+  label: 'Person ${index + 1}',
+  badge: '${index + 1}',
+  color: AppColors.accent,
+  badgeTextColor: AppColors.onAccent,
+);
 
 /// How a marker reads: to the eye and to a screen reader.
 class _MarkerStyle {
@@ -350,20 +386,71 @@ class _Marker extends StatelessWidget {
           child: SizedBox(
             width: rect.width,
             height: rect.height,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(color: style.color, width: 2),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: _Badge(
-                  text: style.badge,
-                  color: style.color,
-                  textColor: style.badgeTextColor,
-                ),
-              ),
-            ),
+            child: CustomPaint(painter: _CornersPainter(style.color)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Only the four corners of a box, so the person inside stays visible.
+class _CornersPainter extends CustomPainter {
+  const _CornersPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final reach = math.min(_longestCorner, size.shortestSide * 0.3);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _cornerStroke
+      ..strokeCap = StrokeCap.round;
+    final corners = Path()
+      ..moveTo(0, reach)
+      ..lineTo(0, 0)
+      ..lineTo(reach, 0)
+      ..moveTo(size.width - reach, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, reach)
+      ..moveTo(size.width, size.height - reach)
+      ..lineTo(size.width, size.height)
+      ..lineTo(size.width - reach, size.height)
+      ..moveTo(reach, size.height)
+      ..lineTo(0, size.height)
+      ..lineTo(0, size.height - reach);
+    canvas.drawPath(corners, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CornersPainter oldDelegate) => oldDelegate.color != color;
+}
+
+/// A marker's number, outside its box. The marker is the screen reader's
+/// button, so the tag is hidden from it.
+class _Tag extends StatelessWidget {
+  const _Tag({required this.style, required this.at, required this.onTap});
+
+  final _MarkerStyle style;
+  final Offset at;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: at.dx,
+      top: at.dy,
+      height: _tagHeight,
+      child: ExcludeSemantics(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: _Badge(
+            text: style.badge,
+            color: style.color,
+            textColor: style.badgeTextColor,
           ),
         ),
       ),
@@ -387,16 +474,19 @@ class _Badge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color,
-        borderRadius: const BorderRadius.only(bottomRight: Radius.circular(6)),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Center(
+          widthFactor: 1,
+          child: Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
