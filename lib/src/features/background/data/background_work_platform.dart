@@ -24,12 +24,6 @@ abstract interface class BackgroundWorkPlatform {
 
   Future<bool> notificationsEnabled();
 
-  /// Whether Android exempts the app from battery optimisation.
-  Future<bool> runsUnrestricted();
-
-  /// Android's "Let app always run in background?" dialog.
-  Future<void> askToRunUnrestricted();
-
   /// The app's page in system Settings.
   Future<void> openAppInfo();
 }
@@ -106,14 +100,6 @@ class PluginBackgroundWorkPlatform implements BackgroundWorkPlatform {
   Future<bool> notificationsEnabled() async =>
       await FlutterForegroundTask.checkNotificationPermission() ==
       NotificationPermission.granted;
-
-  @override
-  Future<bool> runsUnrestricted() =>
-      FlutterForegroundTask.isIgnoringBatteryOptimizations;
-
-  @override
-  Future<void> askToRunUnrestricted() =>
-      FlutterForegroundTask.requestIgnoreBatteryOptimization();
 
   @override
   Future<void> openAppInfo() => _system.invokeMethod<void>('openAppSettings');

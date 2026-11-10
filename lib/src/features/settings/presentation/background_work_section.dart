@@ -7,13 +7,12 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/background/application/background_access.dart';
 
-final _accessStatusProvider =
-    FutureProvider.autoDispose<BackgroundAccessStatus>(
-      (ref) => ref.watch(backgroundAccessProvider).status(),
-    );
+final _notificationsEnabledProvider = FutureProvider.autoDispose<bool>(
+  (ref) => ref.watch(backgroundAccessProvider).notificationsEnabled(),
+);
 
-/// Whether Android lets scripts and exports run in the background, with a
-/// way to allow what isn't (spec FR-16).
+/// Background work and whether its notifications are on, with a way to
+/// allow them (spec FR-16).
 class BackgroundWorkSection extends ConsumerStatefulWidget {
   const BackgroundWorkSection({super.key});
 
@@ -31,7 +30,7 @@ class _BackgroundWorkSectionState extends ConsumerState<BackgroundWorkSection> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(
-      onResume: () => ref.invalidate(_accessStatusProvider),
+      onResume: () => ref.invalidate(_notificationsEnabledProvider),
     );
   }
 
@@ -44,7 +43,7 @@ class _BackgroundWorkSectionState extends ConsumerState<BackgroundWorkSection> {
   @override
   Widget build(BuildContext context) {
     final access = ref.read(backgroundAccessProvider);
-    final status = ref.watch(_accessStatusProvider).value;
+    final notificationsOn = ref.watch(_notificationsEnabledProvider).value;
     final onIos = defaultTargetPlatform == TargetPlatform.iOS;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,8 +58,7 @@ class _BackgroundWorkSectionState extends ConsumerState<BackgroundWorkSection> {
               : 'Keeps writing scripts and exporting when you leave the app '
                     'or lock the phone.',
         ),
-        if (status != null) _notificationsRow(access, status),
-        if (status != null && !onIos) _batteryRow(access, status),
+        if (notificationsOn != null) _notificationsRow(access, notificationsOn),
         const SizedBox(height: 8),
         if (!onIos)
           const HintText(
@@ -75,34 +73,20 @@ class _BackgroundWorkSectionState extends ConsumerState<BackgroundWorkSection> {
     );
   }
 
-  Widget _notificationsRow(
-    BackgroundAccess access,
-    BackgroundAccessStatus status,
-  ) => _AccessRow(
-    title: 'Notifications',
-    subtitle: status.notifications
-        ? 'On'
-        : "Off: you won't hear when work is done",
-    onAllow: status.notifications
-        ? null
-        : () => unawaited(_allow(access.allowNotifications)),
-  );
-
-  /// Android only: iOS has no battery optimisation to switch off.
-  Widget _batteryRow(BackgroundAccess access, BackgroundAccessStatus status) =>
+  Widget _notificationsRow(BackgroundAccess access, bool notificationsOn) =>
       _AccessRow(
-        title: 'Battery optimisation',
-        subtitle: status.unrestricted
-            ? 'Off: work keeps going with the screen locked'
-            : 'On: Android may pause work in the background',
-        onAllow: status.unrestricted
+        title: 'Notifications',
+        subtitle: notificationsOn
+            ? 'On'
+            : "Off: you won't hear when work is done",
+        onAllow: notificationsOn
             ? null
-            : () => unawaited(_allow(access.allowUnrestricted)),
+            : () => unawaited(_allowNotifications(access)),
       );
 
-  Future<void> _allow(Future<void> Function() request) async {
-    await request();
-    ref.invalidate(_accessStatusProvider);
+  Future<void> _allowNotifications(BackgroundAccess access) async {
+    await access.allowNotifications();
+    ref.invalidate(_notificationsEnabledProvider);
   }
 }
 

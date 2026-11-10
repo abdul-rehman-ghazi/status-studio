@@ -55,13 +55,6 @@ class IosBackgroundWorkPlatform implements BackgroundWorkPlatform {
     return options?.isEnabled ?? false;
   }
 
-  /// There is no battery optimisation to switch off on iOS.
-  @override
-  Future<bool> runsUnrestricted() async => true;
-
-  @override
-  Future<void> askToRunUnrestricted() async {}
-
   @override
   Future<void> openAppInfo() => _system.invokeMethod<void>('openAppSettings');
 
