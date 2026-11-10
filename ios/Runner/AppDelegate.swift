@@ -11,9 +11,12 @@ import UIKit
   }
 
   private var videoIn: VideoInChannel?
+  private var render: RenderChannel?
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    videoIn = VideoInChannel(messenger: engineBridge.applicationRegistrar.messenger())
+    let messenger = engineBridge.applicationRegistrar.messenger()
+    videoIn = VideoInChannel(messenger: messenger)
+    render = RenderChannel(messenger: messenger)
   }
 }

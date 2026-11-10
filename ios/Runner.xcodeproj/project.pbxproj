@@ -12,6 +12,7 @@
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		34A772E183BC7D413A2B5C03 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 66569232A5110541AEA7084B /* Pods_Runner.framework */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		61A60567D0136DBE0FB19BA6 /* RenderJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC68D16BF7657A64A7329BF /* RenderJob.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		776FAF3CDB2BE73A4766ED48 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A2D43C1618A1C2B1B8F3501 /* Pods_RunnerTests.framework */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
@@ -22,10 +23,16 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		9ECD93A21493F1060C469635 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 55167EA80EC0AF1DF825ECA1 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A655517D6EDB0081CB1F47FA /* FrameComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D43438638E6AB492AFF6C771 /* FrameComposer.swift */; };
+		BDBA44884B214758C24B1973 /* RenderSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0796CBEB4F4FC8CDAC550B7 /* RenderSpec.swift */; };
+		C147486C119F3545A34343A7 /* MovingCropTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F5FCDBC40364BB53E7DF8CE /* MovingCropTests.swift */; };
 		D21F76A116976F711E36A727 /* VideoInChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71D8141BFF6D2E8A60DFE50C /* VideoInChannel.swift */; };
 		D2D591F3B5544FC81A9072D4 /* SharedIncoming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0557E776B0C0896081479 /* SharedIncoming.swift */; };
+		E69654BA2E04E0C132C48BA0 /* RenderChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F89314BF77894F91DE85E36C /* RenderChannel.swift */; };
 		EDD0DB070BBA24C89C197A0B /* ShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CC0E0C9CC9BB108FD65D50 /* ShareInbox.swift */; };
+		F14E0218565EEA8BDA81BA32 /* MovingCrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E6D5537038831F15C5C1B4C /* MovingCrop.swift */; };
 		F73DAB056F4662C4EA7C5CF9 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA7DAB6DFD9A17C8E07BA081 /* Foundation.framework */; };
+		FE9DFA10FB68F91F2E9FB7FF /* ReelRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822C0968E37478212B6DA94E /* ReelRenderer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,11 +81,14 @@
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		24CC0E0C9CC9BB108FD65D50 /* ShareInbox.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareInbox.swift; sourceTree = "<group>"; };
 		2BC3FD9BB729CC47190E84C8 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
+		2FC68D16BF7657A64A7329BF /* RenderJob.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RenderJob.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		38F25557B088FC4FCEE873BE /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		4314D5FD5E8F40FAFBC05C49 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		4E6D5537038831F15C5C1B4C /* MovingCrop.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MovingCrop.swift; sourceTree = "<group>"; };
+		4F5FCDBC40364BB53E7DF8CE /* MovingCropTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MovingCropTests.swift; sourceTree = "<group>"; };
 		55167EA80EC0AF1DF825ECA1 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		66569232A5110541AEA7084B /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B9BB1DAD5A6C8A1C6B2351E /* Runner.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
@@ -91,6 +101,7 @@
 		79B312F4F8A561FEE1C611F8 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		7A2D43C1618A1C2B1B8F3501 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		822C0968E37478212B6DA94E /* ReelRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReelRenderer.swift; sourceTree = "<group>"; };
 		89A0557E776B0C0896081479 /* SharedIncoming.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedIncoming.swift; sourceTree = "<group>"; };
 		8DC0E481CA1C3BCE8D84250E /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		92BB56117AAD36CDE8AC1F06 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
@@ -105,6 +116,9 @@
 		B9C3DD8E5896E490F7BBB848 /* ShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		BE2544A0FE7B6B9B408F94C5 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		C4975F6E96C2E918751F73DF /* ShareDeliveries.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareDeliveries.swift; sourceTree = "<group>"; };
+		D43438638E6AB492AFF6C771 /* FrameComposer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FrameComposer.swift; sourceTree = "<group>"; };
+		F0796CBEB4F4FC8CDAC550B7 /* RenderSpec.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RenderSpec.swift; sourceTree = "<group>"; };
+		F89314BF77894F91DE85E36C /* RenderChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RenderChannel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +162,7 @@
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
+				4F5FCDBC40364BB53E7DF8CE /* MovingCropTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -160,6 +175,20 @@
 				00D581D16E84571AB6BA4B3E /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		6E7806E54C3DF5D99947A7C7 /* Render */ = {
+			isa = PBXGroup;
+			children = (
+				4E6D5537038831F15C5C1B4C /* MovingCrop.swift */,
+				F0796CBEB4F4FC8CDAC550B7 /* RenderSpec.swift */,
+				D43438638E6AB492AFF6C771 /* FrameComposer.swift */,
+				2FC68D16BF7657A64A7329BF /* RenderJob.swift */,
+				822C0968E37478212B6DA94E /* ReelRenderer.swift */,
+				F89314BF77894F91DE85E36C /* RenderChannel.swift */,
+			);
+			name = Render;
+			path = Render;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -212,6 +241,7 @@
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				E2ACC6C8B286E5ACEF05DED8 /* VideoIn */,
 				6B9BB1DAD5A6C8A1C6B2351E /* Runner.entitlements */,
+				6E7806E54C3DF5D99947A7C7 /* Render */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -517,6 +547,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
+				C147486C119F3545A34343A7 /* MovingCropTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -540,6 +571,12 @@
 				85C09E59E79B38BF700F3DDF /* ShareDeliveries.swift in Sources */,
 				D21F76A116976F711E36A727 /* VideoInChannel.swift in Sources */,
 				D2D591F3B5544FC81A9072D4 /* SharedIncoming.swift in Sources */,
+				F14E0218565EEA8BDA81BA32 /* MovingCrop.swift in Sources */,
+				BDBA44884B214758C24B1973 /* RenderSpec.swift in Sources */,
+				A655517D6EDB0081CB1F47FA /* FrameComposer.swift in Sources */,
+				61A60567D0136DBE0FB19BA6 /* RenderJob.swift in Sources */,
+				FE9DFA10FB68F91F2E9FB7FF /* ReelRenderer.swift in Sources */,
+				E69654BA2E04E0C132C48BA0 /* RenderChannel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
