@@ -68,7 +68,8 @@ final class ShareInbox {
 
     private func outcome(for entry: URL) -> ShareOutcome? {
         let name = entry.lastPathComponent
-        if name.hasSuffix(SharedIncoming.unfinishedSuffix) { return nil }
+        // An atomic write leaves a hidden temporary file until it is renamed.
+        if name.hasPrefix(".") || name.hasSuffix(SharedIncoming.unfinishedSuffix) { return nil }
         if name.hasSuffix(SharedIncoming.failedSuffix) { return failure(in: entry) }
         return video(in: entry)
     }

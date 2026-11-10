@@ -66,14 +66,17 @@ final class ShareViewController: UIViewController {
             try copy(file, into: incoming)
             return nil
         } catch {
-            let failure = ShareFailure(
-                code: SharedIncoming.failureCode(of: error),
-                message: error.localizedDescription,
-                reachesApp: true
-            )
-            record(failure, in: incoming)
-            return failure
+            return recordedFailure(of: error, in: incoming)
         }
+    }
+
+    /// The report for the app, and the words for the sheet. Without a report the app would open
+    /// with nothing to show, so it is not opened.
+    private static func recordedFailure(of error: Error, in incoming: URL) -> ShareFailure {
+        let code = SharedIncoming.failureCode(of: error)
+        let message = code == "no_space" ? "Not enough space on your phone." : error.localizedDescription
+        let wasRecorded = record(code: code, message: message, in: incoming)
+        return ShareFailure(code: code, message: message, reachesApp: wasRecorded)
     }
 
     private static func copy(_ file: URL, into incoming: URL) throws {
@@ -91,12 +94,17 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private static func record(_ failure: ShareFailure, in incoming: URL) {
-        let report = ["code": failure.code, "message": failure.message]
-        guard let json = try? JSONSerialization.data(withJSONObject: report) else { return }
-        try? FileManager.default.createDirectory(at: incoming, withIntermediateDirectories: true)
+    private static func record(code: String, message: String, in incoming: URL) -> Bool {
+        let report = ["code": code, "message": message]
+        guard let json = try? JSONSerialization.data(withJSONObject: report) else { return false }
         let target = incoming.appendingPathComponent(UUID().uuidString + SharedIncoming.failedSuffix)
-        try? json.write(to: target, options: .atomic)
+        do {
+            try FileManager.default.createDirectory(at: incoming, withIntermediateDirectories: true)
+            try json.write(to: target, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
     }
 
     /// A failure stays on screen for a moment, so the person can read it before the sheet closes.
