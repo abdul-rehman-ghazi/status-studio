@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
+import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
@@ -146,7 +147,6 @@ class _RecentSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final textTheme = Theme.of(context).textTheme;
     final rows = _newestFirst(
       reels: ref.watch(recentReelsProvider).value ?? const [],
       scripts: ref.watch(savedScriptsProvider).value ?? const [],
@@ -155,11 +155,8 @@ class _RecentSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Recent',
-          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 12),
+        const SectionLabel('Recent'),
+        const SizedBox(height: 4),
         if (rows.isEmpty) const _EmptyRecent() else ...rows,
       ],
     );

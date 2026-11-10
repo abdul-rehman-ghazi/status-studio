@@ -5,6 +5,10 @@ import 'package:status_studio/src/features/source/presentation/shared_video_list
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
+/// The phone's text size is followed up to this, so every screen keeps
+/// its layout; the owner chose a cap over unlimited growth (spec §4, M34).
+const maxTextScale = 1.3;
+
 class StatusStudioApp extends ConsumerWidget {
   const StatusStudioApp({super.key});
 
@@ -20,7 +24,10 @@ class StatusStudioApp extends ConsumerWidget {
         final routed = SharedVideoListener(
           child: router ?? const SizedBox.shrink(),
         );
-        return splashEnabled ? LaunchSplash(child: routed) : routed;
+        return MediaQuery.withClampedTextScaling(
+          maxScaleFactor: maxTextScale,
+          child: splashEnabled ? LaunchSplash(child: routed) : routed,
+        );
       },
     );
   }

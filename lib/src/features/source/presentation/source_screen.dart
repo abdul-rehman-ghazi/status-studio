@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
@@ -58,7 +59,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
   Widget build(BuildContext context) {
     final hasVideo = _videoRequest != null;
     return Scaffold(
-      appBar: AppBar(title: const Text('New reel')),
+      appBar: AppBar(title: const ScreenTitle('New reel')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -198,14 +199,10 @@ class _VideoCard extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: _cardContent(
-          context,
-          snapshot,
-          switch (conversionFraction) {
-            final fraction? => _ConversionProgress(fraction: fraction),
-            null => const LinearProgressIndicator(),
-          },
-        ),
+        child: _cardContent(context, snapshot, switch (conversionFraction) {
+          final fraction? => _ConversionProgress(fraction: fraction),
+          null => const LinearProgressIndicator(),
+        }),
       ),
     );
   }

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/background/application/background_work.dart';
 import 'package:status_studio/src/features/export/application/export_notices.dart';
@@ -160,7 +161,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     final percent = (_fraction * 100).round();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Export'),
+        title: const ScreenTitle('Export'),
         automaticallyImplyLeading: false,
       ),
       body: Padding(

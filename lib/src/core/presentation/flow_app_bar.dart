@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// App bar for the numbered steps: title on the left, step on the right.
@@ -14,7 +15,7 @@ class FlowAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      title: Text(title),
+      title: ScreenTitle(title),
       actions: [
         Padding(
           padding: const EdgeInsets.only(right: 16),

@@ -404,6 +404,9 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Every start deletes folders whose name isn't a fingerprint ID (`v_` and 16 hex digits): old YouTube data.
 - **Data use:** nothing is downloaded. The only uploads are the cleaned script audio pieces (about 16 kHz mono FLAC) and the Fix with Groq lines, both to Groq.
 - **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key, and, when the user taps Fix with Groq (FR-19), the clip's lines and the video's name. The video itself never leaves the phone The SDKs send their own usage metrics: Google ML Kit's anonymous usage, performance and per-installation ID (§9.2, found in M27; the policy in §9.1 says so).
+- **Large text (M34):** the phone's text size is followed up to **1.3×** and no further (`maxTextScale` in `app.dart`, `MediaQuery.withClampedTextScaling`). The owner chose a cap over unlimited growth (2026-11-10), so every screen keeps its layout; users at the largest system sizes get less than they asked for. The reel preview and the export draw captions at a fixed size with no text scaling at all (`reel_preview.dart`).
+  - **App bar titles** stay on one line and shrink to the room left (`ScreenTitle`), next to the back button and the step label.
+  - **Type hierarchy:** section labels 16 sp semi-bold (`SectionLabel`, also "Recent" on Home and "Groq API key"), body text 14 sp, list rows 14 sp with 12 sp muted subtitles (the theme's `listTileTheme`), hints 12 sp muted (`HintText`). A section label is never smaller than what it holds. Android 14 and later scale small text more than large text (12 sp and 14 sp both end near 24 at 200%), which is why labels and body are two steps apart.
 
 ## 5. Architecture
 
@@ -856,7 +859,9 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | Built, branch `m30-crop-and-lyrics-flow` (stacked on M29), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
 | M31 AV1 to H.264 | An AV1 video is converted once to H.264 when it comes in, since the bundled FFmpeg can't decode AV1 (FR-1, §10 item 7) | Built, branch `m31-av1-to-h264` (from `dev`), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
 | M32 Clear scene markers | Face and body boxes on the scene picture no longer cover the person: corners only, number tag outside (FR-27) | Built, branch `m32-clear-scene-markers` (stacked on M31), merged into `dev` (2026-11-10); tests not run; device checks pending (§14) |
-| M33 Support and About | Settings gets Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`); tests not run; device checks pending (§14) |
+| M33 Support and About | Settings becomes a list with one screen per category; Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`), pushed, not merged; tests not run; device checks pending (§14) |
+| M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33); tests not run; device checks pending (§14) |
+| M35 Theme choice | Light, dark or system theme in Settings | Asked by the owner (2026-11-10); not started, design questions first |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1237,6 +1242,13 @@ Asked by the owner (2026-11-10): an About section, and a Support section for fee
 - [x] **4. One screen per Settings category (FR-31).** Asked by the owner the same day. `settings_screen.dart` is now the list; `settings_page.dart` shows one section under an app bar; routes `AppRoutes.groqSettings`, `backgroundSettings`, `supportSettings`, `aboutSettings` nest under `/settings`. `lyrics_tools.dart` and `script_run_section.dart` push the Groq key screen; `shared_video_listener.dart` counts the four as screens without a reel. `fvm flutter analyze` clean; tests not run. **Stale tests:** any that find "Background work", "Support" or "About" as section labels on Settings, or expect the no-key action to open `/settings`.
 - [ ] **2. Tests (owner).** §13 "Support and About (M33)". No existing test goes stale (there are no Settings tests). Tests that pump `SettingsScreen` must override `appVersionProvider` and `deviceDetailsReaderProvider`, which read the platform.
 
+### M34 tasks (branch `m34-large-text`)
+
+Found by the owner on a phone set to large text (2026-11-10): app bar titles overflowed, and descriptions looked larger than their section titles. The owner chose to cap the growth.
+
+- [x] **1. Cap, titles and hierarchy (§4).** `app.dart` clamps text scaling to `maxTextScale` (1.3). New `ScreenTitle` (`core/presentation/screen_title.dart`) on every app bar (Settings and its pages, Source, Fine-tune and Lyrics through `FlowAppBar`, the consent screen, Export, Done). `SectionLabel` goes from `titleSmall` (14) to `titleMedium` (16) semi-bold and gains `styleOf` for the Groq key heading; Home's "Recent" uses it. `AppTheme.dark()` sets `listTileTheme` (title `bodyMedium`, subtitle `bodySmall` muted). The bottom button bar (52 dp) and Home's 48 × 64 thumbnails stay fixed: at 1.3× their text fits. `fvm flutter analyze` clean; tests not run. **Stale tests:** golden or size checks on section labels, list rows or app bar titles, if any.
+- [ ] **2. Tests (owner).** §13 "Large text (M34)".
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1458,6 +1470,11 @@ Asked by the owner (2026-11-10): an About section, and a Support section for fee
 - About shows "Version <version> (<build>)" from the app's package details.
 - Settings lists Groq key, Background work, Support and About; tapping a row opens its screen.
 - The no-key Settings action on Lyrics and on Fix with Groq opens the Groq key screen.
+
+**Large text (M34):**
+- At a system text scale of 2.0, text is drawn at most 1.3× its size.
+- A long app bar title shrinks onto one line instead of wrapping.
+- A section label's font is larger than a list row's title in the same theme.
 
 ## 14. Device checks
 
@@ -1686,6 +1703,11 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] WhatsApp: the chat with +92 347 8330955 opens with the text filled in; on a phone without WhatsApp the browser opens wa.me.
 - [ ] Call opens the dialer with the number. An Urdu message survives Email and WhatsApp intact.
 - [ ] The details are right: on the Redmi Note 11 the processor reads "QTI SM6225 · arm64-v8a" (or its hardware name), RAM is near the phone's own figure, the screen matches its resolution, and Network changes between Wi-Fi, Mobile data and None (airplane mode).
+
+**Large text (M34), at the largest system font size, Android and iPhone:**
+- [ ] No app bar title wraps or is cut off; "Fine-tune · Lyrics" with its step label fits on one line.
+- [ ] Every section title reads larger than the text under it (Settings pages, Source, Fine-tune, Lyrics, Export).
+- [ ] No button label, list row or card is cut off; the caption preview matches the exported clip.
 
 ## 15. Known issues (found on the phone, not fixed)
 

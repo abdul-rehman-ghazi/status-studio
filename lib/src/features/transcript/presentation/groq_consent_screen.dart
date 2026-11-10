@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/features/transcript/application/groq_consent_controller.dart';
 
 const _points = [
@@ -51,7 +52,7 @@ class _GroqConsentScreenState extends ConsumerState<_GroqConsentScreen> {
     return Dialog.fullscreen(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Send audio to Groq?'),
+          title: const ScreenTitle('Send audio to Groq?'),
           automaticallyImplyLeading: false,
         ),
         body: ListView(

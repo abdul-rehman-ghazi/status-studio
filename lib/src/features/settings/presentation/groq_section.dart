@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/settings/application/groq_settings_controller.dart';
 import 'package:status_studio/src/features/settings/presentation/groq_key_help_sheet.dart';
 import 'package:status_studio/src/features/transcript/application/groq_consent_controller.dart';
@@ -163,11 +164,7 @@ class _Heading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          'Groq API key',
-          style: Theme.of(context).textTheme.titleSmall
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
+        Text('Groq API key', style: SectionLabel.styleOf(context)),
         IconButton(
           icon: const Icon(Icons.info_outline, size: 20),
           tooltip: 'How to get a free Groq key',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/features/about/data/device_details_reader.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
@@ -13,7 +14,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final versionShown = ref.watch(appVersionProvider).value?.shown;
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const ScreenTitle('Settings')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [

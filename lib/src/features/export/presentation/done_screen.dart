@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/export/data/reel_actions.dart';
 import 'package:status_studio/src/features/export/presentation/reel_player.dart';
@@ -29,7 +30,7 @@ class DoneScreen extends ConsumerWidget {
         ?.where((candidate) => candidate.id == reelId)
         .firstOrNull;
     return Scaffold(
-      appBar: AppBar(title: const Text('Done')),
+      appBar: AppBar(title: const ScreenTitle('Done')),
       body: switch ((reels.isLoading, reel)) {
         (_, final RecentReel found) => _ReelSummary(reel: found),
         (true, _) => const Center(child: CircularProgressIndicator()),
