@@ -69,10 +69,15 @@ final class MovingCropTests: XCTestCase {
         XCTAssertEqual(window.minY, 540)
     }
 
-    func test_a_cue_is_shown_from_its_start_up_to_its_end() {
+    func test_a_cue_is_shown_from_its_start() {
         let cues = [CaptionCue(startMs: 1_000, endMs: 2_000, path: "line.png")]
 
         XCTAssertEqual(overlayPathAt(brandingPath: "brand.png", cues: cues, timeMs: 1_000), "line.png")
+    }
+
+    func test_a_cue_has_ended_at_exactly_its_end() {
+        let cues = [CaptionCue(startMs: 1_000, endMs: 2_000, path: "line.png")]
+
         XCTAssertEqual(overlayPathAt(brandingPath: "brand.png", cues: cues, timeMs: 2_000), "brand.png")
     }
 }

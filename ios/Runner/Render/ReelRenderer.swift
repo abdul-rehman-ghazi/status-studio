@@ -8,27 +8,35 @@ final class ReelRenderer {
         let onError: (String) -> Void
     }
 
+    private let gate = ForegroundGate()
     private var current: RenderJob?
+
+    /// Tells a finished job's late report from the report of the job that replaced it.
+    private var generation = 0
 
     var isBusy: Bool { current != nil }
 
     /// Busy until the render ends, fails or is cancelled. A spec that can't be rendered is
     /// reported through `listener.onError`, once the video has been opened.
     func start(_ spec: RenderSpec, listener: Listener) {
+        generation += 1
+        let mine = generation
         let job = RenderJob(
             spec: spec,
             callbacks: RenderCallbacks(
                 progress: { [weak self] fraction in
-                    if self?.current != nil { listener.onProgress(fraction) }
+                    if self?.generation == mine { listener.onProgress(fraction) }
                 },
                 finished: { [weak self] result in
-                    self?.current = nil
+                    guard let self, self.generation == mine else { return }
+                    self.current = nil
                     switch result {
                     case .success: listener.onDone(spec.outputPath)
                     case .failure(let error): listener.onError(error.localizedDescription)
                     }
                 }
-            )
+            ),
+            gate: gate
         )
         current = job
         job.start()
@@ -38,5 +46,6 @@ final class ReelRenderer {
     func cancel() {
         current?.cancel()
         current = nil
+        generation += 1
     }
 }
