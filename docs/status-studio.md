@@ -7,7 +7,7 @@
 Status Studio turns a video the user has already trimmed in another app, in any language, into a short clip for WhatsApp Status, Reels, TikTok or Shorts. The user shares the video into the app or picks it from the gallery. The app cleans the voice and writes out the script. The user fine-tunes the start and end by ±0.5 s and the lyrics, picks a size, and chooses what the crop follows at every scene: a face, a body or a fixed spot. Then a caption. The export is an MP4 with the Status Studio name and logo.
 
 - **On the phone:** voice cleaning (FFmpeg), face detection (ML Kit) and rendering (Media3 Transformer on Android, AVFoundation on iOS from M26). No accounts, no servers, no analytics.
-- **Groq writes scripts:** every script is written by Groq's hosted Whisper, with the user's own free API key (FR-12a), from the cleaned audio (FR-26), once the user has agreed to sending (FR-30). Script audio leaves the phone only then, and only to Groq. The same key also powers Fix with Groq (FR-19), which sends the clip's lines and the title when the user taps it. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
+- **Groq writes scripts:** every script is written by Groq's hosted Whisper, with the user's own free API key (FR-12a), from the cleaned audio (FR-26), once the user has agreed to sending (FR-30). Script audio leaves the phone only then, and only to Groq. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
 - **No media downloads:** the video comes in as a local file, copied into the app's storage. Nothing is fetched from the internet except language packs and the Groq requests above.
 - **Saves work:** scripts are saved by the video's fingerprint, so the same video opens straight to its script next time.
 - **Pivot (2026-11-05, M23):** until M22 the input was a YouTube link. YouTube is dropped entirely: no links, yt-dlp, stream downloads or caption tracks.
@@ -21,7 +21,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | 3 | Processing (removed) | — | Removed in M30: the script run (clean the voice, write with Groq, detect the language, line up timestamps) shows on Fine-tune · Lyrics (FR-21). The number stays so references keep working |
 | 4 | Script (removed) | — | Removed in M25 (task 7): it was a read-only list that Fine-tune · Lyrics repeats, editable. Language, Fix with Groq and the saved-script line moved to Fine-tune · Lyrics. The number stays so references keep working |
 | 5 | Fine-tune · Video | `/fine-tune` | "Step 1 of 2" (M30): plays the kept video file with Trim and Crop tabs under it. Trim: the clip's start and end, nudged by ±0.5 s, and the waveform (FR-5). Crop: size, fill and crop (FR-6), and the crop that moves at each scene, with the scene strip, New position here and Follow the person (FR-22, FR-27) |
-| 5b | Fine-tune · Lyrics | `/fine-tune/lyrics` | "Step 2 of 2" (M30): everything about the lyrics. The Show lyrics switch, Get lyrics from Groq or Type them myself, the run's progress, the line list with Style, Fix with Groq and Get again, and Export reel (FR-21) |
+| 5b | Fine-tune · Lyrics | `/fine-tune/lyrics` | "Step 2 of 2" (M30): everything about the lyrics. The Show lyrics switch, Get lyrics from Groq or Type them myself, the run's progress, the line list with Style and Get again, and Export reel (FR-21) |
 | 6 | Style (removed) | — | Removed in M30: caption position and size are in the Style sheet on Lyrics (FR-7); the caption is always the lines, in their own language |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Lyrics |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
@@ -157,31 +157,16 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   5. Come back here, tap **Paste**, then **Save**.
 
   Below the steps: "Free plan: about 2 hours of audio every hour, and 8 hours a day." and "Keep the key private, like a password. You can delete it any time on the same Groq page." The sheet has Copy link and Done buttons. Copy link puts the link on the clipboard and shows "Link copied"; the app doesn't open a browser itself.
-- **Privacy note** under the heading: "Writes the script. Your video's audio (cleaned, mono, 16 kHz) is sent to Groq in pieces. Tapping Fix with Groq on Fine-tune · Lyrics also sends the lines and the title. Groq's terms apply." (FR-19; changed in M23: no link is sent) There is no switch: a saved key turns Groq on and Remove turns it off.
+- **Privacy note** under the heading: "Writes the script. Your video's audio (cleaned, mono, 16 kHz) is sent to Groq in pieces. Groq's terms apply." (changed in M36: the Fix with Groq sentence went with FR-19) There is no switch: a saved key turns Groq on and Remove turns it off.
 - **Key storage:** `flutter_secure_storage` (Android Keystore). The key is never logged, and never written into saved files, notifications or error text. It goes only to `api.groq.com`.
 - **No key:** a new script stops with "Writing a script needs a free Groq key." (§8), with Settings and Back, before any audio is cut. Saved scripts need no key.
 - **Consent (M27):** the first send waits for the user's OK (FR-30); the "Sending to Groq" row under the key shows it and can withdraw it.
 
 **FR-17 Real lyrics (M12; removed in M17).** Script had a "Real lyrics" button that replaced the script with time-synced lyrics from lrclib.net. M17 removed the button and the whole lyrics feature (`lib/src/features/lyrics`) to keep only Fix with Groq (FR-19). Git history before M17 has the design. Scripts already saved with source `lrclib` still reopen like any saved script.
 
-**FR-18 Fix the script with an AI agent (M13; both buttons removed from Script in M17).** What is left is the prompt and reply parsing that FR-19 uses; nothing copies to or pastes from the clipboard any more. The rest of this section is the design they share.** For text the lyrics service lacks (a naat with verses from another poem), the user takes the script to any AI chat that can search the web and brings the corrected text back. Two buttons on Script, next to "Real lyrics", both off while a script is still being written.
-- **Copy for AI:** copies one block to the clipboard: a ready prompt (video title, rules; in M23 the `https://youtu.be/<id>` link was dropped) followed by the lines as `<number> | <mm:ss.xx> | <mm:ss.xx> | <text>`. Row numbers are the line's index in the whole script + 1. The user pastes it into the chat unchanged. Snackbar: "Copied <n> lines. Paste them into ChatGPT (or any AI that can search the web), copy its reply, then tap Paste AI reply."
-  - **Which lines:** the lines inside the clip (M23: nothing is picked; on Fine-tune · Lyrics, before any trim, that is the whole script). More than **30** lines gives the §8 message instead: trim the clip on Fine-tune, then come back. Why: a chat refuses or skims a long script (a 225-row script made ChatGPT ask for it in sections, and no rows came back), and only the clip's lines matter.
-- **The prompt asks the agent to:** search for the real lyrics and never invent words; keep numbers and times and change only the text; correct rows that belong to a different poem from that poem; keep the script (no Roman, no translation); mark rows with no source by ` [?]`; never ask for fewer rows or for sections; never move a line from another part of the poem into a row (M15); reply with the rows in one code block, then list changed rows with source links.
-- **Paste AI reply:** reads the clipboard and takes every row that matches the format, from anywhere in the reply (code fences, links and chatter are ignored). Citation marks such as `【1†L10-L12】` are removed from the text (M15). FR-19 does the same through Groq, with no copying.
-  - **Matched by row number, text only.** Times always stay as they were, so an agent that changes a time can't move a line. Rows missing from the reply, empty, or with unknown numbers keep their text or are ignored.
-  - **`[?]`:** the mark is removed from the text; the snackbar names those lines: "Updated 12 lines. The AI found no source for line 3, 7: read it before you use it."
-  - **No rows found:** the §8 message, and the script is unchanged.
-- **After:** the clip stays; the caption is refilled from the corrected lines only while it is still the lines' own text, so a caption the user typed or translated stays. The script is saved as the newest script (source `edited`, FR-14), so the video reopens corrected.
-- **Privacy:** nothing is sent by the app. The user chooses what to paste into which chat.
+**FR-18 Fix the script with an AI agent (M13; buttons removed in M17; the rest removed in M36).** Copy for AI and Paste AI reply took the script to any AI chat that could search the web and brought the corrected text back. M17 removed the buttons; the shared prompt and reply parsing (`script_exchange.dart`) went with Fix with Groq in M36. Git history before M36 has the design.
 
-**FR-19 Fix the script with Groq (M15; the §10 spike #6 said go; changed in M23).** The one fixing button, on Script since M17 and on Fine-tune · Lyrics since M25 task 7,, **Fix with Groq**, does what Copy for AI plus Paste AI reply did, with the key from FR-12a and no clipboard. It sits alone on the row above the lines. Real lyrics, Copy for AI and Paste AI reply were removed in M17.
-- **Same rules as FR-18:** the same prompt, without a link (M23), and the same lines (the clip's, or the whole script up to the row cap), the same reply handling (matched by row number, text only, times unchanged, `[?]` marks named in the snackbar) and the same result (the lines keep the range and clip, the caption is refilled only while it is still the lines' own text, the script is saved as the newest script with source `edited`).
-- **Model and row cap:** `openai/gpt-oss-120b` with Groq's `browser_search` tool. At most **30** lines (the clip's, or the whole script); more gives the same §8 message, which now says to shorten the clip on the next step first. Why 30: at 54 rows the model moved lines of the poem into the wrong rows (§10 #6).
-- **While it runs:** the button shows progress and a Cancel. Cancel stops waiting: the reply is ignored and nothing is saved (a request already sent still counts against the plan).
-- **No key:** the button is shown, and tapping it gives the §8 "needs a free Groq key" message with Settings.
-- **Privacy:** the clip's lines and the video's name go to Groq, only when the user taps this button. No link is sent (changed in M23). Say so in the FR-12a help text: the key is also used for this.
-- **Limits:** a call counts against the same free plan as writing scripts. A 429 is handled as in FR-12a.
+**FR-19 Fix the script with Groq (M15; removed in M36, 2026-11-10).** A button on Fine-tune · Lyrics sent the clip's lines (at most 30) and the video's name to Groq's web-search model (`openai/gpt-oss-120b` with `browser_search`, §10 #6) and replaced the lines' text with the real lyrics it found. The owner removed it in M36; the user fixes words by editing the lines (FR-21). Since then the only upload is the script audio (FR-12a). Scripts saved after a fix (source `edited`) still reopen like any saved script. Git history before M36 has the design.
 
 **FR-13 Offline.** Saved scripts and export work without a network. Writing a new script needs one (Groq). Once a video is kept, nothing else needs a network.
 
@@ -231,7 +216,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Show lyrics on the clip**, a switch, on by default. Off: the reel has no caption and the hint says "No lyrics on this reel. Nothing leaves your phone and you need no key." The lines are kept, and turning it on again brings them back. Turning it off while a script is being written stops the run.
   - **No lines inside the clip yet:** the Get card, with the Language dropdown (FR-2), **Get lyrics from Groq** and "Sends the cleaned voice to Groq with your key. The picture never leaves your phone."; under it **Type them myself**, which asks for a first line and puts it at the playhead, 2 s long and cut at the clip end. When the reel has no lines and no run, Lyrics first opens the newest saved script of the video (FR-14).
   - **While writing:** the step under way with its bar, amount and time left, and Cancel; lines appear below as they arrive. A failure shows its §8 message and actions here, with Dismiss in place of Back.
-  - **With lines:** **Style** (a bottom sheet with Position and Size, FR-7), **Fix with Groq** (FR-19) and **Get again** (FR-2), then the line list below. Get again asks "Replace your edited lines?" (Replace, Keep) when lines were edited.
+  - **With lines:** **Style** (a bottom sheet with Position and Size, FR-7) and **Get again** (FR-2; Fix with Groq between them was removed in M36), then the line list below. Get again asks "Replace your edited lines?" (Replace, Keep) when lines were edited.
   - **Export reel** at the bottom, off while a script is being written ("Wait for the lyrics, or Cancel."). The player is released before Export opens.
 - **Lines:** only the clip's lines are listed (those inside the nudged range). Lines around the clip are not shown. Every listed line reacts to a tap.
 - **Player:** the reel as it will look: the video cut to the output frame (FR-6) with the crop where FR-22 puts it at that moment, and the line due on it, laid out as FR-7 says (caption position and size). Play and pause, and a seek bar over the clip only: it starts at the clip start, stops at the clip end (playing again from the end starts at the start), and has no "Play clip" button. Nothing outside the clip can be seen or reached.
@@ -361,14 +346,14 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **File name (FR-9):** with an empty caption it is the `<kalam>` part only, or `reel` when the title has no words.
 
 **FR-30 Consent before sending to Groq (M27).** Nothing of the user's goes to Groq until they agree, once, on a consent screen (App Store guideline 5.1.2(i); Google Play User Data policy, prominent disclosure and consent).
-- **When:** right before the first send: a script that Groq must write after a tap on Get lyrics from Groq or Get again (not a saved one, FR-14), or a tap on Fix with Groq (FR-19). The key is checked first, so a user without one gets the §8 "needs a free Groq key" message and no consent screen. A reel without lyrics (FR-29) never asks.
+- **When:** right before the first send: a script that Groq must write after a tap on Get lyrics from Groq or Get again (not a saved one, FR-14). (A tap on Fix with Groq asked too, until M36.) The key is checked first, so a user without one gets the §8 "needs a free Groq key" message and no consent screen. A reel without lyrics (FR-29) never asks.
 - **Screen** (full screen, `groq_consent_screen.dart`), title "Send audio to Groq?":
   - "To write the lyrics, Status Studio sends your video's sound to Groq, a third-party AI service, using your own Groq key."
-  - "What is sent: the sound only, cleaned to one channel, in pieces. Fix with Groq also sends the lines and the video's name, only when you tap it."
+  - "What is sent: the sound only, cleaned to one channel, in pieces." (M36 dropped the Fix with Groq sentence.)
   - "What is not sent: the picture. Nothing goes to us: Status Studio has no server and no account."
   - "Groq's terms and privacy policy apply (groq.com). You can withdraw this any time in Settings."
   - Hint: "Without lyrics, nothing leaves your phone and you need no key." Buttons: Not now, Agree.
-- **Answer:** Agree is kept (`groq.uploadConsent` in shared preferences) and the work carries on: the script run starts again, Fix with Groq runs again. Not now keeps nothing and sends nothing: Lyrics shows the §8 message with Continue (the screen again) and Dismiss, and Fix leaves the lines as they are. The user is asked again the next time.
+- **Answer:** Agree is kept (`groq.uploadConsent` in shared preferences) and the work carries on: the script run starts again. Not now keeps nothing and sends nothing: Lyrics shows the §8 message with Continue (the screen again) and Dismiss. The user is asked again the next time.
 - **Enforced at the send:** `GroqClient` takes a required `beforeUpload`, which the app sets to the consent check (`GroqConsentStore.requireGiven`); it runs before every audio piece and every Fix request and throws `NoGroqConsentException`. The key check (`GET /models`) sends nothing of the user's and doesn't call it. The script pipeline also checks right after the key, before any audio is cleaned, so the user isn't made to wait for nothing.
 - **Settings:** under the Groq key, "Sending to Groq": "Allowed" with Withdraw, or "Not allowed: you will be asked before anything is sent". Consent is given only on the consent screen. Withdrawing while a script is being written stops it before its next piece; the pieces already written stay saved (FR-14), and the Lyrics footer's Retry asks again. Removing the key doesn't withdraw consent.
 - **Privacy:** the answer is never logged and, like the key, never written into saved files, notifications or error text.
@@ -426,8 +411,8 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Exports: `reels/` in app documents.
   - Copies and other files are written to `.part` files and renamed when complete.
   - Every start deletes folders whose name isn't a fingerprint ID (`v_` and 16 hex digits): old YouTube data.
-- **Data use:** nothing is downloaded. The only uploads are the cleaned script audio pieces (about 16 kHz mono FLAC) and the Fix with Groq lines, both to Groq.
-- **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key, and, when the user taps Fix with Groq (FR-19), the clip's lines and the video's name. The video itself never leaves the phone The SDKs send their own usage metrics: Google ML Kit's anonymous usage, performance and per-installation ID (§9.2, found in M27; the policy in §9.1 says so).
+- **Data use:** nothing is downloaded. The only upload is the cleaned script audio pieces (about 16 kHz mono FLAC), to Groq (the Fix with Groq lines went in M36).
+- **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key. The video itself never leaves the phone. The SDKs send their own usage metrics: Google ML Kit's anonymous usage, performance and per-installation ID (§9.2, found in M27; the policy in §9.1 says so).
 - **Large text (M34):** the phone's text size is followed up to **1.3×** and no further (`maxTextScale` in `app.dart`, `MediaQuery.withClampedTextScaling`). The owner chose a cap over unlimited growth (2026-11-10), so every screen keeps its layout; users at the largest system sizes get less than they asked for. The reel preview and the export draw captions at a fixed size with no text scaling at all (`reel_preview.dart`).
   - **App bar titles** stay on one line and shrink to the room left (`ScreenTitle`), next to the back button and the step label.
   - **Type hierarchy:** section labels 16 sp semi-bold (`SectionLabel`, also "Recent" on Home and "Groq API key"), body text 14 sp, list rows 14 sp with 12 sp muted subtitles (the theme's `listTileTheme`), hints 12 sp muted (`HintText`). A section label is never smaller than what it holds. Android 14 and later scale small text more than large text (12 sp and 14 sp both end near 24 at 200%), which is why labels and body are two steps apart.
@@ -604,7 +589,7 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | An AV1 video can't be converted to H.264 on this phone (M31, FR-1) | Source | This phone can't convert this AV1 video. Save it as H.264 (MP4) in your editor and share it again. | Choose another video, Back |
 | The kept source file is missing (M23) | Recent / Continue | Video not found, choose it again. | Choose a video, Back |
 | No Groq key saved | Lyrics (Processing until M30) | Writing a script needs a free Groq key. | Settings, Back |
-| The user hasn't agreed to sending to Groq, or said Not now (M27, FR-30) | Lyrics (Processing until M30) | Writing a script needs your OK to send the audio to Groq. | Continue (opens the consent screen), Back; Retry on the footer opens it too. Fix with Groq shows no message: the consent screen opens, and Not now leaves the lines |
+| The user hasn't agreed to sending to Groq, or said Not now (M27, FR-30) | Lyrics (Processing until M30) | Writing a script needs your OK to send the audio to Groq. | Continue (opens the consent screen), Back; Retry on the footer opens it too |
 | Groq rejected the key (401/403) | Lyrics (Processing until M30) | Groq didn't accept your API key. | Settings, Back |
 | Groq limit (429, wait over 60 s) | Lyrics (Processing until M30) | Groq's free limit is used up for now. Try again in <n> min. | Back |
 | Groq failed (other error, or 5xx/498 twice) | Lyrics (Processing until M30) | Groq couldn't write this script. | Retry, Back |
@@ -615,10 +600,6 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | Gallery access refused | Done | Allow Photos access in Settings to save reels. | Open settings |
 | Render failed | Export | Couldn't make the reel. | Retry, Back |
 | Saving the finished reel to Recent failed (any error, M25) | Export | Something went wrong. Try again. | Retry (saves the finished file again, no second render), Back |
-| More than 30 lines for Fix with Groq (the 60-line copy path went in M17) | Script | Too many lines for an AI to check. Shorten the clip on the next step first. | (snackbar) |
-| No Groq key, Fix with Groq | Script | Fixing a script needs a free Groq key. | Settings (snackbar action) |
-| Groq failed while fixing (other error, or 5xx/498 twice) | Script | Groq couldn't fix this script. | (snackbar) |
-| Groq's reply to Fix with Groq has no script rows | Script | Groq's reply had no script lines. Try again. | (snackbar) |
 | (Removed in M25: FR-27 asks at every scene, so there is no "no person" error; the row stays for the history) No person found in the clip | Fine-tune · Video | No person found in this clip. The crop stays where it is. | (snackbar) |
 | A kept fine-tune's script is gone | Script | This fine-tune's script had to be written again. Check the clip's start and end; the size and caption style are kept. | (snackbar) |
 | A kept fine-tune's script changed | Script | The script changed since this fine-tune was saved. Check the clip's start and end; the size and caption style are kept. | (snackbar) |
@@ -639,7 +620,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | FFmpeg | `ffmpeg_kit_flutter_new_min` only (LGPL). The full GPL build would duplicate native libraries and make the app GPL |
 | Renderer | Media3 Transformer on Android (hardware H.264), because the bundled FFmpeg can't encode H.264; AVFoundation on iOS (M26), the same spec over the same channel |
 | Captions and branding | Drawn by Flutter to one PNG and overlaid by Media3 (AVFoundation on iOS). Other text engines break Nastaliq letter joining |
-| Data saving (changed in M23) | No media downloads. The only uploads are the cleaned 16 kHz mono script audio and the Fix with Groq lines |
+| Data saving (changed in M23) | No media downloads. The only upload is the cleaned 16 kHz mono script audio (the Fix with Groq lines went in M36) |
 | Reuse | Scripts saved per video fingerprint, language and source for 90 days; resume per 90-second piece; cleaned pieces cached per video |
 | Background work | One foreground service kept by Dart. The work already runs in the app process, so keeping the process alive is enough. Packages rather than hand-written Kotlin, so the notification shows the percent as text, not a bar |
 | Name, logo, IDs | Status Studio; Trim; `com.hotmail.arehmananis.statusstudio` |
@@ -662,7 +643,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 > **What stays on your phone.** The videos you share into the app or pick, copied into the app's own storage. The lyrics written for them, kept for 90 days. Unfinished work, so you can carry on later. The clips you export. Your settings, including whether you agreed to send audio to Groq. If you add a Groq API key, it is kept in the phone's secure storage (Android Keystore or iOS Keychain) and is sent only to Groq, to authorise your own requests. You can delete videos, lyrics and clips in the app, and uninstalling the app deletes all of it.
 >
 > **What leaves your phone, and only when you ask.**
-> - *Groq.* When you tap Get lyrics from Groq and agree, the app sends your video's sound (cleaned, one channel, in pieces) to Groq, an AI service run by Groq, Inc., using your own Groq key, to write the lyrics. When you tap Fix with Groq, it sends the lyric lines and the video's name. The picture is never sent. Groq handles this under its own terms and privacy policy (groq.com), as the service you signed up for when you made your key. You can withdraw your agreement in Settings at any time, and nothing more is sent after that. A clip made without lyrics sends nothing.
+> - *Groq.* When you tap Get lyrics from Groq and agree, the app sends your video's sound (cleaned, one channel, in pieces) to Groq, an AI service run by Groq, Inc., using your own Groq key, to write the lyrics. The picture is never sent. Groq handles this under its own terms and privacy policy (groq.com), as the service you signed up for when you made your key. You can withdraw your agreement in Settings at any time, and nothing more is sent after that. A clip made without lyrics sends nothing.
 > - *Google ML Kit.* Face detection runs on your phone. ML Kit sends Google usage and performance information to keep it working: device and app details, a per-installation identifier that does not identify you, performance measures, sizes of what was processed, and error codes. Google describes this at developers.google.com/ml-kit.
 > - *Saving and sharing.* Save puts the clip in your photo library. Share hands it to the app you choose in your phone's share sheet.
 > - *Support.* If you write to us from Settings, the app opens your own email or WhatsApp app with your message, your phone's model, system version, processor, memory, screen size and connection type (such as Wi-Fi), and the app's version filled in. You see it before you send it, and we receive only what you send. Nothing is sent by Status Studio itself.
@@ -679,7 +660,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 
 ### 9.2 Store answers (M27 task 4)
 
-**What the answers rest on (checked 2026-11-10):** our code sends data only to Groq (FR-12a, FR-19, after FR-30's consent). The SDKs in the app send more: Google ML Kit (face detection; translation until M30) declares in its iOS privacy manifests, all not linked to the user and not used for tracking: device ID, product interaction, performance data and other data types (analytics and app functionality), other diagnostic data (analytics), and other user content (analytics and app functionality). Google's Android disclosure (developers.google.com/ml-kit/android-data-disclosure) lists device and app information, per-installation identifiers, performance metrics, API configuration, input and output sizes, event types, error codes and, for Translate, the chosen languages; HTTPS; not transferred to third parties. GoogleDataTransport (pulled in by ML Kit) declares other diagnostic data. FFmpeg Kit, `tflite_flutter` and the other plugins send nothing. `device_info_plus`, `package_info_plus`, `url_launcher` and `connectivity_plus` (M33) send nothing either (`connectivity_plus` uses `ACCESS_NETWORK_STATE`, a normal permission Media3 already brought in): Support (FR-31) hands a message to the user's own email or WhatsApp app, which the user sends, like the share sheet. Play doesn't count data the user sends through another app as collected, so the forms below are unchanged; Apple counts only data the app itself transmits, so the label is unchanged too (Claude's reading of the stores' rules, M33; not checked against their latest text. Recheck before submitting, and again if Support ever sends anything in the app). The answers below are cautious where it was unclear: Groq's retention is Groq's, so nothing is called ephemeral.
+**What the answers rest on (checked 2026-11-10):** our code sends data only to Groq (FR-12a, after FR-30's consent; FR-19's lines until M36). The SDKs in the app send more: Google ML Kit (face detection; translation until M30) declares in its iOS privacy manifests, all not linked to the user and not used for tracking: device ID, product interaction, performance data and other data types (analytics and app functionality), other diagnostic data (analytics), and other user content (analytics and app functionality). Google's Android disclosure (developers.google.com/ml-kit/android-data-disclosure) lists device and app information, per-installation identifiers, performance metrics, API configuration, input and output sizes, event types, error codes and, for Translate, the chosen languages; HTTPS; not transferred to third parties. GoogleDataTransport (pulled in by ML Kit) declares other diagnostic data. FFmpeg Kit, `tflite_flutter` and the other plugins send nothing. `device_info_plus`, `package_info_plus`, `url_launcher` and `connectivity_plus` (M33) send nothing either (`connectivity_plus` uses `ACCESS_NETWORK_STATE`, a normal permission Media3 already brought in): Support (FR-31) hands a message to the user's own email or WhatsApp app, which the user sends, like the share sheet. Play doesn't count data the user sends through another app as collected, so the forms below are unchanged; Apple counts only data the app itself transmits, so the label is unchanged too (Claude's reading of the stores' rules, M33; not checked against their latest text. Recheck before submitting, and again if Support ever sends anything in the app). The answers below are cautious where it was unclear: Groq's retention is Groq's, so nothing is called ephemeral.
 
 **Google Play, Data safety:**
 - Collects or shares required user data: **Yes**. All data encrypted in transit: **Yes** (HTTPS). Account creation: **none**. Deletion: data lives on the phone and is deleted in the app (Recent → Delete) or by uninstalling; the developer holds no copy. Groq data sits in the user's own Groq account.
@@ -688,7 +669,6 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | Data type (Play's names) | Collected | Shared | Processed ephemerally | Required or optional | Purposes | Why |
 |---|---|---|---|---|---|---|
 | Audio → Other audio files | Yes | No (sent to a service the user chose, by their own action) | No | Optional (FR-29: lyrics are optional) | App functionality | Script audio to Groq |
-| App activity → Other user-generated content | Yes | No | No | Optional | App functionality | Fix with Groq's lines and the video's name |
 | App info and performance → Diagnostics | Yes | No | No | Required | Analytics | ML Kit |
 | App info and performance → Other app performance data | Yes | No | No | Required | Analytics | ML Kit |
 | Device or other IDs | Yes | No | No | Required | Analytics | ML Kit's per-installation ID |
@@ -701,7 +681,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 - Data used to track you: **none**. Data linked to you: **none**.
 - Data not linked to you:
   - **User Content → Audio Data:** App Functionality (Groq).
-  - **User Content → Other User Content:** App Functionality (Fix with Groq's lines and video name), Analytics (ML Kit).
+  - **User Content → Other User Content:** Analytics (ML Kit). (App Functionality, for Fix with Groq's lines and the video's name, was dropped in M36.)
   - **Identifiers → Device ID:** Analytics, App Functionality (ML Kit).
   - **Usage Data → Product Interaction:** Analytics, App Functionality (ML Kit).
   - **Diagnostics → Performance Data:** Analytics, App Functionality; **Other Diagnostic Data:** Analytics (ML Kit, GoogleDataTransport).
@@ -886,6 +866,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M33 Support and About | Settings becomes a list with one screen per category; Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`), merged into `dev` with M35 (2026-11-10); tests not run; device checks pending (§14) |
 | M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33), merged into `dev` with M35 (2026-11-10); tests not run; device checks pending (§14) |
 | M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Built, branch `m35-theme-choice` (stacked on M34), merged into `dev` (2026-11-10); designed with the owner from mockups (2026-11-10); tests not run; device checks pending (§14) |
+| M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`); in progress |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1283,6 +1264,14 @@ Asked by the owner (2026-11-10): Light, Dark and System in Settings. The owner d
 - [x] **4. Launch follows the phone (FR-20).** Android: light `launch_background` (`#F5F8F6`) and light parent themes with `windowLightStatusBar` in `values/` and `values-v31/`, the dark ones moved to `values-night/` and `values-night-v31/`; the vector logo is unchanged. iOS: a `LaunchBackground` colour set in `Assets.xcassets` (Any `#F5F8F6`, Dark `#0E1311`) used by `LaunchScreen.storyboard`; `ShareViewController.swift` uses a dynamic colour with the same two values instead of the fixed dark one. `LaunchSplash` picks its background and wordmark colour from the phone's brightness (`MediaQuery.platformBrightnessOf`), not from the app theme. `fvm flutter analyze` clean; tests not run. `fvm flutter build apk --debug` builds; the storyboard compiles with `ibtool` and the Swift file parses, but iOS was not built. **Stale tests:** launch splash tests that expect the dark background (they get the light one unless they set `platformBrightness` to dark).
 - [ ] **5. Tests (owner).** §13 "Theme choice (M35)".
 
+### M36 tasks (branch `m36-remove-groq-fix`)
+
+Asked by the owner (2026-11-10), after asking why the button exists: remove Fix with Groq. Lyrics are fixed by editing the lines (FR-21); the only upload left is the script audio.
+
+- [x] **1. Spec.** FR-18 and FR-19 collapsed to history; FR-12a privacy note, FR-21 tools, FR-30 consent text and answers, §1, §2, §4, §8 (four rows gone, the consent row's Fix note), §9 (policy text, Play row for other user-generated content gone, Apple's Other User Content keeps Analytics only), §13, §14, §15 and `CLAUDE.md`.
+- [ ] **2. Remove the code.** Delete `groq_script_fix_service.dart` and `script_exchange.dart` (prompt, reply parsing, `NoScriptRowsException`, `TooManyLinesForAiException`, the row caps); `GroqClient.fixScript` and its model; `_GroqFixAction` and its helpers in `lyrics_tools.dart`; the two `errorMessageFor` cases; `ReelDraftController.correctTranscript` and `ReelDraft.withCorrectedLines` if nothing else uses them. Copy: the Groq key hint and the consent screen's "What is sent" point lose their Fix with Groq sentence. `ios/Runner/PrivacyInfo.xcprivacy` loses the Other User Content entry. Saved scripts with source `edited` stay readable (hand edits save that source too). `fvm flutter analyze` clean; tests not run. **Stale tests:** every test of `script_exchange.dart`, `GroqScriptFixService`, `GroqClient.fixScript`, Fix with Groq on Lyrics (including its consent path), and tests that find "Fix with Groq" among Lyrics' tools.
+- [ ] **3. Tests (owner).** Delete the stale tests above; §13 has no new behaviour.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1400,19 +1389,7 @@ Asked by the owner (2026-11-10): Light, Dark and System in Settings. The owner d
   - Cancel posts no result, and results post only when the app is hidden.
   - The service outlives the first of two jobs.
   - Platform calls stay in order.
-- **AI script fix (M13):**
-  - The prompt holds the title and each row with its time and its row number in the whole script; no link (changes in M23 task 9).
-  - Only the clip's lines are sent, and the row cap is 30 (changes in M23 task 8: the clip is the whole video until nudged; the 60-line copy path went in M17).
-  - A reply's text replaces lines by row number; its times are never used.
-  - Fences and chatter around rows are ignored; rows with bars in the text stay whole.
-  - Missing rows keep their text; `[?]` rows are kept and named; a reply with no rows is rejected and changes nothing.
-  - Corrected lines keep the clip, and the corrected script is the one that reopens.
-- **Groq script fix (M15):**
-  - The request goes to `/chat/completions` with the web-search model and the key only in the Authorization header; a 429 waits and resends; a 401 is "key rejected".
-  - Only the clip's lines are sent (the whole video's, unless nudged); more than 30 are refused before anything is sent.
-  - Citation marks `【…】` never end up in a line's text.
-  - Cancel ignores the reply and saves nothing; the other fix buttons are off while it runs.
-  - No key gives the §8 message with a Settings action; a Groq failure says "Groq couldn't fix this script."
+- **AI script fix (M13) and Groq script fix (M15):** removed with the feature in M36.
 - **Groq (M9):**
   - The key never appears in logs, files or errors.
   - A 429 under 60 s waits and resends.
@@ -1459,7 +1436,6 @@ Asked by the owner (2026-11-10): Light, Dark and System in Settings. The owner d
 - `RealScriptPipeline`: no key gives `NoGroqKeyException` even without consent; a key without consent gives `NoGroqConsentException` before any audio work (the fake `AudioPreparer` is not called); a saved script opens without consent.
 - Withdrawing during a run: the next piece throws `NoGroqConsentException` and the pieces already written stay saved.
 - Processing: a consent failure opens the consent screen once; Agree starts the run again; Not now shows the §8 message with Continue and Back.
-- Fix with Groq without consent opens the consent screen; Agree sends; Not now sends nothing and changes no line.
 - Settings: "Sending to Groq" reads "Allowed" with Withdraw after agreeing, and Withdraw turns it to "Not allowed: …".
 
 - Background access: `askOnce` asks for notifications only, once; Settings shows the notification row and no battery row on Android too.
@@ -1476,7 +1452,7 @@ Asked by the owner (2026-11-10): Light, Dark and System in Settings. The owner d
 - `FineTuneDraftStore.list`: a folder with `draft-ur.json` (older) and `draft-auto.json` (newer) gives the newer one and deletes the older; `save` writes `draft.json` and deletes both.
 - `FineTuneDraft.canKeep` is true for a video and a clip without a transcript; `FineTuneResumer` gives `FineTuneReady` with no transcript and the kept keyframes for a draft without lines.
 - `recentEntries` hides every script row of a video that has a kept fine-tune.
-- Lyrics: with no lines and no run, the Get card shows; Get starts the run in the chosen language; with lines, Style, Fix with Groq and Get again show; Export reel is off while writing.
+- Lyrics: with no lines and no run, the Get card shows; Get starts the run in the chosen language; with lines, Style and Get again show; Export reel is off while writing.
 - Source: Next: video is off until a video is chosen and opens Fine-tune · Video without starting a script.
 
 **AV1 to H.264 (M31):**
@@ -1503,7 +1479,7 @@ Asked by the owner (2026-11-10): Light, Dark and System in Settings. The owner d
 - When no app opens the link, the snack bar names the address or number.
 - About shows "Version <version> (<build>)" from the app's package details.
 - Settings lists Groq key, Background work, Support and About; tapping a row opens its screen.
-- The no-key Settings action on Lyrics and on Fix with Groq opens the Groq key screen.
+- The no-key Settings action on Lyrics opens the Groq key screen.
 
 **Large text (M34):**
 - At a system text scale of 2.0, text is drawn at most 1.3× its size.
@@ -1611,11 +1587,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Cue times line up with the video (Media3 hands the overlay times counted from the clip start; if the first line is early or late by the clip's lead-in, fix the offset in `TimedCaptionOverlay`).
   - [ ] A 60 s clip with ~20 lines renders without running out of memory.
   - [ ] Cancel mid-render leaves no overlay PNGs in the reels folder.
-- **Groq script fix (M15):**
-  - [ ] Fix with Groq on a real naat clip (10–30 rows) over mobile data: time taken, and the corrected lines read right to a native reader.
-  - [ ] A naat with verses from another poem (not yet tested, §10 #6): the other poem's lines come back right, and nothing is moved into a wrong row.
-  - [ ] Free-plan limit: two fixes in a row (the 8,000 tokens per minute limit) and what the daily limit allows.
-  - [ ] Cancel mid-run; no key (Settings opens); revoked key; airplane mode.
+- **Groq script fix (M15):** removed with the feature in M36.
 - **Groq (M9):**
   - [ ] The key check, help sheet and Copy link.
   - [ ] A 10-minute video's script time.
@@ -1680,7 +1652,6 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 **Store readiness (M27):**
 - [ ] With a key and no consent, Get the script opens the consent screen before "Cleaning the voice"; Not now leaves Processing with Continue and Back and nothing reaches Groq (check with the phone offline: no offline error, because no send was tried).
 - [ ] Agree, then the script is written; a second video asks nothing.
-- [ ] Withdraw in Settings, then Fix with Groq: the consent screen opens; Not now leaves the lines.
 - [ ] Withdraw during a long script: it stops before the next piece; Retry on the Lyrics footer asks again and resumes from the saved piece.
 - [ ] Without a key: Get the script shows the no-key message, not the consent screen. Make it without lyrics never asks.
 - [ ] The consent screen and the Settings row on a small phone, and on iOS.
@@ -1772,7 +1743,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - The language list shows both "English (detected)" and "English".
 - **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) (Gone in M23: the player holds the whole video, so timing a line anywhere needs no new file.) (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
 - **Moving crop (M19):** (a) Style's preview shows the first caption line whatever the time. (b) (Gone in M23: the player holds the whole video, so a keyframe outside the clip can be shown.)
-- **Clip over silence (M23):** when a trim leaves the clip over a stretch with no sung line, `linesInClip` selects every line (so Fix with Groq and Lyrics still have a script), which refills the caption with the whole script. The better rule is to select nothing and let Lyrics offer an empty list with "add a line"; not done because `PickedScript` needs a range.
+- **Clip over silence (M23):** when a trim leaves the clip over a stretch with no sung line, `linesInClip` selects every line (so Lyrics still has a script), which refills the caption with the whole script. The better rule is to select nothing and let Lyrics offer an empty list with "add a line"; not done because `PickedScript` needs a range.
 - **Preview timing (M25):** the Lyrics preview reads the crop from the playhead's estimated position (the platform reports about twice a second), so at a scene cut its crop can sit a few milliseconds off the picture while playing. The export reads each frame's own time and is exact (on the reference clip the detector's cut is the first new frame; a file whose first video timestamp is not 0 could still put FFmpeg's and Media3's clocks tens of milliseconds apart, which §14's frame-by-frame check would show). A fade at cuts was tried and removed at the owner's request.
 - **Bodies (M25):** the detector's output was only judged by eye on 11 frames; false positives on a clip with no person were not measured; a release build's times and the GPU or NNAPI delegates were not tried; the model loads on first use (about 0.8 s, twice per run: once for the pictures, once for the body phase); `tflite_flutter`'s native library is 16 KB page aligned (checked in M27 task 6); the body anchor is provisional (§10 item 7).
 - **Crowd shots (M25):** a shot with dozens of faces offers only the 6 biggest faces and the people the body detector finds (3 foreground people on the reference clip's crowd shots); a face in the crowd can't be chosen, but a spot can.
