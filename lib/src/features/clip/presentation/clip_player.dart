@@ -29,8 +29,7 @@ final videoPlayerFactoryProvider = Provider<VideoPlayerFactory>(
 
 /// Plays the downloaded [source] with play, pause and a seek bar over all of
 /// it, and keeps [playhead] up to date (spec FR-5, FR-21). [clip] is only
-/// marked on the bar and where "Play clip" starts. With [onlyRange] it plays
-/// that range and nothing else.
+/// marked on the bar. With [onlyRange] it plays that range and nothing else.
 class ClipPlayer extends ConsumerStatefulWidget {
   const ClipPlayer({
     super.key,
@@ -45,8 +44,8 @@ class ClipPlayer extends ConsumerStatefulWidget {
   final ClipSource source;
 
   /// In video time. When set, the bar covers just this range, the player
-  /// starts at its start and stops at its end, and "Play clip" is not shown
-  /// (Fine-tune · Lyrics shows only the clip).
+  /// starts at its start and stops at its end (Fine-tune · Lyrics shows only
+  /// the clip).
   final ClipRange? onlyRange;
 
   /// Drawn over the video, under the play button.
@@ -187,11 +186,6 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     await _player.play();
   }
 
-  Future<void> _playClip() async {
-    await _player.seekTo(_clipInFile.start);
-    await _player.play();
-  }
-
   /// The video, or the reel built around it by [ClipPlayer.frame], at most
   /// [_framedMaxHeight] high, with the overlay and the play button over it.
   Widget _stage(VideoPlayerValue value) {
@@ -279,15 +273,6 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
             onSeek: value.isInitialized ? _player.seekTo : null,
           ),
         ),
-        if (widget.onlyRange == null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: value.isInitialized ? _playClip : null,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Play clip'),
-            ),
-          ),
       ],
     );
   }
