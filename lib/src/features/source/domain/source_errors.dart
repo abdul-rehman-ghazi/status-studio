@@ -70,3 +70,14 @@ class VideoPickFailedException implements Exception {
   @override
   String toString() => 'VideoPickFailedException: $reason';
 }
+
+/// An AV1 video, which the bundled FFmpeg can't decode, couldn't be converted
+/// to H.264 on this phone (spec FR-1, §8, M31).
+class VideoNotConvertibleException implements Exception {
+  const VideoNotConvertibleException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'VideoNotConvertibleException: $reason';
+}

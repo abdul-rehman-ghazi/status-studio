@@ -37,6 +37,11 @@ class SourceScreen extends ConsumerStatefulWidget {
 class _SourceScreenState extends ConsumerState<SourceScreen> {
   Future<SourceVideo>? _videoRequest;
 
+  /// Counts imports, so only the newest one's conversion shows on the card.
+  var _importNumber = 0;
+  int? _convertingImport;
+  var _conversionFraction = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -63,7 +68,13 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
             icon: const Icon(Icons.video_library_outlined),
             label: Text(hasVideo ? 'Choose another video' : 'Choose a video'),
           ),
-          if (_videoRequest case final request?) _VideoCard(request: request),
+          if (_videoRequest case final request?)
+            _VideoCard(
+              request: request,
+              conversionFraction: _convertingImport == _importNumber
+                  ? _conversionFraction
+                  : null,
+            ),
           const SizedBox(height: 8),
           const HintText(
             'Trim it in another app first, or share it to Status Studio.',
@@ -117,16 +128,28 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
   }
 
   Future<SourceVideo> _importVideo(String path, String displayName) async {
+    final number = ++_importNumber;
     final importer = await ref.read(localVideoImporterProvider.future);
     final video = await importer.importVideo(
       path: path,
       displayName: displayName,
+      onConversionProgress: (fraction) => _showConversion(number, fraction),
     );
     // Recent rows that asked for this video again can open now.
     if (mounted) {
       ref.invalidate(isVideoKeptProvider);
     }
     return video;
+  }
+
+  void _showConversion(int importNumber, double fraction) {
+    if (!mounted || importNumber != _importNumber) {
+      return;
+    }
+    setState(() {
+      _convertingImport = importNumber;
+      _conversionFraction = fraction;
+    });
   }
 
   /// Opens Fine-tune · Video once the chosen video is in (spec FR-1, M30).
@@ -156,9 +179,13 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
 }
 
 class _VideoCard extends StatelessWidget {
-  const _VideoCard({required this.request});
+  const _VideoCard({required this.request, required this.conversionFraction});
 
   final Future<SourceVideo> request;
+
+  /// How far an AV1 video's conversion to H.264 is (spec FR-1, M31); null
+  /// when the video isn't being converted.
+  final double? conversionFraction;
 
   @override
   Widget build(BuildContext context) {
@@ -171,13 +198,24 @@ class _VideoCard extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: _cardContent(context, snapshot),
+        child: _cardContent(
+          context,
+          snapshot,
+          switch (conversionFraction) {
+            final fraction? => _ConversionProgress(fraction: fraction),
+            null => const LinearProgressIndicator(),
+          },
+        ),
       ),
     );
   }
 }
 
-Widget _cardContent(BuildContext context, AsyncSnapshot<SourceVideo> snapshot) {
+Widget _cardContent(
+  BuildContext context,
+  AsyncSnapshot<SourceVideo> snapshot,
+  Widget pending,
+) {
   if (snapshot.error case final error?) {
     return Text(
       errorMessageFor(error),
@@ -187,7 +225,28 @@ Widget _cardContent(BuildContext context, AsyncSnapshot<SourceVideo> snapshot) {
   if (snapshot.data case final video?) {
     return _VideoSummary(video: video);
   }
-  return const LinearProgressIndicator();
+  return pending;
+}
+
+class _ConversionProgress extends StatelessWidget {
+  const _ConversionProgress({required this.fraction});
+
+  final double fraction;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (fraction * 100).round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LinearProgressIndicator(value: fraction),
+        const SizedBox(height: 10),
+        HintText(
+          'Converting this AV1 video so the app can edit it… $percent %',
+        ),
+      ],
+    );
+  }
 }
 
 class _VideoSummary extends StatelessWidget {

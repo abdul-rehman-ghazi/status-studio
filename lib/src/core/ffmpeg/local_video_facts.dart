@@ -11,6 +11,7 @@ class LocalVideoFacts {
     required this.storedWidth,
     required this.storedHeight,
     required this.hasAudio,
+    required this.videoCodec,
   });
 
   final Duration duration;
@@ -21,6 +22,14 @@ class LocalVideoFacts {
   final int storedWidth;
   final int storedHeight;
   final bool hasAudio;
+
+  /// ffprobe's `codec_name` of the video stream, such as `h264` or `av1`.
+  final String videoCodec;
+
+  /// The bundled FFmpeg has no AV1 decoder (no dav1d, no MediaCodec), so it
+  /// can't sample frames or make thumbnails of an AV1 video; such a video is
+  /// kept as an H.264 copy instead (spec FR-1, M31).
+  bool get needsH264Copy => videoCodec == 'av1';
 
   bool get _isTurnedSideways => rotationDegrees == 90 || rotationDegrees == 270;
 
@@ -64,6 +73,9 @@ LocalVideoFacts parseLocalVideoFacts(String probeJson) {
     storedWidth: _positiveWhole(video['width'], 'video width'),
     storedHeight: _positiveWhole(video['height'], 'video height'),
     hasAudio: _firstStreamOfType(streams, 'audio') != null,
+    videoCodec: video['codec_name'] is String
+        ? video['codec_name']! as String
+        : '',
   );
 }
 

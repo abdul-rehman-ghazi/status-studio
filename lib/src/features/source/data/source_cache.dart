@@ -19,6 +19,14 @@ class SourceCache {
   File localVideoFile(String videoId, String extension) =>
       File('${_folder(videoId)}/source.$extension');
 
+  /// The H.264 copy kept in place of an AV1 video (spec FR-1, M31).
+  File convertedVideoFile(String videoId) =>
+      File('${_folder(videoId)}/source.h264.mp4');
+
+  /// Where a conversion writes until it finishes; never a kept video.
+  File convertingVideoFile(String videoId) =>
+      File('${_folder(videoId)}/converting.mp4');
+
   /// The picture on the Source card for [videoId]'s kept video.
   File thumbnailFile(String videoId) =>
       File('${_folder(videoId)}/thumbnail.jpg');
@@ -93,7 +101,7 @@ void _checkComplete(int received, int totalBytes) {
   }
 }
 
-final _keptVideoName = RegExp(r'^source\.[A-Za-z0-9]+$');
+final _keptVideoName = RegExp(r'^source(\.h264)?\.[A-Za-z0-9]+$');
 
 double _fraction(int received, int total) =>
     total <= 0 ? 0 : math.min(1, received / total);

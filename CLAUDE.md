@@ -62,7 +62,7 @@ Every tool call re-reads the whole conversation, so cost grows with the number o
 - **Captions show one line at a time** (spec FR-7a). Each line is its own overlay PNG and cue; Kotlin opens each PNG when due, so the PNGs must outlive `start` and be deleted when the render ends.
 - **Save the user's data.**
   - No media is downloaded (ML Kit translation and its language packs were removed in M30), and no code is fetched at runtime. The only uploads are the cleaned script-audio pieces (16 kHz mono FLAC) and Fix with Groq's lines, both to Groq with the user's key.
-  - The video is copied once into app storage and never changed or uploaded.
+  - The video is copied once into app storage and never changed or uploaded. An AV1 video is the exception (M31): the bundled FFmpeg can't decode AV1, so the native renderer's `convert` writes an H.264 copy, `source.h264.mp4`, which is kept instead.
   - Network I/O is Dart `HttpClient`, for Groq only.
 - **Reuse earlier work.** Finished scripts are saved per video fingerprint, language and source and reopened without cleaning or uploading (spec FR-14); the kept source file reopens Fine-tune. Groq progress is saved per 90-second piece and resumed; cleaned pieces are cached per video.
 - **The crop's subject is chosen by the user at every scene** (spec FR-27): a face, a body or a fixed spot, asked even with one face or none. Never auto-pick, never carry a choice to another scene by look-alike.
