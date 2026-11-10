@@ -831,6 +831,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M27 Store readiness | Consent, privacy policy, store answers and release builds for Play and the App Store (§9) | Built, branch `m27-store-readiness` (from `dev`, which holds M26 and M28), pushed, merged into `dev` (2026-11-10). Consent before Groq (FR-30), no battery-optimisation request, §9.1–9.3, a privacy manifest, a signed Play bundle and an unsigned iOS archive. Pending the owner: policy hosting, the store forms, and the Apple account for signing and TestFlight (§14). Tests not run; device checks pending (§14) |
 | M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`), merged into `dev`; tests not run; device checks pending (§14) |
 | M29 Free crop on the player | Edit the free crop over the video on Fine-tune · Video instead of a separate editor (FR-6) | Built, branch `m29-free-crop-on-player` (from `dev`), not merged; tests not run; device checks pending (§14) |
+| M30 Crop and lyrics flow | Trim and Crop tabs with a scene strip; one Lyrics screen (switch, Get from Groq, edit, Style sheet); Processing and Caption removed; original captions only (M30 design below) | In progress, branch `m30-crop-and-lyrics-flow` (stacked on M29) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1139,6 +1140,40 @@ Request, 2026-11-10: "improve UI/UX. Move crop during scene change is [a] main f
 **Left to the builder.** Widget structure and file split; how the tabs are built (`TabBar` or segmented buttons); the strip's exact look (colours from `AppColors`, label format below about 1 s, how a very short block shows its length); naming of new providers; how the writing state moves from the Processing controller into a Lyrics section; the order of the tasks.
 
 **Spec sections to update when built.** §1, §2 (screens 2, 3, 5, 5b, 6, 7), FR-1, FR-2, FR-3, FR-5, FR-7, FR-7a (Translation and Roman), FR-13, FR-14, FR-16, FR-21, FR-22 (switch name, chips → strip, "One decoder at a time", Height), FR-24, FR-26, FR-29, FR-30, §6.6, §8 (messages shown on Processing), §9.2, §13 and §14. Then CLAUDE.md's opening flow sentence. Tests made stale must be listed in the task text.
+
+### M30 tasks (branch `m30-crop-and-lyrics-flow`)
+
+Builds the M30 design above, task by task, one commit each. The repo has no `test/` folder yet, so no test goes stale; each task names the §13 cases the owner will want. Each task ends with `fvm flutter analyze` clean and a commit that says tests were not run.
+
+- [ ] **1. Video: Trim and Crop tabs with the scene strip (FR-5, FR-22).**
+  - `CropPath.spansIn(ClipRange clip) → List<CropSpan>` in `crop_path.dart`. `CropSpan` holds `keyframeIndex`, `start`, `end` (video time, inside the clip) and `arrival`. The first span starts at the clip start and shows the keyframe in force there.
+  - `ReelDraft.withCropPositionAt(Duration videoTime)`, which adds a Glide keyframe holding the anchor the path gives at that time, through `withCropAnchorAt`. Controller: `addCropPosition(Duration videoTime)`.
+  - `fine_tune_screen.dart` keeps the pinned player and gets the two tabs. `fine_tune_trim_tab.dart` and `fine_tune_crop_tab.dart` hold their content. `scene_strip.dart` (`SceneStrip`) and `selected_position_card.dart` replace `crop_keyframe_chips.dart`, which is deleted. Follow the person sits beside New position here. The switch is renamed.
+  - `clip_player.dart`: `_framedMaxHeight` becomes the smaller of 260 dp and 40 % of the screen height.
+  - §13 cases: spans of a 3-keyframe path in a nudged clip; New position here at a keyframe's time selects it.
+- [ ] **2. Original captions only; translation removed (FR-7).**
+  - `CaptionVariant` goes from `CaptionSettings`. Its JSON field is ignored on read and no longer written (FR-24 files stay readable).
+  - Deleted: `caption_translator.dart`, `roman_urdu.dart`, `translation_errors.dart`, the variant chips on Caption, and `google_mlkit_translation` in `pubspec.yaml`. Export's summary loses the variant names. Check `ios/Podfile`, `PrivacyInfo.xcprivacy` and §9.2 for the removed SDK, and record whether the iOS target 15.5 is still needed.
+  - §13 cases: a version-1 draft with `"variant": "english"` still reads.
+- [ ] **3. One Lyrics screen (FR-21, FR-29, FR-30).**
+  - `ReelDraft.lyricsSkipped` becomes `lyricsShown` (default true). `withLyricsHidden()` keeps the lines and empties the caption text. `withLyricsShown()` refills it from the lines. `withTypedFirstLine(String text, Duration at)` makes a one-line transcript, 2 s from `at` and cut at the clip end, with `linesEdited` true. Controller: `hideLyrics()`, `showLyrics()`, `startTypedLyrics(String text, Duration at)`.
+  - `script_run_section.dart` (`ScriptRunSection`) takes Processing's steps, amounts, §8 failure actions and the consent prompt, as a section on Lyrics. Back on its failures becomes Dismiss.
+  - On `lyrics_screen.dart`: the switch; `lyrics_get_card.dart` (language, Get lyrics from Groq, Type them myself); `lyrics_tools.dart` (Aa Style, Fix with Groq, Get again, Add line) replacing `ScriptTools`' language row and saved-script banner; the Get again dialog; "Replace your edited lines?"; and Export reel, off while writing, releasing the player before Export.
+  - `caption_style_sheet.dart` (`showCaptionStyleSheet`): Position and Size.
+  - Lyrics opens on the newest saved script of the video in any language when the reel has none (`TranscriptStore.list()`, filtered by video).
+  - `style_screen.dart` and `AppRoutes.style` are deleted.
+  - §13 cases: hiding keeps lines and gives no cues; showing again restores them; a typed first line is 2 s and cut at the clip end.
+- [ ] **4. Flow: Source, Processing and Recent (FR-1, FR-3, FR-11, FR-16).**
+  - Source keeps the card and one button, Next: video (`setVideo`, push `fineTune`). The language dropdown, the two buttons and the Groq note go.
+  - `processing_screen.dart` and `AppRoutes.processing` are deleted. Home's script row loads the script into the reel and opens Fine-tune · Video. "Script gone" opens Fine-tune · Video too.
+  - `shared_video_listener.dart` loses the removed routes. The script notification opens Lyrics while the reel is open.
+- [ ] **5. One kept fine-tune per video (FR-24).**
+  - `FineTuneDraft` version 2 in `transcripts/<videoId>/draft.json`, with `videoId`, `language`, `lyricsShown`, `clip`, `frame`, `caption` and `linesEdited`. `selection` and `scriptFingerprint` are present only when there is a script.
+  - `canKeep` needs only a video and a clip. Reading version 1: the newest `draft-*.json` of a video wins, and the others are deleted.
+  - `FineTuneResumer`: a draft without a script is Ready with no transcript. Gone or changed keeps the clip and the crop as well.
+  - Recent: a video's draft row replaces all its script rows.
+  - §13 cases: v1 migration picks the newest; a no-script draft resumes with its clip and keyframes.
+- [ ] **6. Docs.** The spec sections listed above, CLAUDE.md, and the M30 status in the table.
 
 ## 13. Behaviour that must stay covered by tests
 
