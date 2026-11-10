@@ -40,6 +40,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
   /// Counts imports, so only the newest one's conversion shows on the card.
   var _importNumber = 0;
   int? _convertingImport;
+  var _conversionFraction = 0.0;
 
   @override
   void initState() {
@@ -70,7 +71,9 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
           if (_videoRequest case final request?)
             _VideoCard(
               request: request,
-              isConverting: _convertingImport == _importNumber,
+              conversionFraction: _convertingImport == _importNumber
+                  ? _conversionFraction
+                  : null,
             ),
           const SizedBox(height: 8),
           const HintText(
@@ -130,7 +133,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     final video = await importer.importVideo(
       path: path,
       displayName: displayName,
-      onConverting: () => _showConverting(number),
+      onConversionProgress: (fraction) => _showConversion(number, fraction),
     );
     // Recent rows that asked for this video again can open now.
     if (mounted) {
@@ -139,12 +142,13 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     return video;
   }
 
-  void _showConverting(int importNumber) {
+  void _showConversion(int importNumber, double fraction) {
     if (!mounted || importNumber != _importNumber) {
       return;
     }
     setState(() {
       _convertingImport = importNumber;
+      _conversionFraction = fraction;
     });
   }
 
@@ -175,12 +179,13 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
 }
 
 class _VideoCard extends StatelessWidget {
-  const _VideoCard({required this.request, required this.isConverting});
+  const _VideoCard({required this.request, required this.conversionFraction});
 
   final Future<SourceVideo> request;
 
-  /// An AV1 video is being converted to H.264 (spec FR-1, M31).
-  final bool isConverting;
+  /// How far an AV1 video's conversion to H.264 is (spec FR-1, M31); null
+  /// when the video isn't being converted.
+  final double? conversionFraction;
 
   @override
   Widget build(BuildContext context) {
@@ -196,9 +201,10 @@ class _VideoCard extends StatelessWidget {
         child: _cardContent(
           context,
           snapshot,
-          isConverting
-              ? const _ConvertingProgress()
-              : const LinearProgressIndicator(),
+          switch (conversionFraction) {
+            final fraction? => _ConversionProgress(fraction: fraction),
+            null => const LinearProgressIndicator(),
+          },
         ),
       ),
     );
@@ -222,17 +228,22 @@ Widget _cardContent(
   return pending;
 }
 
-class _ConvertingProgress extends StatelessWidget {
-  const _ConvertingProgress();
+class _ConversionProgress extends StatelessWidget {
+  const _ConversionProgress({required this.fraction});
+
+  final double fraction;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    final percent = (fraction * 100).round();
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LinearProgressIndicator(),
-        SizedBox(height: 10),
-        HintText('Converting this AV1 video so the app can edit it…'),
+        LinearProgressIndicator(value: fraction),
+        const SizedBox(height: 10),
+        HintText(
+          'Converting this AV1 video so the app can edit it… $percent %',
+        ),
       ],
     );
   }

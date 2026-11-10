@@ -4,10 +4,12 @@ import Flutter
 /// `status_studio/render` (`start`, `cancel`, and `convert`, which answers when the file is
 /// written) and `status_studio/render/events`, which sends
 /// `{type: progress, value}`, `{type: done, path}` and `{type: error, message}`: the same
-/// protocol as Android's `RenderChannel`, taking the map Dart's `renderSpecFor` builds.
+/// protocol as Android's `RenderChannel`, taking the map Dart's `renderSpecFor` builds. A
+/// conversion's progress goes to `status_studio/render/conversion` as `{outputPath, value}`.
 final class RenderChannel: NSObject, FlutterStreamHandler {
     private let renderer = ReelRenderer()
     private var events: FlutterEventSink?
+    private let conversionStream = ConversionStream()
 
     init(messenger: FlutterBinaryMessenger) {
         super.init()
@@ -15,6 +17,8 @@ final class RenderChannel: NSObject, FlutterStreamHandler {
         methods.setMethodCallHandler { [weak self] call, result in self?.handle(call, result: result) }
         FlutterEventChannel(name: "status_studio/render/events", binaryMessenger: messenger)
             .setStreamHandler(self)
+        FlutterEventChannel(name: "status_studio/render/conversion", binaryMessenger: messenger)
+            .setStreamHandler(conversionStream)
     }
 
     private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -56,9 +60,11 @@ final class RenderChannel: NSObject, FlutterStreamHandler {
             result(FlutterError(code: "bad_spec", message: "convert needs inputPath and outputPath.", details: nil))
             return
         }
+        let stream = conversionStream
         VideoConverter.convert(
             input: URL(fileURLWithPath: inputPath),
-            output: URL(fileURLWithPath: outputPath)
+            output: URL(fileURLWithPath: outputPath),
+            onProgress: { fraction in stream.send(["outputPath": outputPath, "value": fraction]) }
         ) { message in
             DispatchQueue.main.async {
                 result(message.map { FlutterError(code: "convert_failed", message: $0, details: nil) })
@@ -89,8 +95,16 @@ final class RenderChannel: NSObject, FlutterStreamHandler {
 /// AVFoundation decodes AV1 only on A17 Pro and M3 chips or newer, so on most iPhones the
 /// export fails and the completion gets its message.
 private enum VideoConverter {
-    /// Calls `completion` with nil when the file is written, or with why it wasn't.
-    static func convert(input: URL, output: URL, completion: @escaping (String?) -> Void) {
+    private static let progressInterval: TimeInterval = 0.25
+
+    /// Calls `onProgress` on the main queue while it runs, then `completion` with nil when the
+    /// file is written, or with why it wasn't.
+    static func convert(
+        input: URL,
+        output: URL,
+        onProgress: @escaping (Double) -> Void,
+        completion: @escaping (String?) -> Void
+    ) {
         guard let export = AVAssetExportSession(
             asset: AVURLAsset(url: input),
             presetName: AVAssetExportPresetHighestQuality
@@ -100,7 +114,11 @@ private enum VideoConverter {
         }
         export.outputURL = output
         export.outputFileType = .mp4
+        let poll = Timer.scheduledTimer(withTimeInterval: progressInterval, repeats: true) { _ in
+            onProgress(Double(export.progress))
+        }
         export.exportAsynchronously {
+            DispatchQueue.main.async { poll.invalidate() }
             guard export.status == .completed else {
                 try? FileManager.default.removeItem(at: output)
                 completion(export.error?.localizedDescription ?? "Conversion failed.")
@@ -108,5 +126,24 @@ private enum VideoConverter {
             }
             completion(nil)
         }
+    }
+}
+
+/// The sink for conversion progress, apart from the render events.
+private final class ConversionStream: NSObject, FlutterStreamHandler {
+    private var sink: FlutterEventSink?
+
+    func send(_ event: [String: Any]) {
+        sink?(event)
+    }
+
+    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        sink = events
+        return nil
+    }
+
+    func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        sink = nil
+        return nil
     }
 }

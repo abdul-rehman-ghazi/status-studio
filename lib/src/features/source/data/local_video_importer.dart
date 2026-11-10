@@ -29,16 +29,16 @@ class _IncomingVideo {
     required this.file,
     required this.displayName,
     required this.needsH264Copy,
-    required this.onConverting,
+    required this.onConversionProgress,
   });
 
   final File file;
   final String displayName;
   final bool needsH264Copy;
-  final void Function() onConverting;
+  final void Function(double fraction) onConversionProgress;
 }
 
-void _ignoreConversionStart() {}
+void _ignoreConversionProgress(double fraction) {}
 
 class LocalVideoImporterServices {
   const LocalVideoImporterServices({
@@ -83,7 +83,8 @@ class LocalVideoImporter {
   /// Keeps the video at [path] and returns it. A file the app already owns
   /// (staged in the incoming folder, or the picker's copy in the cache) is
   /// moved; any other is copied, and left unchanged. An AV1 video is kept as
-  /// an H.264 copy instead, and [onConverting] is called as that starts.
+  /// an H.264 copy instead, and [onConversionProgress] hears how far that is,
+  /// from 0 as it starts.
   ///
   /// Throws [VideoUnreadableException] when the file can't be read or has no
   /// audio track, [InsufficientStorageException] when a copy won't fit, and
@@ -92,7 +93,8 @@ class LocalVideoImporter {
   Future<SourceVideo> importVideo({
     required String path,
     required String displayName,
-    void Function() onConverting = _ignoreConversionStart,
+    void Function(double fraction) onConversionProgress =
+        _ignoreConversionProgress,
   }) async {
     final file = File(path);
     try {
@@ -102,7 +104,7 @@ class LocalVideoImporter {
         file: file,
         displayName: displayName,
         needsH264Copy: facts.needsH264Copy,
-        onConverting: onConverting,
+        onConversionProgress: onConversionProgress,
       );
       await _keepOnce(video, incoming);
       return video;
@@ -175,7 +177,7 @@ class LocalVideoImporter {
     if (await target.exists()) {
       return target;
     }
-    incoming.onConverting();
+    incoming.onConversionProgress(0);
     await _requireRoomFor(await incoming.file.length() * _convertedSizeFactor);
     final working = _services.cache.convertingVideoFile(videoId);
     await _deleteIfPresent(working);
@@ -184,6 +186,7 @@ class LocalVideoImporter {
       await _services.converter.convertToH264(
         inputPath: incoming.file.path,
         outputPath: working.path,
+        onProgress: incoming.onConversionProgress,
       );
       await working.rename(target.path);
     } finally {

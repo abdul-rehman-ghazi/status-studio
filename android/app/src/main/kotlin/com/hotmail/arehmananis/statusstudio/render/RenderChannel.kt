@@ -9,7 +9,9 @@ import io.flutter.plugin.common.MethodChannel
 /**
  * `status_studio/render` (`start`, `cancel`, and `convert`, which answers when the file is
  * written) and `status_studio/render/events`, which sends
- * `{type: progress, value}`, `{type: done, path}` and `{type: error, message}`.
+ * `{type: progress, value}`, `{type: done, path}` and `{type: error, message}`. A conversion's
+ * progress goes to `status_studio/render/conversion` as `{outputPath, value}`, apart from
+ * renders.
  */
 class RenderChannel(context: Context, messenger: BinaryMessenger) :
     MethodChannel.MethodCallHandler,
@@ -17,10 +19,22 @@ class RenderChannel(context: Context, messenger: BinaryMessenger) :
     private val renderer = ReelRenderer(context)
     private val converter = VideoConverter(context)
     private var events: EventChannel.EventSink? = null
+    private var conversionEvents: EventChannel.EventSink? = null
+
+    private val conversionStream = object : EventChannel.StreamHandler {
+        override fun onListen(arguments: Any?, sink: EventChannel.EventSink) {
+            conversionEvents = sink
+        }
+
+        override fun onCancel(arguments: Any?) {
+            conversionEvents = null
+        }
+    }
 
     init {
         MethodChannel(messenger, "status_studio/render").setMethodCallHandler(this)
         EventChannel(messenger, "status_studio/render/events").setStreamHandler(this)
+        EventChannel(messenger, "status_studio/render/conversion").setStreamHandler(conversionStream)
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -64,14 +78,18 @@ class RenderChannel(context: Context, messenger: BinaryMessenger) :
             return
         }
         try {
-            converter.convert(inputPath, outputPath, conversionListener(result))
+            converter.convert(inputPath, outputPath, conversionListener(outputPath, result))
         } catch (error: RuntimeException) {
             result.error("convert_failed", error.message, null)
         }
     }
 
-    private fun conversionListener(result: MethodChannel.Result) =
+    private fun conversionListener(outputPath: String, result: MethodChannel.Result) =
         object : VideoConverter.Listener {
+            override fun onProgress(fraction: Double) {
+                conversionEvents?.success(mapOf("outputPath" to outputPath, "value" to fraction))
+            }
+
             override fun onDone() = result.success(null)
 
             override fun onError(message: String) = result.error("convert_failed", message, null)
