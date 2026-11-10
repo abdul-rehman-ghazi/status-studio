@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:status_studio/src/core/ffmpeg/local_video_facts.dart';
 import 'package:status_studio/src/core/ffmpeg/media_probe.dart';
 import 'package:status_studio/src/features/source/data/free_storage.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
+import 'package:status_studio/src/features/source/data/video_converter.dart';
 import 'package:status_studio/src/features/source/data/video_fingerprint.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
@@ -17,11 +19,33 @@ const _spareBytes = 50 * 1024 * 1024;
 
 Future<File> _renameFile(File file, String newPath) => file.rename(newPath);
 
+/// A converted copy is not the incoming size; H.264 needs about twice AV1's
+/// bytes for the same picture.
+const _convertedSizeFactor = 2;
+
+/// One video being imported, as the steps after the probe need it.
+class _IncomingVideo {
+  const _IncomingVideo({
+    required this.file,
+    required this.displayName,
+    required this.needsH264Copy,
+    required this.onConverting,
+  });
+
+  final File file;
+  final String displayName;
+  final bool needsH264Copy;
+  final void Function() onConverting;
+}
+
+void _ignoreConversionStart() {}
+
 class LocalVideoImporterServices {
   const LocalVideoImporterServices({
     required this.cache,
     required this.transcripts,
     required this.probe,
+    required this.converter,
     required this.storage,
     required this.incomingFolder,
     required this.pickerCacheFolder,
@@ -31,6 +55,7 @@ class LocalVideoImporterServices {
   final SourceCache cache;
   final TranscriptStore transcripts;
   final MediaProbe probe;
+  final VideoConverter converter;
   final FreeStorage storage;
 
   /// Where shared videos are staged (`files/incoming/`, spec FR-1).
@@ -57,27 +82,40 @@ class LocalVideoImporter {
 
   /// Keeps the video at [path] and returns it. A file the app already owns
   /// (staged in the incoming folder, or the picker's copy in the cache) is
-  /// moved; any other is copied, and left unchanged.
+  /// moved; any other is copied, and left unchanged. An AV1 video is kept as
+  /// an H.264 copy instead, and [onConverting] is called as that starts.
   ///
   /// Throws [VideoUnreadableException] when the file can't be read or has no
-  /// audio track, and [InsufficientStorageException] when a copy won't fit.
+  /// audio track, [InsufficientStorageException] when a copy won't fit, and
+  /// [VideoNotConvertibleException] when an AV1 video can't be converted.
   /// A file the app owns is deleted whether or not it could be kept.
   Future<SourceVideo> importVideo({
     required String path,
     required String displayName,
+    void Function() onConverting = _ignoreConversionStart,
   }) async {
     final file = File(path);
     try {
-      final video = await _describe(file, displayName);
-      await _keepOnce(video, file, displayName);
+      final facts = await _services.probe.readLocalVideo(file.path);
+      final video = await _describe(file, displayName, facts);
+      final incoming = _IncomingVideo(
+        file: file,
+        displayName: displayName,
+        needsH264Copy: facts.needsH264Copy,
+        onConverting: onConverting,
+      );
+      await _keepOnce(video, incoming);
       return video;
     } finally {
       await _deleteIfOwned(file);
     }
   }
 
-  Future<SourceVideo> _describe(File file, String displayName) async {
-    final facts = await _services.probe.readLocalVideo(file.path);
+  Future<SourceVideo> _describe(
+    File file,
+    String displayName,
+    LocalVideoFacts facts,
+  ) async {
     return SourceVideo(
       videoId: await videoFingerprint(file),
       title: _titleOf(displayName, file.path),
@@ -85,23 +123,22 @@ class LocalVideoImporter {
     );
   }
 
-  Future<void> _keepOnce(SourceVideo video, File file, String displayName) {
+  Future<void> _keepOnce(SourceVideo video, _IncomingVideo incoming) {
     final running = _keeping[video.videoId];
     if (running != null) {
       return running;
     }
-    final keeping = _keepAndRemember(video, file, displayName);
+    final keeping = _keepAndRemember(video, incoming);
     _keeping[video.videoId] = keeping;
     return keeping;
   }
 
   Future<void> _keepAndRemember(
     SourceVideo video,
-    File file,
-    String displayName,
+    _IncomingVideo incoming,
   ) async {
     try {
-      await _keep(video.videoId, file, displayName);
+      await _keep(video.videoId, incoming);
       await _services.transcripts.saveVideo(video);
     } finally {
       // Awaiting it would wait for this very future.
@@ -109,19 +146,56 @@ class LocalVideoImporter {
     }
   }
 
-  Future<void> _keep(String videoId, File file, String displayName) async {
+  Future<void> _keep(String videoId, _IncomingVideo incoming) async {
+    final target = incoming.needsH264Copy
+        ? await _keptConverted(videoId, incoming)
+        : await _keptAsIs(videoId, incoming);
+    await _deleteOtherKeptVideos(videoId, keep: target);
+  }
+
+  Future<File> _keptAsIs(String videoId, _IncomingVideo incoming) async {
+    final file = incoming.file;
     final sizeBytes = await file.length();
     final intact = await _keptOfSize(videoId, sizeBytes);
-    final target = intact.isNotEmpty
-        ? intact.first
-        : _services.cache.localVideoFile(
-            videoId,
-            _extensionOf(displayName, file.path),
-          );
-    if (intact.isEmpty) {
-      await _place(file, target, sizeBytes);
+    if (intact.isNotEmpty) {
+      return intact.first;
     }
-    await _deleteOtherKeptVideos(videoId, keep: target);
+    final target = _services.cache.localVideoFile(
+      videoId,
+      _extensionOf(incoming.displayName, file.path),
+    );
+    await _place(file, target, sizeBytes);
+    return target;
+  }
+
+  /// A finished conversion is only ever renamed into place, so a kept copy
+  /// is whole and is reused.
+  Future<File> _keptConverted(String videoId, _IncomingVideo incoming) async {
+    final target = _services.cache.convertedVideoFile(videoId);
+    if (await target.exists()) {
+      return target;
+    }
+    incoming.onConverting();
+    await _requireRoomFor(await incoming.file.length() * _convertedSizeFactor);
+    final working = _services.cache.convertingVideoFile(videoId);
+    await _deleteIfPresent(working);
+    await working.parent.create(recursive: true);
+    try {
+      await _services.converter.convertToH264(
+        inputPath: incoming.file.path,
+        outputPath: working.path,
+      );
+      await working.rename(target.path);
+    } finally {
+      await _deleteIfPresent(working);
+    }
+    return target;
+  }
+
+  Future<void> _deleteIfPresent(File file) async {
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 
   /// Kept videos that are as long as the incoming file: an earlier copy that
@@ -277,6 +351,7 @@ final localVideoImporterProvider = FutureProvider<LocalVideoImporter>((
       cache: await ref.watch(sourceCacheProvider.future),
       transcripts: await ref.watch(transcriptStoreProvider.future),
       probe: ref.watch(mediaProbeProvider),
+      converter: ref.watch(videoConverterProvider),
       storage: ref.watch(freeStorageProvider),
       incomingFolder: Directory('${support.path}/incoming'),
       pickerCacheFolder: pickerFolder,

@@ -553,6 +553,7 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | No network during download (removed in M23: nothing is downloaded; offline errors remain for Groq) | Lyrics (Processing until M30) | You're offline. Connect and try again. | Retry, Back |
 | yt-dlp can't read the video, even after updating (removed in M23) | Source / Processing | Couldn't read this video from YouTube. Try again later. | Retry, Back |
 | The video has no audio track, or can't be read (M23) | Source / Processing | Can't read this video. | Choose another video, Back |
+| An AV1 video can't be converted to H.264 on this phone (M31, FR-1) | Source | This phone can't convert this AV1 video. Save it as H.264 (MP4) in your editor and share it again. | Choose another video, Back |
 | The kept source file is missing (M23) | Recent / Continue | Video not found, choose it again. | Choose a video, Back |
 | No Groq key saved | Lyrics (Processing until M30) | Writing a script needs a free Groq key. | Settings, Back |
 | The user hasn't agreed to sending to Groq, or said Not now (M27, FR-30) | Lyrics (Processing until M30) | Writing a script needs your OK to send the audio to Groq. | Continue (opens the consent screen), Back; Retry on the footer opens it too. Fix with Groq shows no message: the consent screen opens, and Not now leaves the lines |
@@ -1183,7 +1184,7 @@ Builds the M30 design above, task by task, one commit each. The repo has no `tes
 
 The bundled FFmpeg (`ffmpeg_kit_flutter_new_min`, built with no external libraries, `--disable-mediacodec` and `--disable-autodetect`) has no AV1 decoder: its own `av1` decoder only works through a hardware decoder, and it has none. An AV1 video then fails every FFmpeg run that decodes frames (Crop's frame sampling and scene detection, the Recent thumbnail) with "Your platform doesn't support hardware accelerated AV1 decoding" (found on the phone, 2026-11-10). The owner chose to convert such a video once, when it comes in, with the native renderer, over swapping to the larger `ffmpeg_kit_flutter_new_video` build or refusing the video. No `test/` folder exists, so no test goes stale; each task names the §13 cases the owner will want. Each task ends with `fvm flutter analyze` clean and a commit that says tests were not run.
 
-- [ ] **1. Import: convert an AV1 video (FR-1, §8).**
+- [x] **1. Import: convert an AV1 video (FR-1, §8).** Done. `_cardContent` takes the pending widget rather than a flag.
   - `LocalVideoFacts.videoCodec` (ffprobe's `codec_name` of the first video stream) and `needsH264Copy` (`av1`).
   - `VideoConverter` (`video_converter.dart`, `videoConverterProvider`): `convertToH264(inputPath, outputPath)` over `convert` on `status_studio/render`; a failure is `VideoNotConvertibleException`.
   - `LocalVideoImporter`: a video that needs it is converted into `sources/<videoId>/converting.mp4` (deleted first and on failure), renamed to `source.h264.mp4`, and the other kept files of the ID are deleted. A kept `source.h264.mp4` is reused without converting again. The free-space check asks for twice the incoming size plus 50 MiB. `importVideo` takes `onConverting`, called when a conversion starts.
