@@ -17,7 +17,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | # | Screen | Route | Job |
 |---|---|---|---|
 | 1 | Home | `/` | Start a reel; recent reels, saved scripts and fine-tunes to continue (FR-24); open Settings; a shared video opens Source (FR-1) |
-| 2 | Source | `/source` | "Choose a video" from the gallery, or the video shared into the app (FR-1); a card with thumbnail, name and length; choose language (default automatic); Get script (changed in M23) |
+| 2 | Source | `/source` | "Choose a video" from the gallery, or the video shared into the app (FR-1); a card with thumbnail, name and length; choose language (default automatic); Get script (changed in M23), or Make it without lyrics, which skips Processing and Lyrics (FR-29, M28) |
 | 3 | Processing | `/processing` | Clean the voice (FR-26, M24) → write the script with Groq → detect language → line up timestamps (skipped for a saved script, FR-14). Nothing is downloaded (changed in M23) |
 | 4 | Script (removed) | — | Removed in M25 (task 7): it was a read-only list that Fine-tune · Lyrics repeats, editable. Language, Fix with Groq and the saved-script line moved to Fine-tune · Lyrics. The number stays so references keep working |
 | 5 | Fine-tune · Video | `/fine-tune` | Step 1 of Fine-tune (M19): plays the kept video file; play, pause, seek over the whole video; nudge start and end by ±0.5 s; size, fill and crop, with a crop that can move during the clip (FR-22) and is chosen scene by scene (FR-27, M25) |
@@ -33,7 +33,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 ## 3. Functional requirements
 
 **FR-1 Video input (changed in M23; it was "Link input" for YouTube links).** The input is a video the user has already trimmed in another app. There are no links.
-- **Share in:** the app accepts a shared video (Android `SEND` of `video/*` and `VIEW` of a `content` URI of `video/*`, received by our own `status_studio/video_in` channel; iOS Share Extension from M26). The copy is refused when the phone has less than the file's size plus 50 MiB free ("Not enough space on your phone.", §8), and `file` URIs into the app's own data folder are never read. A shared video opens Source with its card and starts the script. If a reel is in progress, the app asks first: "Start a new reel from this video? The one you're making will close." with Start and Keep. The kept fine-tune (FR-24) stays either way.
+- **Share in:** the app accepts a shared video (Android `SEND` of `video/*` and `VIEW` of a `content` URI of `video/*`, received by our own `status_studio/video_in` channel; iOS Share Extension from M26). The copy is refused when the phone has less than the file's size plus 50 MiB free ("Not enough space on your phone.", §8), and `file` URIs into the app's own data folder are never read. A shared video opens Source with its card; since M28 it waits for Get the script or Make it without lyrics (FR-29) instead of starting the script. If a reel is in progress, the app asks first: "Start a new reel from this video? The one you're making will close." with Start and Keep. The kept fine-tune (FR-24) stays either way.
 - **Pick:** "Choose a video" opens the system gallery picker (`image_picker` `pickVideo`: the Android Photo Picker, PHPicker on iOS), which needs no permission.
 - **Both ways** put the file in the app's storage, `sources/<videoId>/source.<ext>` (§4). A shared file is already staged in `files/incoming/`, and `image_picker` already copied a picked one into the app's cache folder; those files are moved into place (copied, then deleted, when the folders are on different volumes), and deleted whether or not the import succeeds, so no video is kept twice. A file outside those two folders is streamed into place and left unchanged. The free-space check (size plus 50 MiB) applies to a copy only, and is skipped when the phone can't report its free space.
 - **Already kept:** a video kept under the same ID is reused only if its length equals the incoming file's; a shorter or missing one is replaced (written as `.part`, then renamed), and only one `source.<ext>` is ever kept per ID. Two imports of the same video at once keep it once.
@@ -293,7 +293,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Cancel or dismiss:** nothing changes, and the button comes back. A hand edit made while frames were being looked at still wins: no question is asked and nothing changes.
 - **After:** the same snackbar as FR-23.
 
-**FR-24 Continue a fine-tune later (M21; changed in M23).** Work on Fine-tune is kept on the phone as it changes, so the user can leave and carry on from Recent, hours or days later. There is no Save button.
+**FR-24 Continue a fine-tune later (M21; changed in M23).** Work on Fine-tune is kept on the phone as it changes, so the user can leave and carry on from Recent, hours or days later. There is no Save button. A reel without lyrics (FR-29) is not kept.
 - **What is kept:** the clip's start and end (FR-5; the picked lines of FR-4 went in M23), the frame (size, fill, base anchor, free crop and the moving crop's keyframes, FR-6 and FR-22), the caption settings (FR-7) and whether lines were edited (FR-21).
   - Neither the script nor the video is copied. The kept fine-tune names its saved script by video and requested language (FR-14), and its video by the fingerprint ID; the video is the kept `sources/<videoId>/source.<ext>` (FR-1). The source is `edited` when lines were edited; otherwise it is the newest script, the one FR-14 reopens.
   - It also keeps a fingerprint of the script's lines from the first line through the last line of the clip (a 32-bit FNV-1a hash of each line's start, end and text, stable across runs). That tells a changed script apart, and lines added later (a script still being written) don't count.
@@ -344,6 +344,18 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Cancel or dismiss:** nothing changes. A hand edit made while frames were being looked at still wins.
 - **After:** the snackbar "The crop follows your choices (6 keyframes). Drag or tap a chip to adjust." Everything stays editable as FR-22 says.
 - **Replacing:** as FR-23: when more than one keyframe exists, "Replace your crop keyframes?" with Replace and Keep, asked before the first scene.
+
+**FR-29 Without lyrics (M28).** Lyrics are optional. A reel can be made with no script: no Groq key is needed, nothing is uploaded, and Processing and Fine-tune · Lyrics are skipped.
+- **Source:** under "Get the script", a second button, "Make it without lyrics". Like Get the script, it is on once a video is chosen and waits for its import. It opens Fine-tune · Video with the clip as the whole video (FR-5). The language dropdown is not used.
+- **Note on Source:** "Getting the script sends the video's audio to Groq. Without lyrics, nothing leaves your phone." (replaces "The video's audio is sent to Groq to write the script. …").
+- **Shared video (changed from FR-1):** a shared video no longer starts the script by itself. Source shows its card and waits for one of the two buttons, so nothing is uploaded unasked.
+- **Steps:** Fine-tune · Video is "Step 2 of 3" and its button is "Next: caption", which opens Caption ("Step 3 of 3"). The Video step's player is released first, as before Lyrics (FR-22).
+- **Caption:** there is no script, so the Original, Roman Urdu and English choice is hidden and the text starts empty. Lines the user types show one at a time, the clip shared out by line length (FR-7a). Hint: "Optional. Leave it empty for a reel with no caption. Each line shows on its own; the clip is shared out between them." With no text the reel carries only the branding.
+- **Export summary:** "No caption" when the caption is empty, "Your own caption" when the user typed one.
+- **Same video again:** after Back to Source, Get the script brings lyrics back through Processing as usual. Make it without lyrics after a script drops the lines and the caption text, and keeps the clip, the frame and the caption's position and size.
+- **A script still being written** is stopped when the user chooses Make it without lyrics, and lines that arrive later are never added.
+- **Continue later (FR-24):** a reel without lyrics is not kept: leaving Fine-tune loses it. Once exported it is in Recent like any reel, titled by the video's name when the caption is empty (FR-11).
+- **File name (FR-9):** with an empty caption it is the `<kalam>` part only, or `reel` when the title has no words.
 
 ## 4. Non-functional requirements
 
@@ -717,6 +729,7 @@ Each error is a typed exception from the data layer. Screens map them to these m
 | M25 Choose per scene | At every scene the user picks a face, a body or a fixed spot (FR-27) | Built and reviewed (Opus, several passes), branch `m25-choose-per-scene` (stacked on M24), pushed, not merged. The spike ran on the Redmi (§10 item 7: ML Kit pose no-go, EfficientDet-Lite0 used; APK +11.4 MB accepted by the owner). The owner confirmed on the phone (2026-11-06) that the faces, bodies and spots walk works. Fixed on the way, from phone logs: exact Cut keyframe timing, the preview players released before Caption and Export (decoder error -12), preferences lost after a service ends (§5), Export's Retry after a failed save. Tests not run (the user tests; stale ones in §12); device checks pending (§14) |
 | M26 iOS | iOS build, Share Extension, AVFoundation renderer (§10 item 9) | Planned, branch `m26-ios` (stacked on M25) |
 | M27 Store readiness | Consent, privacy policy, store answers and release builds for Play and the App Store (§9) | Planned, branch `m27-store-readiness` (stacked on M26) |
+| M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`); tests not run; device checks pending (§14) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -943,6 +956,14 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
 - [ ] **5. Listing rules in §9.** No "YouTube" or "WhatsApp" in the name, description or screenshots, and neither brand's logo; screenshots use the user's own footage; "Status" alone is fine.
 - [ ] **6. Release builds.** A signed Play App Bundle (`fvm flutter build appbundle`) and an iOS archive for TestFlight.
 
+### M28 tasks (branch `m28-lyrics-optional`)
+
+Request, 2026-11-10: "Make lyrics optional". The owner chose to skip lyrics entirely: no Groq, no Processing, no Lyrics step (FR-29). From `dev` (M25 merged). Tests are the owner's; `fvm flutter analyze` only.
+
+- [x] **1. Without lyrics (FR-29).** `ReelDraft.lyricsSkipped` with `withoutLyrics()` and `withLyrics()`; a script run's lines are ignored while it is set. Source's "Make it without lyrics" (cancels a running script) and the shared video waiting for a choice; Fine-tune's "Next: caption" and step labels; Caption without the variant chips and with its own hint; Export's caption summary. Commit 2524fc7.
+- [x] **2. Docs.** FR-29, FR-1, FR-24, §2, §12, §13, §14.
+- [ ] **3. Tests (owner).** The §13 cases under "Without lyrics (M28)".
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1095,6 +1116,13 @@ Request, 2026-11-05: meet Google Play and App Store policy. With YouTube gone no
   - A second tap on Continue while the first is reading the script does nothing. Writing a script again or choosing another language drops the line-edit shield, so the new script replaces the lines.
   - The Continue row replaces the script row, and Delete removes both the fine-tune and the script (no script row is left).
   - Continue opens Fine-tune and Back shows Source or Home. With the script gone it opens Processing; with the script changed it opens Script with the snackbar. Both delete the draft and keep the frame (crop at the old start) and the caption's position and size.
+
+**Without lyrics (M28, FR-29):**
+- `ReelDraft.withoutLyrics` drops the transcript, selection and caption text, keeps the clip, frame and caption position and size, and sets the clip to the whole video when there was none.
+- With lyrics skipped, `withGrowingTranscript` changes nothing; `withLyrics` then lets the next script in and fills the caption from it.
+- Source: Make it without lyrics is off until a video is chosen; it opens Fine-tune without starting a script and cancels a running one. A shared video starts no script.
+- Fine-tune · Video without lyrics says "Step 2 of 3" and "Next: caption", and opens Caption; with lyrics it still opens Lyrics.
+- Caption without lyrics hides the variant chips and shows the optional hint; Export's summary says "No caption" for an empty caption.
 
 ## 14. Device checks
 
@@ -1256,6 +1284,14 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
 - [ ] Export, then Home: the Continue row is gone and the reel row is there.
 - [ ] Write it again, then Continue: Fine-tune opens with the "script changed" snackbar.
 - [ ] A long Urdu title in the Continue row on a small phone.
+
+**Without lyrics (M28):**
+- [ ] Make it without lyrics with no Groq key saved: Fine-tune, Caption and Export work, and nothing is uploaded.
+- [ ] Export with an empty caption: only the app name and logo show; the file is named after the video.
+- [ ] A typed two-line caption: each line shows for its share of the clip.
+- [ ] Share a video in: Source waits; both buttons work.
+- [ ] Get the script, Back on Processing, then Make it without lyrics: no lines appear later on Fine-tune or Caption.
+- [ ] Fine-tune → Caption → Export → Back: no `MediaCodec` error -12, and the players come back.
 
 ## 15. Known issues (found on the phone, not fixed)
 
