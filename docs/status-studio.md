@@ -866,7 +866,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M33 Support and About | Settings becomes a list with one screen per category; Support (feedback or complaint by email or WhatsApp, with device details; call) and About (version, licences) (FR-31) | Built, branch `m33-about-support` (from `dev`), merged into `dev` with M35 (2026-11-10); tests not run |
 | M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33), merged into `dev` with M35 (2026-11-10); tests not run |
 | M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Built, branch `m35-theme-choice` (stacked on M34), merged into `dev` (2026-11-10); designed with the owner from mockups (2026-11-10); tests not run |
-| M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`); in progress |
+| M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`), merged into `dev` (2026-11-10); tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
