@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 final class ShareViewController: UIViewController {
     private static let appURL = URL(string: "statusstudio://shared")!
 
+    private static let failureShownSeconds = 2.0
+
     private let statusLabel = UILabel()
 
     override func viewDidLoad() {
@@ -34,7 +36,7 @@ final class ShareViewController: UIViewController {
 
     private func stageSharedMovie() {
         guard let provider = movieProvider() else {
-            return finish(reporting: ShareFailure(code: "copy_failed", message: "This isn't a video."))
+            return finish(reporting: ShareFailure(code: "copy_failed", message: "This isn't a video.", reachesApp: false))
         }
         provider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { [weak self] file, error in
             // The file is only ours inside this closure, so it is copied before returning.
@@ -53,14 +55,22 @@ final class ShareViewController: UIViewController {
     /// Nil failure means the video is whole in the App Group.
     private static func stage(_ file: URL?, loadError: Error?) -> ShareFailure? {
         guard let incoming = SharedIncoming.folderInGroupContainer() else {
-            return ShareFailure(code: "copy_failed", message: "Status Studio isn't set up to receive videos.")
+            return ShareFailure(
+                code: "copy_failed",
+                message: "Status Studio isn't set up to receive videos.",
+                reachesApp: false
+            )
         }
         do {
             guard let file else { throw loadError ?? CocoaError(.fileReadUnknown) }
             try copy(file, into: incoming)
             return nil
         } catch {
-            let failure = ShareFailure(code: SharedIncoming.failureCode(of: error), message: error.localizedDescription)
+            let failure = ShareFailure(
+                code: SharedIncoming.failureCode(of: error),
+                message: error.localizedDescription,
+                reachesApp: true
+            )
             record(failure, in: incoming)
             return failure
         }
@@ -86,14 +96,20 @@ final class ShareViewController: UIViewController {
         guard let json = try? JSONSerialization.data(withJSONObject: report) else { return }
         try? FileManager.default.createDirectory(at: incoming, withIntermediateDirectories: true)
         let target = incoming.appendingPathComponent(UUID().uuidString + SharedIncoming.failedSuffix)
-        try? json.write(to: target)
+        try? json.write(to: target, options: .atomic)
     }
 
+    /// A failure stays on screen for a moment, so the person can read it before the sheet closes.
     private func finish(reporting failure: ShareFailure?) {
-        if let failure, failure.code == "no_space" {
-            showStatus("There isn't enough free space for this video.")
+        guard let failure else { return end(opening: true) }
+        showStatus(failure.message)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.failureShownSeconds) { [weak self] in
+            self?.end(opening: failure.reachesApp)
         }
-        openHostApp()
+    }
+
+    private func end(opening openApp: Bool) {
+        if openApp { openHostApp() }
         extensionContext?.completeRequest(returningItems: nil)
     }
 
@@ -120,4 +136,8 @@ final class ShareViewController: UIViewController {
 private struct ShareFailure {
     let code: String
     let message: String
+
+    /// Whether a `.failed` report was left for the app, which then tells Dart; without one,
+    /// opening the app would show nothing.
+    let reachesApp: Bool
 }

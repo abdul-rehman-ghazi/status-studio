@@ -19,7 +19,8 @@ private let staleAfterSeconds: TimeInterval = 24 * 60 * 60
 /// own `incoming` folder (`Application Support/incoming`), where Dart's importer expects staged
 /// videos and moves them on into `sources/<videoId>/` (spec FR-1).
 ///
-/// Not thread-safe: use it from one queue, never the main thread (a video is a large file).
+/// Not thread-safe: `collect` and `deleteStaleCopies` run on one queue, never the main thread (a
+/// video is a large file); `freeBytes` only reads and may be asked from anywhere.
 final class ShareInbox {
     private let groupFolder: URL?
     private let stagingFolder: URL
@@ -110,6 +111,9 @@ final class ShareInbox {
             try? fileManager.removeItem(at: target)
             try fileManager.copyItem(at: file, to: target)
         }
+        // A moved or cloned file keeps the date the video was recorded, which would make a share
+        // from last week look stale at once.
+        try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: target.path)
         return target
     }
 
