@@ -231,7 +231,7 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
       borderRadius: BorderRadius.circular(16),
       child: Stack(
         children: [
-          const Positioned.fill(child: ColoredBox(color: AppColors.surface)),
+          Positioned.fill(child: ColoredBox(color: context.palette.surface)),
           SizedBox(
             width: double.infinity,
             child: Center(
@@ -394,9 +394,9 @@ class _SeekBarState extends State<_SeekBar>
           child: Text(
             formatClipTime(videoTime),
             textAlign: TextAlign.end,
-            style: const TextStyle(
-              color: AppColors.textMuted,
-              fontFeatures: [FontFeature.tabularFigures()],
+            style: TextStyle(
+              color: context.palette.textMuted,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ),
@@ -432,7 +432,7 @@ class _ClipMarker extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(_trackHeight / 2),
-                  border: Border.all(color: AppColors.textMuted),
+                  border: Border.all(color: context.palette.textMuted),
                 ),
               ),
             ),
@@ -443,7 +443,7 @@ class _ClipMarker extends StatelessWidget {
                 height: _trackHeight,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppColors.accent,
+                    color: context.palette.accent,
                     borderRadius: BorderRadius.circular(_trackHeight / 2),
                   ),
                 ),
@@ -464,13 +464,13 @@ class _Unplayable extends StatelessWidget {
       aspectRatio: 16 / 9,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             "Couldn't play this video.",
-            style: TextStyle(color: AppColors.textMuted),
+            style: TextStyle(color: context.palette.textMuted),
           ),
         ),
       ),

@@ -86,7 +86,9 @@ class _Header extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           'Clip any video into a status, from its own script.',
-          style: textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
+          style: textTheme.bodyMedium?.copyWith(
+            color: context.palette.textMuted,
+          ),
         ),
       ],
     );
@@ -102,7 +104,7 @@ class _NewReelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: AppColors.accent,
+      color: context.palette.accent,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -111,7 +113,7 @@ class _NewReelCard extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           child: Row(
             children: [
-              const Icon(Icons.add_circle, color: AppColors.onAccent, size: 36),
+              Icon(Icons.add_circle, color: context.palette.onAccent, size: 36),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -120,7 +122,7 @@ class _NewReelCard extends StatelessWidget {
                     Text(
                       'New reel',
                       style: textTheme.titleMedium?.copyWith(
-                        color: AppColors.onAccent,
+                        color: context.palette.onAccent,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -128,7 +130,7 @@ class _NewReelCard extends StatelessWidget {
                     Text(
                       'Choose or share a video, then trim and caption it',
                       style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.onAccent,
+                        color: context.palette.onAccent,
                       ),
                     ),
                   ],
@@ -194,13 +196,13 @@ class _EmptyRecent extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         'Your reels and scripts will appear here.',
         style: Theme.of(context).textTheme.bodyMedium
-            ?.copyWith(color: AppColors.textMuted),
+            ?.copyWith(color: context.palette.textMuted),
       ),
     );
   }
@@ -225,9 +227,12 @@ class _RecentReelRow extends ConsumerWidget {
           child: Image.file(
             File(reel.thumbnailPath),
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => const ColoredBox(
-              color: AppColors.surface,
-              child: Icon(Icons.movie_outlined, color: AppColors.textMuted),
+            errorBuilder: (context, error, stackTrace) => ColoredBox(
+              color: context.palette.surface,
+              child: Icon(
+                Icons.movie_outlined,
+                color: context.palette.textMuted,
+              ),
             ),
           ),
         ),
@@ -340,12 +345,12 @@ class _ScriptThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: const SizedBox(
+      child: SizedBox(
         width: 48,
         height: 64,
         child: ColoredBox(
-          color: AppColors.surface,
-          child: Icon(Icons.subject, color: AppColors.textMuted),
+          color: context.palette.surface,
+          child: Icon(Icons.subject, color: context.palette.textMuted),
         ),
       ),
     );
@@ -386,8 +391,10 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       ),
       trailing: Text(
         'Continue',
-        style: Theme.of(context).textTheme.labelLarge
-            ?.copyWith(color: AppColors.accent, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: context.palette.accent,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       onTap: () => unawaited(_continue(context, ref)),
       onLongPress: () => unawaited(_offerDeleteProgress(context, ref)),
@@ -497,12 +504,12 @@ class _FineTuneThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: const SizedBox(
+      child: SizedBox(
         width: 48,
         height: 64,
         child: ColoredBox(
-          color: AppColors.surface,
-          child: Icon(Icons.tune, color: AppColors.textMuted),
+          color: context.palette.surface,
+          child: Icon(Icons.tune, color: context.palette.textMuted),
         ),
       ),
     );

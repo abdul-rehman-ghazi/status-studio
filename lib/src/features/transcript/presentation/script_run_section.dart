@@ -295,7 +295,7 @@ class _StepRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          SizedBox.square(dimension: 24, child: _statusIcon()),
+          SizedBox.square(dimension: 24, child: _statusIcon(context)),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -312,9 +312,9 @@ class _StepRow extends StatelessWidget {
     );
   }
 
-  Widget _statusIcon() {
+  Widget _statusIcon(BuildContext context) {
     if (current.index > step.stage.index) {
-      return const Icon(Icons.check_circle, color: AppColors.accent);
+      return Icon(Icons.check_circle, color: context.palette.accent);
     }
     if (current == step.stage) {
       return const Padding(
@@ -322,7 +322,7 @@ class _StepRow extends StatelessWidget {
         child: CircularProgressIndicator(strokeWidth: 2.5),
       );
     }
-    return const Icon(Icons.radio_button_unchecked, color: AppColors.textMuted);
+    return Icon(Icons.radio_button_unchecked, color: context.palette.textMuted);
   }
 }
 

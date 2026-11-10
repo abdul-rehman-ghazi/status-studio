@@ -93,7 +93,7 @@ class _LaunchFrameView extends StatelessWidget {
     return Opacity(
       opacity: frame.splashOpacity,
       child: ColoredBox(
-        color: AppColors.background,
+        color: AppPalette.dark.background,
         child: Stack(
           alignment: Alignment.center,
           children: [_buildLogo(), _buildWordmark()],
@@ -109,8 +109,8 @@ class _LaunchFrameView extends StatelessWidget {
         dimension: _logoSize,
         child: CustomPaint(
           painter: LogoPainter(
-            tile: AppColors.accent,
-            ink: AppColors.onAccent,
+            tile: LogoColors.tile,
+            ink: LogoColors.ink,
             pose: frame.logo.pose,
           ),
         ),
@@ -123,14 +123,14 @@ class _LaunchFrameView extends StatelessWidget {
       offset: Offset(0, _logoSize / 2 + _wordmarkGap + frame.wordmark.lift),
       child: Opacity(
         opacity: frame.wordmark.opacity,
-        child: const Text(
+        child: Text(
           'Status Studio',
           style: TextStyle(
             fontFamily: AppFonts.ui,
             fontSize: 24,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.2,
-            color: AppColors.textPrimary,
+            color: AppPalette.dark.textPrimary,
             decoration: TextDecoration.none,
           ),
         ),

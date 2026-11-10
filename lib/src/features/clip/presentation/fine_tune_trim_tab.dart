@@ -146,7 +146,7 @@ class _ClipSummary extends StatelessWidget {
         ),
         Text(
           formatSeconds(clip.length),
-          style: textTheme.titleMedium?.copyWith(color: AppColors.accent),
+          style: textTheme.titleMedium?.copyWith(color: context.palette.accent),
         ),
       ],
     );
@@ -181,15 +181,15 @@ class _WholeVideoBar extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) => Stack(
                 children: [
-                  const Positioned.fill(
-                    child: ColoredBox(color: AppColors.surface),
+                  Positioned.fill(
+                    child: ColoredBox(color: context.palette.surface),
                   ),
                   Positioned(
                     left: constraints.maxWidth * startFraction,
                     width: constraints.maxWidth * lengthFraction,
                     top: 0,
                     bottom: 0,
-                    child: const ColoredBox(color: AppColors.accent),
+                    child: ColoredBox(color: context.palette.accent),
                   ),
                 ],
               ),
@@ -228,7 +228,7 @@ class _NudgeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(

@@ -47,14 +47,14 @@ Size measureCaptionText(String text, double fontSize, double maxWidth) {
 /// The caption's text style for [text]: its script's font and line height.
 /// Not inherited, so the Style preview's `Text` lays out exactly like the
 /// painter here instead of picking up the theme's letter spacing.
-TextStyle captionTextStyle(String text, double fontSize) => scriptTextStyle(
-  text,
-).copyWith(inherit: false, fontSize: fontSize, color: AppColors.textPrimary);
+TextStyle captionTextStyle(String text, double fontSize) =>
+    scriptTextStyle(text)
+        .copyWith(inherit: false, fontSize: fontSize, color: ReelColors.text);
 
 /// "Status Studio" in the branding pill; not inherited, as above.
 TextStyle brandingTextStyle(double logoSize) => TextStyle(
   inherit: false,
-  color: AppColors.textPrimary,
+  color: ReelColors.text,
   fontFamily: AppFonts.ui,
   fontWeight: FontWeight.w600,
   fontSize: logoSize * _brandingFont,
@@ -82,7 +82,7 @@ void _paintCaption(Canvas canvas, String text, OverlayLayout layout) {
   final box = layout.captionBox;
   canvas.drawRect(
     box,
-    Paint()..color = AppColors.overlay.withValues(alpha: 0.38),
+    Paint()..color = ReelColors.scrim.withValues(alpha: 0.38),
   );
   final painter = captionTextPainter(text, layout.captionFontSize)
     ..maxLines = layout.captionMaxLines
@@ -112,15 +112,15 @@ void _paintBranding(Canvas canvas, OverlayLayout layout) {
       );
   canvas.drawRRect(
     RRect.fromRectAndRadius(pill, Radius.circular(logo)),
-    Paint()..color = AppColors.overlay.withValues(alpha: 0.45),
+    Paint()..color = ReelColors.scrim.withValues(alpha: 0.45),
   );
   final logoOrigin = pill.topLeft + Offset(padding, padding);
   canvas
     ..save()
     ..translate(logoOrigin.dx, logoOrigin.dy);
   LogoPainter(
-    tile: AppColors.accent,
-    ink: AppColors.onAccent,
+    tile: LogoColors.tile,
+    ink: LogoColors.ink,
   ).paint(canvas, Size.square(logo));
   canvas.restore();
   label.paint(

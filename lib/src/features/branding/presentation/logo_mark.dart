@@ -7,8 +7,8 @@ class LogoMark extends StatelessWidget {
   const LogoMark({
     super.key,
     required this.size,
-    this.tile = AppColors.accent,
-    this.ink = AppColors.onAccent,
+    this.tile = LogoColors.tile,
+    this.ink = LogoColors.ink,
   });
 
   final double size;

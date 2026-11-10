@@ -24,7 +24,7 @@ class WaveformView extends StatelessWidget {
     return SizedBox(
       height: _height,
       child: CustomPaint(
-        painter: _WaveformPainter(peaks: peaks, window: window, clip: clip),
+        painter: _WaveformPainter(waveform: this, palette: context.palette),
         size: Size.infinite,
       ),
     );
@@ -32,15 +32,14 @@ class WaveformView extends StatelessWidget {
 }
 
 class _WaveformPainter extends CustomPainter {
-  _WaveformPainter({
-    required this.peaks,
-    required this.window,
-    required this.clip,
-  });
+  _WaveformPainter({required this.waveform, required this.palette});
 
-  final List<double> peaks;
-  final ClipWindow window;
-  final ClipRange clip;
+  final WaveformView waveform;
+  final AppPalette palette;
+
+  List<double> get peaks => waveform.peaks;
+  ClipWindow get window => waveform.window;
+  ClipRange get clip => waveform.clip;
 
   double _fractionOf(Duration time) {
     final length = (window.end - window.start).inMicroseconds;
@@ -64,8 +63,8 @@ class _WaveformPainter extends CustomPainter {
       return;
     }
     final slot = size.width / peaks.length;
-    final inside = Paint()..color = AppColors.accent;
-    final outside = Paint()..color = AppColors.textMuted.withValues(alpha: 0.4);
+    final inside = Paint()..color = palette.accent;
+    final outside = Paint()..color = palette.textMuted.withValues(alpha: 0.4);
     for (final (index, peak) in peaks.indexed) {
       final centre = slot * (index + 0.5);
       final barHeight = (size.height - 8) * peak + 2;
@@ -86,9 +85,9 @@ class _WaveformPainter extends CustomPainter {
     final area = Rect.fromLTRB(selected.left, 0, selected.right, size.height);
     canvas.drawRect(
       area,
-      Paint()..color = AppColors.accent.withValues(alpha: 0.12),
+      Paint()..color = palette.accent.withValues(alpha: 0.12),
     );
-    final edge = Paint()..color = AppColors.accent;
+    final edge = Paint()..color = palette.accent;
     canvas
       ..drawRect(Rect.fromLTWH(selected.left, 0, _edgeWidth, size.height), edge)
       ..drawRect(
@@ -101,7 +100,8 @@ class _WaveformPainter extends CustomPainter {
   bool shouldRepaint(_WaveformPainter oldDelegate) =>
       oldDelegate.peaks != peaks ||
       oldDelegate.window != window ||
-      oldDelegate.clip != clip;
+      oldDelegate.clip != clip ||
+      oldDelegate.palette != palette;
 }
 
 typedef _Span = ({double left, double right});

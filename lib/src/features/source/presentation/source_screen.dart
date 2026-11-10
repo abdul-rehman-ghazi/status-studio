@@ -196,7 +196,7 @@ class _VideoCard extends StatelessWidget {
         margin: const EdgeInsets.only(top: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(14),
         ),
         child: _cardContent(context, snapshot, switch (conversionFraction) {
@@ -305,9 +305,9 @@ class _ThumbnailIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: AppColors.background,
-      child: Icon(Icons.play_circle_outline, color: AppColors.accent),
+    return ColoredBox(
+      color: context.palette.background,
+      child: Icon(Icons.play_circle_outline, color: context.palette.accent),
     );
   }
 }

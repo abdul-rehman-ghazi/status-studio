@@ -122,10 +122,10 @@ class _SceneStripState extends State<SceneStrip>
       left: width * fraction - 1,
       top: -3,
       bottom: -3,
-      child: const IgnorePointer(
+      child: IgnorePointer(
         child: SizedBox(
           width: 2,
-          child: ColoredBox(color: AppColors.textPrimary),
+          child: ColoredBox(color: context.palette.textPrimary),
         ),
       ),
     );
@@ -147,14 +147,16 @@ class _SceneBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = selected ? AppColors.onAccent : AppColors.textPrimary;
+    final foreground = selected
+        ? context.palette.onAccent
+        : context.palette.textPrimary;
     return Semantics(
       button: true,
       selected: selected,
       label: 'Crop position, ${sceneLengthLabel(span.length)}',
       excludeSemantics: true,
       child: Material(
-        color: selected ? AppColors.accent : AppColors.surface,
+        color: selected ? context.palette.accent : context.palette.surface,
         child: InkWell(
           onTap: onTap,
           child: Stack(

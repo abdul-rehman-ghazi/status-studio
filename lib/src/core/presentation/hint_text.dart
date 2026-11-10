@@ -12,7 +12,7 @@ class HintText extends StatelessWidget {
     return Text(
       text,
       style: Theme.of(context).textTheme.bodySmall
-          ?.copyWith(color: AppColors.textMuted),
+          ?.copyWith(color: context.palette.textMuted),
     );
   }
 }

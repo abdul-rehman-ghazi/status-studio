@@ -29,11 +29,11 @@ class OptionRow<T> extends StatelessWidget {
             label: Text(option.label),
             selected: option.value == selected,
             showCheckmark: false,
-            selectedColor: AppColors.accent,
+            selectedColor: context.palette.accent,
             labelStyle: TextStyle(
               color: option.value == selected
-                  ? AppColors.onAccent
-                  : AppColors.textPrimary,
+                  ? context.palette.onAccent
+                  : context.palette.textPrimary,
             ),
             onSelected: (_) => onSelected(option.value),
           ),

@@ -209,7 +209,7 @@ class _DimOutsidePainter extends CustomPainter {
       ..drawRect(
         window,
         Paint()
-          ..color = AppColors.accent
+          ..color = PictureMarkColors.accent
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2,
       );
@@ -229,13 +229,13 @@ class _CornerHandle extends StatelessWidget {
       width: _handleSize,
       height: _handleSize,
       decoration: const BoxDecoration(
-        color: AppColors.accent,
+        color: PictureMarkColors.accent,
         borderRadius: BorderRadius.only(topLeft: Radius.circular(8)),
       ),
       child: const Icon(
         Icons.open_in_full,
         size: 16,
-        color: AppColors.onAccent,
+        color: PictureMarkColors.onAccent,
       ),
     );
   }

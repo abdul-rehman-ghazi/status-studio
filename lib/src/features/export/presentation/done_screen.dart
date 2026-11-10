@@ -110,9 +110,9 @@ class _Thumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const placeholder = ColoredBox(
-      color: AppColors.surface,
-      child: Icon(Icons.movie_outlined, color: AppColors.textMuted),
+    final placeholder = ColoredBox(
+      color: context.palette.surface,
+      child: Icon(Icons.movie_outlined, color: context.palette.textMuted),
     );
     return Image.file(
       File(path),

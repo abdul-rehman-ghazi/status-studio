@@ -98,7 +98,7 @@ class _PlayerMessage extends StatelessWidget {
       aspectRatio: 16 / 9,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Center(child: HintText(text)),

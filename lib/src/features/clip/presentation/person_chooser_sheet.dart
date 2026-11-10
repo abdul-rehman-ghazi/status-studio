@@ -295,7 +295,7 @@ class _Picture extends StatelessWidget {
                   choosing.picture,
                   fit: BoxFit.fill,
                   errorBuilder: (_, _, _) =>
-                      const ColoredBox(color: AppColors.surface),
+                      ColoredBox(color: context.palette.surface),
                 ),
               ),
             ),
@@ -335,15 +335,15 @@ class _Picture extends StatelessWidget {
 _MarkerStyle _bodyStyle(int index) => _MarkerStyle(
   label: 'Body ${index + 1}',
   badge: 'B${index + 1}',
-  color: AppColors.textPrimary,
-  badgeTextColor: AppColors.background,
+  color: PictureMarkColors.light,
+  badgeTextColor: PictureMarkColors.onLight,
 );
 
 _MarkerStyle _faceStyle(int index) => _MarkerStyle(
   label: 'Person ${index + 1}',
   badge: '${index + 1}',
-  color: AppColors.accent,
-  badgeTextColor: AppColors.onAccent,
+  color: PictureMarkColors.accent,
+  badgeTextColor: PictureMarkColors.onAccent,
 );
 
 /// How a marker reads: to the eye and to a screen reader.
@@ -512,7 +512,7 @@ class _Pin extends StatelessWidget {
           child: Icon(
             Icons.location_on,
             size: _pinSize,
-            color: AppColors.accent,
+            color: PictureMarkColors.accent,
           ),
         ),
       ),

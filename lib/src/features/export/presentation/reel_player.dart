@@ -81,10 +81,10 @@ class _ReelPlayerState extends ConsumerState<ReelPlayer> {
             child: VideoProgressIndicator(
               _player,
               allowScrubbing: true,
-              colors: const VideoProgressColors(
-                playedColor: AppColors.accent,
-                bufferedColor: AppColors.textMuted,
-                backgroundColor: AppColors.surface,
+              colors: VideoProgressColors(
+                playedColor: context.palette.accent,
+                bufferedColor: context.palette.textMuted,
+                backgroundColor: context.palette.surface,
               ),
             ),
           ),
@@ -105,7 +105,7 @@ class _PlayBadge extends StatelessWidget {
     return Center(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.overlay.withValues(alpha: 0.55),
+          color: PictureMarkColors.scrim.withValues(alpha: 0.55),
           shape: BoxShape.circle,
         ),
         child: const Padding(

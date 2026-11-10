@@ -219,19 +219,22 @@ class _VideoPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const movieIcon = Icon(Icons.movie_outlined, color: AppColors.textMuted);
+    final movieIcon = Icon(
+      Icons.movie_outlined,
+      color: context.palette.textMuted,
+    );
     if (frame.offersFill && frame.fill == FillMode.blur) {
-      return const ColoredBox(
-        color: AppColors.background,
+      return ColoredBox(
+        color: context.palette.background,
         child: Center(
           child: AspectRatio(
             aspectRatio: 16 / 9,
-            child: ColoredBox(color: AppColors.surface, child: movieIcon),
+            child: ColoredBox(color: context.palette.surface, child: movieIcon),
           ),
         ),
       );
     }
-    return const ColoredBox(color: AppColors.surface, child: movieIcon);
+    return ColoredBox(color: context.palette.surface, child: movieIcon);
   }
 }
 
@@ -273,7 +276,7 @@ class ReelOverlayLayer extends StatelessWidget {
     return [
       Positioned.fromRect(
         rect: box,
-        child: ColoredBox(color: AppColors.overlay.withValues(alpha: 0.38)),
+        child: ColoredBox(color: ReelColors.scrim.withValues(alpha: 0.38)),
       ),
       Positioned(
         left: box.center.dx - layout.captionTextMaxWidth / 2,
@@ -302,7 +305,7 @@ class ReelOverlayLayer extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(logo * brandingPillPadding),
         decoration: BoxDecoration(
-          color: AppColors.overlay.withValues(alpha: 0.45),
+          color: ReelColors.scrim.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(logo),
         ),
         child: Row(

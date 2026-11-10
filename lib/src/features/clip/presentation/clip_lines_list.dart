@@ -189,7 +189,9 @@ class _LineRow extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 2),
         decoration: BoxDecoration(
-          color: highlighted ? AppColors.accent.withValues(alpha: 0.25) : null,
+          color: highlighted
+              ? context.palette.accent.withValues(alpha: 0.25)
+              : null,
           borderRadius: BorderRadius.circular(10),
         ),
         child: InkWell(

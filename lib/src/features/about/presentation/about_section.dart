@@ -63,7 +63,7 @@ class _NameAndVersion extends StatelessWidget {
               Text(
                 'Version $versionShown',
                 style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.textMuted,
+                  color: context.palette.textMuted,
                 ),
               ),
           ],

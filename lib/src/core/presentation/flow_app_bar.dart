@@ -23,7 +23,7 @@ class FlowAppBar extends StatelessWidget implements PreferredSizeWidget {
             child: Text(
               stepLabel,
               style: Theme.of(context).textTheme.labelMedium
-                  ?.copyWith(color: AppColors.textMuted),
+                  ?.copyWith(color: context.palette.textMuted),
             ),
           ),
         ),

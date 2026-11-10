@@ -32,7 +32,7 @@ class _LyricsGetCardState extends State<LyricsGetCard> {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Column(

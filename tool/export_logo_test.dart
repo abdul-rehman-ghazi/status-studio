@@ -30,11 +30,11 @@ Future<void> _writePng(String path, void Function(Canvas canvas) paint) async {
 void _paintFull(Canvas canvas) {
   canvas.drawRect(
     const Rect.fromLTWH(0, 0, _size, _size),
-    Paint()..color = AppColors.accent,
+    Paint()..color = LogoColors.tile,
   );
   LogoPainter(
-    tile: AppColors.accent,
-    ink: AppColors.onAccent,
+    tile: LogoColors.tile,
+    ink: LogoColors.ink,
   ).paint(canvas, const Size.square(_size));
 }
 
@@ -44,7 +44,7 @@ void _paintForeground(Canvas canvas) {
   canvas.translate(inset, inset);
   LogoPainter(
     tile: Colors.transparent,
-    ink: AppColors.onAccent,
+    ink: LogoColors.ink,
   ).paint(canvas, const Size.square(_size * _foregroundScale));
 }
 
