@@ -89,7 +89,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 
 - **Fill:** presets other than 16:9 offer Crop to fill (default) or Blur background. Crop to fill offers Keep in view: Left / Center (default) / Right.
 - **Free crop:**
-  - Drag to move, and drag the corner to resize.
+  - Edited on the player (M29): the rectangle is drawn over the video with the rest dimmed. Drag it to move, and drag its bottom-right corner to resize. Under the size choices, a hint says so, with Reset. There is no separate editor.
   - Each side is at least 12 % of the source, and the rectangle never leaves the frame.
   - Reset returns to left 30 %, top 4 %, width 40 %, height 92 %.
 
@@ -259,8 +259,8 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Drag:** dragging the crop window over the player moves it with the finger and writes one keyframe, at the playhead where the drag started, when the finger lifts: it replaces the one there or adds one that glides in. Keep in view is hidden while the switch is on.
   - **Chips:** a row under the player, in the pinned part, shows each keyframe's time. Tap one to jump to it. The selected keyframe offers Glide or Cut (not on the first) and Delete. Any keyframe can be deleted except the only one left.
   - **Touch:** the window can be dragged from anywhere inside it, and from a margin around its outline. A cancelled drag (a system gesture, a call) writes nothing and the window goes back to following the playhead.
-  - **Free crop editor:** while the crop moves, its drag changes only the rectangle's size; keyframes place the window.
-  - **Only while it can move:** the window outline and the chips show only while the crop can move (not for Blur or 16:9, or a source with no room). The switch stays while keyframes exist, so they can be turned off.
+  - **Free crop on the player:** while the crop moves, dragging the window writes a keyframe and the corner changes only the rectangle's size; keyframes place the window.
+  - **Only while it can move:** the window outline and the chips show only while the crop can move (not for Blur or 16:9, or a source with no room). Free crop's outline always shows, since it is edited there (FR-6). The switch stays while keyframes exist, so they can be turned off.
 - **Changing the size or fill:** keyframes stay but have no effect while Blur or 16:9 is chosen, and come back when a crop is chosen again. Changing the free crop's size keeps them.
 - **Rounding:** each keyframe's pixel rectangle is rounded as §6.3 says. The preview moves in whole pixels; the render moves in fractions of one.
 - **Render:** the keyframes go to Kotlin as rectangles (§6.3.1) with their times counted from the clip start; the crop between them is computed per frame (§6.3.2). A reel with the switch off renders exactly as before.
@@ -830,6 +830,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M26 iOS | iOS build, Share Extension, AVFoundation renderer, background work (§10 item 9) | Built, branch `m26-ios` (stacked on M25), pushed, merged into `dev` (2026-11-10). `fvm flutter build ios --no-codesign` succeeds (§10 item 9). The Share Extension, the AVFoundation renderer and the iOS background work were **never run**: they need an iPhone and the Apple Developer account (signing, the App Group). Opus reviewed tasks 1–4; tasks 5–7 and the whole branch were not reviewed at the owner's request. Tests not run (the owner tests; stale and new ones in §12); device checks pending (§14) |
 | M27 Store readiness | Consent, privacy policy, store answers and release builds for Play and the App Store (§9) | Built, branch `m27-store-readiness` (from `dev`, which holds M26 and M28), pushed, merged into `dev` (2026-11-10). Consent before Groq (FR-30), no battery-optimisation request, §9.1–9.3, a privacy manifest, a signed Play bundle and an unsigned iOS archive. Pending the owner: policy hosting, the store forms, and the Apple account for signing and TestFlight (§14). Tests not run; device checks pending (§14) |
 | M28 Lyrics optional | Make a reel without a script: no Groq, no Lyrics step, a caption the user may type (FR-29) | Built, branch `m28-lyrics-optional` (from `dev`), merged into `dev`; tests not run; device checks pending (§14) |
+| M29 Free crop on the player | Edit the free crop over the video on Fine-tune · Video instead of a separate editor (FR-6) | Built, branch `m29-free-crop-on-player` (from `dev`), not merged; tests not run; device checks pending (§14) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1068,6 +1069,14 @@ Request, 2026-11-10: "Make lyrics optional". The owner chose to skip lyrics enti
 - [x] **2. Docs.** FR-29, FR-1, FR-24, §2, §12, §13, §14.
 - [ ] **3. Tests (owner).** The §13 cases under "Without lyrics (M28)".
 
+### M29 tasks (branch `m29-free-crop-on-player`)
+
+Request, 2026-11-10: "Free crop size should be on video preview rather than separate section for fine-tune video screen." From `dev`. Tests are the owner's; `fvm flutter analyze lib` only.
+
+- [x] **1. Free crop on the player (FR-6, FR-22).** `CropWindowOverlay` shows for Free crop even without room to move, is draggable while there are no keyframes, and gets a resize corner (`onResized`, key `free-crop-corner`). Fine-tune · Video turns a drag with no keyframes into the rectangle's left and top, keeps only the size while keyframes exist, and shows a hint with Reset under the size choices. `FreeCropEditor` (`free_crop_editor.dart`) is removed.
+- [x] **2. Docs.** FR-6, FR-22, §12, §13, §14.
+- [ ] **3. Tests (owner).** Stale: any test of `FreeCropEditor` or the `free-crop-area` key (the widget is gone; drag the `crop-window` key and the `free-crop-corner` key on the player instead). New: the §13 case "Free crop on the player (M29)".
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1075,6 +1084,7 @@ Request, 2026-11-10: "Make lyrics optional". The owner chose to skip lyrics enti
   - (The tap-selection cases went in M23: there is no line picking.)
   - Nudges past either end of the video are ignored. A nudge that improves an invalid clip is applied.
   - A free-crop drag stays inside the frame.
+  - Free crop on the player (M29): a drag on the window with no keyframes moves the rectangle (left = anchor x × (1 − width), top likewise) and writes no keyframe; the same drag with keyframes writes one; the corner resizes and keeps left and top while keyframes exist; Reset returns to the FR-6 default.
   - A new transcript replaces the lines and clears per-line caption edits; the clip, its nudges and the crop keyframes stay.
 - **Downloads and captions (removed in M23):** nothing is downloaded and there are no caption tracks, so their tests went.
 - **Local video in (M23):**
@@ -1163,7 +1173,7 @@ Request, 2026-11-10: "Make lyrics optional". The owner chose to skip lyrics enti
   - The switch is hidden without room to move. A drag writes one keyframe, at the playhead where it began. The first keyframe has no Glide or Cut. Keep in view is hidden while the crop moves.
   - The Video step's player is released while Lyrics is open and made again on Back.
   - Snapping never puts a keyframe outside the clip. A new script leaves the moving crop, the clip and its nudges alone.
-  - A vertical video's player is at most 260 dp high. Chips and the crop outline show only while the crop can move, and the switch stays while keyframes exist. The free crop editor changes only the size while the crop moves.
+  - A vertical video's player is at most 260 dp high. Chips and the crop outline show only while the crop can move, and the switch stays while keyframes exist. Free crop's outline always shows; its corner changes only the size while the crop moves.
 - **Fine-tune lyrics (FR-21):**
   - Only the clip's lines are listed. The line due shows on the video, and nothing shows between lines. Add line is off outside the clip.
   - The player covers only the clip: it starts at its start, stops at its end, and its seek bar spans just the clip.
@@ -1291,6 +1301,7 @@ Run on a **release** build (or profile; debug builds are slow). Phones: Pixel 6a
   - [ ] Play, pause and the seek bar work over the window; playback runs past the clip end; the bar and its time move without jerks or width changes.
   - [ ] Tapping lines while a naat plays times them, and the highlight follows without lag.
   - [ ] Editing, reordering, adding and deleting lines with Urdu text; the edited script reopens for the same video.
+  - [ ] Free crop on the player (M29): the rectangle drags under a thumb on a landscape and on a vertical (260 dp) video; the corner is reachable and doesn't fight the play button; Reset works.
   - [ ] Moving crop, on a phone: the window drags under a thumb (the play button sits in the corner), the keyframe chips are usable above the scrolling frame controls, and the preview glides smoothly.
   - [ ] Moving crop, render: a Cut lines up with a caption line that starts at the same time (both read the clip's clock); a Glide is smooth; the picture is no softer or stretched compared with a fixed crop of the same size; the render matches the Lyrics preview.
   - [ ] Follow the person (M20; the automatic pick and the "No person found" message went in M25, FR-27, where a person-free clip offers a spot; face timing was measured in M25's spike): the crop follows a singer who sways without jitter; a cut in the video lines up in the render; Cancel responds within 1 s; 12 chips stay usable.

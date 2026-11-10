@@ -10,9 +10,12 @@ import 'package:status_studio/src/theme/app_theme.dart';
 /// FR-22): a thumb is wider than a 2 dp line.
 const _touchMargin = 24.0;
 
+const _handleSize = 28.0;
+
 /// The crop window drawn over the video where it is at the playhead, with
 /// the rest dimmed. While [editable], it can be dragged: it follows the
-/// finger, and one keyframe is written when the finger lifts (spec FR-22).
+/// finger, and [onMoved] is called once when the finger lifts (spec FR-22).
+/// With [onResized], a free crop also gets a corner to resize it (FR-6).
 class CropWindowOverlay extends StatefulWidget {
   const CropWindowOverlay({
     super.key,
@@ -21,6 +24,7 @@ class CropWindowOverlay extends StatefulWidget {
     required this.playhead,
     required this.editable,
     required this.onMoved,
+    this.onResized,
   });
 
   final FrameSettings frame;
@@ -31,6 +35,9 @@ class CropWindowOverlay extends StatefulWidget {
   /// The anchor chosen by a drag, and the playhead time where it started.
   final void Function(Duration videoTime, CropAnchor anchor) onMoved;
 
+  /// The free crop resized from its bottom-right corner.
+  final ValueChanged<FreeCropRect>? onResized;
+
   @override
   State<CropWindowOverlay> createState() => _CropWindowOverlayState();
 }
@@ -40,6 +47,11 @@ class _CropWindowOverlayState extends State<CropWindowOverlay>
   late final PlayheadRedraw _redraw;
   CropAnchor? _dragAnchor;
   var _dragStartTime = Duration.zero;
+
+  // A resize is applied from where it started, so pointer events that land
+  // between rebuilds are never lost.
+  var _resizeStartCrop = FreeCropRect.initial;
+  var _resizeOffset = Offset.zero;
 
   @override
   void initState() {
@@ -103,6 +115,25 @@ class _CropWindowOverlayState extends State<CropWindowOverlay>
     }
   }
 
+  void _startResize(DragStartDetails details) {
+    _resizeStartCrop = widget.frame.freeCrop;
+    _resizeOffset = Offset.zero;
+  }
+
+  void _resize(
+    DragUpdateDetails details,
+    Size shown,
+    ValueChanged<FreeCropRect> onResized,
+  ) {
+    _resizeOffset += details.delta;
+    onResized(
+      _resizeStartCrop.resizeBy(
+        _resizeOffset.dx / shown.width,
+        _resizeOffset.dy / shown.height,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -110,6 +141,7 @@ class _CropWindowOverlayState extends State<CropWindowOverlay>
         final shown = constraints.biggest;
         final source = widget.sourceSize;
         final window = _window;
+        final onResized = widget.onResized;
         final rect = Rect.fromLTWH(
           window.x / source.width * shown.width,
           window.y / source.height * shown.height,
@@ -135,6 +167,21 @@ class _CropWindowOverlayState extends State<CropWindowOverlay>
                     onPanUpdate: (details) => _drag(details, shown),
                     onPanEnd: _endDrag,
                     onPanCancel: () => setState(() => _dragAnchor = null),
+                  ),
+                ),
+              ),
+            if (onResized != null && widget.frame.preset == AspectPreset.free)
+              Positioned(
+                left: rect.right - _handleSize,
+                top: rect.bottom - _handleSize,
+                child: Semantics(
+                  label: 'Resize crop. Drag the corner.',
+                  child: GestureDetector(
+                    key: const ValueKey('free-crop-corner'),
+                    onPanStart: _startResize,
+                    onPanUpdate: (details) =>
+                        _resize(details, shown, onResized),
+                    child: const _CornerHandle(),
                   ),
                 ),
               ),
@@ -171,4 +218,25 @@ class _DimOutsidePainter extends CustomPainter {
   @override
   bool shouldRepaint(_DimOutsidePainter oldDelegate) =>
       oldDelegate.window != window;
+}
+
+class _CornerHandle extends StatelessWidget {
+  const _CornerHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _handleSize,
+      height: _handleSize,
+      decoration: const BoxDecoration(
+        color: AppColors.accent,
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(8)),
+      ),
+      child: const Icon(
+        Icons.open_in_full,
+        size: 16,
+        color: AppColors.onAccent,
+      ),
+    );
+  }
 }

@@ -30,7 +30,6 @@ import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/frame_controls.dart';
-import 'package:status_studio/src/features/style/presentation/free_crop_editor.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/transcript/presentation/script_opening_notice_host.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -99,6 +98,7 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     final sourceSize = previewSourceSize(ref, draft);
     final path = draft.frame.cropPath;
     final canMove = canMoveCrop(draft.frame, sourceSize);
+    final isFreeCrop = draft.frame.preset == AspectPreset.free;
     final follow = ref.watch(followSubjectProvider);
     ref.listen(followSubjectProvider, _showHowFollowEnded);
     return Scaffold(
@@ -119,14 +119,16 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
                     video: video,
                     clip: clip,
                     playhead: _playhead,
-                    videoOverlay: canMove
+                    videoOverlay: canMove || isFreeCrop
                         ? CropWindowOverlay(
                             frame: draft.frame,
                             sourceSize: sourceSize,
                             playhead: _playhead,
-                            editable: !path.isEmpty,
+                            editable: !path.isEmpty || isFreeCrop,
                             onMoved: (time, anchor) =>
-                                _moveCropTo(controller, time, anchor),
+                                _onCropDragged(controller, time, anchor),
+                            onResized: (crop) =>
+                                _changeFreeCrop(controller, crop),
                           )
                         : null,
                   ),
@@ -285,6 +287,45 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
     }
   }
 
+  /// A still free crop is moved itself; any other drag writes a keyframe.
+  void _onCropDragged(
+    ReelDraftController controller,
+    Duration time,
+    CropAnchor anchor,
+  ) {
+    final frame = ref.read(reelDraftProvider).frame;
+    if (frame.preset == AspectPreset.free && frame.cropPath.isEmpty) {
+      _placeFreeCrop(controller, anchor);
+      return;
+    }
+    _moveCropTo(controller, time, anchor);
+  }
+
+  /// The anchor is a place in the room around the window (spec FR-22), so
+  /// the rectangle's corner is that share of the room.
+  void _placeFreeCrop(ReelDraftController controller, CropAnchor anchor) {
+    final frame = ref.read(reelDraftProvider).frame;
+    final crop = frame.freeCrop;
+    controller.updateFrame(
+      frame.copyWith(
+        freeCrop: crop.copyWith(
+          left: anchor.x * (1 - crop.width),
+          top: anchor.y * (1 - crop.height),
+        ),
+      ),
+    );
+  }
+
+  /// While the crop moves its keyframes place the window, so only its size
+  /// may change.
+  void _changeFreeCrop(ReelDraftController controller, FreeCropRect crop) {
+    final frame = ref.read(reelDraftProvider).frame;
+    final kept = frame.cropPath.isEmpty
+        ? crop
+        : frame.freeCrop.copyWith(width: crop.width, height: crop.height);
+    controller.updateFrame(frame.copyWith(freeCrop: kept));
+  }
+
   /// One keyframe is written when a drag ends; it becomes the selected one.
   void _moveCropTo(
     ReelDraftController controller,
@@ -359,6 +400,10 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
           sourceSize: sourceSize,
           onChanged: controller.updateFrame,
         ),
+        if (draft.frame.preset == AspectPreset.free)
+          _FreeCropHint(
+            onReset: () => _changeFreeCrop(controller, FreeCropRect.initial),
+          ),
         // Kept while moving, so a crop that can no longer move (Blur, 16:9)
         // can still be turned off.
         if (canMoveCrop(draft.frame, sourceSize) ||
@@ -383,24 +428,6 @@ class _FineTuneScreenState extends ConsumerState<FineTuneScreen> {
             onStart: _follow,
             onCancel: ref.read(followSubjectProvider.notifier).cancel,
           ),
-        if (draft.frame.preset == AspectPreset.free) ...[
-          const SizedBox(height: 16),
-          FreeCropEditor(
-            crop: draft.frame.freeCrop,
-            // While the crop moves its keyframes place the window, so a drag
-            // may only change its size.
-            onChanged: (crop) => controller.updateFrame(
-              draft.frame.copyWith(
-                freeCrop: draft.frame.cropPath.isEmpty
-                    ? crop
-                    : draft.frame.freeCrop.copyWith(
-                        width: crop.width,
-                        height: crop.height,
-                      ),
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -651,6 +678,27 @@ class _MovingCropSwitch extends StatelessWidget {
         value: moving,
         onChanged: onChanged,
       ),
+    );
+  }
+}
+
+/// The free crop is edited on the player (spec FR-6); this says how.
+class _FreeCropHint extends StatelessWidget {
+  const _FreeCropHint({required this.onReset});
+
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(
+          child: HintText(
+            'Drag the crop on the video to move it. Drag its corner to resize.',
+          ),
+        ),
+        TextButton(onPressed: onReset, child: const Text('Reset')),
+      ],
     );
   }
 }
