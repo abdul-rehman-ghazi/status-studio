@@ -3,5 +3,20 @@
   "dart.flutterSdkPath": ".fvm/versions/3.47.8",
   "java.import.gradle.java.home": "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
   "java.compile.nullAnalysis.mode": "automatic",
-  "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable"
+  "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx4G -Xms100m -Xlog:disable",
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/.metadata/**",
+    "**/archetype-resources/**",
+    "**/META-INF/maven/**",
+    "**/.fvm/**",
+    "**/fvm/versions/**"
+  ],
+  "files.watcherExclude": {
+    "**/.fvm/**": true
+  },
+  "gradle.nestedProjects": [
+    "android"
+  ],
+  "java.import.gradle.enabled": false
 }
