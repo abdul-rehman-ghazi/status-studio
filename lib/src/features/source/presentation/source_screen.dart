@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
-import 'package:status_studio/src/core/presentation/bottom_action.dart';
 import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
@@ -25,7 +24,9 @@ import 'package:status_studio/src/theme/app_theme.dart';
 
 /// Step 1: bring in a video, by the gallery picker or by a share (spec FR-1).
 ///
-/// A [sharedVideo] is imported at once and its script starts without a tap.
+/// A [sharedVideo] is imported at once; like a picked one, it waits for the
+/// user to choose a script or none (spec FR-29), so nothing is uploaded
+/// unasked.
 class SourceScreen extends ConsumerStatefulWidget {
   const SourceScreen({this.sharedVideo, super.key});
 
@@ -47,8 +48,8 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       unawaited(_recoverLostPick());
       return;
     }
-    _videoRequest = _importVideo(shared.path, shared.displayName);
-    unawaited(_getScript());
+    // The card's FutureBuilder reports a failed import.
+    _videoRequest = _importVideo(shared.path, shared.displayName)..ignore();
   }
 
   @override
@@ -91,11 +92,9 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
           const _OnDeviceNote(),
         ],
       ),
-      bottomNavigationBar: BottomAction(
-        child: FilledButton(
-          onPressed: hasVideo ? _getScript : null,
-          child: const Text('Get the script'),
-        ),
+      bottomNavigationBar: _SourceActions(
+        onGetScript: hasVideo ? _getScript : null,
+        onWithoutLyrics: hasVideo ? _makeWithoutLyrics : null,
       ),
     );
   }
@@ -150,7 +149,15 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     return video;
   }
 
-  Future<void> _getScript() async {
+  Future<void> _getScript() => _continueWith(_startScript);
+
+  Future<void> _makeWithoutLyrics() => _continueWith(_openWithoutLyrics);
+
+  /// Runs [nextStep] once the chosen video is in. A failed import stays on
+  /// this screen, and so does one replaced by another choice meanwhile.
+  Future<void> _continueWith(
+    Future<void> Function(SourceVideo video) nextStep,
+  ) async {
     final request = _videoRequest;
     if (request == null) {
       return;
@@ -167,10 +174,15 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     if (!mounted || !identical(request, _videoRequest)) {
       return;
     }
+    await nextStep(video);
+  }
+
+  Future<void> _startScript(SourceVideo video) async {
     final draft = ref.read(reelDraftProvider.notifier);
     final languageChanged = ref.read(reelDraftProvider).language != _language;
     draft
       ..setVideo(video)
+      ..useLyrics()
       ..setLanguage(_language);
     if (languageChanged) {
       // A script in another language replaces the edited lines (FR-21).
@@ -178,6 +190,52 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     }
     ref.read(scriptProgressProvider.notifier).start(video, _language);
     await context.push(AppRoutes.processing);
+  }
+
+  /// Skips Processing and Lyrics (spec FR-29). A script still being written
+  /// for the same video is stopped, since its lines would not be used.
+  Future<void> _openWithoutLyrics(SourceVideo video) async {
+    ref.read(scriptProgressProvider.notifier).cancel();
+    ref.read(reelDraftProvider.notifier)
+      ..setVideo(video)
+      ..skipLyrics();
+    await context.push(AppRoutes.fineTune);
+  }
+}
+
+/// Get the script, with Make it without lyrics under it (spec FR-29).
+class _SourceActions extends StatelessWidget {
+  const _SourceActions({
+    required this.onGetScript,
+    required this.onWithoutLyrics,
+  });
+
+  final VoidCallback? onGetScript;
+  final VoidCallback? onWithoutLyrics;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      minimum: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: 52,
+            child: FilledButton(
+              onPressed: onGetScript,
+              child: const Text('Get the script'),
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: onWithoutLyrics,
+            child: const Text('Make it without lyrics'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -293,8 +351,8 @@ class _OnDeviceNote extends StatelessWidget {
         SizedBox(width: 10),
         Expanded(
           child: HintText(
-            "The video's audio is sent to Groq to write the script. The "
-            'video itself stays on your phone.',
+            "Getting the script sends the video's audio to Groq. Without "
+            'lyrics, nothing leaves your phone.',
           ),
         ),
       ],

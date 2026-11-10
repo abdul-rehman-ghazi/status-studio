@@ -83,7 +83,10 @@ class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
     final controller = ref.read(reelDraftProvider.notifier);
     final caption = draft.caption;
     return Scaffold(
-      appBar: const FlowAppBar(title: 'Caption', stepLabel: 'Step 4 of 4'),
+      appBar: FlowAppBar(
+        title: 'Caption',
+        stepLabel: draft.lyricsSkipped ? 'Step 3 of 3' : 'Step 4 of 4',
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -92,15 +95,17 @@ class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
             _framePreview(draft),
             const SizedBox(height: 24),
             const SectionLabel('Caption'),
-            OptionRow<CaptionVariant>(
-              options: _variantOptions(
-                draft,
-                ref.watch(captionTranslatorProvider),
+            // Without a script there is nothing to translate (spec FR-29).
+            if (!draft.lyricsSkipped)
+              OptionRow<CaptionVariant>(
+                options: _variantOptions(
+                  draft,
+                  ref.watch(captionTranslatorProvider),
+                ),
+                selected: caption.variant,
+                onSelected: (variant) =>
+                    unawaited(_switchVariant(draft, variant)),
               ),
-              selected: caption.variant,
-              onSelected: (variant) =>
-                  unawaited(_switchVariant(draft, variant)),
-            ),
             if (_translating) const _TranslatingNote(),
             const SizedBox(height: 10),
             TextField(
@@ -116,9 +121,8 @@ class _StyleScreenState extends ConsumerState<StyleScreen> with RouteAware {
               },
             ),
             const SizedBox(height: 8),
-            const HintText(
-              'Filled from the lines inside the clip. Each line shows on its own, '
-              'when it is said. Translation runs on your phone. Edit anything.',
+            HintText(
+              draft.lyricsSkipped ? _ownCaptionHint : _scriptCaptionHint,
             ),
             const SizedBox(height: 20),
             _CaptionLayoutControls(
@@ -277,6 +281,14 @@ class _TranslatingNote extends StatelessWidget {
     );
   }
 }
+
+const _scriptCaptionHint =
+    'Filled from the lines inside the clip. Each line shows on its own, '
+    'when it is said. Translation runs on your phone. Edit anything.';
+
+const _ownCaptionHint =
+    'Optional. Leave it empty for a reel with no caption. Each line shows on '
+    'its own; the clip is shared out between them.';
 
 String _languageCode(ReelDraft draft) =>
     draft.transcript?.languageCode ?? ScriptLanguage.auto.whisperCode;
