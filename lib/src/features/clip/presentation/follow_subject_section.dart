@@ -69,7 +69,10 @@ class _Buttons extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: onAddPosition,
                 icon: const Icon(Icons.add),
-                label: const Text('New position here'),
+                label: const Text(
+                  'New position here',
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -77,7 +80,10 @@ class _Buttons extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: canStart ? onStart : null,
                 icon: const Icon(Icons.person_search_outlined),
-                label: const Text('Follow the person'),
+                label: const Text(
+                  'Follow the person',
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ],
