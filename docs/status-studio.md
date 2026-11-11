@@ -895,6 +895,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M37 Caption looks | Box or Shadow caption, each in four colours, remembered for the next reel (FR-7) | Built, branch `m37-caption-looks` (from `dev`), pushed, not merged; tests not run |
 | M38 Fade at the ends | A switch on the Trim tab fades the picture, caption and branding in from black and out to black, 0.5 s each end (FR-33) | Built, branch `m38-fade-ends` (stacked on M37), pushed, not merged; APK and unsigned iOS build succeed; tests not run |
 | M39 Undo on Lyrics | Undo and Redo in Lyrics' app bar for every line change, with a quick Undo after a delete or a tap-to-time (FR-34) | Built, branch `m39-lyrics-undo` (stacked on M38), pushed, not merged; tests not run |
+| M40 Lyrics fixes | A clip over silence selects no lines (Add line puts one in); dragging a line scrolls the screen; edits stay the newest script when a run finishes late (FR-21, §15) | Built, branch `m40-lyrics-fixes` (stacked on M39), pushed, not merged; tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1389,8 +1390,8 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - [x] **1. Spec.** FR-21 (a script with no line inside the clip; Reorder scrolls; a late run keeps the edits), §13, §15 (Clip over silence and Fine-tune lines removed).
 - [x] **2. Clip over silence.** `linesInClip` returns `LineSelection` (`NoSelection` when no line overlaps). `ReelDraft.withTypedFirstLine` becomes `withTypedLine`, which inserts into an existing script in time order (new `withLineInserted` in `line_edits.dart`) instead of replacing it. Lyrics: a script with lines and no run shows the tools, the hint and Add line (an undo step, through `LyricsUndoController.addLineToEmptyClip`). **Stale tests:** `lines_in_clip_test.dart`'s "every line when none overlaps". **New tests to write:** §13 Lyrics fixes, first two.
 - [x] **3. Drag scrolls.** `ClipLinesList` builds slivers (`SliverReorderableList` with a proxy decorator, then Add line), and Lyrics' `ListView` becomes a `CustomScrollView`. **Stale tests:** finders that expect a `ReorderableListView`.
-- [ ] **4. Edits survive a late run.** `ScriptProgressController` saves the edited lines again when a written run (no `savedAt`) ends while `linesEdited`. **New tests to write:** §13 Lyrics fixes, third.
-- [ ] **5. Status.** §12 status row; push.
+- [x] **4. Edits survive a late run.** `ScriptProgressController` saves the edited lines again when a written run (no `savedAt`) ends while `linesEdited`. **New tests to write:** §13 Lyrics fixes, third.
+- [x] **5. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 
