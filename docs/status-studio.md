@@ -413,6 +413,15 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Preview:** the Lyrics player shows the fade, as a black layer over the reel whose opacity is 1 − brightness at the playhead. The Trim tab's player plays the raw video and doesn't.
 - **Kept:** with the fine-tune (FR-24, `fadeEnds`; a file without it reads as off), and through a start-over.
 
+**FR-34 Undo on Lyrics (M39).** Asked by the owner (2026-11-11): every change to the lines can be taken back.
+- **Where:** Undo and Redo icon buttons in Lyrics' app bar, before "Step 2 of 2", greyed when there is nothing to undo or redo.
+- **Steps:** one per change to the lines: a saved text edit (not each letter), Add line, Delete, a drag, and each tap-to-time. An edit that changes no line (an ignored tap) is not a step. At most 50 steps; the oldest go first. A change after an undo clears Redo.
+- **Quick message:** after a Delete, "Line deleted", and after a tap-to-time, "Line timed", each with **Undo**, for 4 s. The next change hides it.
+- **A step back is a change:** the caption refills and the script is saved as `edited` after 1 s (FR-21), and the kept fine-tune follows (FR-24).
+- **Back to before the first edit:** the lines become unedited, so they follow the written script as it is now: lines a run wrote meanwhile appear, and a run still writing keeps adding them.
+- **Lifetime:** while Lyrics is open, Export and Cancel back included. Leaving Lyrics (back to Video, or Fine-tune closing) clears it; it is not kept for Continue later.
+- **Not steps:** the Show lyrics switch, the Style sheet, Type them myself and Get again. Get again (Get, or Replace) clears the history.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -1362,6 +1371,15 @@ Tests are the owner's; `fvm flutter analyze` only (and the Android and iOS build
 - [x] **4. iOS.** `RenderSpec.fadeMs`; the same brightness function in Swift; `CIColorMatrix` after the overlay in `FrameComposer.render`. `fvm flutter build ios --no-codesign`.
 - [x] **5. Status.** §12 status row; push.
 
+### M39 tasks (branch `m39-lyrics-undo`, stacked on `m38-fade-ends`)
+
+Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** New FR-34, §13 undo cases.
+- [ ] **2. History.** New `features/transcript/domain/lines_history.dart`: `LinesSnapshot` (transcript, linesEdited) and `LinesHistory` (`recorded`, `undone`, `redone`, `canUndo`, `canRedo`, at most 50). `ReelDraft.linesSnapshot` and `withLinesRestored`; controller `restoreLines`. New `features/clip/application/lyrics_undo_controller.dart`: an auto-disposed `lyricsUndoProvider` (`applyEdit`, `undo`, `redo`, `clear`), which after an undo to unedited lines catches up with the run's latest transcript through `growTranscript`. **New tests to write:** §13 undo cases.
+- [ ] **3. Lyrics.** `FlowAppBar.actions`; Undo and Redo in Lyrics' app bar (watching the provider keeps it alive while Lyrics is open); `ClipLinesList` edits through `applyEdit`, hides the quick message on every edit and shows it after Delete and tap-to-time; Get and Get again clear the history; undo and redo save like an edit. **New tests to write:** the buttons' enabled state, the quick message and its Undo.
+- [ ] **4. Status.** §12 status row; push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1423,6 +1441,13 @@ Tests are the owner's; `fvm flutter analyze` only (and the Android and iOS build
     - The render spec has `fadeMs` only when the fade is on.
     - `fadeEnds` survives a kept fine-tune's JSON round trip; a file without it reads as off; a start-over keeps it.
     - A new reel starts with the fade off.
+  - **Undo on Lyrics (FR-34, M39):**
+    - An edit records the lines as they were; undo restores them and redo the edit.
+    - An edit that changes no line records nothing.
+    - The 51st step drops the oldest.
+    - A new edit after an undo clears redo.
+    - Undoing to before the first edit makes the lines unedited, and a script still being written adds its lines again.
+    - Get again clears the history.
 - **Clean the voice (FR-26, M24):**
   - The piece arguments hold `-af` with exactly the filter chain, before the FLAC encode.
   - The chain is the one in §10 item 8's chosen values.
