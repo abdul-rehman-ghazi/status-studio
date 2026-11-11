@@ -873,6 +873,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33), merged into `dev` with M35 (2026-11-10); tests not run |
 | M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Built, branch `m35-theme-choice` (stacked on M34), merged into `dev` (2026-11-10); designed with the owner from mockups (2026-11-10); tests not run |
 | M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`), merged into `dev` (2026-11-10); tests not run |
+| M37 Caption looks | Box or Shadow caption, each in four colours, remembered for the next reel (FR-7) | Built, branch `m37-caption-looks` (from `dev`), pushed, not merged; tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1339,7 +1340,7 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - [x] **2. Model and keeping.** `caption_settings.dart`: `CaptionLook`, `BoxColours`, `ShadowColours`, `CaptionAppearance` (value object with `copyWith`, `==`), `CaptionSettings.appearance` (default `CaptionAppearance()`). `fine_tune_draft_json.dart`: write `look`, `boxColours`, `shadowColours` under `caption`; read them with the default for a missing or unknown name. `FineTuneDraft.startOver` keeps the appearance. New `features/style/data/caption_appearance_store.dart` (preferences keys as FR-7, the theme store's pattern) and `features/style/application/caption_appearance_memory.dart` (`savedCaptionAppearanceProvider`, overridden in `main.dart` like the theme; `CaptionAppearanceMemory` notifier with `remember`). `ReelDraftController.startNew` starts from the remembered appearance; `updateCaption` remembers a changed appearance. **New tests to write:** §13 caption looks, all but the drawing.
 - [x] **3. Drawing.** New `features/style/domain/caption_ink.dart`: `CaptionInk captionInkFor(CaptionAppearance)` giving the box colour (none for Shadow), the text colour and `List<Shadow> shadowsAt(double fontSize)`; colours as `ReelColors` tokens in `app_theme.dart`. `captionTextStyle` takes the appearance; `overlay_painter.dart` and `ReelOverlayLayer` draw the box only for Box. Kotlin and Swift unchanged. **New tests to write:** §13 "Box draws its colour…; Shadow draws no box…" on `captionInkFor`.
 - [x] **4. Style sheet.** `caption_style_sheet.dart`: Look (`OptionRow`, Box / Shadow) and Colour (four swatches drawn with `captionInkFor` over a gradient strip, the chosen one outlined in `palette.accent`, each with a semantic label such as "Yellow on black"). **New tests to write:** the sheet shows the chosen look's four colours, and a tap updates the draft.
-- [ ] **5. Status.** §12 status row; push `m37-caption-looks`.
+- [x] **5. Status.** §12 status row; push `m37-caption-looks`.
 
 ## 13. Behaviour that must stay covered by tests
 
