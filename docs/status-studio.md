@@ -414,7 +414,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Kept:** with the fine-tune (FR-24, `fadeEnds`; a file without it reads as off), and through a start-over.
 
 **FR-34 Undo on Lyrics (M39).** Asked by the owner (2026-11-11): every change to the lines can be taken back.
-- **Where:** Undo and Redo icon buttons in Lyrics' app bar, before "Step 2 of 2", greyed when there is nothing to undo or redo.
+- **Where:** Undo and Redo icon buttons (compact) on the right of Lyrics' app bar, greyed when there is nothing to undo or redo. Found by the owner on the phone (2026-11-11): beside the step label they squeezed the one-line title smaller, so on both Fine-tune steps the step label ("Step 1 of 2", "Step 2 of 2") now sits under the title in small muted text, and the title keeps its size.
 - **Steps:** one per change to the lines: a saved text edit (not each letter), Add line, Delete, a drag, and each tap-to-time. An edit that changes no line (an ignored tap) is not a step. At most 50 steps; the oldest go first. A change after an undo clears Redo.
 - **Quick message:** after a Delete, "Line deleted", and after a tap-to-time, "Line timed", each with **Undo**, for 4 s. The next change hides it.
 - **A step back is a change:** the caption refills and the script is saved as `edited` after 1 s (FR-21), and the kept fine-tune follows (FR-24).

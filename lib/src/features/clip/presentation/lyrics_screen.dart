@@ -496,6 +496,7 @@ class _UndoRedoButtons extends ConsumerWidget {
       children: [
         IconButton(
           tooltip: 'Undo',
+          visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.undo),
           onPressed: history.canUndo
               ? () => _step(context, controller.undo)
@@ -503,6 +504,7 @@ class _UndoRedoButtons extends ConsumerWidget {
         ),
         IconButton(
           tooltip: 'Redo',
+          visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.redo),
           onPressed: history.canRedo
               ? () => _step(context, controller.redo)
