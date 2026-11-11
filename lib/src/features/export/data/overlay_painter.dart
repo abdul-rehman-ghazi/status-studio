@@ -6,6 +6,8 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
+import 'package:status_studio/src/features/style/domain/caption_ink.dart';
+import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 const brandingText = 'Status Studio';
@@ -35,21 +37,29 @@ Future<Uint8List> paintOverlayPng(OverlaySpec spec) async {
   }
 }
 
-/// Measures caption text exactly as the overlay paints it.
+/// Measures caption text exactly as the overlay paints it. Colours and
+/// shadows don't change the layout, so the default ink measures every look.
 Size measureCaptionText(String text, double fontSize, double maxWidth) {
-  final painter = captionTextPainter(text, fontSize)
-    ..layout(maxWidth: maxWidth);
+  final painter = captionTextPainter(
+    text,
+    captionTextStyle(text, fontSize, captionInkFor(const CaptionAppearance())),
+  )..layout(maxWidth: maxWidth);
   final size = painter.size;
   painter.dispose();
   return size;
 }
 
-/// The caption's text style for [text]: its script's font and line height.
-/// Not inherited, so the Style preview's `Text` lays out exactly like the
-/// painter here instead of picking up the theme's letter spacing.
-TextStyle captionTextStyle(String text, double fontSize) =>
-    scriptTextStyle(text)
-        .copyWith(inherit: false, fontSize: fontSize, color: ReelColors.text);
+/// The caption's text style for [text]: its script's font and line height,
+/// in [ink]'s colour and shadow. Not inherited, so the Style preview's `Text`
+/// lays out exactly like the painter here instead of picking up the theme's
+/// letter spacing.
+TextStyle captionTextStyle(String text, double fontSize, CaptionInk ink) =>
+    scriptTextStyle(text).copyWith(
+      inherit: false,
+      fontSize: fontSize,
+      color: ink.text,
+      shadows: ink.shadowsAt(fontSize),
+    );
 
 /// "Status Studio" in the branding pill; not inherited, as above.
 TextStyle brandingTextStyle(double logoSize) => TextStyle(
@@ -64,8 +74,8 @@ TextStyle brandingTextStyle(double logoSize) => TextStyle(
 TextDirection captionTextDirection(String text) =>
     isArabicScript(text) ? TextDirection.rtl : TextDirection.ltr;
 
-TextPainter captionTextPainter(String text, double fontSize) => TextPainter(
-  text: TextSpan(text: text, style: captionTextStyle(text, fontSize)),
+TextPainter captionTextPainter(String text, TextStyle style) => TextPainter(
+  text: TextSpan(text: text, style: style),
   textAlign: TextAlign.center,
   textDirection: captionTextDirection(text),
 );
@@ -73,25 +83,36 @@ TextPainter captionTextPainter(String text, double fontSize) => TextPainter(
 void _paintOverlay(Canvas canvas, OverlaySpec spec) {
   final layout = layoutOverlay(spec, measureText: measureCaptionText);
   if (spec.caption.text.trim().isNotEmpty) {
-    _paintCaption(canvas, spec.caption.text, layout);
+    _paintCaption(canvas, spec.caption, layout);
   }
   _paintBranding(canvas, layout);
 }
 
-void _paintCaption(Canvas canvas, String text, OverlayLayout layout) {
+void _paintCaption(
+  Canvas canvas,
+  CaptionSettings caption,
+  OverlayLayout layout,
+) {
   final box = layout.captionBox;
-  canvas.drawRect(
-    box,
-    Paint()..color = ReelColors.scrim.withValues(alpha: 0.38),
-  );
-  final painter = captionTextPainter(text, layout.captionFontSize)
-    ..maxLines = layout.captionMaxLines
-    ..ellipsis = '…'
-    ..layout(maxWidth: layout.captionTextMaxWidth);
+  final ink = captionInkFor(caption.appearance);
+  final boxColour = ink.box;
+  if (boxColour != null) {
+    canvas.drawRect(box, Paint()..color = boxColour);
+  }
+  final text = caption.text;
+  final painter =
+      captionTextPainter(
+          text,
+          captionTextStyle(text, layout.captionFontSize, ink),
+        )
+        ..maxLines = layout.captionMaxLines
+        ..ellipsis = '…'
+        ..layout(maxWidth: layout.captionTextMaxWidth);
   final textTop = box.top + layout.captionPadding;
+  // The shadow look has no box, so its blur may spill past the block.
   canvas
     ..save()
-    ..clipRect(box);
+    ..clipRect(boxColour == null ? box.inflate(layout.captionPadding) : box);
   painter.paint(canvas, Offset(box.center.dx - painter.width / 2, textTop));
   canvas.restore();
   painter.dispose();
