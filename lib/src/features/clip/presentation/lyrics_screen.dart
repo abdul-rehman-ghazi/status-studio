@@ -8,6 +8,7 @@ import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
+import 'package:status_studio/src/features/clip/application/lyrics_undo_controller.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/clip/presentation/lyrics_get_card.dart';
@@ -189,9 +190,10 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     }
     final isWriting = isScriptBeingWritten(ref.watch(scriptProgressProvider));
     return Scaffold(
-      appBar: const FlowAppBar(
+      appBar: FlowAppBar(
         title: 'Fine-tune · Lyrics',
         stepLabel: 'Step 2 of 2',
+        actions: [_UndoRedoButtons(onChanged: _scheduleSave)],
       ),
       // The player stays put while the lines scroll, so they can be tapped
       // with the video in view.
@@ -224,39 +226,59 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     );
   }
 
+  /// Slivers, so dragging a line scrolls the whole screen (spec FR-21, M40).
   Widget _lyrics(ReelDraft draft, bool isWriting) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _LyricsSwitch(
-          shown: draft.lyricsShown,
-          onChanged: (shown) => _setLyricsShown(shown, isWriting),
-        ),
-        const SizedBox(height: 8),
-        if (draft.lyricsShown)
-          ..._shownLyrics(draft, isWriting)
-        else
-          const HintText(
-            'No lyrics on this reel. Nothing leaves your phone and you need '
-            'no key.',
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(20),
+          sliver: SliverMainAxisGroup(
+            slivers: [
+              ..._boxes([
+                _LyricsSwitch(
+                  shown: draft.lyricsShown,
+                  onChanged: (shown) => _setLyricsShown(shown, isWriting),
+                ),
+                const SizedBox(height: 8),
+              ]),
+              if (draft.lyricsShown)
+                ..._shownLyrics(draft, isWriting)
+              else
+                ..._boxes([
+                  const HintText(
+                    'No lyrics on this reel. Nothing leaves your phone and '
+                    'you need no key.',
+                  ),
+                ]),
+            ],
           ),
+        ),
       ],
     );
   }
 
+  List<Widget> _boxes(List<Widget> widgets) => [
+    for (final widget in widgets) SliverToBoxAdapter(child: widget),
+  ];
+
   List<Widget> _shownLyrics(ReelDraft draft, bool isWriting) {
     if (draft.selection is! RangeSelected) {
-      return _beforeLines(draft, isWriting);
+      final hasScript = draft.transcript?.lines.isNotEmpty ?? false;
+      return _boxes(
+        hasScript && !isWriting ? _emptyClip() : _beforeLines(draft, isWriting),
+      );
     }
     return [
-      LyricsTools(onGetAgain: () => unawaited(_getAgain())),
-      const ScriptRunSection(),
-      const SizedBox(height: 8),
-      const HintText(
-        'Tap a line to jump to it. While the clip plays, tap a line when '
-        'it starts to set when it shows.',
-      ),
-      const SizedBox(height: 8),
+      ..._boxes([
+        LyricsTools(onGetAgain: () => unawaited(_getAgain())),
+        const ScriptRunSection(),
+        const SizedBox(height: 8),
+        const HintText(
+          'Tap a line to jump to it. While the clip plays, tap a line when '
+          'it starts to set when it shows.',
+        ),
+        const SizedBox(height: 8),
+      ]),
       ClipLinesList(
         script: draft.pickedScript,
         clip: draft.clip!,
@@ -266,19 +288,49 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     ];
   }
 
-  /// No lines inside the clip yet: the run under way, or the Get card.
+  /// A script, but no line of it inside the clip: a trim over a stretch
+  /// with no sung line (spec FR-21, M40).
+  List<Widget> _emptyClip() {
+    return [
+      LyricsTools(onGetAgain: () => unawaited(_getAgain())),
+      const ScriptRunSection(),
+      const SizedBox(height: 8),
+      const HintText('No lines in this part of the video.'),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => unawaited(_addLineToEmptyClip()),
+          icon: const Icon(Icons.add),
+          label: const Text('Add line'),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _addLineToEmptyClip() async {
+    final text = await askLineText(context, title: 'Add line');
+    if (text == null || text.trim().isEmpty || !mounted) {
+      return;
+    }
+    ref
+        .read(lyricsUndoProvider.notifier)
+        .addLineToEmptyClip(text.trim(), _typingPosition());
+    _scheduleSave();
+  }
+
+  /// Where a typed line goes: the playhead, or the clip start before the
+  /// player is ready. The draft keeps the line inside the clip.
+  Duration _typingPosition() {
+    final clip = ref.read(reelDraftProvider).clip!;
+    return _playhead.isReady ? _playhead.position : clip.start;
+  }
+
+  /// No lines yet: the run under way, or the Get card.
   List<Widget> _beforeLines(ReelDraft draft, bool isWriting) {
     final run = ref.watch(scriptProgressProvider);
-    final hasScriptOutsideClip =
-        draft.transcript?.lines.isNotEmpty == true && !isWriting;
     return [
       const ScriptRunSection(),
       if (!isWriting && !run.hasError) ...[
-        if (hasScriptOutsideClip)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: HintText('The script has no lines inside this clip.'),
-          ),
         LyricsGetCard(
           initialLanguage: draft.language,
           onGet: _getLyrics,
@@ -310,6 +362,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     ref.read(reelDraftProvider.notifier)
       ..forgetLineEdits()
       ..setLanguage(language);
+    ref.read(lyricsUndoProvider.notifier).clear();
     ref.read(scriptProgressProvider.notifier).start(video, language);
   }
 
@@ -318,9 +371,9 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     if (text == null || text.trim().isEmpty || !mounted) {
       return;
     }
-    final clip = ref.read(reelDraftProvider).clip!;
-    final at = _playhead.isReady ? _playhead.position : clip.start;
-    ref.read(reelDraftProvider.notifier).startTypedLyrics(text.trim(), at);
+    ref
+        .read(reelDraftProvider.notifier)
+        .addTypedLine(text.trim(), _typingPosition());
     _scheduleSave();
   }
 
@@ -346,6 +399,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     ref.read(reelDraftProvider.notifier)
       ..forgetLineEdits()
       ..setLanguage(language);
+    ref.read(lyricsUndoProvider.notifier).clear();
     final run = ref.read(scriptProgressProvider.notifier);
     if (language == draft.language) {
       run.writeAgain(video, language);
@@ -472,5 +526,47 @@ class _GetAgainDialogState extends State<_GetAgainDialog> {
         ),
       ],
     );
+  }
+}
+
+/// Undo and Redo for the lines (spec FR-34). Watching the history keeps it
+/// while Lyrics is open; it goes with the screen.
+class _UndoRedoButtons extends ConsumerWidget {
+  const _UndoRedoButtons({required this.onChanged});
+
+  /// Saves the lines after a step, like any edit.
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(lyricsUndoProvider);
+    final controller = ref.read(lyricsUndoProvider.notifier);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Undo',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.undo),
+          onPressed: history.canUndo
+              ? () => _step(context, controller.undo)
+              : null,
+        ),
+        IconButton(
+          tooltip: 'Redo',
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.redo),
+          onPressed: history.canRedo
+              ? () => _step(context, controller.redo)
+              : null,
+        ),
+      ],
+    );
+  }
+
+  void _step(BuildContext context, VoidCallback step) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    step();
+    onChanged();
   }
 }

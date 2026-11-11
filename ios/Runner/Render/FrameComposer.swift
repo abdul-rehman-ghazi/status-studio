@@ -33,7 +33,25 @@ final class FrameComposer {
         let path = overlayPathAt(brandingPath: spec.overlayPath, cues: spec.captionCues, timeMs: source.timeMs)
         let overlay = try overlays.image(atPath: path)
         let frame = framed(upright, atMs: source.timeMs).composited(over: CIImage(color: .black).cropped(to: outputRect))
-        context.render(overlay.composited(over: frame), to: output, bounds: outputRect, colorSpace: colorSpace)
+        let composed = overlay.composited(over: frame)
+        context.render(faded(composed, atMs: source.timeMs), to: output, bounds: outputRect, colorSpace: colorSpace)
+    }
+
+    /// The picture, caption and branding darkened together near the clip's ends (spec FR-33).
+    private func faded(_ image: CIImage, atMs timeMs: Int64) -> CIImage {
+        guard spec.fadeMs > 0 else { return image }
+        let brightness = CGFloat(fadeBrightnessAt(
+            clipTimeMs: timeMs,
+            clipLengthMs: spec.clipEndMs - spec.clipStartMs,
+            fadeMs: spec.fadeMs
+        ))
+        if brightness >= 1 { return image }
+        return image.applyingFilter("CIColorMatrix", parameters: [
+            "inputRVector": CIVector(x: brightness, y: 0, z: 0, w: 0),
+            "inputGVector": CIVector(x: 0, y: brightness, z: 0, w: 0),
+            "inputBVector": CIVector(x: 0, y: 0, z: brightness, w: 0),
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+        ])
     }
 
     /// The decoded frame turned the way the video is shown, with its corner at the origin. Crops
@@ -104,6 +122,16 @@ final class FrameComposer {
             ))
             .cropped(to: outputRect)
     }
+}
+
+/// The picture's brightness `clipTimeMs` into a clip `clipLengthMs` long: 0 at both ends, rising
+/// and falling in a straight line over `fadeMs`, 1 in between. The same rule as Dart's
+/// `fadeBrightnessAt` and Android's (spec FR-33).
+func fadeBrightnessAt(clipTimeMs: Int64, clipLengthMs: Int64, fadeMs: Int64) -> Double {
+    guard fadeMs > 0 else { return 1 }
+    let fromStart = Double(clipTimeMs) / Double(fadeMs)
+    let toEnd = Double(clipLengthMs - clipTimeMs) / Double(fadeMs)
+    return max(0, min(1, fromStart, toEnd))
 }
 
 /// Opens the overlay images one at a time as they come due: a reel can have dozens, and each is

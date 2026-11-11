@@ -7,14 +7,15 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
+import 'package:status_studio/src/features/clip/application/lyrics_undo_controller.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dart';
-import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// The clip's lines, editable, with the one playing highlighted (spec FR-21). A tap seeks while paused and times the line
+/// The clip's lines, editable, with the one playing highlighted (spec FR-21).
+/// A sliver: it goes in the screen's `CustomScrollView`. A tap seeks while paused and times the line
 /// while playing.
 class ClipLinesList extends ConsumerStatefulWidget {
   const ClipLinesList({
@@ -60,7 +61,28 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
   }
 
   void _edit(PickedScript Function(PickedScript script) edit) {
-    ref.read(reelDraftProvider.notifier).editScript(edit);
+    // A quick message's Undo would take back this edit, not its own.
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ref.read(lyricsUndoProvider.notifier).applyEdit(edit);
+    widget.onEdited();
+  }
+
+  /// "Line deleted" or "Line timed" with Undo, for the changes most often
+  /// made by accident, for a snack bar's default 4 s (spec FR-34).
+  void _offerUndo(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(label: 'Undo', onPressed: _undoFromMessage),
+      ),
+    );
+  }
+
+  void _undoFromMessage() {
+    if (!mounted) {
+      return;
+    }
+    ref.read(lyricsUndoProvider.notifier).undo();
     widget.onEdited();
   }
 
@@ -72,6 +94,7 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     if (playhead.isPlaying) {
       final timedAt = playhead.position;
       _edit((script) => withLineTimedAt(script, line.index, timedAt));
+      _offerUndo('Line timed');
       return;
     }
     unawaited(playhead.seekTo(line.start));
@@ -98,8 +121,10 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     _edit((script) => withLineAdded(script, text: text, playhead: playhead));
   }
 
-  void _removeLine(TranscriptLine line) =>
-      _edit((script) => withLineRemoved(script, line.index));
+  void _removeLine(TranscriptLine line) {
+    _edit((script) => withLineRemoved(script, line.index));
+    _offerUndo('Line deleted');
+  }
 
   void _moveLine(int firstShown, int oldPosition, int newPosition) {
     _edit(
@@ -117,39 +142,55 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     final selection = widget.script.selection;
     final shown = lines.sublist(selection.start, selection.end + 1);
     final highlighted = highlightedLineIndex(lines, widget.playhead.position);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (shown.isNotEmpty)
-          ReorderableListView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            onReorderItem: (oldPosition, newPosition) =>
-                _moveLine(shown.first.index, oldPosition, newPosition),
-            children: [
-              for (final (position, line) in shown.indexed)
-                _LineRow(
-                  key: ValueKey('line-${line.index}'),
-                  line: line,
-                  dragPosition: position,
-                  highlighted: line.index == highlighted,
-                  canRemove: shown.length > 1,
-                  onTap: () => _tapLine(line),
-                  onEdit: () => unawaited(_editLine(line)),
-                  onRemove: () => _removeLine(line),
-                ),
-            ],
-          ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: _canAddLine ? () => unawaited(_addLine()) : null,
-            icon: const Icon(Icons.add),
-            label: const Text('Add line'),
+    // Slivers, so the list is part of the screen's own scrolling and a drag
+    // near the top or bottom edge scrolls it (spec FR-21, M40).
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverReorderableList(
+          itemCount: shown.length,
+          onReorderItem: (oldPosition, newPosition) =>
+              _moveLine(shown.first.index, oldPosition, newPosition),
+          proxyDecorator: _liftedRow,
+          itemBuilder: (context, position) {
+            final line = shown[position];
+            return _LineRow(
+              key: ValueKey('line-${line.index}'),
+              line: line,
+              dragPosition: position,
+              highlighted: line.index == highlighted,
+              canRemove: shown.length > 1,
+              onTap: () => _tapLine(line),
+              onEdit: () => unawaited(_editLine(line)),
+              onRemove: () => _removeLine(line),
+            );
+          },
+        ),
+        SliverToBoxAdapter(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _canAddLine ? () => unawaited(_addLine()) : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Add line'),
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  /// The row being dragged floats above the list on its own card, as
+  /// `ReorderableListView` drew it.
+  Widget _liftedRow(Widget row, int position, Animation<double> lift) {
+    return AnimatedBuilder(
+      animation: lift,
+      builder: (context, child) => Material(
+        elevation: 6 * lift.value,
+        color: context.palette.surface,
+        borderRadius: BorderRadius.circular(10),
+        child: child,
+      ),
+      child: row,
     );
   }
 

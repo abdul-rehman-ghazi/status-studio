@@ -129,7 +129,7 @@ class ReelRenderer(private val context: Context) {
             .build()
     }
 
-    /** Framing first, the caption and branding overlay always last. */
+    /** Framing first, then the caption and branding overlay, then the fade, if any (FR-33). */
     private fun videoEffects(spec: RenderSpec, overlay: TimedCaptionOverlay): List<Effect> {
         val fitOutput = Presentation.createForWidthAndHeight(
             spec.outputWidth,
@@ -164,7 +164,9 @@ class ReelRenderer(private val context: Context) {
             )
             Fill.None -> listOf(fitOutput)
         }
-        return framing + OverlayEffect(listOf(overlay))
+        val overlaid = framing + OverlayEffect(listOf(overlay))
+        if (spec.fadeMs <= 0) return overlaid
+        return overlaid + FadeAtEnds(spec.clipEndMs - spec.clipStartMs, spec.fadeMs)
     }
 }
 

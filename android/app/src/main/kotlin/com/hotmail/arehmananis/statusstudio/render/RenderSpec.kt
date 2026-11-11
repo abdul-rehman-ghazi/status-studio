@@ -38,6 +38,8 @@ data class RenderSpec(
     val fill: Fill,
     val videoMimeType: String,
     val audioMimeType: String,
+    /** How long the picture fades in and out; 0 for no fade (spec FR-33). */
+    val fadeMs: Long = 0,
 ) {
     companion object {
         /** Throws [IllegalArgumentException] for a missing or wrong-typed key. */
@@ -54,6 +56,8 @@ data class RenderSpec(
                 fill = fillFrom(map),
                 videoMimeType = map.string("videoMimeType"),
                 audioMimeType = map.string("audioMimeType"),
+                // Dart sends it only when the fade is on.
+                fadeMs = (map["fadeMs"] as? Number)?.toLong() ?: 0L,
             )
 
         private fun fillFrom(map: Map<String, Any?>): Fill =

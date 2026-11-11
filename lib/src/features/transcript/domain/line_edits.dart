@@ -47,6 +47,20 @@ PickedScript withLineTextMoved(PickedScript script, int from, int to) {
   ], script.selection);
 }
 
+/// [line] put into [transcript] in time order, every line numbered again.
+/// For a stretch with no line (spec FR-21, M40), so it overlaps none.
+Transcript withLineInserted(Transcript transcript, TranscriptLine line) {
+  final lines = [...transcript.lines];
+  final position = lines.indexWhere((other) => other.start > line.start);
+  lines.insert(position < 0 ? lines.length : position, line);
+  return transcript.copyWith(
+    lines: [
+      for (final (index, numbered) in lines.indexed)
+        numbered.copyWith(index: index),
+    ],
+  );
+}
+
 /// Inserts a line at [playhead]. The line it lands in ends there; a line
 /// that starts exactly there shares its time with the new one, which takes
 /// the first part. A new line that lands in a picked line is picked too. A

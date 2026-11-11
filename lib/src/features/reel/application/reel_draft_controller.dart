@@ -3,10 +3,12 @@ import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/style/application/caption_appearance_memory.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
+import 'package:status_studio/src/features/transcript/domain/lines_history.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 final reelDraftProvider = NotifierProvider<ReelDraftController, ReelDraft>(
@@ -17,7 +19,12 @@ class ReelDraftController extends Notifier<ReelDraft> {
   @override
   ReelDraft build() => const ReelDraft();
 
-  void startNew() => state = const ReelDraft();
+  /// A new reel starts from the caption appearance used last (spec FR-7).
+  void startNew() => state = ReelDraft(
+    caption: CaptionSettings(
+      appearance: ref.read(captionAppearanceMemoryProvider),
+    ),
+  );
 
   /// Continues a kept fine-tune (spec FR-24).
   void restore(ReelDraft draft) => state = draft;
@@ -31,12 +38,16 @@ class ReelDraftController extends Notifier<ReelDraft> {
   /// shielding the lines from it (spec FR-21).
   void forgetLineEdits() => state = state.copyWith(linesEdited: false);
 
+  void fadeEnds() => state = state.withFadeEnds();
+
+  void stopFadingEnds() => state = state.withoutFadeEnds();
+
   void hideLyrics() => state = state.withLyricsHidden();
 
   void showLyrics() => state = state.withLyricsShown();
 
-  void startTypedLyrics(String text, Duration at) =>
-      state = state.withTypedFirstLine(text, at);
+  void addTypedLine(String text, Duration at) =>
+      state = state.withTypedLine(text, at);
 
   void setTranscript(Transcript transcript) =>
       state = state.withTranscript(transcript);
@@ -48,6 +59,10 @@ class ReelDraftController extends Notifier<ReelDraft> {
   /// after another edit never works from stale lines.
   void editScript(PickedScript Function(PickedScript script) edit) =>
       state = state.withEditedScript(edit(state.pickedScript));
+
+  /// Shows the lines of an undo or redo step (spec FR-34).
+  void restoreLines(LinesSnapshot snapshot) =>
+      state = state.withLinesRestored(snapshot);
 
   void nudgeClipStart(Duration delta) {
     final clip = _requireClip();
@@ -103,8 +118,12 @@ class ReelDraftController extends Notifier<ReelDraft> {
     updateFrame(frame.copyWith(freeCrop: kept));
   }
 
-  void updateCaption(CaptionSettings caption) =>
-      state = state.copyWith(caption: caption);
+  void updateCaption(CaptionSettings caption) {
+    state = state.copyWith(caption: caption);
+    ref
+        .read(captionAppearanceMemoryProvider.notifier)
+        .remember(caption.appearance);
+  }
 
   ClipRange _requireClip() {
     final clip = state.clip;

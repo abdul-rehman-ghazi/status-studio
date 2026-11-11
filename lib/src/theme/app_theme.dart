@@ -99,6 +99,21 @@ abstract final class ReelColors {
 
   /// Drawn at partial opacity behind captions and the branding pill.
   static const scrim = Color(0xFF000000);
+
+  // Caption looks (spec FR-7, M37).
+  static const captionPaper = Color(0xFFFFFFFF);
+  static const captionInk = Color(0xFF111111);
+  static const captionYellow = Color(0xFFFFD84D);
+  static const captionGold = Color(0xFFF2C879);
+  static const captionGreen = Color(0xFF0A5A3C);
+
+  /// A sky-to-ground strip behind the Style sheet's colour swatches, so each
+  /// look is judged over something like a picture.
+  static const swatchBackdrop = [
+    Color(0xFF6B8FB0),
+    Color(0xFFE9D9B8),
+    Color(0xFFC47B45),
+  ];
 }
 
 /// Marks drawn on the video picture: the crop frame and its handle, face

@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
 import 'package:status_studio/src/features/style/application/clip_frame_size_provider.dart';
+import 'package:status_studio/src/features/style/domain/caption_ink.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/framed_video.dart';
@@ -261,7 +262,7 @@ class ReelOverlayLayer extends StatelessWidget {
           child: MediaQuery.withNoTextScaling(
             child: Stack(
               children: [
-                if (text.trim().isNotEmpty) ..._caption(text, layout),
+                if (text.trim().isNotEmpty) ..._caption(spec.caption, layout),
                 _brandingPill(layout),
               ],
             ),
@@ -271,26 +272,32 @@ class ReelOverlayLayer extends StatelessWidget {
     );
   }
 
-  List<Widget> _caption(String text, OverlayLayout layout) {
+  List<Widget> _caption(CaptionSettings caption, OverlayLayout layout) {
     final box = layout.captionBox;
+    final ink = captionInkFor(caption.appearance);
+    final boxColour = ink.box;
+    final text = caption.text;
     return [
-      Positioned.fromRect(
-        rect: box,
-        child: ColoredBox(color: ReelColors.scrim.withValues(alpha: 0.38)),
-      ),
+      if (boxColour != null)
+        Positioned.fromRect(
+          rect: box,
+          child: ColoredBox(color: boxColour),
+        ),
       Positioned(
         left: box.center.dx - layout.captionTextMaxWidth / 2,
         top: box.top + layout.captionPadding,
         width: layout.captionTextMaxWidth,
         height: box.height - 2 * layout.captionPadding,
+        // The Shadow look's blur reaches past the text; the export lets it.
         child: ClipRect(
+          clipBehavior: boxColour == null ? Clip.none : Clip.hardEdge,
           child: Text(
             text,
             textAlign: TextAlign.center,
             textDirection: captionTextDirection(text),
             maxLines: layout.captionMaxLines,
             overflow: TextOverflow.ellipsis,
-            style: captionTextStyle(text, layout.captionFontSize),
+            style: captionTextStyle(text, layout.captionFontSize, ink),
           ),
         ),
       ),

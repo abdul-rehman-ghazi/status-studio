@@ -5,8 +5,10 @@ import 'package:status_studio/src/features/background/application/background_wor
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_notices.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// The script run of the reel being made (spec FR-3, M30). It belongs to the
 /// reel, not to a screen: it keeps going when Lyrics closes. `null` means no
@@ -90,12 +92,47 @@ class ScriptProgressController extends Notifier<AsyncValue<ScriptProgress?>> {
       _onProgress,
       onError: (Object error, StackTrace stackTrace) =>
           state = AsyncError(error, stackTrace),
+      onDone: _keepEditsNewest,
     );
   }
 
   void _onProgress(ScriptProgress progress) {
     ref.read(reelDraftProvider.notifier).growTranscript(progress.transcript);
     state = AsyncData(progress);
+  }
+
+  /// A run that finishes after lines were edited has just saved itself as
+  /// the newest script; the edited lines are saved again after it, so the
+  /// video reopens with the edits (spec FR-21, M40). A script reopened from
+  /// the saved ones saved nothing, so nothing needs saving again.
+  void _keepEditsNewest() {
+    final finished = state.value;
+    final draft = ref.read(reelDraftProvider);
+    final video = draft.video;
+    final edited = draft.transcript;
+    if (finished == null ||
+        finished.savedAt != null ||
+        !draft.linesEdited ||
+        video == null ||
+        edited == null) {
+      return;
+    }
+    unawaited(_saveEdits(video, draft.language, edited));
+  }
+
+  Future<void> _saveEdits(
+    SourceVideo video,
+    ScriptLanguage language,
+    Transcript edited,
+  ) async {
+    try {
+      await ref
+          .read(scriptEditingServiceProvider)
+          .saveCorrected(video, language, edited);
+    } on Object {
+      // The edits are still in the reel, and the next edit on Lyrics saves
+      // them again.
+    }
   }
 
   void _stopListening() {

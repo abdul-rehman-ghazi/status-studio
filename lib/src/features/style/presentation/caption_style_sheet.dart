@@ -5,9 +5,10 @@ import 'package:status_studio/src/core/presentation/option_row.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
+import 'package:status_studio/src/features/style/presentation/caption_appearance_controls.dart';
 
-/// Caption style (spec FR-7, M30): where the lyrics sit and how big, in a
-/// half-height sheet so the player above shows each change.
+/// Caption style (spec FR-7, M30, M37): where the lyrics sit, how big, and
+/// their look and colour, in a sheet so the player above shows each change.
 Future<void> showCaptionStyleSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
@@ -23,8 +24,9 @@ class _CaptionStyleSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final caption = ref.watch(reelDraftProvider.select((d) => d.caption));
+    // Scrolls so the taller sheet still fits small phones with large text.
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -38,6 +40,13 @@ class _CaptionStyleSheet extends ConsumerWidget {
             _CaptionLayoutControls(
               caption: caption,
               onChanged: ref.read(reelDraftProvider.notifier).updateCaption,
+            ),
+            const SizedBox(height: 16),
+            CaptionAppearanceControls(
+              appearance: caption.appearance,
+              onChanged: (appearance) => ref
+                  .read(reelDraftProvider.notifier)
+                  .updateCaption(caption.copyWith(appearance: appearance)),
             ),
             const SizedBox(height: 12),
             const HintText(

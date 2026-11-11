@@ -98,7 +98,12 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Text:** the clip's lines' text, one per line, in the script's own language. Since M30 there are no Roman or English variants (ML Kit translation and §6.6 were removed) and no separate caption text: lines are edited on Lyrics (FR-21). With Show lyrics off the caption is empty.
 - **Position and size** (the Style sheet on Lyrics, M30): Top or Bottom (default). Size S, M (default) or L is a font size of 4.5 %, 5.5 % or 6.8 % of output width.
 - **Font:** by script (§6.5), with line height 2.1 for Nastaliq and 1.3 otherwise.
-- **Block:** centred, black at 38 % behind the text, padding 2 % of output width, margin 6 % of output height from the edge.
+- **Block:** centred, padding 2 % of output width, margin 6 % of output height from the edge. What is drawn in it is the look.
+- **Look and colour (M37):** in the Style sheet, **Look** (Box / Shadow), then **Colour**, four swatches for the chosen look, each drawn as that look over a picture-like strip, the chosen one outlined in the accent colour.
+  - **Box** (text on a box filling the block): white on black at 38 % (the default, as before M37), black on white at 85 %, yellow `#FFD84D` on black at 60 %, white on green `#0A5A3C` at 85 %.
+  - **Shadow** (no box; the text casts a shadow): white, yellow `#FFD84D` and gold `#F2C879` with a black shadow, and black with a white glow. The shadow is two layers, a tight one (offset 4 % and blur 6 % of the font size, at 90 %) and a soft one (no offset, blur 18 %, at 70 %), so it scales with S, M and L.
+  - Each look keeps its own colour: Box → Shadow → Box comes back to the Box colour picked before.
+  - The look and both colours are kept with the fine-tune (FR-24) and carried over by a start-over; a fine-tune kept before M37 reads as the default. A new reel starts from the look and colours used last, kept in preferences (`caption.look`, `caption.boxColours`, `caption.shadowColours`).
 - **Overflow:** if the block would pass 35 % of output height, the font shrinks in 5 % steps down to 60 % of the chosen size, then the text is clipped with an ellipsis.
 
 **FR-7a Caption lines, one at a time (M11).** The exported reel shows one caption line at a time, never the whole caption at once.
@@ -214,6 +219,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 **FR-21 Fine-tune lyrics (M18; its own step since M19).** Step 2 of Fine-tune lists the clip's lines, editable, with the video playing with the lyrics on it.
 - **One screen (M30), top to bottom under the player:**
   - **Show lyrics on the clip**, a switch, on by default. Off: the reel has no caption and the hint says "No lyrics on this reel. Nothing leaves your phone and you need no key." The lines are kept, and turning it on again brings them back. Turning it off while a script is being written stops the run.
+  - **A script with no line inside the clip (M40):** a trim over a stretch with no sung line. The tools (Style, Get again) and the run's section as with lines, then "No lines in this part of the video." and **Add line**, which asks for a line and puts it into the script at the playhead in time order, 2 s long and cut at the clip end (as Type them myself places it). The caption is empty until a line is added. Before M40 the whole script was selected instead.
   - **No lines inside the clip yet:** the Get card, with the Language dropdown (FR-2), **Get lyrics from Groq** and "Sends the cleaned voice to Groq with your key. The picture never leaves your phone."; under it **Type them myself**, which asks for a first line and puts it at the playhead, 2 s long and cut at the clip end. When the reel has no lines and no run, Lyrics first opens the newest saved script of the video (FR-14).
   - **While writing:** the step under way with its bar, amount and time left, and Cancel; lines appear below as they arrive. A failure shows its §8 message and actions here, with Dismiss in place of Back.
   - **With lines:** **Style** (a bottom sheet with Position and Size, FR-7) and **Get again** (FR-2; Fix with Groq between them was removed in M36), then the line list below. Get again asks "Replace your edited lines?" (Replace, Keep) when lines were edited.
@@ -226,11 +232,11 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Ignored:** a tap earlier than the previous line's start, or on a line earlier than the one playing, so lines stay in time order.
 - **Highlight:** the line whose start ≤ playhead < end is highlighted, only while it lasts; between lines nothing is, and the video shows no lyrics.
 - **Edit:** a pencil opens a text field with the line's text. Saving an empty text keeps the old one. A line break becomes a space, so a line stays one caption line.
-- **Reorder:** a drag handle moves a line's text to another place. Times stay where they are, so lines stay in time order: reordering swaps which text sits at which time.
+- **Reorder:** a drag handle moves a line's text to another place. The list is part of the screen's own scrolling (M40), so a drag near the top or bottom edge scrolls the screen and a line can be dropped on a row that was out of view. Times stay where they are, so lines stay in time order: reordering swaps which text sits at which time.
 - **Add:** "Add line" asks for text and inserts a line at the playhead, 2 s long (cut at the next line's start; the line it lands in ends there). When a line starts exactly at the playhead (right after tapping it while paused), that line's time is shared: the new line takes the first half, at most 2 s. The playhead must be inside the clip; Add line is off outside it.
 - **Delete:** removes a line. The last line can't be deleted.
 - **After an edit:** the clip stays (M23: it no longer follows the lines), and the lines inside it are the listed ones again, also after an added line. The caption is refilled from them, and the script is saved as the newest script (source `edited`, FR-14) after 1 s without edits and when the screen closes.
-- **Script still being written:** once any line is edited, lines that arrive later are not added to this reel (the edited lines win).
+- **Script still being written:** once any line is edited, lines that arrive later are not added to this reel (the edited lines win). When the run finishes after an edit, the edited lines are saved again right after the run's own save, so the `edited` script is the newest and the video reopens with the edits (M40). A script reopened from the saved ones (not written) saves nothing again.
 
 **FR-22 Moving crop (M19).** Where the crop window sits can change while the clip plays, for Crop to fill and Free crop. Blur background and 16:9 keep the whole frame, so nothing moves.
 - **What moves:** the window's position only. Its size is fixed for the clip: the preset's largest rectangle, or the free crop's width and height. It moves only along an axis where it has room (a 9:16 window in a 16:9 frame moves left and right; a 4:5 window in a 9:16 video moves up and down). With room on neither axis, the switch is hidden.
@@ -400,6 +406,23 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Marks drawn on the video picture** (Claude's call): the dimming outside the crop window, the crop frame and its handles, the face and body corners and their number tags, and the dark scrims under player controls keep their dark-theme colours, because the picture, not the page, is behind them.
 - **Launch (FR-20, owner's choice B):** the native launch screen follows the phone's dark mode, not the saved choice, because it shows before the app can read it. Flutter's launch animation matches the native screen (the phone's mode), then its exit fade reveals Home in the chosen theme; when the two differ, that fade is the only change.
 
+**FR-33 Fade at the ends (M38).** Asked by the owner (2026-11-11): a clip trimmed elsewhere starts and stops on a hard cut.
+- **Switch:** "Fade in and out" on Fine-tune · Video's Trim tab, under the nudge cards, with the hint "The picture fades in from black and out to black. The sound doesn't change." Off by default; a new reel starts with it off, whatever the last reel had.
+- **On:** the picture fades in from black over the clip's first 0.5 s and out to black over its last 0.5 s; a clip under 2 s fades over a quarter of its length at each end. The brightness at clip time *t* of a clip *L* long with fade *f* is min(1, *t* / *f*, (*L* − *t*) / *f*), at least 0. The sound is not faded.
+- **Captions and branding fade with the picture:** the fade is applied after the overlay.
+- **Render:** the render spec carries `fadeMs` (0, or absent, when off). Android adds a Media3 `RgbMatrix` after the `OverlayEffect` that scales red, green and blue by the brightness at each frame's clip time (`clipTimeMs`, §6.3.2). iOS scales them with `CIColorMatrix` in `FrameComposer` after the overlay is composited, at the frame's own time.
+- **Preview:** the Lyrics player shows the fade, as a black layer over the reel whose opacity is 1 − brightness at the playhead. The Trim tab's player plays the raw video and doesn't.
+- **Kept:** with the fine-tune (FR-24, `fadeEnds`; a file without it reads as off), and through a start-over.
+
+**FR-34 Undo on Lyrics (M39).** Asked by the owner (2026-11-11): every change to the lines can be taken back.
+- **Where:** Undo and Redo icon buttons (compact) on the right of Lyrics' app bar, greyed when there is nothing to undo or redo. Found by the owner on the phone (2026-11-11): beside the step label they squeezed the one-line title smaller, so on both Fine-tune steps the step label ("Step 1 of 2", "Step 2 of 2") now sits under the title in small muted text, and the title keeps its size.
+- **Steps:** one per change to the lines: a saved text edit (not each letter), Add line, Delete, a drag, and each tap-to-time. An edit that changes no line (an ignored tap) is not a step. At most 50 steps; the oldest go first. A change after an undo clears Redo.
+- **Quick message:** after a Delete, "Line deleted", and after a tap-to-time, "Line timed", each with **Undo**, for 4 s. The next change hides it.
+- **A step back is a change:** the caption refills and the script is saved as `edited` after 1 s (FR-21), and the kept fine-tune follows (FR-24).
+- **Back to before the first edit:** the lines become unedited, so they follow the written script as it is now: lines a run wrote meanwhile appear, and a run still writing keeps adding them.
+- **Lifetime:** while Lyrics is open, Export and Cancel back included. Leaving Lyrics (back to Video, or Fine-tune closing) clears it; it is not kept for Continue later.
+- **Not steps:** the Show lyrics switch, the Style sheet, Type them myself and Get again. Get again (Get, or Replace) clears the history.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -484,8 +507,11 @@ enum CropArrival { glide, cut }
 class CropKeyframe { Duration time; CropAnchor anchor; CropArrival arrival; } // video time
 class CropPath { List<CropKeyframe> keyframes; }                      // empty = a fixed crop
 class OutputSize { int width; int height; }
-enum CaptionVariant { original, roman, english }  enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large }
-class CaptionSettings { CaptionVariant variant; String text; CaptionPosition position; CaptionSize size; }
+enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large }   // CaptionVariant went in M30
+enum CaptionLook { box, shadow }  enum BoxColours { whiteOnBlack, blackOnWhite, yellowOnBlack, whiteOnGreen }  enum ShadowColours { white, yellow, blackGlow, gold }   // M37
+class CaptionAppearance { CaptionLook look; BoxColours boxColours; ShadowColours shadowColours; }   // M37
+class CaptionSettings { String text; CaptionPosition position; CaptionSize size; CaptionAppearance appearance; }
+// ReelDraft and FineTuneDraft also carry bool fadeEnds (FR-33, M38).
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: first caption line
 class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // groq-whisper-large-v3 (captions removed in M23) 
@@ -866,6 +892,10 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M34 Large text | Text size capped at 1.3×, one-line app bar titles, section labels above body text (§4) | Built, branch `m34-large-text` (stacked on M33), merged into `dev` with M35 (2026-11-10); tests not run |
 | M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Built, branch `m35-theme-choice` (stacked on M34), merged into `dev` (2026-11-10); designed with the owner from mockups (2026-11-10); tests not run |
 | M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`), merged into `dev` (2026-11-10); tests not run |
+| M37 Caption looks | Box or Shadow caption, each in four colours, remembered for the next reel (FR-7) | Built, branch `m37-caption-looks` (from `dev`), pushed, not merged; tests not run |
+| M38 Fade at the ends | A switch on the Trim tab fades the picture, caption and branding in from black and out to black, 0.5 s each end (FR-33) | Built, branch `m38-fade-ends` (stacked on M37), pushed, not merged; APK and unsigned iOS build succeed; tests not run |
+| M39 Undo on Lyrics | Undo and Redo in Lyrics' app bar for every line change, with a quick Undo after a delete or a tap-to-time (FR-34) | Built, branch `m39-lyrics-undo` (stacked on M38), pushed, not merged; tests not run |
+| M40 Lyrics fixes | A clip over silence selects no lines (Add line puts one in); dragging a line scrolls the screen; edits stay the newest script when a run finishes late (FR-21, §15) | Built, branch `m40-lyrics-fixes` (stacked on M39), pushed, not merged; tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1271,6 +1301,98 @@ Asked by the owner (2026-11-10), after asking why the button exists: remove Fix 
 - [x] **2. Remove the code.** Delete `groq_script_fix_service.dart` and `script_exchange.dart` (prompt, reply parsing, `NoScriptRowsException`, `TooManyLinesForAiException`, the row caps); `GroqClient.fixScript` and its model; `_GroqFixAction` and its helpers in `lyrics_tools.dart`; the two `errorMessageFor` cases; `ReelDraftController.correctTranscript` and `ReelDraft.withCorrectedLines` (nothing else used them); `GroqClient._replyTextOf`. Copy: the Groq key hint and the consent screen's "What is sent" point lose their Fix with Groq sentence. `ios/Runner/PrivacyInfo.xcprivacy` loses the Other User Content entry. Saved scripts with source `edited` stay readable (hand edits save that source too). `fvm flutter analyze` clean; tests not run. **Stale tests:** every test of `script_exchange.dart`, `GroqScriptFixService`, `GroqClient.fixScript`, Fix with Groq on Lyrics (including its consent path), and tests that find "Fix with Groq" among Lyrics' tools.
 - [ ] **3. Tests (owner).** Delete the stale tests above; §13 has no new behaviour.
 
+### M37–M40 design: caption looks, fade at the ends, undo on Lyrics, three known issues (2026-11-11)
+
+Request, 2026-11-11: from Claude's feature suggestions the owner picked the fade at the ends, more caption looks, undo on Lyrics, and the §15 issues that feel like features. Agreed with the owner over mockups (scratchpad, not kept). Four milestones, one branch each, stacked from `dev`: `m37-caption-looks`, `m38-fade-ends`, `m39-lyrics-undo`, `m40-lyrics-fixes`. Tests are the owner's; `fvm flutter analyze` only. Items marked *Claude's call* were not asked; the owner can overturn them.
+
+**Why.** Captions over a busy picture need a look other than the one grey box; clips trimmed elsewhere start and stop with a hard cut; and on Lyrics a slip (a delete, a mistimed tap) can't be taken back.
+
+**Goals.**
+- The caption can be shadowed text without a box, or a box, each in four colours.
+- The picture can fade in from black and out to black.
+- Every change to the lines on Lyrics can be undone and redone.
+- Three §15 issues go: a clip over silence, dragging a line that doesn't scroll, edits lost to a script that finishes late.
+
+**Non-goals.** No change to the sound (no audio fade), to the branding pill (FR-8), to caption timing (FR-7a), to Groq, or to the crop. No fade at scene cuts (tried and removed in M25). No text animation (§11).
+
+**Anti-goals.** Caption text drawn anywhere but Flutter's text engine (it would break Nastaliq joining). A reel made before M37 that looks different when re-exported unchanged. Undo that jumps between unrelated settings.
+
+**M37 Caption looks (FR-7).**
+- **Style sheet:** Position and Size as today, then **Look** (Box / Shadow, a segmented button like the others), then **Colour**, a row of four swatches for the chosen look. Each swatch shows the look itself (a short sample of text over a picture-like background), with the chosen one outlined in the accent colour.
+- **Box colours** (text on box): white on black, black on white, yellow on black, white on green.
+- **Shadow colours** (text, no box): white, yellow, black with a light glow, gold.
+- **Default:** Box, white on black at today's 38 %, so existing and new reels look as they do now until changed.
+- **Remembered per look:** each look keeps its own colour, so Box → Shadow → Box comes back to the Box colour picked before.
+- **Kept:** the look and both colours are saved with the kept fine-tune (FR-24); a draft saved before M37 reads as the default. A new reel starts from the look and colours used last (kept in preferences, *Claude's call*).
+- **Shadow scales with the text** (offset and blur as a fraction of the font size), so S, M and L read the same.
+- **Render:** the overlay painter (FR-7a) draws the chosen look into each cue PNG; Kotlin and Swift don't change. The Lyrics preview draws the same look.
+- **Starting values** (*Claude's call*, to be judged on the phone): box opacities black 38 % (today), white 85 %, black under yellow 60 %, green `#0A5A3C` 85 %; yellow `#FFD84D`, gold `#F2C879`; shadow black at 90 % with a soft second shadow; glow white, blurred. They live as tokens in `app_theme.dart` (caption colours, not UI colours).
+
+**M38 Fade at the ends (new FR-33).**
+- **Fade switch** on Fine-tune · Video's Trim tab, under the nudge cards: "Fade in and out", off by default, saved with the kept fine-tune. New reels start with it off (not remembered from the last reel).
+- **On:** the picture fades in from black over the clip's first 0.5 s and out to black over its last 0.5 s. A clip under 2 s fades over a quarter of its length at each end. The sound doesn't change.
+- **Captions and branding fade with the picture:** the fade is applied after the overlay.
+- **Render:** the render spec gets the fade length in milliseconds (0 when off). Android: a Media3 `RgbMatrix` effect after the overlay that scales colour by the fade factor at each frame's time. iOS: the same factor applied in `FrameComposer` after compositing. Both use the frame's own time from the clip start, as the moving crop does (§6.3.2).
+- **Preview:** the Lyrics preview shows the fade (a black layer over the reel, its opacity from the playhead). The Trim tab's player doesn't, since it plays the raw video for trimming.
+
+**M39 Undo on Lyrics (new FR-34).**
+- **Top bar:** Undo and Redo icon buttons in Lyrics' app bar, greyed when there is nothing to undo or redo.
+- **One step per action:** a saved text edit, Add line, Delete, a drag, and each tap-to-time. Typing in the edit field is one step when saved, not per letter.
+- **Quick message:** after a Delete, "Line deleted", and after a tap-to-time, "Line timed", each with **Undo**, for about 4 s. Other actions show no message.
+- **Up to 50 steps.** A new change after an undo clears Redo.
+- **Saving:** an undo or redo is a change like any edit: the caption refills, the script saves as `edited` after 1 s (FR-21), and the kept fine-tune follows (FR-24).
+- **Lifetime:** while Lyrics stays open, including Export and Cancel back. Cleared when Lyrics is left back to Video or Fine-tune closes; not kept for Continue later.
+- **Not in the history:** the Show lyrics switch, the Style sheet, and Get again (it already asks "Replace your edited lines?" and its lines arrive over time). Get again's Replace clears the history.
+- **Undo back to before the first edit** (*Claude's call*): the lines become unedited again, so they follow the written script as it is now, not the snapshot. A script still being written then keeps adding its lines (FR-21 "Script still being written").
+
+**M40 Known issues (§15).**
+- **Clip over silence:** when no line of the script overlaps the clip, Lyrics shows the tools and an empty list with the hint "No lines in this part of the video." and Add line, instead of selecting the whole script. The caption is empty, so the reel has only the branding until a line is added. Get again stays. (*Claude's call* on the hint; `linesInClip` returns `NoSelection` instead of the whole range, and `PickedScript` and the caption code must accept it.)
+- **Dragging a line scrolls the screen:** the line list becomes part of the screen's own scrolling (Lyrics' `ListView` becomes a `CustomScrollView` with a sliver reorderable list, instead of a shrink-wrapped `ReorderableListView` inside the `ListView`), so a drag near the top or bottom edge scrolls and a line can be dropped on a row out of view.
+- **Edits survive a script that finishes late:** when a run finishes after the user edited lines, the edited lines are saved again after the run's own save, so the `edited` script is the newest and the video reopens with the edits (FR-14, FR-21). Get again's Replace still lets the new script win.
+
+**Left to the builder.** Widget structure and file names; the swatch's sample text and background; the exact undo snapshot (the picked script, the selection and the edited flag are enough); how the fade factor reaches `RgbMatrix` and Core Image; shadow offset and blur fractions; icon choice for Undo and Redo.
+
+**Spec sections to update when built.** §2 (screens 5 and 5b), FR-5 (fade switch), FR-7 (look and colours), FR-9 (fade in the render), FR-21 (undo, silence, drag), FR-24 (what is kept), new FR-33 and FR-34, §6.1 types, §13 (new behaviour), §15 (the three issues and M18a/c removed).
+
+### M37 tasks (branch `m37-caption-looks`)
+
+Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-7 (Block, Look and colour), §6.1 types, §13 caption looks. Shadow layer sizes and opacities are Claude's call, written into FR-7.
+- [x] **2. Model and keeping.** `caption_settings.dart`: `CaptionLook`, `BoxColours`, `ShadowColours`, `CaptionAppearance` (value object with `copyWith`, `==`), `CaptionSettings.appearance` (default `CaptionAppearance()`). `fine_tune_draft_json.dart`: write `look`, `boxColours`, `shadowColours` under `caption`; read them with the default for a missing or unknown name. `FineTuneDraft.startOver` keeps the appearance. New `features/style/data/caption_appearance_store.dart` (preferences keys as FR-7, the theme store's pattern) and `features/style/application/caption_appearance_memory.dart` (`savedCaptionAppearanceProvider`, overridden in `main.dart` like the theme; `CaptionAppearanceMemory` notifier with `remember`). `ReelDraftController.startNew` starts from the remembered appearance; `updateCaption` remembers a changed appearance. **New tests to write:** §13 caption looks, all but the drawing.
+- [x] **3. Drawing.** New `features/style/domain/caption_ink.dart`: `CaptionInk captionInkFor(CaptionAppearance)` giving the box colour (none for Shadow), the text colour and `List<Shadow> shadowsAt(double fontSize)`; colours as `ReelColors` tokens in `app_theme.dart`. `captionTextStyle` takes the appearance; `overlay_painter.dart` and `ReelOverlayLayer` draw the box only for Box. Kotlin and Swift unchanged. **New tests to write:** §13 "Box draws its colour…; Shadow draws no box…" on `captionInkFor`.
+- [x] **4. Style sheet.** `caption_style_sheet.dart`: Look (`OptionRow`, Box / Shadow) and Colour (four swatches drawn with `captionInkFor` over a gradient strip, the chosen one outlined in `palette.accent`, each with a semantic label such as "Yellow on black"). **New tests to write:** the sheet shows the chosen look's four colours, and a tap updates the draft.
+- [x] **5. Status.** §12 status row; push `m37-caption-looks`.
+
+### M38 tasks (branch `m38-fade-ends`, stacked on `m37-caption-looks`)
+
+Tests are the owner's; `fvm flutter analyze` only (and the Android and iOS builds for the native parts), and each commit says tests were not run.
+
+- [x] **1. Spec.** New FR-33, §6.1 note, §13 fade cases.
+- [x] **2. Dart.** New `features/clip/domain/fade.dart`: `Duration fadeLengthFor(ClipRange clip)` and `double fadeBrightnessAt(Duration clipTime, Duration clipLength, Duration fadeLength)`. `ReelDraft.fadeEnds` (default false) with `withFadeEnds()` / `withoutFadeEnds()` and controller `fadeEnds()` / `stopFadingEnds()`; `FineTuneDraft` and its JSON carry `fadeEnds`; `RenderJob.fade` (`Duration.zero` when off) and `renderSpecFor` writes `fadeMs` only when it is above zero. Trim tab: the switch and hint. `ReelStage`: the black layer. **New tests to write:** §13 fade cases.
+- [x] **3. Android.** `RenderSpec.fadeMs` (0 when absent); `fadeBrightnessAt` in Kotlin beside `clipTimeMs`; an `RgbMatrix` after the overlay when `fadeMs > 0`. `fvm flutter build apk --debug`.
+- [x] **4. iOS.** `RenderSpec.fadeMs`; the same brightness function in Swift; `CIColorMatrix` after the overlay in `FrameComposer.render`. `fvm flutter build ios --no-codesign`.
+- [x] **5. Status.** §12 status row; push.
+
+### M39 tasks (branch `m39-lyrics-undo`, stacked on `m38-fade-ends`)
+
+Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** New FR-34, §13 undo cases.
+- [x] **2. History.** New `features/transcript/domain/lines_history.dart`: `LinesSnapshot` (transcript, linesEdited) and `LinesHistory` (`recorded`, `undone`, `redone`, `canUndo`, `canRedo`, at most 50). `ReelDraft.linesSnapshot` and `withLinesRestored`; controller `restoreLines`. New `features/clip/application/lyrics_undo_controller.dart`: an auto-disposed `lyricsUndoProvider` (`applyEdit`, `undo`, `redo`, `clear`), which after an undo to unedited lines catches up with the run's latest transcript through `growTranscript`. **New tests to write:** §13 undo cases.
+- [x] **3. Lyrics.** `FlowAppBar.actions`; Undo and Redo in Lyrics' app bar (watching the provider keeps it alive while Lyrics is open); `ClipLinesList` edits through `applyEdit`, hides the quick message on every edit and shows it after Delete and tap-to-time; Get and Get again clear the history; undo and redo save like an edit. **New tests to write:** the buttons' enabled state, the quick message and its Undo.
+- [x] **4. Status.** §12 status row; push.
+
+### M40 tasks (branch `m40-lyrics-fixes`, stacked on `m39-lyrics-undo`)
+
+Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-21 (a script with no line inside the clip; Reorder scrolls; a late run keeps the edits), §13, §15 (Clip over silence and Fine-tune lines removed).
+- [x] **2. Clip over silence.** `linesInClip` returns `LineSelection` (`NoSelection` when no line overlaps). `ReelDraft.withTypedFirstLine` becomes `withTypedLine`, which inserts into an existing script in time order (new `withLineInserted` in `line_edits.dart`) instead of replacing it. Lyrics: a script with lines and no run shows the tools, the hint and Add line (an undo step, through `LyricsUndoController.addLineToEmptyClip`). **Stale tests:** `lines_in_clip_test.dart`'s "every line when none overlaps". **New tests to write:** §13 Lyrics fixes, first two.
+- [x] **3. Drag scrolls.** `ClipLinesList` builds slivers (`SliverReorderableList` with a proxy decorator, then Add line), and Lyrics' `ListView` becomes a `CustomScrollView`. **Stale tests:** finders that expect a `ReorderableListView`.
+- [x] **4. Edits survive a late run.** `ScriptProgressController` saves the edited lines again when a written run (no `savedAt`) ends while `linesEdited`. **New tests to write:** §13 Lyrics fixes, third.
+- [x] **5. Status.** §12 status row; push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1319,6 +1441,30 @@ Asked by the owner (2026-11-10), after asking why the button exists: remove Fix 
     - An edited line count shares the clip by line length.
     - One overlay PNG per cue is written, kept while the render runs and deleted when it ends.
     - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
+  - **Caption looks (FR-7, M37):**
+    - The default appearance is Box, white on black at 38 %.
+    - Box draws its colour behind the text; Shadow draws no box and gives the text two shadow layers sized from the font size.
+    - Choosing Shadow and then Box again comes back to the Box colour picked before.
+    - The appearance survives a kept fine-tune's JSON round trip; a file without it reads as the default.
+    - A start-over keeps the appearance.
+    - A new reel starts from the appearance saved in preferences; unknown or missing names read as the default.
+  - **Fade at the ends (FR-33, M38):**
+    - The fade is 0.5 s for a clip of 2 s or more and a quarter of the clip below that.
+    - The brightness is 0 at the clip's start and end, 1 from the fade's length in, and in between rises and falls in a straight line.
+    - The render spec has `fadeMs` only when the fade is on.
+    - `fadeEnds` survives a kept fine-tune's JSON round trip; a file without it reads as off; a start-over keeps it.
+    - A new reel starts with the fade off.
+  - **Undo on Lyrics (FR-34, M39):**
+    - An edit records the lines as they were; undo restores them and redo the edit.
+    - An edit that changes no line records nothing.
+    - The 51st step drops the oldest.
+    - A new edit after an undo clears redo.
+    - Undoing to before the first edit makes the lines unedited, and a script still being written adds its lines again.
+    - Get again clears the history.
+  - **Lyrics fixes (M40):**
+    - A clip that no line overlaps selects no lines, and its caption is empty.
+    - Add line on such a clip puts the line into the script in time order, inside the clip, and selects it.
+    - A run that finishes after lines were edited saves the edited lines again after its own save; one reopened from the saved scripts does not.
 - **Clean the voice (FR-26, M24):**
   - The piece arguments hold `-af` with exactly the filter chain, before the FLAC encode.
   - The chain is the one in §10 item 8's chosen values.
@@ -1508,9 +1654,7 @@ Removed on 2026-11-10: the owner does all device testing themselves and keeps th
 - **iOS launch image (found in M27):** `flutter build ipa` warns that the iOS launch image is still Flutter's placeholder, so iOS likely doesn't show FR-20's dark screen with the logo before Flutter starts. Not a store blocker; replace `LaunchImage` in `ios/Runner/Assets.xcassets` when iOS is next worked on. Since M35 the storyboard's background is the `LaunchBackground` colour set, light or dark with the phone (FR-20).
 - (Removed in M23: there is no download; Processing's first step is "Preparing the audio".)
 - The language list shows both "English (detected)" and "English".
-- **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) (Gone in M23: the player holds the whole video, so timing a line anywhere needs no new file.) (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
 - **Moving crop (M19):** (a) Style's preview shows the first caption line whatever the time. (b) (Gone in M23: the player holds the whole video, so a keyframe outside the clip can be shown.)
-- **Clip over silence (M23):** when a trim leaves the clip over a stretch with no sung line, `linesInClip` selects every line (so Lyrics still has a script), which refills the caption with the whole script. The better rule is to select nothing and let Lyrics offer an empty list with "add a line"; not done because `PickedScript` needs a range.
 - **Preview timing (M25):** the Lyrics preview reads the crop from the playhead's estimated position (the platform reports about twice a second), so at a scene cut its crop can sit a few milliseconds off the picture while playing. The export reads each frame's own time and is exact (on the reference clip the detector's cut is the first new frame; a file whose first video timestamp is not 0 could still put FFmpeg's and Media3's clocks tens of milliseconds apart, which §14's frame-by-frame check would show). A fade at cuts was tried and removed at the owner's request.
 - **Bodies (M25):** the detector's output was only judged by eye on 11 frames; false positives on a clip with no person were not measured; a release build's times and the GPU or NNAPI delegates were not tried; the model loads on first use (about 0.8 s, twice per run: once for the pictures, once for the body phase); `tflite_flutter`'s native library is 16 KB page aligned (checked in M27 task 6); the body anchor is provisional (§10 item 7).
 - **Crowd shots (M25):** a shot with dozens of faces offers only the 6 biggest faces and the people the body detector finds (3 foreground people on the reference clip's crowd shots); a face in the crowd can't be chosen, but a spot can.

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:status_studio/src/core/ffmpeg/media_probe.dart';
+import 'package:status_studio/src/features/clip/domain/fade.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
 import 'package:status_studio/src/features/export/domain/reel_file_name.dart';
@@ -124,6 +125,7 @@ class Media3Renderer implements Renderer {
         overlayPath: branding.path,
         captionCues: await _writeCueOverlays(draft, run, stem, output),
         outputPath: await _freeOutputPath(folder, draft),
+        fade: draft.fadeEnds ? fadeLengthFor(clip) : Duration.zero,
       ),
     );
   }
