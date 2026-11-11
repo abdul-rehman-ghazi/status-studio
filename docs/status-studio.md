@@ -554,8 +554,7 @@ From the transcript text, first match wins:
 
 | Script | Font |
 |---|---|
-| Urdu letters (as in §6.4) | Noto Nastaliq Urdu |
-| Other Arabic script | Noto Naskh Arabic |
+| Arabic script (Urdu, Arabic, Persian and the like) | Noto Nastaliq Urdu |
 | Everything else | Inter; glyphs it lacks fall back to system fonts |
 
 Urdu, Arabic and Persian text is right to left.
