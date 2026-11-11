@@ -219,6 +219,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 **FR-21 Fine-tune lyrics (M18; its own step since M19).** Step 2 of Fine-tune lists the clip's lines, editable, with the video playing with the lyrics on it.
 - **One screen (M30), top to bottom under the player:**
   - **Show lyrics on the clip**, a switch, on by default. Off: the reel has no caption and the hint says "No lyrics on this reel. Nothing leaves your phone and you need no key." The lines are kept, and turning it on again brings them back. Turning it off while a script is being written stops the run.
+  - **A script with no line inside the clip (M40):** a trim over a stretch with no sung line. The tools (Style, Get again) and the run's section as with lines, then "No lines in this part of the video." and **Add line**, which asks for a line and puts it into the script at the playhead in time order, 2 s long and cut at the clip end (as Type them myself places it). The caption is empty until a line is added. Before M40 the whole script was selected instead.
   - **No lines inside the clip yet:** the Get card, with the Language dropdown (FR-2), **Get lyrics from Groq** and "Sends the cleaned voice to Groq with your key. The picture never leaves your phone."; under it **Type them myself**, which asks for a first line and puts it at the playhead, 2 s long and cut at the clip end. When the reel has no lines and no run, Lyrics first opens the newest saved script of the video (FR-14).
   - **While writing:** the step under way with its bar, amount and time left, and Cancel; lines appear below as they arrive. A failure shows its §8 message and actions here, with Dismiss in place of Back.
   - **With lines:** **Style** (a bottom sheet with Position and Size, FR-7) and **Get again** (FR-2; Fix with Groq between them was removed in M36), then the line list below. Get again asks "Replace your edited lines?" (Replace, Keep) when lines were edited.
@@ -231,11 +232,11 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Ignored:** a tap earlier than the previous line's start, or on a line earlier than the one playing, so lines stay in time order.
 - **Highlight:** the line whose start ≤ playhead < end is highlighted, only while it lasts; between lines nothing is, and the video shows no lyrics.
 - **Edit:** a pencil opens a text field with the line's text. Saving an empty text keeps the old one. A line break becomes a space, so a line stays one caption line.
-- **Reorder:** a drag handle moves a line's text to another place. Times stay where they are, so lines stay in time order: reordering swaps which text sits at which time.
+- **Reorder:** a drag handle moves a line's text to another place. The list is part of the screen's own scrolling (M40), so a drag near the top or bottom edge scrolls the screen and a line can be dropped on a row that was out of view. Times stay where they are, so lines stay in time order: reordering swaps which text sits at which time.
 - **Add:** "Add line" asks for text and inserts a line at the playhead, 2 s long (cut at the next line's start; the line it lands in ends there). When a line starts exactly at the playhead (right after tapping it while paused), that line's time is shared: the new line takes the first half, at most 2 s. The playhead must be inside the clip; Add line is off outside it.
 - **Delete:** removes a line. The last line can't be deleted.
 - **After an edit:** the clip stays (M23: it no longer follows the lines), and the lines inside it are the listed ones again, also after an added line. The caption is refilled from them, and the script is saved as the newest script (source `edited`, FR-14) after 1 s without edits and when the screen closes.
-- **Script still being written:** once any line is edited, lines that arrive later are not added to this reel (the edited lines win).
+- **Script still being written:** once any line is edited, lines that arrive later are not added to this reel (the edited lines win). When the run finishes after an edit, the edited lines are saved again right after the run's own save, so the `edited` script is the newest and the video reopens with the edits (M40). A script reopened from the saved ones (not written) saves nothing again.
 
 **FR-22 Moving crop (M19).** Where the crop window sits can change while the clip plays, for Crop to fill and Free crop. Blur background and 16:9 keep the whole frame, so nothing moves.
 - **What moves:** the window's position only. Its size is fixed for the clip: the preset's largest rectangle, or the free crop's width and height. It moves only along an axis where it has room (a 9:16 window in a 16:9 frame moves left and right; a 4:5 window in a 9:16 video moves up and down). With room on neither axis, the switch is hidden.
@@ -1381,6 +1382,16 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - [x] **3. Lyrics.** `FlowAppBar.actions`; Undo and Redo in Lyrics' app bar (watching the provider keeps it alive while Lyrics is open); `ClipLinesList` edits through `applyEdit`, hides the quick message on every edit and shows it after Delete and tap-to-time; Get and Get again clear the history; undo and redo save like an edit. **New tests to write:** the buttons' enabled state, the quick message and its Undo.
 - [x] **4. Status.** §12 status row; push.
 
+### M40 tasks (branch `m40-lyrics-fixes`, stacked on `m39-lyrics-undo`)
+
+Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-21 (a script with no line inside the clip; Reorder scrolls; a late run keeps the edits), §13, §15 (Clip over silence and Fine-tune lines removed).
+- [ ] **2. Clip over silence.** `linesInClip` returns `LineSelection` (`NoSelection` when no line overlaps). `ReelDraft.withTypedFirstLine` becomes `withTypedLine`, which inserts into an existing script in time order (new `withLineInserted` in `line_edits.dart`) instead of replacing it. Lyrics: a script with lines and no run shows the tools, the hint and Add line (an undo step, through `LyricsUndoController.addLineToEmptyClip`). **Stale tests:** `lines_in_clip_test.dart`'s "every line when none overlaps". **New tests to write:** §13 Lyrics fixes, first two.
+- [ ] **3. Drag scrolls.** `ClipLinesList` builds slivers (`SliverReorderableList` with a proxy decorator, then Add line), and Lyrics' `ListView` becomes a `CustomScrollView`. **Stale tests:** finders that expect a `ReorderableListView`.
+- [ ] **4. Edits survive a late run.** `ScriptProgressController` saves the edited lines again when a written run (no `savedAt`) ends while `linesEdited`. **New tests to write:** §13 Lyrics fixes, third.
+- [ ] **5. Status.** §12 status row; push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1449,6 +1460,10 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
     - A new edit after an undo clears redo.
     - Undoing to before the first edit makes the lines unedited, and a script still being written adds its lines again.
     - Get again clears the history.
+  - **Lyrics fixes (M40):**
+    - A clip that no line overlaps selects no lines, and its caption is empty.
+    - Add line on such a clip puts the line into the script in time order, inside the clip, and selects it.
+    - A run that finishes after lines were edited saves the edited lines again after its own save; one reopened from the saved scripts does not.
 - **Clean the voice (FR-26, M24):**
   - The piece arguments hold `-af` with exactly the filter chain, before the FLAC encode.
   - The chain is the one in §10 item 8's chosen values.
@@ -1638,9 +1653,7 @@ Removed on 2026-11-10: the owner does all device testing themselves and keeps th
 - **iOS launch image (found in M27):** `flutter build ipa` warns that the iOS launch image is still Flutter's placeholder, so iOS likely doesn't show FR-20's dark screen with the logo before Flutter starts. Not a store blocker; replace `LaunchImage` in `ios/Runner/Assets.xcassets` when iOS is next worked on. Since M35 the storyboard's background is the `LaunchBackground` colour set, light or dark with the phone (FR-20).
 - (Removed in M23: there is no download; Processing's first step is "Preparing the audio".)
 - The language list shows both "English (detected)" and "English".
-- **Fine-tune lines (M18):** (a) dragging a line's handle does not scroll the screen, so text can only be dragged to rows in view; fixing it means a sliver reorderable list. (b) (Gone in M23: the player holds the whole video, so timing a line anywhere needs no new file.) (c) A script that finishes writing after the user edited lines saves itself as a newer script than the `edited` one, so the video reopens without the edits.
 - **Moving crop (M19):** (a) Style's preview shows the first caption line whatever the time. (b) (Gone in M23: the player holds the whole video, so a keyframe outside the clip can be shown.)
-- **Clip over silence (M23):** when a trim leaves the clip over a stretch with no sung line, `linesInClip` selects every line (so Lyrics still has a script), which refills the caption with the whole script. The better rule is to select nothing and let Lyrics offer an empty list with "add a line"; not done because `PickedScript` needs a range.
 - **Preview timing (M25):** the Lyrics preview reads the crop from the playhead's estimated position (the platform reports about twice a second), so at a scene cut its crop can sit a few milliseconds off the picture while playing. The export reads each frame's own time and is exact (on the reference clip the detector's cut is the first new frame; a file whose first video timestamp is not 0 could still put FFmpeg's and Media3's clocks tens of milliseconds apart, which §14's frame-by-frame check would show). A fade at cuts was tried and removed at the owner's request.
 - **Bodies (M25):** the detector's output was only judged by eye on 11 frames; false positives on a clip with no person were not measured; a release build's times and the GPU or NNAPI delegates were not tried; the model loads on first use (about 0.8 s, twice per run: once for the pictures, once for the body phase); `tflite_flutter`'s native library is 16 KB page aligned (checked in M27 task 6); the body anchor is provisional (§10 item 7).
 - **Crowd shots (M25):** a shot with dozens of faces offers only the 6 biggest faces and the people the body detector finds (3 foreground people on the reference clip's crowd shots); a face in the crowd can't be chosen, but a spot can.
