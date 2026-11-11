@@ -405,6 +405,14 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Marks drawn on the video picture** (Claude's call): the dimming outside the crop window, the crop frame and its handles, the face and body corners and their number tags, and the dark scrims under player controls keep their dark-theme colours, because the picture, not the page, is behind them.
 - **Launch (FR-20, owner's choice B):** the native launch screen follows the phone's dark mode, not the saved choice, because it shows before the app can read it. Flutter's launch animation matches the native screen (the phone's mode), then its exit fade reveals Home in the chosen theme; when the two differ, that fade is the only change.
 
+**FR-33 Fade at the ends (M38).** Asked by the owner (2026-11-11): a clip trimmed elsewhere starts and stops on a hard cut.
+- **Switch:** "Fade in and out" on Fine-tune · Video's Trim tab, under the nudge cards, with the hint "The picture fades in from black and out to black. The sound doesn't change." Off by default; a new reel starts with it off, whatever the last reel had.
+- **On:** the picture fades in from black over the clip's first 0.5 s and out to black over its last 0.5 s; a clip under 2 s fades over a quarter of its length at each end. The brightness at clip time *t* of a clip *L* long with fade *f* is min(1, *t* / *f*, (*L* − *t*) / *f*), at least 0. The sound is not faded.
+- **Captions and branding fade with the picture:** the fade is applied after the overlay.
+- **Render:** the render spec carries `fadeMs` (0, or absent, when off). Android adds a Media3 `RgbMatrix` after the `OverlayEffect` that scales red, green and blue by the brightness at each frame's clip time (`clipTimeMs`, §6.3.2). iOS scales them with `CIColorMatrix` in `FrameComposer` after the overlay is composited, at the frame's own time.
+- **Preview:** the Lyrics player shows the fade, as a black layer over the reel whose opacity is 1 − brightness at the playhead. The Trim tab's player plays the raw video and doesn't.
+- **Kept:** with the fine-tune (FR-24, `fadeEnds`; a file without it reads as off), and through a start-over.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -493,6 +501,7 @@ enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large } 
 enum CaptionLook { box, shadow }  enum BoxColours { whiteOnBlack, blackOnWhite, yellowOnBlack, whiteOnGreen }  enum ShadowColours { white, yellow, blackGlow, gold }   // M37
 class CaptionAppearance { CaptionLook look; BoxColours boxColours; ShadowColours shadowColours; }   // M37
 class CaptionSettings { String text; CaptionPosition position; CaptionSize size; CaptionAppearance appearance; }
+// ReelDraft and FineTuneDraft also carry bool fadeEnds (FR-33, M38).
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: first caption line
 class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // groq-whisper-large-v3 (captions removed in M23) 
@@ -1342,6 +1351,16 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - [x] **4. Style sheet.** `caption_style_sheet.dart`: Look (`OptionRow`, Box / Shadow) and Colour (four swatches drawn with `captionInkFor` over a gradient strip, the chosen one outlined in `palette.accent`, each with a semantic label such as "Yellow on black"). **New tests to write:** the sheet shows the chosen look's four colours, and a tap updates the draft.
 - [x] **5. Status.** §12 status row; push `m37-caption-looks`.
 
+### M38 tasks (branch `m38-fade-ends`, stacked on `m37-caption-looks`)
+
+Tests are the owner's; `fvm flutter analyze` only (and the Android and iOS builds for the native parts), and each commit says tests were not run.
+
+- [x] **1. Spec.** New FR-33, §6.1 note, §13 fade cases.
+- [ ] **2. Dart.** New `features/clip/domain/fade.dart`: `Duration fadeLengthFor(ClipRange clip)` and `double fadeBrightnessAt(Duration clipTime, Duration clipLength, Duration fadeLength)`. `ReelDraft.fadeEnds` (default false) with `withFadeEnds()` / `withoutFadeEnds()` and controller `fadeEnds()` / `stopFadingEnds()`; `FineTuneDraft` and its JSON carry `fadeEnds`; `RenderJob.fade` (`Duration.zero` when off) and `renderSpecFor` writes `fadeMs` only when it is above zero. Trim tab: the switch and hint. `ReelStage`: the black layer. **New tests to write:** §13 fade cases.
+- [ ] **3. Android.** `RenderSpec.fadeMs` (0 when absent); `fadeBrightnessAt` in Kotlin beside `clipTimeMs`; an `RgbMatrix` after the overlay when `fadeMs > 0`. `fvm flutter build apk --debug`.
+- [ ] **4. iOS.** `RenderSpec.fadeMs`; the same brightness function in Swift; `CIColorMatrix` after the overlay in `FrameComposer.render`. `fvm flutter build ios --no-codesign`.
+- [ ] **5. Status.** §12 status row; push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1397,6 +1416,12 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
     - The appearance survives a kept fine-tune's JSON round trip; a file without it reads as the default.
     - A start-over keeps the appearance.
     - A new reel starts from the appearance saved in preferences; unknown or missing names read as the default.
+  - **Fade at the ends (FR-33, M38):**
+    - The fade is 0.5 s for a clip of 2 s or more and a quarter of the clip below that.
+    - The brightness is 0 at the clip's start and end, 1 from the fade's length in, and in between rises and falls in a straight line.
+    - The render spec has `fadeMs` only when the fade is on.
+    - `fadeEnds` survives a kept fine-tune's JSON round trip; a file without it reads as off; a start-over keeps it.
+    - A new reel starts with the fade off.
 - **Clean the voice (FR-26, M24):**
   - The piece arguments hold `-af` with exactly the filter chain, before the FLAC encode.
   - The chain is the one in §10 item 8's chosen values.
