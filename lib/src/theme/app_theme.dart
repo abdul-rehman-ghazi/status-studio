@@ -106,6 +106,14 @@ abstract final class ReelColors {
   static const captionYellow = Color(0xFFFFD84D);
   static const captionGold = Color(0xFFF2C879);
   static const captionGreen = Color(0xFF0A5A3C);
+
+  /// A sky-to-ground strip behind the Style sheet's colour swatches, so each
+  /// look is judged over something like a picture.
+  static const swatchBackdrop = [
+    Color(0xFF6B8FB0),
+    Color(0xFFE9D9B8),
+    Color(0xFFC47B45),
+  ];
 }
 
 /// Marks drawn on the video picture: the crop frame and its handle, face
