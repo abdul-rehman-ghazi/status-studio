@@ -127,13 +127,14 @@ class FineTuneDraft {
   }
 
   /// What carries over when the lines can't (spec FR-24, M30): the clip and
-  /// the crop when the clip still fits [video], and the caption's position
-  /// and size. A clip past the video's end starts over as the whole video,
+  /// the crop when the clip still fits [video], and the caption's position,
+  /// size and appearance. A clip past the video's end starts over as the whole video,
   /// with the crop stopped where it was at the old clip start.
   ReelDraft startOver(SourceVideo video) {
     final look = CaptionSettings(
       position: caption.position,
       size: caption.size,
+      appearance: caption.appearance,
     );
     if (clipFits(video)) {
       return ReelDraft(

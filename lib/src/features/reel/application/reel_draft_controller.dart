@@ -3,6 +3,7 @@ import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/style/application/caption_appearance_memory.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
@@ -17,7 +18,12 @@ class ReelDraftController extends Notifier<ReelDraft> {
   @override
   ReelDraft build() => const ReelDraft();
 
-  void startNew() => state = const ReelDraft();
+  /// A new reel starts from the caption appearance used last (spec FR-7).
+  void startNew() => state = ReelDraft(
+    caption: CaptionSettings(
+      appearance: ref.read(captionAppearanceMemoryProvider),
+    ),
+  );
 
   /// Continues a kept fine-tune (spec FR-24).
   void restore(ReelDraft draft) => state = draft;
@@ -103,8 +109,12 @@ class ReelDraftController extends Notifier<ReelDraft> {
     updateFrame(frame.copyWith(freeCrop: kept));
   }
 
-  void updateCaption(CaptionSettings caption) =>
-      state = state.copyWith(caption: caption);
+  void updateCaption(CaptionSettings caption) {
+    state = state.copyWith(caption: caption);
+    ref
+        .read(captionAppearanceMemoryProvider.notifier)
+        .remember(caption.appearance);
+  }
 
   ClipRange _requireClip() {
     final clip = state.clip;

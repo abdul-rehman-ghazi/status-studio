@@ -9,6 +9,9 @@ import 'package:status_studio/src/features/appearance/application/theme_choice_c
 import 'package:status_studio/src/features/appearance/data/theme_choice_store.dart';
 import 'package:status_studio/src/features/appearance/domain/theme_choice.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
+import 'package:status_studio/src/features/style/application/caption_appearance_memory.dart';
+import 'package:status_studio/src/features/style/data/caption_appearance_store.dart';
+import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 
 Future<void> main() async {
@@ -16,6 +19,9 @@ Future<void> main() async {
   final container = ProviderContainer(
     overrides: [
       savedThemeChoiceProvider.overrideWithValue(await _savedThemeChoice()),
+      savedCaptionAppearanceProvider.overrideWithValue(
+        await _savedCaptionAppearance(),
+      ),
     ],
   );
   runApp(
@@ -32,20 +38,38 @@ Future<void> main() async {
 
 /// Read while the native launch screen still shows, so the first frame
 /// is already in the chosen theme (spec FR-32).
-Future<ThemeChoice> _savedThemeChoice() async {
+Future<ThemeChoice> _savedThemeChoice() => _readSetting(
+  ThemeChoiceStore(SharedPreferencesAsync()).read,
+  fallback: ThemeChoice.system,
+  library: 'theme choice',
+);
+
+/// Read with the theme, so the first new reel starts from the caption
+/// appearance used last (spec FR-7).
+Future<CaptionAppearance> _savedCaptionAppearance() => _readSetting(
+  CaptionAppearanceStore(SharedPreferencesAsync()).read,
+  fallback: const CaptionAppearance(),
+  library: 'caption appearance',
+);
+
+Future<T> _readSetting<T>(
+  Future<T> Function() read, {
+  required T fallback,
+  required String library,
+}) async {
   try {
-    return await ThemeChoiceStore(SharedPreferencesAsync()).read();
+    return await read();
   } on Object catch (error, stackTrace) {
-    // Unreadable settings must not stop the app opening; System is the
-    // default anyway.
+    // Unreadable settings must not stop the app opening; the fallback is
+    // the default anyway.
     FlutterError.reportError(
       FlutterErrorDetails(
         exception: error,
         stack: stackTrace,
-        library: 'theme choice',
+        library: library,
       ),
     );
-    return ThemeChoice.system;
+    return fallback;
   }
 }
 

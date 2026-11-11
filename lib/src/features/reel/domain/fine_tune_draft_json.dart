@@ -111,6 +111,9 @@ Map<String, Object?> _captionToJson(CaptionSettings caption) => {
   'text': caption.text,
   'position': caption.position.name,
   'size': caption.size.name,
+  'look': caption.appearance.look.name,
+  'boxColours': caption.appearance.boxColours.name,
+  'shadowColours': caption.appearance.shadowColours.name,
 };
 
 RangeSelected _selectionFromJson(Map<String, Object?> json) {
@@ -199,7 +202,23 @@ CaptionSettings _captionFromJson(Map<String, Object?> json) => CaptionSettings(
   text: _string(json['text']),
   position: _enumByName(CaptionPosition.values, json['position']),
   size: _enumByName(CaptionSize.values, json['size']),
+  appearance: _appearanceFromJson(json),
 );
+
+/// Files kept before M37 have no appearance, and a later version may name
+/// a colour this one doesn't know; both read as the default (spec FR-7).
+CaptionAppearance _appearanceFromJson(Map<String, Object?> json) {
+  const fallback = CaptionAppearance();
+  return CaptionAppearance(
+    look: CaptionLook.values.asNameMap()[json['look']] ?? fallback.look,
+    boxColours:
+        BoxColours.values.asNameMap()[json['boxColours']] ??
+        fallback.boxColours,
+    shadowColours:
+        ShadowColours.values.asNameMap()[json['shadowColours']] ??
+        fallback.shadowColours,
+  );
+}
 
 ScriptLanguage _language(Object? code) {
   final name = _string(code);
