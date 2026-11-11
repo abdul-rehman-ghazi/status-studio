@@ -43,6 +43,8 @@ struct RenderSpec: Equatable {
     let fill: Fill
     let videoMimeType: String
     let audioMimeType: String
+    /// How long the picture fades in and out; 0 for no fade (spec FR-33).
+    let fadeMs: Int64
 
     /// Throws `RenderSpecError` for a missing or wrong-typed key.
     init(map: [String: Any]) throws {
@@ -57,6 +59,8 @@ struct RenderSpec: Equatable {
         fill = try RenderSpec.fill(from: map)
         videoMimeType = try map.string("videoMimeType")
         audioMimeType = try map.string("audioMimeType")
+        // Dart sends it only when the fade is on.
+        fadeMs = (map["fadeMs"] as? NSNumber)?.int64Value ?? 0
     }
 
     private static func fill(from map: [String: Any]) throws -> Fill {

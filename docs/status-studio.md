@@ -883,6 +883,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M35 Theme choice | Light, dark or system theme in Settings (FR-32) | Built, branch `m35-theme-choice` (stacked on M34), merged into `dev` (2026-11-10); designed with the owner from mockups (2026-11-10); tests not run |
 | M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`), merged into `dev` (2026-11-10); tests not run |
 | M37 Caption looks | Box or Shadow caption, each in four colours, remembered for the next reel (FR-7) | Built, branch `m37-caption-looks` (from `dev`), pushed, not merged; tests not run |
+| M38 Fade at the ends | A switch on the Trim tab fades the picture, caption and branding in from black and out to black, 0.5 s each end (FR-33) | Built, branch `m38-fade-ends` (stacked on M37), pushed, not merged; APK and unsigned iOS build succeed; tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1358,8 +1359,8 @@ Tests are the owner's; `fvm flutter analyze` only (and the Android and iOS build
 - [x] **1. Spec.** New FR-33, §6.1 note, §13 fade cases.
 - [x] **2. Dart.** New `features/clip/domain/fade.dart`: `Duration fadeLengthFor(ClipRange clip)` and `double fadeBrightnessAt(Duration clipTime, Duration clipLength, Duration fadeLength)`. `ReelDraft.fadeEnds` (default false) with `withFadeEnds()` / `withoutFadeEnds()` and controller `fadeEnds()` / `stopFadingEnds()`; `FineTuneDraft` and its JSON carry `fadeEnds`; `RenderJob.fade` (`Duration.zero` when off) and `renderSpecFor` writes `fadeMs` only when it is above zero. Trim tab: the switch and hint. `ReelStage`: the black layer. **New tests to write:** §13 fade cases.
 - [x] **3. Android.** `RenderSpec.fadeMs` (0 when absent); `fadeBrightnessAt` in Kotlin beside `clipTimeMs`; an `RgbMatrix` after the overlay when `fadeMs > 0`. `fvm flutter build apk --debug`.
-- [ ] **4. iOS.** `RenderSpec.fadeMs`; the same brightness function in Swift; `CIColorMatrix` after the overlay in `FrameComposer.render`. `fvm flutter build ios --no-codesign`.
-- [ ] **5. Status.** §12 status row; push.
+- [x] **4. iOS.** `RenderSpec.fadeMs`; the same brightness function in Swift; `CIColorMatrix` after the overlay in `FrameComposer.render`. `fvm flutter build ios --no-codesign`.
+- [x] **5. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 
