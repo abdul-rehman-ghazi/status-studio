@@ -110,7 +110,13 @@ class _PlayBadge extends StatelessWidget {
         ),
         child: const Padding(
           padding: EdgeInsets.all(14),
-          child: Icon(Icons.play_arrow_rounded, size: 40),
+          // Fixed light colour: the scrim is black in both themes, and the
+          // theme's icon colour is dark in the light theme.
+          child: Icon(
+            Icons.play_arrow_rounded,
+            size: 40,
+            color: PictureMarkColors.light,
+          ),
         ),
       ),
     );
