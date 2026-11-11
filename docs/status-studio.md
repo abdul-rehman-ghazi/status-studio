@@ -1357,7 +1357,7 @@ Tests are the owner's; `fvm flutter analyze` only (and the Android and iOS build
 
 - [x] **1. Spec.** New FR-33, §6.1 note, §13 fade cases.
 - [x] **2. Dart.** New `features/clip/domain/fade.dart`: `Duration fadeLengthFor(ClipRange clip)` and `double fadeBrightnessAt(Duration clipTime, Duration clipLength, Duration fadeLength)`. `ReelDraft.fadeEnds` (default false) with `withFadeEnds()` / `withoutFadeEnds()` and controller `fadeEnds()` / `stopFadingEnds()`; `FineTuneDraft` and its JSON carry `fadeEnds`; `RenderJob.fade` (`Duration.zero` when off) and `renderSpecFor` writes `fadeMs` only when it is above zero. Trim tab: the switch and hint. `ReelStage`: the black layer. **New tests to write:** §13 fade cases.
-- [ ] **3. Android.** `RenderSpec.fadeMs` (0 when absent); `fadeBrightnessAt` in Kotlin beside `clipTimeMs`; an `RgbMatrix` after the overlay when `fadeMs > 0`. `fvm flutter build apk --debug`.
+- [x] **3. Android.** `RenderSpec.fadeMs` (0 when absent); `fadeBrightnessAt` in Kotlin beside `clipTimeMs`; an `RgbMatrix` after the overlay when `fadeMs > 0`. `fvm flutter build apk --debug`.
 - [ ] **4. iOS.** `RenderSpec.fadeMs`; the same brightness function in Swift; `CIColorMatrix` after the overlay in `FrameComposer.render`. `fvm flutter build ios --no-codesign`.
 - [ ] **5. Status.** §12 status row; push.
 
