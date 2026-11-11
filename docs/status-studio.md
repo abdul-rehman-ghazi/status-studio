@@ -98,7 +98,12 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Text:** the clip's lines' text, one per line, in the script's own language. Since M30 there are no Roman or English variants (ML Kit translation and §6.6 were removed) and no separate caption text: lines are edited on Lyrics (FR-21). With Show lyrics off the caption is empty.
 - **Position and size** (the Style sheet on Lyrics, M30): Top or Bottom (default). Size S, M (default) or L is a font size of 4.5 %, 5.5 % or 6.8 % of output width.
 - **Font:** by script (§6.5), with line height 2.1 for Nastaliq and 1.3 otherwise.
-- **Block:** centred, black at 38 % behind the text, padding 2 % of output width, margin 6 % of output height from the edge.
+- **Block:** centred, padding 2 % of output width, margin 6 % of output height from the edge. What is drawn in it is the look.
+- **Look and colour (M37):** in the Style sheet, **Look** (Box / Shadow), then **Colour**, four swatches for the chosen look, each drawn as that look over a picture-like strip, the chosen one outlined in the accent colour.
+  - **Box** (text on a box filling the block): white on black at 38 % (the default, as before M37), black on white at 85 %, yellow `#FFD84D` on black at 60 %, white on green `#0A5A3C` at 85 %.
+  - **Shadow** (no box; the text casts a shadow): white, yellow `#FFD84D` and gold `#F2C879` with a black shadow, and black with a white glow. The shadow is two layers, a tight one (offset 4 % and blur 6 % of the font size, at 90 %) and a soft one (no offset, blur 18 %, at 70 %), so it scales with S, M and L.
+  - Each look keeps its own colour: Box → Shadow → Box comes back to the Box colour picked before.
+  - The look and both colours are kept with the fine-tune (FR-24) and carried over by a start-over; a fine-tune kept before M37 reads as the default. A new reel starts from the look and colours used last, kept in preferences (`caption.look`, `caption.boxColours`, `caption.shadowColours`).
 - **Overflow:** if the block would pass 35 % of output height, the font shrinks in 5 % steps down to 60 % of the chosen size, then the text is clipped with an ellipsis.
 
 **FR-7a Caption lines, one at a time (M11).** The exported reel shows one caption line at a time, never the whole caption at once.
@@ -484,8 +489,10 @@ enum CropArrival { glide, cut }
 class CropKeyframe { Duration time; CropAnchor anchor; CropArrival arrival; } // video time
 class CropPath { List<CropKeyframe> keyframes; }                      // empty = a fixed crop
 class OutputSize { int width; int height; }
-enum CaptionVariant { original, roman, english }  enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large }
-class CaptionSettings { CaptionVariant variant; String text; CaptionPosition position; CaptionSize size; }
+enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large }   // CaptionVariant went in M30
+enum CaptionLook { box, shadow }  enum BoxColours { whiteOnBlack, blackOnWhite, yellowOnBlack, whiteOnGreen }  enum ShadowColours { white, yellow, blackGlow, gold }   // M37
+class CaptionAppearance { CaptionLook look; BoxColours boxColours; ShadowColours shadowColours; }   // M37
+class CaptionSettings { String text; CaptionPosition position; CaptionSize size; CaptionAppearance appearance; }
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: first caption line
 class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // groq-whisper-large-v3 (captions removed in M23) 
@@ -1324,6 +1331,16 @@ Request, 2026-11-11: from Claude's feature suggestions the owner picked the fade
 
 **Spec sections to update when built.** §2 (screens 5 and 5b), FR-5 (fade switch), FR-7 (look and colours), FR-9 (fade in the render), FR-21 (undo, silence, drag), FR-24 (what is kept), new FR-33 and FR-34, §6.1 types, §13 (new behaviour), §15 (the three issues and M18a/c removed).
 
+### M37 tasks (branch `m37-caption-looks`)
+
+Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-7 (Block, Look and colour), §6.1 types, §13 caption looks. Shadow layer sizes and opacities are Claude's call, written into FR-7.
+- [ ] **2. Model and keeping.** `caption_settings.dart`: `CaptionLook`, `BoxColours`, `ShadowColours`, `CaptionAppearance` (value object with `copyWith`, `==`), `CaptionSettings.appearance` (default `CaptionAppearance()`). `fine_tune_draft_json.dart`: write `look`, `boxColours`, `shadowColours` under `caption`; read them with the default for a missing or unknown name. `FineTuneDraft.startOver` keeps the appearance. New `features/style/data/caption_appearance_store.dart` (preferences keys as FR-7, the theme store's pattern) and `features/style/application/caption_appearance_memory.dart` (`savedCaptionAppearanceProvider`, overridden in `main.dart` like the theme; `CaptionAppearanceMemory` notifier with `remember`). `ReelDraftController.startNew` starts from the remembered appearance; `updateCaption` remembers a changed appearance. **New tests to write:** §13 caption looks, all but the drawing.
+- [ ] **3. Drawing.** New `features/style/domain/caption_ink.dart`: `CaptionInk captionInkFor(CaptionAppearance)` giving the box colour (none for Shadow), the text colour and `List<Shadow> shadowsAt(double fontSize)`; colours as `ReelColors` tokens in `app_theme.dart`. `captionTextStyle` takes the appearance; `overlay_painter.dart` and `ReelOverlayLayer` draw the box only for Box. Kotlin and Swift unchanged. **New tests to write:** §13 "Box draws its colour…; Shadow draws no box…" on `captionInkFor`.
+- [ ] **4. Style sheet.** `caption_style_sheet.dart`: Look (`OptionRow`, Box / Shadow) and Colour (four swatches drawn with `captionInkFor` over a gradient strip, the chosen one outlined in `palette.accent`, each with a semantic label such as "Yellow on black"). **New tests to write:** the sheet shows the chosen look's four colours, and a tap updates the draft.
+- [ ] **5. Status.** §12 status row; push `m37-caption-looks`.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1372,6 +1389,13 @@ Request, 2026-11-11: from Claude's feature suggestions the owner picked the fade
     - An edited line count shares the clip by line length.
     - One overlay PNG per cue is written, kept while the render runs and deleted when it ends.
     - Kotlin picks the line due at a time, with the end exclusive, and the branding between lines.
+  - **Caption looks (FR-7, M37):**
+    - The default appearance is Box, white on black at 38 %.
+    - Box draws its colour behind the text; Shadow draws no box and gives the text two shadow layers sized from the font size.
+    - Choosing Shadow and then Box again comes back to the Box colour picked before.
+    - The appearance survives a kept fine-tune's JSON round trip; a file without it reads as the default.
+    - A start-over keeps the appearance.
+    - A new reel starts from the appearance saved in preferences; unknown or missing names read as the default.
 - **Clean the voice (FR-26, M24):**
   - The piece arguments hold `-af` with exactly the filter chain, before the FLAC encode.
   - The chain is the one in §10 item 8's chosen values.
