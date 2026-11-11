@@ -65,6 +65,8 @@ class FineTuneTrimTab extends ConsumerWidget {
         const HintText(
           'Tap a time to set it to where the video is now, or nudge it.',
         ),
+        const SizedBox(height: 16),
+        const _FadeSwitch(),
       ],
     );
   }
@@ -74,6 +76,28 @@ class FineTuneTrimTab extends ConsumerWidget {
     if (playhead.isReady) {
       setEdge(playhead.position);
     }
+  }
+}
+
+/// Fade in from black and out to black (spec FR-33).
+class _FadeSwitch extends ConsumerWidget {
+  const _FadeSwitch();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fading = ref.watch(reelDraftProvider.select((d) => d.fadeEnds));
+    final controller = ref.read(reelDraftProvider.notifier);
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Fade in and out'),
+      subtitle: const Text(
+        'The picture fades in from black and out to black. '
+        "The sound doesn't change.",
+      ),
+      value: fading,
+      onChanged: (on) =>
+          on ? controller.fadeEnds() : controller.stopFadingEnds(),
+    );
   }
 }
 

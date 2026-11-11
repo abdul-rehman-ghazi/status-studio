@@ -44,6 +44,7 @@ class RenderJob {
     required this.overlayPath,
     required this.outputPath,
     this.captionCues = const [],
+    this.fade = Duration.zero,
   });
 
   final ClipSource source;
@@ -58,6 +59,9 @@ class RenderJob {
   final String outputPath;
   final List<RenderCue> captionCues;
 
+  /// How long the picture fades in and out; zero for no fade (spec FR-33).
+  final Duration fade;
+
   @override
   bool operator ==(Object other) =>
       other is RenderJob &&
@@ -67,7 +71,8 @@ class RenderJob {
       other.sourceSize == sourceSize &&
       other.overlayPath == overlayPath &&
       other.outputPath == outputPath &&
-      listEquals(other.captionCues, captionCues);
+      listEquals(other.captionCues, captionCues) &&
+      other.fade == fade;
 
   @override
   int get hashCode => Object.hash(
@@ -78,6 +83,7 @@ class RenderJob {
     overlayPath,
     outputPath,
     Object.hashAll(captionCues),
+    fade,
   );
 }
 
@@ -107,6 +113,7 @@ Map<String, Object?> renderSpecFor(RenderJob job) {
     if (fill == 'crop' && !job.frame.cropPath.isEmpty)
       'cropKeyframes': _cropKeyframes(job),
     if (fill == 'blur') ..._blurSettings(job.sourceSize, output),
+    if (job.fade > Duration.zero) 'fadeMs': job.fade.inMilliseconds,
     'videoMimeType': 'video/avc',
     'audioMimeType': 'audio/mp4a-latm',
   };

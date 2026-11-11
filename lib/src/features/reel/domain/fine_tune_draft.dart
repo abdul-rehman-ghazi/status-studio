@@ -41,6 +41,7 @@ class FineTuneDraft {
     required this.videoId,
     required this.language,
     required this.lyricsShown,
+    this.fadeEnds = false,
     required this.lines,
     required this.clip,
     required this.frame,
@@ -61,6 +62,7 @@ class FineTuneDraft {
       videoId: video.videoId,
       language: draft.language,
       lyricsShown: draft.lyricsShown,
+      fadeEnds: draft.fadeEnds,
       lines: _keptLines(draft),
       clip: clip,
       frame: draft.frame,
@@ -77,6 +79,9 @@ class FineTuneDraft {
   final String videoId;
   final ScriptLanguage language;
   final bool lyricsShown;
+
+  /// The picture fades in and out (spec FR-33).
+  final bool fadeEnds;
   final KeptLines? lines;
   final ClipRange clip;
   final FrameSettings frame;
@@ -123,6 +128,7 @@ class FineTuneDraft {
       caption: caption,
       linesEdited: linesEdited,
       lyricsShown: lyricsShown,
+      fadeEnds: fadeEnds,
     );
   }
 
@@ -144,6 +150,7 @@ class FineTuneDraft {
         frame: frame,
         caption: look,
         lyricsShown: lyricsShown,
+        fadeEnds: fadeEnds,
       );
     }
     final stopped = ReelDraft(
@@ -159,6 +166,7 @@ class FineTuneDraft {
       frame: stopped.frame,
       caption: look,
       lyricsShown: lyricsShown,
+      fadeEnds: fadeEnds,
     );
   }
 
@@ -168,6 +176,7 @@ class FineTuneDraft {
       other.videoId == videoId &&
       other.language == language &&
       other.lyricsShown == lyricsShown &&
+      other.fadeEnds == fadeEnds &&
       other.lines == lines &&
       other.clip == clip &&
       other.frame == frame &&
@@ -180,6 +189,7 @@ class FineTuneDraft {
     videoId,
     language,
     lyricsShown,
+    fadeEnds,
     lines,
     clip,
     frame,

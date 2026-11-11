@@ -37,6 +37,10 @@ class ReelDraftController extends Notifier<ReelDraft> {
   /// shielding the lines from it (spec FR-21).
   void forgetLineEdits() => state = state.copyWith(linesEdited: false);
 
+  void fadeEnds() => state = state.withFadeEnds();
+
+  void stopFadingEnds() => state = state.withoutFadeEnds();
+
   void hideLyrics() => state = state.withLyricsHidden();
 
   void showLyrics() => state = state.withLyricsShown();

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/domain/fade.dart';
 import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dart';
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
@@ -7,6 +9,7 @@ import 'package:status_studio/src/features/style/domain/caption_cues.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/style/presentation/framed_video.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
+import 'package:status_studio/src/theme/app_theme.dart';
 
 /// The reel as it will look at the playhead: [video] framed with the crop
 /// where it is then, the lyric line due, and the branding (spec FR-21,
@@ -84,7 +87,25 @@ class _ReelStageState extends State<ReelStage>
               caption: draft.caption.copyWith(text: due?.text ?? ''),
             ),
           ),
+          if (draft.fadeEnds) _fadeLayer(clip, time - clip.start),
         ],
+      ),
+    );
+  }
+
+  /// Black over the picture, caption and branding alike, as the export
+  /// fades them (spec FR-33).
+  Widget _fadeLayer(ClipRange clip, Duration clipTime) {
+    final brightness = fadeBrightnessAt(
+      clipTime,
+      clip.length,
+      fadeLengthFor(clip),
+    );
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: ColoredBox(
+          color: ReelColors.scrim.withValues(alpha: 1 - brightness),
+        ),
       ),
     );
   }
