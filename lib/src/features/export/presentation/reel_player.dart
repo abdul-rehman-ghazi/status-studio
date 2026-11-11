@@ -9,7 +9,8 @@ import 'package:status_studio/src/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
 /// The exported reel, played as it will be saved or shared (spec FR-10).
-/// Tap to play or pause; it goes back to the start when it ends. [fallback]
+/// Tap to play or pause, drag the bar to seek; it goes back to the start
+/// when it ends. [fallback]
 /// shows until the file opens, and stays if it won't open.
 class ReelPlayer extends ConsumerStatefulWidget {
   const ReelPlayer({super.key, required this.reel, required this.fallback});
@@ -78,15 +79,7 @@ class _ReelPlayerState extends ConsumerState<ReelPlayer> {
           ),
           Align(
             alignment: Alignment.bottomCenter,
-            child: VideoProgressIndicator(
-              _player,
-              allowScrubbing: true,
-              colors: VideoProgressColors(
-                playedColor: context.palette.accent,
-                bufferedColor: context.palette.textMuted,
-                backgroundColor: context.palette.surface,
-              ),
-            ),
+            child: _ReelSeekBar(player: _player),
           ),
         ],
       ),
@@ -95,6 +88,48 @@ class _ReelPlayerState extends ConsumerState<ReelPlayer> {
 
   Future<void> _togglePlay() =>
       _player.value.isPlaying ? _player.pause() : _player.play();
+}
+
+/// Shows how far the reel has played; tap or drag it to seek (spec FR-10).
+/// A full-height slider rather than `VideoProgressIndicator`, whose 4 px bar
+/// was too thin to grab and didn't visibly fill on the phone.
+class _ReelSeekBar extends StatelessWidget {
+  const _ReelSeekBar({required this.player});
+
+  final VideoPlayerController player;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: player,
+      builder: (context, value, _) {
+        final durationMilliseconds = value.duration.inMilliseconds;
+        if (durationMilliseconds <= 0) {
+          return const SizedBox.shrink();
+        }
+        final playedMilliseconds = value.position.inMilliseconds.clamp(
+          0,
+          durationMilliseconds,
+        );
+        return SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: context.palette.accent,
+            thumbColor: context.palette.accent,
+            // Fixed light colour: the track sits on the video in both themes.
+            inactiveTrackColor: PictureMarkColors.light.withValues(alpha: 0.4),
+          ),
+          child: Slider(
+            value: playedMilliseconds.toDouble(),
+            max: durationMilliseconds.toDouble(),
+            semanticFormatterCallback: (_) => 'Seek',
+            onChanged: (milliseconds) => unawaited(
+              player.seekTo(Duration(milliseconds: milliseconds.round())),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _PlayBadge extends StatelessWidget {
