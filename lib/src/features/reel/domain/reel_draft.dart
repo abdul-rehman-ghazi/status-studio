@@ -76,10 +76,12 @@ class ReelDraft {
   ReelDraft withLyricsShown() =>
       copyWith(lyricsShown: true)._withCaptionFromLines();
 
-  /// Lyrics the user types (spec FR-21, "Type them myself"): one line of
-  /// [text] from [at], 2 s long and cut at the clip end, counted as edited
-  /// so it is saved as the `edited` script.
-  ReelDraft withTypedFirstLine(String text, Duration at) {
+  /// A line the user types (spec FR-21): Type them myself's first line, or
+  /// Add line on a clip with no line in it (M40). One line of [text] from
+  /// [at], 2 s long and cut at the clip end, put into the script in time
+  /// order (or as the whole script when there is none), and counted as
+  /// edited so it is saved as the `edited` script.
+  ReelDraft withTypedLine(String text, Duration at) {
     final clip = _requireClip();
     final latestStart = clip.end - _typedLineLength ~/ 2;
     final start = at < clip.start
@@ -92,8 +94,14 @@ class ReelDraft {
       start: start,
       end: end < clip.end ? end : clip.end,
     );
-    final typed = Transcript(languageCode: language.whisperCode, lines: [line]);
-    return withTranscript(typed).copyWith(linesEdited: true);
+    final current = transcript;
+    final typed = current == null
+        ? Transcript(languageCode: language.whisperCode, lines: [line])
+        : withLineInserted(current, line);
+    return _selectingLinesInClip(
+      typed,
+      clip,
+    )._withCaptionFromLines().copyWith(linesEdited: true);
   }
 
   /// A new transcript replaces the lines and the caption text filled from
@@ -408,7 +416,11 @@ bool _extends(Transcript grown, Transcript current) =>
     grown.lines.length >= current.lines.length &&
     listEquals(grown.lines.sublist(0, current.lines.length), current.lines);
 
-String _selectedText(Transcript transcript, RangeSelected selection) {
+/// Empty when no line is selected (a clip over silence, spec FR-21).
+String _selectedText(Transcript transcript, LineSelection selection) {
+  if (selection is! RangeSelected) {
+    return '';
+  }
   return transcript.lines
       .sublist(selection.start, selection.end + 1)
       .map((line) => line.text)

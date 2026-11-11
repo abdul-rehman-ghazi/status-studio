@@ -248,7 +248,10 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
 
   List<Widget> _shownLyrics(ReelDraft draft, bool isWriting) {
     if (draft.selection is! RangeSelected) {
-      return _beforeLines(draft, isWriting);
+      final hasScript = draft.transcript?.lines.isNotEmpty ?? false;
+      return hasScript && !isWriting
+          ? _emptyClip()
+          : _beforeLines(draft, isWriting);
     }
     return [
       LyricsTools(onGetAgain: () => unawaited(_getAgain())),
@@ -268,19 +271,49 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     ];
   }
 
-  /// No lines inside the clip yet: the run under way, or the Get card.
+  /// A script, but no line of it inside the clip: a trim over a stretch
+  /// with no sung line (spec FR-21, M40).
+  List<Widget> _emptyClip() {
+    return [
+      LyricsTools(onGetAgain: () => unawaited(_getAgain())),
+      const ScriptRunSection(),
+      const SizedBox(height: 8),
+      const HintText('No lines in this part of the video.'),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => unawaited(_addLineToEmptyClip()),
+          icon: const Icon(Icons.add),
+          label: const Text('Add line'),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _addLineToEmptyClip() async {
+    final text = await askLineText(context, title: 'Add line');
+    if (text == null || text.trim().isEmpty || !mounted) {
+      return;
+    }
+    ref
+        .read(lyricsUndoProvider.notifier)
+        .addLineToEmptyClip(text.trim(), _typingPosition());
+    _scheduleSave();
+  }
+
+  /// Where a typed line goes: the playhead, or the clip start before the
+  /// player is ready. The draft keeps the line inside the clip.
+  Duration _typingPosition() {
+    final clip = ref.read(reelDraftProvider).clip!;
+    return _playhead.isReady ? _playhead.position : clip.start;
+  }
+
+  /// No lines yet: the run under way, or the Get card.
   List<Widget> _beforeLines(ReelDraft draft, bool isWriting) {
     final run = ref.watch(scriptProgressProvider);
-    final hasScriptOutsideClip =
-        draft.transcript?.lines.isNotEmpty == true && !isWriting;
     return [
       const ScriptRunSection(),
       if (!isWriting && !run.hasError) ...[
-        if (hasScriptOutsideClip)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: HintText('The script has no lines inside this clip.'),
-          ),
         LyricsGetCard(
           initialLanguage: draft.language,
           onGet: _getLyrics,
@@ -321,9 +354,9 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     if (text == null || text.trim().isEmpty || !mounted) {
       return;
     }
-    final clip = ref.read(reelDraftProvider).clip!;
-    final at = _playhead.isReady ? _playhead.position : clip.start;
-    ref.read(reelDraftProvider.notifier).startTypedLyrics(text.trim(), at);
+    ref
+        .read(reelDraftProvider.notifier)
+        .addTypedLine(text.trim(), _typingPosition());
     _scheduleSave();
   }
 

@@ -27,6 +27,14 @@ class LyricsUndoController extends Notifier<LinesHistory> {
     state = state.recorded(before);
   }
 
+  /// Add line on a clip the script has no line in (spec FR-21, M40); a step
+  /// like any other.
+  void addLineToEmptyClip(String text, Duration at) {
+    final before = ref.read(reelDraftProvider).linesSnapshot;
+    ref.read(reelDraftProvider.notifier).addTypedLine(text, at);
+    state = state.recorded(before);
+  }
+
   /// Does nothing when there is nothing to undo, so a late tap on an old
   /// quick message is harmless.
   void undo() {

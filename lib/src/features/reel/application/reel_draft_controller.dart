@@ -46,8 +46,8 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void showLyrics() => state = state.withLyricsShown();
 
-  void startTypedLyrics(String text, Duration at) =>
-      state = state.withTypedFirstLine(text, at);
+  void addTypedLine(String text, Duration at) =>
+      state = state.withTypedLine(text, at);
 
   void setTranscript(Transcript transcript) =>
       state = state.withTranscript(transcript);
