@@ -8,6 +8,7 @@ import 'package:status_studio/src/features/style/domain/caption_settings.dart';
 import 'package:status_studio/src/features/style/domain/crop_path.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
+import 'package:status_studio/src/features/transcript/domain/lines_history.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 final reelDraftProvider = NotifierProvider<ReelDraftController, ReelDraft>(
@@ -58,6 +59,10 @@ class ReelDraftController extends Notifier<ReelDraft> {
   /// after another edit never works from stale lines.
   void editScript(PickedScript Function(PickedScript script) edit) =>
       state = state.withEditedScript(edit(state.pickedScript));
+
+  /// Shows the lines of an undo or redo step (spec FR-34).
+  void restoreLines(LinesSnapshot snapshot) =>
+      state = state.withLinesRestored(snapshot);
 
   void nudgeClipStart(Duration delta) {
     final clip = _requireClip();

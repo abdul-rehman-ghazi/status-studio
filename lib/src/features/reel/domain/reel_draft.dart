@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/style/domain/crop_rect.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
+import 'package:status_studio/src/features/transcript/domain/lines_history.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// The reel being made, carried through the whole flow.
@@ -169,6 +170,23 @@ class ReelDraft {
     }
     return PickedScript(transcript: transcript, selection: selection);
   }
+
+  /// The lines as they are now, for undo (spec FR-34). Throws [StateError]
+  /// before there is a script.
+  LinesSnapshot get linesSnapshot {
+    final transcript = this.transcript;
+    if (transcript == null) {
+      throw StateError('There are no lines to keep for undo yet.');
+    }
+    return LinesSnapshot(transcript: transcript, linesEdited: linesEdited);
+  }
+
+  /// The lines of an undo or redo step, with the caption refilled from them
+  /// (spec FR-34).
+  ReelDraft withLinesRestored(LinesSnapshot snapshot) => _selectingLinesInClip(
+    snapshot.transcript,
+    clip,
+  )._withCaptionFromLines().copyWith(linesEdited: snapshot.linesEdited);
 
   /// Applies an edit made on Fine-tune (spec FR-21). The caption is refilled
   /// from the lines inside the clip; the clip stays, since it no longer
