@@ -14,7 +14,8 @@ import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// The clip's lines, editable, with the one playing highlighted (spec FR-21). A tap seeks while paused and times the line
+/// The clip's lines, editable, with the one playing highlighted (spec FR-21).
+/// A sliver: it goes in the screen's `CustomScrollView`. A tap seeks while paused and times the line
 /// while playing.
 class ClipLinesList extends ConsumerStatefulWidget {
   const ClipLinesList({
@@ -141,39 +142,55 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     final selection = widget.script.selection;
     final shown = lines.sublist(selection.start, selection.end + 1);
     final highlighted = highlightedLineIndex(lines, widget.playhead.position);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (shown.isNotEmpty)
-          ReorderableListView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            onReorderItem: (oldPosition, newPosition) =>
-                _moveLine(shown.first.index, oldPosition, newPosition),
-            children: [
-              for (final (position, line) in shown.indexed)
-                _LineRow(
-                  key: ValueKey('line-${line.index}'),
-                  line: line,
-                  dragPosition: position,
-                  highlighted: line.index == highlighted,
-                  canRemove: shown.length > 1,
-                  onTap: () => _tapLine(line),
-                  onEdit: () => unawaited(_editLine(line)),
-                  onRemove: () => _removeLine(line),
-                ),
-            ],
-          ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: _canAddLine ? () => unawaited(_addLine()) : null,
-            icon: const Icon(Icons.add),
-            label: const Text('Add line'),
+    // Slivers, so the list is part of the screen's own scrolling and a drag
+    // near the top or bottom edge scrolls it (spec FR-21, M40).
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverReorderableList(
+          itemCount: shown.length,
+          onReorderItem: (oldPosition, newPosition) =>
+              _moveLine(shown.first.index, oldPosition, newPosition),
+          proxyDecorator: _liftedRow,
+          itemBuilder: (context, position) {
+            final line = shown[position];
+            return _LineRow(
+              key: ValueKey('line-${line.index}'),
+              line: line,
+              dragPosition: position,
+              highlighted: line.index == highlighted,
+              canRemove: shown.length > 1,
+              onTap: () => _tapLine(line),
+              onEdit: () => unawaited(_editLine(line)),
+              onRemove: () => _removeLine(line),
+            );
+          },
+        ),
+        SliverToBoxAdapter(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _canAddLine ? () => unawaited(_addLine()) : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Add line'),
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  /// The row being dragged floats above the list on its own card, as
+  /// `ReorderableListView` drew it.
+  Widget _liftedRow(Widget row, int position, Animation<double> lift) {
+    return AnimatedBuilder(
+      animation: lift,
+      builder: (context, child) => Material(
+        elevation: 6 * lift.value,
+        color: context.palette.surface,
+        borderRadius: BorderRadius.circular(10),
+        child: child,
+      ),
+      child: row,
     );
   }
 

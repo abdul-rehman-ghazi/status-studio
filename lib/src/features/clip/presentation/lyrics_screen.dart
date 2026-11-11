@@ -226,42 +226,59 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     );
   }
 
+  /// Slivers, so dragging a line scrolls the whole screen (spec FR-21, M40).
   Widget _lyrics(ReelDraft draft, bool isWriting) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _LyricsSwitch(
-          shown: draft.lyricsShown,
-          onChanged: (shown) => _setLyricsShown(shown, isWriting),
-        ),
-        const SizedBox(height: 8),
-        if (draft.lyricsShown)
-          ..._shownLyrics(draft, isWriting)
-        else
-          const HintText(
-            'No lyrics on this reel. Nothing leaves your phone and you need '
-            'no key.',
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(20),
+          sliver: SliverMainAxisGroup(
+            slivers: [
+              ..._boxes([
+                _LyricsSwitch(
+                  shown: draft.lyricsShown,
+                  onChanged: (shown) => _setLyricsShown(shown, isWriting),
+                ),
+                const SizedBox(height: 8),
+              ]),
+              if (draft.lyricsShown)
+                ..._shownLyrics(draft, isWriting)
+              else
+                ..._boxes([
+                  const HintText(
+                    'No lyrics on this reel. Nothing leaves your phone and '
+                    'you need no key.',
+                  ),
+                ]),
+            ],
           ),
+        ),
       ],
     );
   }
 
+  List<Widget> _boxes(List<Widget> widgets) => [
+    for (final widget in widgets) SliverToBoxAdapter(child: widget),
+  ];
+
   List<Widget> _shownLyrics(ReelDraft draft, bool isWriting) {
     if (draft.selection is! RangeSelected) {
       final hasScript = draft.transcript?.lines.isNotEmpty ?? false;
-      return hasScript && !isWriting
-          ? _emptyClip()
-          : _beforeLines(draft, isWriting);
+      return _boxes(
+        hasScript && !isWriting ? _emptyClip() : _beforeLines(draft, isWriting),
+      );
     }
     return [
-      LyricsTools(onGetAgain: () => unawaited(_getAgain())),
-      const ScriptRunSection(),
-      const SizedBox(height: 8),
-      const HintText(
-        'Tap a line to jump to it. While the clip plays, tap a line when '
-        'it starts to set when it shows.',
-      ),
-      const SizedBox(height: 8),
+      ..._boxes([
+        LyricsTools(onGetAgain: () => unawaited(_getAgain())),
+        const ScriptRunSection(),
+        const SizedBox(height: 8),
+        const HintText(
+          'Tap a line to jump to it. While the clip plays, tap a line when '
+          'it starts to set when it shows.',
+        ),
+        const SizedBox(height: 8),
+      ]),
       ClipLinesList(
         script: draft.pickedScript,
         clip: draft.clip!,
