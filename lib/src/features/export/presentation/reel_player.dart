@@ -77,8 +77,13 @@ class _ReelPlayerState extends ConsumerState<ReelPlayer> {
             builder: (context, value, _) =>
                 value.isPlaying ? const SizedBox.shrink() : const _PlayBadge(),
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
+          // Positioned, not Align: a Slider fills any bounded height it is
+          // given and centres its track, which would put the bar mid-video
+          // and swallow the play/pause tap.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _ReelSeekBar(player: _player),
           ),
         ],
