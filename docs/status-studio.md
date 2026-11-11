@@ -893,6 +893,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M36 Remove Fix with Groq | The Fix with Groq button and everything behind it go; lyrics are fixed by editing the lines (FR-19) | Asked by the owner (2026-11-10); branch `m36-remove-groq-fix` (from `dev`), merged into `dev` (2026-11-10); tests not run |
 | M37 Caption looks | Box or Shadow caption, each in four colours, remembered for the next reel (FR-7) | Built, branch `m37-caption-looks` (from `dev`), pushed, not merged; tests not run |
 | M38 Fade at the ends | A switch on the Trim tab fades the picture, caption and branding in from black and out to black, 0.5 s each end (FR-33) | Built, branch `m38-fade-ends` (stacked on M37), pushed, not merged; APK and unsigned iOS build succeed; tests not run |
+| M39 Undo on Lyrics | Undo and Redo in Lyrics' app bar for every line change, with a quick Undo after a delete or a tap-to-time (FR-34) | Built, branch `m39-lyrics-undo` (stacked on M38), pushed, not merged; tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1377,8 +1378,8 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 
 - [x] **1. Spec.** New FR-34, §13 undo cases.
 - [x] **2. History.** New `features/transcript/domain/lines_history.dart`: `LinesSnapshot` (transcript, linesEdited) and `LinesHistory` (`recorded`, `undone`, `redone`, `canUndo`, `canRedo`, at most 50). `ReelDraft.linesSnapshot` and `withLinesRestored`; controller `restoreLines`. New `features/clip/application/lyrics_undo_controller.dart`: an auto-disposed `lyricsUndoProvider` (`applyEdit`, `undo`, `redo`, `clear`), which after an undo to unedited lines catches up with the run's latest transcript through `growTranscript`. **New tests to write:** §13 undo cases.
-- [ ] **3. Lyrics.** `FlowAppBar.actions`; Undo and Redo in Lyrics' app bar (watching the provider keeps it alive while Lyrics is open); `ClipLinesList` edits through `applyEdit`, hides the quick message on every edit and shows it after Delete and tap-to-time; Get and Get again clear the history; undo and redo save like an edit. **New tests to write:** the buttons' enabled state, the quick message and its Undo.
-- [ ] **4. Status.** §12 status row; push.
+- [x] **3. Lyrics.** `FlowAppBar.actions`; Undo and Redo in Lyrics' app bar (watching the provider keeps it alive while Lyrics is open); `ClipLinesList` edits through `applyEdit`, hides the quick message on every edit and shows it after Delete and tap-to-time; Get and Get again clear the history; undo and redo save like an edit. **New tests to write:** the buttons' enabled state, the quick message and its Undo.
+- [x] **4. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 

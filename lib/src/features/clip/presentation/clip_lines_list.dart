@@ -7,9 +7,9 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
+import 'package:status_studio/src/features/clip/application/lyrics_undo_controller.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dart';
-import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/line_edits.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -60,7 +60,28 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
   }
 
   void _edit(PickedScript Function(PickedScript script) edit) {
-    ref.read(reelDraftProvider.notifier).editScript(edit);
+    // A quick message's Undo would take back this edit, not its own.
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ref.read(lyricsUndoProvider.notifier).applyEdit(edit);
+    widget.onEdited();
+  }
+
+  /// "Line deleted" or "Line timed" with Undo, for the changes most often
+  /// made by accident, for a snack bar's default 4 s (spec FR-34).
+  void _offerUndo(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(label: 'Undo', onPressed: _undoFromMessage),
+      ),
+    );
+  }
+
+  void _undoFromMessage() {
+    if (!mounted) {
+      return;
+    }
+    ref.read(lyricsUndoProvider.notifier).undo();
     widget.onEdited();
   }
 
@@ -72,6 +93,7 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     if (playhead.isPlaying) {
       final timedAt = playhead.position;
       _edit((script) => withLineTimedAt(script, line.index, timedAt));
+      _offerUndo('Line timed');
       return;
     }
     unawaited(playhead.seekTo(line.start));
@@ -98,8 +120,10 @@ class _ClipLinesListState extends ConsumerState<ClipLinesList>
     _edit((script) => withLineAdded(script, text: text, playhead: playhead));
   }
 
-  void _removeLine(TranscriptLine line) =>
-      _edit((script) => withLineRemoved(script, line.index));
+  void _removeLine(TranscriptLine line) {
+    _edit((script) => withLineRemoved(script, line.index));
+    _offerUndo('Line deleted');
+  }
 
   void _moveLine(int firstShown, int oldPosition, int newPosition) {
     _edit(

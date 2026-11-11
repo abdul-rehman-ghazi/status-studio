@@ -8,6 +8,7 @@ import 'package:status_studio/src/core/presentation/flow_app_bar.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/route_animation.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
+import 'package:status_studio/src/features/clip/application/lyrics_undo_controller.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/clip/presentation/lyrics_get_card.dart';
@@ -189,9 +190,10 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     }
     final isWriting = isScriptBeingWritten(ref.watch(scriptProgressProvider));
     return Scaffold(
-      appBar: const FlowAppBar(
+      appBar: FlowAppBar(
         title: 'Fine-tune · Lyrics',
         stepLabel: 'Step 2 of 2',
+        actions: [_UndoRedoButtons(onChanged: _scheduleSave)],
       ),
       // The player stays put while the lines scroll, so they can be tapped
       // with the video in view.
@@ -310,6 +312,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     ref.read(reelDraftProvider.notifier)
       ..forgetLineEdits()
       ..setLanguage(language);
+    ref.read(lyricsUndoProvider.notifier).clear();
     ref.read(scriptProgressProvider.notifier).start(video, language);
   }
 
@@ -346,6 +349,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     ref.read(reelDraftProvider.notifier)
       ..forgetLineEdits()
       ..setLanguage(language);
+    ref.read(lyricsUndoProvider.notifier).clear();
     final run = ref.read(scriptProgressProvider.notifier);
     if (language == draft.language) {
       run.writeAgain(video, language);
@@ -472,5 +476,45 @@ class _GetAgainDialogState extends State<_GetAgainDialog> {
         ),
       ],
     );
+  }
+}
+
+/// Undo and Redo for the lines (spec FR-34). Watching the history keeps it
+/// while Lyrics is open; it goes with the screen.
+class _UndoRedoButtons extends ConsumerWidget {
+  const _UndoRedoButtons({required this.onChanged});
+
+  /// Saves the lines after a step, like any edit.
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(lyricsUndoProvider);
+    final controller = ref.read(lyricsUndoProvider.notifier);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Undo',
+          icon: const Icon(Icons.undo),
+          onPressed: history.canUndo
+              ? () => _step(context, controller.undo)
+              : null,
+        ),
+        IconButton(
+          tooltip: 'Redo',
+          icon: const Icon(Icons.redo),
+          onPressed: history.canRedo
+              ? () => _step(context, controller.redo)
+              : null,
+        ),
+      ],
+    );
+  }
+
+  void _step(BuildContext context, VoidCallback step) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    step();
+    onChanged();
   }
 }
