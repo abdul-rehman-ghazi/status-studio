@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/appearance/application/theme_choice_c
 import 'package:status_studio/src/features/appearance/data/theme_choice_store.dart';
 import 'package:status_studio/src/features/appearance/domain/theme_choice.dart';
 import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
+import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/style/application/caption_appearance_memory.dart';
 import 'package:status_studio/src/features/style/data/caption_appearance_store.dart';
@@ -39,6 +40,14 @@ Future<void> main() async {
       unawaited(_updateYtDlp(container));
     }
   });
+}
+
+/// Linked videos' transcripts and topics are kept as long as scripts (FR-36).
+Future<void> _deleteOldTopics(ProviderContainer container) async {
+  final topics = await container.read(topicStoreProvider.future);
+  await topics.deleteOlderThan(
+    DateTime.now().subtract(const Duration(days: 90)),
+  );
 }
 
 /// A failed update isn't recorded, so the next start tries again (FR-35).
@@ -102,6 +111,7 @@ Future<void> _cleanUp(ProviderContainer container) async {
       scripts: container.read(transcriptStoreProvider.future),
       now: DateTime.now(),
     );
+    await _deleteOldTopics(container);
   } on Object catch (error, stackTrace) {
     // A failed cleanup only leaves old files behind; report and carry on.
     FlutterError.reportError(
