@@ -2,6 +2,7 @@ import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/youtube_link.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
+import 'package:status_studio/src/features/topic/domain/topic_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
@@ -31,6 +32,17 @@ String errorMessageFor(Object error) {
     ),
     GroqFailedException() => "Groq couldn't write this script.",
     RenderFailedException() => "Couldn't make the reel.",
+    LinkTooLongException() =>
+      'This video is too long. Links can be up to 3 hours with captions, '
+          'or 2 hours without.',
+    NoMomentsFoundException() =>
+      "Couldn't find this topic in the video. Try other words or a longer "
+          'video.',
+    GroqDailyLimitException() =>
+      "Groq's free daily limit is used up. Try again tomorrow, or use a key "
+          "on Groq's paid plan.",
+    GroqUnreadableReplyException() =>
+      "Groq's answer couldn't be read. Try again.",
     FollowFailedException() => "Couldn't follow the person. Try again.",
     _ => 'Something went wrong. Try again.',
   };
