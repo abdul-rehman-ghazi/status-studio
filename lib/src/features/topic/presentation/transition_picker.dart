@@ -2,6 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
+/// The four transitions in a sheet, two by two; returns the one tapped, or
+/// null when closed (spec FR-36).
+Future<ClipTransition?> showTransitionSheet(
+  BuildContext context,
+  ClipTransition chosen,
+) => showModalBottomSheet<ClipTransition>(
+  context: context,
+  showDragHandle: true,
+  builder: (context) => Padding(
+    padding: const EdgeInsets.fromLTRB(17, 0, 17, 24),
+    child: TransitionPicker(
+      chosen: chosen,
+      onChosen: (transition) => Navigator.of(context).pop(transition),
+    ),
+  ),
+);
+
 /// Four tiles, each looping a small preview of its transition (spec FR-36).
 class TransitionPicker extends StatelessWidget {
   const TransitionPicker({
@@ -15,18 +32,19 @@ class TransitionPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      mainAxisSpacing: 6,
+      crossAxisSpacing: 6,
+      childAspectRatio: 1.25,
+      physics: const NeverScrollableScrollPhysics(),
       children: [
         for (final transition in ClipTransition.values)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              child: _TransitionTile(
-                transition: transition,
-                selected: transition == chosen,
-                onTap: () => onChosen(transition),
-              ),
-            ),
+          _TransitionTile(
+            transition: transition,
+            selected: transition == chosen,
+            onTap: () => onChosen(transition),
           ),
       ],
     );
@@ -75,9 +93,9 @@ class _TransitionTile extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 transition.label,
-                maxLines: 2,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall,
               ),
             ],
           ),

@@ -64,8 +64,8 @@ class _GroqConsentScreenState extends ConsumerState<_GroqConsentScreen> {
                 child: Text(point),
               ),
             const HintText(
-              'Without lyrics, nothing leaves your phone and you need no '
-              'key.',
+              'Without lyrics or a link, nothing leaves your phone and you '
+              'need no key.',
             ),
           ],
         ),

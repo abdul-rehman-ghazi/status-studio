@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/screen_title.dart';
-import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/topic/application/topic_finder.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
@@ -391,6 +390,8 @@ class _TotalLine extends StatelessWidget {
   }
 }
 
+/// The total, the transition (its four previews open in a sheet) and Make
+/// the clip, kept short so the moments have the screen.
 class _ReviewFooter extends StatelessWidget {
   const _ReviewFooter({
     required this.total,
@@ -404,19 +405,33 @@ class _ReviewFooter extends StatelessWidget {
   final ClipTransition transition;
   final ValueChanged<ClipTransition> onTransition;
 
+  Future<void> _chooseTransition(BuildContext context) async {
+    final chosen = await showTransitionSheet(context, transition);
+    if (chosen != null) onTransition(chosen);
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _TotalLine(total: total, length: length),
-            const SectionLabel('Transition'),
-            TransitionPicker(chosen: transition, onChosen: onTransition),
-            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _TotalLine(total: total, length: length),
+                ),
+                TextButton.icon(
+                  onPressed: () => unawaited(_chooseTransition(context)),
+                  icon: const Icon(Icons.swap_horiz),
+                  label: Text(transition.label),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             const FilledButton(onPressed: null, child: Text('Make the clip')),
             const SizedBox(height: 4),
             const Center(child: HintText('Coming in the next update')),
