@@ -898,7 +898,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M38 Fade at the ends | A switch on the Trim tab fades the picture, caption and branding in from black and out to black, 0.5 s each end (FR-33) | Built, branch `m38-fade-ends` (stacked on M37), merged into `dev` with M40 (2026-11-11); APK and unsigned iOS build succeed; tests not run |
 | M39 Undo on Lyrics | Undo and Redo in Lyrics' app bar for every line change, with a quick Undo after a delete or a tap-to-time (FR-34) | Built, branch `m39-lyrics-undo` (stacked on M38), merged into `dev` with M40 (2026-11-11); the step label moved under the title after the owner's phone check; tests not run |
 | M40 Lyrics fixes | A clip over silence selects no lines (Add line puts one in); dragging a line scrolls the screen; edits stay the newest script when a run finishes late (FR-21, §15) | Built, branch `m40-lyrics-fixes` (stacked on M39), merged into `dev` (2026-11-11); tests not run |
-| M41 Play the clip | A second button on Fine-tune · Video's player plays the clip from its start and pauses at its end; Play still starts at the seek bar; a clip can't start before a late picture (FR-5) | Built, branch `m41-play-clip` (from `dev`), pushed, not merged; tests not run |
+| M41 Play the clip | A second button on Fine-tune · Video's player plays the clip from its start and pauses at its end; Play still starts at the seek bar; a clip can't start before a late picture (FR-5) | Built, branch `m41-play-clip` (from `dev`), merged into `dev` (2026-11-12); tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
