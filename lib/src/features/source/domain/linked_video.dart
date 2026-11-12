@@ -1,4 +1,5 @@
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/transcript/domain/youtube_captions.dart';
 
 /// What the link card shows about a linked video (spec FR-35), read from
 /// yt-dlp's `-J` JSON.
@@ -9,6 +10,7 @@ class LinkedVideo {
     required this.channel,
     required this.duration,
     required this.thumbnailUrl,
+    required this.captionsUrl,
   });
 
   /// Throws [YouTubeChangedException] when the JSON lacks the title or the
@@ -29,6 +31,7 @@ class LinkedVideo {
       channel: _channelOf(info),
       duration: Duration(milliseconds: (durationSeconds * 1000).round()),
       thumbnailUrl: _textOrNull(info['thumbnail']),
+      captionsUrl: pickTopicCaptionUrl(info),
     );
   }
 
@@ -42,6 +45,10 @@ class LinkedVideo {
 
   /// Null when YouTube offers no thumbnail; the card then shows its icon.
   final String? thumbnailUrl;
+
+  /// The caption track the topic search reads (FR-36); null when Groq must
+  /// write the script.
+  final String? captionsUrl;
 }
 
 String _channelOf(Map<String, Object?> info) =>
