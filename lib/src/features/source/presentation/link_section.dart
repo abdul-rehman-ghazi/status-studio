@@ -3,16 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/source/application/linked_video_reader.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
+import 'package:status_studio/src/features/topic/presentation/topic_fields.dart';
+import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// From a link (spec FR-35, Android only): paste or share a YouTube link and
-/// read what the video is. Finding the moments is added by M45.
+/// From a link (spec FR-35, Android only): paste or share a YouTube link,
+/// read what the video is, then ask for a topic (FR-36).
 class LinkSection extends ConsumerStatefulWidget {
   const LinkSection({this.sharedLink, super.key});
 
@@ -26,6 +29,9 @@ class LinkSection extends ConsumerStatefulWidget {
 class _LinkSectionState extends ConsumerState<LinkSection> {
   final _linkField = TextEditingController();
   Future<LinkedVideo>? _videoRequest;
+
+  /// The read video, once [_videoRequest] succeeds.
+  LinkedVideo? _video;
 
   @override
   void initState() {
@@ -71,6 +77,15 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
           label: const Text('Read link'),
         ),
         if (_videoRequest case final request?) _LinkedVideoCard(request),
+        if (_video case final video?) ...[
+          const SizedBox(height: 8),
+          TopicFields(
+            key: ValueKey(video.videoId),
+            video: video,
+            onFind: (request) =>
+                unawaited(context.push(AppRoutes.reviewCuts, extra: request)),
+          ),
+        ],
       ],
     );
   }
@@ -95,7 +110,20 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
     final request = ref.read(linkedVideoReaderProvider).read(link)..ignore();
     setState(() {
       _videoRequest = request;
+      _video = null;
     });
+    unawaited(_keepWhenRead(request));
+  }
+
+  Future<void> _keepWhenRead(Future<LinkedVideo> request) async {
+    try {
+      final video = await request;
+      if (mounted && identical(request, _videoRequest)) {
+        setState(() => _video = video);
+      }
+    } on Object {
+      // The card shows why.
+    }
   }
 }
 

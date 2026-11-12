@@ -16,10 +16,13 @@ import 'package:status_studio/src/features/settings/presentation/settings_page.d
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
+import 'package:status_studio/src/features/topic/domain/topic_request.dart';
+import 'package:status_studio/src/features/topic/presentation/review_cuts_screen.dart';
 
 abstract final class AppRoutes {
   static const home = '/';
   static const source = '/source';
+  static const reviewCuts = '/source/cuts';
   static const fineTune = '/fine-tune';
   static const lyrics = '/fine-tune/lyrics';
   static const export = '/export';
@@ -77,6 +80,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.done,
         builder: (context, state) =>
             DoneScreen(reelId: state.uri.queryParameters['id'] ?? ''),
+      ),
+      GoRoute(
+        path: AppRoutes.reviewCuts,
+        builder: (context, state) =>
+            ReviewCutsScreen(request: state.extra! as TopicRequest),
       ),
       GoRoute(
         path: AppRoutes.settings,

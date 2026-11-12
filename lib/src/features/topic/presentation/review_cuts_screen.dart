@@ -1,0 +1,407 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:status_studio/src/core/error_messages.dart';
+import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/screen_title.dart';
+import 'package:status_studio/src/core/presentation/section_label.dart';
+import 'package:status_studio/src/features/topic/application/topic_finder.dart';
+import 'package:status_studio/src/features/topic/application/topic_progress.dart';
+import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
+import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
+import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
+import 'package:status_studio/src/features/topic/domain/topic_request.dart';
+import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
+import 'package:status_studio/src/features/topic/presentation/add_moment_sheet.dart';
+import 'package:status_studio/src/features/topic/presentation/cut_card.dart';
+import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
+import 'package:status_studio/src/routing/app_router.dart';
+
+/// Finds the moments of a linked video about a topic, then shows them to
+/// check, with the transition and Make the clip (spec FR-36).
+class ReviewCutsScreen extends ConsumerStatefulWidget {
+  const ReviewCutsScreen({required this.request, super.key});
+
+  final TopicRequest request;
+
+  @override
+  ConsumerState<ReviewCutsScreen> createState() => _ReviewCutsScreenState();
+}
+
+class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
+  StreamSubscription<TopicProgress>? _search;
+  TopicProgress? _progress;
+  Object? _failure;
+  List<TopicCut>? _cuts;
+  List<TranscriptBlock> _blocks = const [];
+  var _edited = false;
+  var _transition = ClipTransition.crossfade;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_begin()));
+  }
+
+  @override
+  void dispose() {
+    unawaited(_stopSearch());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cuts = _cuts;
+    return Scaffold(
+      appBar: AppBar(
+        title: const ScreenTitle('Review cuts'),
+        actions: [
+          if (cuts != null)
+            IconButton(
+              tooltip: 'Find again',
+              icon: const Icon(Icons.refresh),
+              onPressed: () => unawaited(_findAgain()),
+            ),
+        ],
+      ),
+      body: _body(cuts),
+      bottomNavigationBar: cuts == null || _failure != null
+          ? null
+          : _ReviewFooter(
+              total: totalLength(cuts),
+              length: widget.request.length,
+              transition: _transition,
+              onTransition: (chosen) => setState(() => _transition = chosen),
+            ),
+    );
+  }
+
+  Widget _body(List<TopicCut>? cuts) {
+    if (_failure case final failure?) {
+      return _FailureView(
+        failure: failure,
+        onFindAgain: _find,
+        onBack: () => context.pop(),
+      );
+    }
+    if (cuts == null) {
+      return _SearchProgress(
+        progress: _progress,
+        onCancel: () => unawaited(_cancel()),
+      );
+    }
+    return _CutList(
+      cuts: cuts,
+      onNudge: _nudge,
+      onRemove: _remove,
+      onReorder: _reorder,
+      onAddMoment: () => unawaited(_addMoment()),
+    );
+  }
+
+  Future<void> _begin() async {
+    if (needsLongScriptWarning(widget.request.video) &&
+        !await _confirmLongScript()) {
+      if (mounted) context.pop();
+      return;
+    }
+    _find();
+  }
+
+  void _find() {
+    unawaited(_search?.cancel());
+    setState(() {
+      _progress = null;
+      _failure = null;
+      _cuts = null;
+    });
+    _search = ref
+        .read(topicFinderProvider)
+        .find(widget.request)
+        .listen(_onProgress, onError: _onFailure, cancelOnError: true);
+  }
+
+  void _onProgress(TopicProgress progress) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      if (progress is TopicFound) {
+        _cuts = progress.cuts;
+        _blocks = progress.blocks;
+        _edited = false;
+        _search = null;
+      }
+      _progress = progress;
+    });
+  }
+
+  Future<void> _onFailure(Object failure) async {
+    _search = null;
+    if (failure is NoGroqConsentException && mounted) {
+      if (await askForGroqConsent(context)) {
+        _find();
+        return;
+      }
+    }
+    if (mounted) setState(() => _failure = failure);
+  }
+
+  Future<void> _stopSearch() async {
+    final search = _search;
+    if (search == null) {
+      return;
+    }
+    _search = null;
+    await search.cancel();
+    await ref.read(topicFinderProvider).cancel(widget.request);
+  }
+
+  Future<void> _cancel() async {
+    await _stopSearch();
+    if (mounted) context.pop();
+  }
+
+  Future<void> _findAgain() async {
+    if (_edited && !await _confirmReplaceEdits()) {
+      return;
+    }
+    _find();
+  }
+
+  void _edit(List<TopicCut> Function(List<TopicCut> cuts) change) {
+    final cuts = _cuts;
+    if (cuts == null) {
+      return;
+    }
+    setState(() {
+      _cuts = change(cuts);
+      _edited = true;
+    });
+  }
+
+  void _nudge(
+    int index, {
+    Duration startBy = Duration.zero,
+    Duration endBy = Duration.zero,
+  }) => _edit(
+    (cuts) => nudgeCut(
+      cuts,
+      CutNudge(index: index, startBy: startBy, endBy: endBy),
+      videoLength: widget.request.video.duration,
+    ),
+  );
+
+  void _remove(int index) => _edit((cuts) => [...cuts]..removeAt(index));
+
+  void _reorder(int from, int to) => _edit((cuts) {
+    final reordered = [...cuts];
+    final moved = reordered.removeAt(from);
+    reordered.insert(to, moved);
+    return reordered;
+  });
+
+  Future<void> _addMoment() async {
+    final block = await showAddMomentSheet(context, _blocks);
+    if (block != null) _edit((cuts) => addBlockAsCut(cuts, block));
+  }
+
+  Future<bool> _confirmLongScript() => _confirm(
+    title: 'No captions',
+    message:
+        'This video has no captions, so Groq writes its script first. That '
+        'takes a while and uses much of Groq\'s free daily audio.',
+    confirmLabel: 'Continue',
+  );
+
+  Future<bool> _confirmReplaceEdits() => _confirm(
+    title: 'Replace your edited cuts?',
+    message: 'Finding again replaces the cuts you changed.',
+    confirmLabel: 'Replace',
+  );
+
+  Future<bool> _confirm({
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(confirmLabel),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+}
+
+class _SearchProgress extends StatelessWidget {
+  const _SearchProgress({required this.progress, required this.onCancel});
+
+  final TopicProgress? progress;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = this.progress;
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(_label(context, progress), textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress is TopicStep ? progress.fraction : null,
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton(onPressed: onCancel, child: const Text('Cancel')),
+        ],
+      ),
+    );
+  }
+
+  String _label(BuildContext context, TopicProgress? progress) =>
+      switch (progress) {
+        TopicStep(:final label) => label,
+        WaitingForGroq(:final resumesAt) =>
+          "Groq's free limit reached, continuing at "
+              '${TimeOfDay.fromDateTime(resumesAt).format(context)}',
+        TopicFound() || null => 'Finding the moments',
+      };
+}
+
+class _FailureView extends StatelessWidget {
+  const _FailureView({
+    required this.failure,
+    required this.onFindAgain,
+    required this.onBack,
+  });
+
+  final Object failure;
+  final VoidCallback onFindAgain;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            errorMessageFor(failure),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          const SizedBox(height: 20),
+          if (failure is NoGroqKeyException)
+            FilledButton(
+              onPressed: () => context.push(AppRoutes.groqSettings),
+              child: const Text('Settings'),
+            )
+          else
+            FilledButton(
+              onPressed: onFindAgain,
+              child: const Text('Find again'),
+            ),
+          const SizedBox(height: 8),
+          OutlinedButton(onPressed: onBack, child: const Text('Back')),
+        ],
+      ),
+    );
+  }
+}
+
+class _CutList extends StatelessWidget {
+  const _CutList({
+    required this.cuts,
+    required this.onNudge,
+    required this.onRemove,
+    required this.onReorder,
+    required this.onAddMoment,
+  });
+
+  final List<TopicCut> cuts;
+  final void Function(int index, {Duration startBy, Duration endBy}) onNudge;
+  final void Function(int index) onRemove;
+  final void Function(int from, int to) onReorder;
+  final VoidCallback onAddMoment;
+
+  @override
+  Widget build(BuildContext context) {
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: cuts.length,
+      onReorderItem: onReorder,
+      footer: OutlinedButton.icon(
+        onPressed: onAddMoment,
+        icon: const Icon(Icons.add),
+        label: const Text('Add a moment'),
+      ),
+      itemBuilder: (context, index) {
+        final cut = cuts[index];
+        return CutCard(
+          key: ValueKey(cut.start),
+          cut: cut,
+          onNudge: ({startBy = Duration.zero, endBy = Duration.zero}) =>
+              onNudge(index, startBy: startBy, endBy: endBy),
+          onRemove: () => onRemove(index),
+        );
+      },
+    );
+  }
+}
+
+class _ReviewFooter extends StatelessWidget {
+  const _ReviewFooter({
+    required this.total,
+    required this.length,
+    required this.transition,
+    required this.onTransition,
+  });
+
+  final Duration total;
+  final Duration length;
+  final ClipTransition transition;
+  final ValueChanged<ClipTransition> onTransition;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('${total.inSeconds} s of ${length.inSeconds} s'),
+            const SectionLabel('Transition'),
+            TransitionPicker(chosen: transition, onChosen: onTransition),
+            const SizedBox(height: 12),
+            const FilledButton(onPressed: null, child: Text('Make the clip')),
+            const SizedBox(height: 4),
+            const Center(child: HintText('Coming in the next update')),
+          ],
+        ),
+      ),
+    );
+  }
+}
