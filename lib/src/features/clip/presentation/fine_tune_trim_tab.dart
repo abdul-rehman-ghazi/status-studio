@@ -65,6 +65,8 @@ class FineTuneTrimTab extends ConsumerWidget {
         const HintText(
           'Tap a time to set it to where the video is now, or nudge it.',
         ),
+        if (video.pictureStart > Duration.zero)
+          _LatePictureHint(pictureStart: video.pictureStart),
         const SizedBox(height: 16),
         const _FadeSwitch(),
       ],
@@ -76,6 +78,25 @@ class FineTuneTrimTab extends ConsumerWidget {
     if (playhead.isReady) {
       setEdge(playhead.position);
     }
+  }
+}
+
+/// A video whose picture starts after its sound can't be clipped from
+/// before the picture (spec FR-5, M41).
+class _LatePictureHint extends StatelessWidget {
+  const _LatePictureHint({required this.pictureStart});
+
+  final Duration pictureStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: HintText(
+        'The picture starts at ${formatClipTime(pictureStart)}, '
+        "so the clip can't start earlier.",
+      ),
+    );
   }
 }
 
