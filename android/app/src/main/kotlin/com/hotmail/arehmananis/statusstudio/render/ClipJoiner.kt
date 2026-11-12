@@ -11,6 +11,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.FrameDropEffect
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
@@ -35,6 +36,16 @@ private const val BITS_PER_PIXEL = 5
 
 /** When the cut file can't be measured: 1080p's rate. */
 private const val FALLBACK_BITRATE = 10_000_000
+
+/**
+ * The joined clip's frame rate. YouTube's 1080p H.264 is often 60 fps, and the Redmi Note 11
+ * refused a 1080p60 encoder beside a 1080p60 decoder with NO_MEMORY (M46 task 13); 30 fps halves
+ * the encoder's load here and the decoder's in the reel's export later.
+ */
+private const val JOIN_FRAME_RATE = 30
+
+/** MediaCodec's priority for real-time work, as opposed to as fast as possible. */
+private const val REALTIME_PRIORITY = 0
 
 /**
  * Joins a linked video's cuts into one H.264/AAC file (spec FR-37). Each cut is clipped from its
@@ -104,9 +115,10 @@ class ClipJoiner(private val context: Context) {
                 editedItem(item) { timeMs -> upperVolumeAt(item, spec.transition, timeMs) }
             },
         ).build()
-        if (spec.lower.isEmpty()) return Composition.Builder(upper).build()
+        if (spec.lower.isEmpty()) return Composition.Builder(upper).setEffects(atJoinFrameRate()).build()
         return Composition.Builder(upper, lowerSequence(spec, decoders))
             .setVideoCompositorSettings(TransitionCompositor(spec.transition, spec.windows))
+            .setEffects(atJoinFrameRate())
             .build()
     }
 
@@ -148,10 +160,24 @@ class ClipJoiner(private val context: Context) {
             .build()
     }
 
-    private fun encoderFactory(bitrate: Int) =
-        DefaultEncoderFactory.Builder(context)
-            .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build())
+    /**
+     * Media3 asks for the encoder's top speed by default (operating rate `Int.MAX_VALUE`), which
+     * reserves the chip's whole budget; asking for real time at 30 fps leaves room for the
+     * decoders.
+     */
+    private fun encoderFactory(bitrate: Int): DefaultEncoderFactory {
+        val settings = VideoEncoderSettings.Builder()
+            .setBitrate(bitrate)
+            .setEncoderPerformanceParameters(JOIN_FRAME_RATE, REALTIME_PRIORITY)
             .build()
+        return DefaultEncoderFactory.Builder(context)
+            .setRequestedVideoEncoderSettings(settings)
+            .build()
+    }
+
+    /** Applied to the composed picture, so both layers are already blended. */
+    private fun atJoinFrameRate(): Effects =
+        Effects(listOf(), listOf(FrameDropEffect.createDefaultFrameDropEffect(JOIN_FRAME_RATE.toFloat())))
 
     /** All cuts come from one stream, so the first file's size stands for all. */
     private fun bitrateFor(path: String): Int {
