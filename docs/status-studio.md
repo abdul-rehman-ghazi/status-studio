@@ -1,6 +1,6 @@
 # Status Studio
 
-**Updated 2026-11-05.** The one project document: product spec, engineering rules, milestones and known issues. It is the source of truth for behaviour, copy, sizes and error messages. Code cites its section (§) and FR numbers, so keep them stable and add new sections at the end. Design canvas: <https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN>
+**Updated 2026-11-12.** The one project document: product spec, engineering rules, milestones and known issues. It is the source of truth for behaviour, copy, sizes and error messages. Code cites its section (§) and FR numbers, so keep them stable and add new sections at the end. Design canvas: <https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN>
 
 ## 1. Summary
 
@@ -8,9 +8,10 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 
 - **On the phone:** voice cleaning (FFmpeg), face detection (ML Kit) and rendering (Media3 Transformer on Android, AVFoundation on iOS from M26). No accounts, no servers, no analytics.
 - **Groq writes scripts:** every script is written by Groq's hosted Whisper, with the user's own free API key (FR-12a), from the cleaned audio (FR-26), once the user has agreed to sending (FR-30). Script audio leaves the phone only then, and only to Groq. The app ships no key and has no server of its own. On-device Whisper was dropped (M10): on a Redmi Note 11 it ran at 0.2× real time.
-- **No media downloads:** the video comes in as a local file, copied into the app's storage. Nothing is fetched from the internet except language packs and the Groq requests above.
+- **No media downloads (until M44):** the video comes in as a local file, copied into the app's storage. Nothing is fetched from the internet except the Groq requests above. From M44 a link the user gives is the one exception: yt-dlp downloads only the parts of that video the user keeps (M43–M47 design, §12).
 - **Saves work:** scripts are saved by the video's fingerprint, so the same video opens straight to its script next time.
-- **Pivot (2026-11-05, M23):** until M22 the input was a YouTube link. YouTube is dropped entirely: no links, yt-dlp, stream downloads or caption tracks.
+- **Pivot (2026-11-05, M23):** until M22 the input was a YouTube link. YouTube was dropped entirely: no links, yt-dlp, stream downloads or caption tracks.
+- **Off the stores (2026-11-12, M43):** the Play Store and App Store plan is dropped. The app is free software (GPL-3.0) in a public repository, released as an APK on GitHub and IzzyOnDroid, and later on F-Droid (M47). Links come back on Android in M44, to cut one topic out of a long video (M43–M47 design, §12).
 
 ## 2. Screens
 
@@ -640,27 +641,28 @@ Each error is a typed exception from the data layer. Screens map them to these m
 
 | Decision | Choice and why |
 |---|---|
-| Scope | General-purpose: any video, any language. Since 2026-11-05 (M23) the input is a local video the user already trimmed, shared in or picked from the gallery. No content-type picker, no automatic segment finding |
-| Distribution (changed in M23) | YouTube access is gone, and with it the "keeps the app off the stores" note. Nothing downloads third-party media or runs code fetched at runtime (yt-dlp updated itself weekly), so Play Store and App Store builds become possible. The policy work is listed in M27 (§12): consent before the first Groq upload, dropping the battery-optimisation request, privacy policy, store answers, listing rules and release builds |
-| YouTube access (removed in M23) | Was yt-dlp on the phone plus Dart downloads (§10 Q4). Removed with the pivot; the history stays in §10 |
+| Scope | General-purpose: any video, any language. Since 2026-11-05 (M23) the input is a local video the user already trimmed, shared in or picked from the gallery. No content-type picker. From M45 a link and a topic find the moments in a long video (FR-36); the user reviews them before anything big is downloaded |
+| Distribution (changed in M43) | No Play Store or App Store (dropped 2026-11-12). Android: a signed APK on GitHub releases and IzzyOnDroid now, F-Droid's main repository after M47 (which needs ML Kit replaced, since F-Droid rejects non-free code). iOS stays buildable but is not distributed. From M2 to M22 the app was off the stores because of yt-dlp; M23–M27 made store builds possible; M43 goes back to link downloads by choice. M27's consent (FR-30) stays; its store-only work (§9.2, §9.3) is history |
+| YouTube access (removed in M23, back in M44) | Was yt-dlp on the phone plus Dart downloads (§10 Q4). Removed with the pivot; it comes back on Android in M44 (FR-35), restored from git history, with yt-dlp updating itself (the only code fetched at runtime) |
 | Speech to text | Groq `whisper-large-v3` only (turbo until M24: it dropped the opening lines of the reference clip, §10 item 8). On-device Whisper (`whisper_ggml`) was dropped in M10: medium q5_0 ran at 0.2× real time on a Redmi Note 11 (Snapdragon 680), and small was only 1.5× on a Pixel 6a (§10 Q2) |
 | Cloud transcription | Groq `whisper-large-v3` with the user's own key (FR-12a), because the phone is too slow (§10 Q2). A key shipped in the APK could be extracted, and the app has no server. Groq is fast, multilingual and cheap (the $0.04 per audio hour was turbo's price; large-v3 costs more, so check Groq's pricing page; free plan). Pieces go as 16 kHz mono FLAC (M23; they were stream-copied `.m4a` before), cleaned first (FR-26). Groq's `url` input isn't used: the audio is a local file |
 | FFmpeg | `ffmpeg_kit_flutter_new_min` only (LGPL). The full GPL build would duplicate native libraries and make the app GPL |
 | Renderer | Media3 Transformer on Android (hardware H.264), because the bundled FFmpeg can't encode H.264; AVFoundation on iOS (M26), the same spec over the same channel |
 | Captions and branding | Drawn by Flutter to one PNG and overlaid by Media3 (AVFoundation on iOS). Other text engines break Nastaliq letter joining |
-| Data saving (changed in M23) | No media downloads. The only upload is the cleaned 16 kHz mono script audio (the Fix with Groq lines went in M36) |
+| Data saving (changed in M23 and M43) | No media downloads, except, from M44, the parts of a linked video the user keeps (never the whole video). Uploads go only to Groq: the cleaned 16 kHz mono script audio and, from M45, the transcript text and topic (FR-36) |
 | Reuse | Scripts saved per video fingerprint, language and source for 90 days; resume per 90-second piece; cleaned pieces cached per video |
 | Background work | One foreground service kept by Dart. The work already runs in the app process, so keeping the process alive is enough. Packages rather than hand-written Kotlin, so the notification shows the percent as text, not a bar |
 | Name, logo, IDs | Status Studio; Trim; `com.hotmail.arehmananis.statusstudio` |
 | Fonts | Inter (UI), Noto Nastaliq Urdu, Noto Naskh Arabic (OFL) |
-| Signing | Upload keystore and `key.properties` committed, because the repo is private |
+| Signing (changed in M43) | The keystore and `key.properties` live outside the repo (`~/.status-studio/` or `STATUS_STUDIO_KEY_PROPERTIES`), since the repo is public. Without them a release build is unsigned, never debug-signed; F-Droid signs its own builds |
+| Licence (M43) | GPL-3.0, required by youtubedl-android (M44) and by F-Droid's free-software rule. `LICENSE` at the root; About names it (FR-31) |
 | Battery optimisation (M27) | Not requested. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is removed from the merged manifest: Play allows it only for listed uses (an app whose core function breaks under Doze, such as a companion device or a task automation app), and the foreground service keeps the work running without it. Settings still points to App info on phones (Xiaomi and others) that need "No restrictions" |
 | Foreground service type (M27) | `FOREGROUND_SERVICE_DATA_SYNC`, kept. The Play Console declaration (App content → Foreground service permissions), ready to paste: **Type:** Data sync. **What the user does and sees:** "The user picks a video and taps Get the script. The app uploads the video's sound, in pieces, to a speech-to-text service (Groq) with the user's own API key and receives the timed lyrics. When the user taps Export, the app encodes the finished video into a file on the phone. Each job starts only when the user taps its button, shows an ongoing notification with the step and percent, and stops as soon as it finishes or the user cancels." **Why it must run now and not be paused:** "A long video takes several minutes to upload and transcribe, and an export several minutes to encode. Users lock the phone or switch apps while waiting. If the system paused the work, the upload would break between pieces and the export would be lost, and the user would have to start again. The result is wanted right away, so deferring it with WorkManager would break the feature." **Impact if interrupted:** user-noticeable (the lyrics or the reel are not ready, work is lost). Play also asks for a link to a short screen recording: pick a video, tap Get the script, press Home, show the notification's progress, come back to the finished lyrics. Recording and hosting it are the owner's. Note: Android 15 added the `mediaProcessing` type, which fits the export better than `dataSync` (Android's guide lists "local file processing" under `dataSync`, so this is allowed today); `dataSync` is also the type Android says it will restrict further, so move the export to `mediaProcessing` on API 35+ if Play's review asks |
 | Crop subject (M25) | The user chooses a face, a body or a fixed spot at every scene (FR-27). The app never assumes, so automatic follow and look-alike carry-over are dropped |
 
 ### 9.1 Privacy policy (M27 task 3)
 
-**Hosting (the owner's choice, not made):** both stores need the policy at a public URL that opens without signing in: Play Console (App content → Privacy policy) and App Store Connect (App Privacy → Privacy Policy URL). This repo is private, so it can't host it. Options: a page on a site the owner already has, a public repository holding only this text (GitHub Pages), or Google Sites. Play also wants the policy reachable inside the app: once the URL exists, add a "Privacy policy" row to Settings that copies it (the app doesn't open a browser itself, FR-12a). Fill the `<date>` field before publishing (the contact email was filled in M33).
+**Hosting (changed in M43):** the stores are gone, so no store needs the URL. Once the repo is public (M43 task 6) the policy can live in it as `PRIVACY.md`, linked from the release page and the IzzyOnDroid and F-Droid listings. Fill the `<date>` field before publishing (the contact email was filled in M33). M44 adds the link downloads to the text and M45 the transcript and topic sent to Groq, each when built. The "Google ML Kit" paragraph goes in M47 if the open face model replaces it.
 
 > **Status Studio privacy policy**
 >
@@ -687,6 +689,8 @@ Each error is a typed exception from the data layer. Screens map them to these m
 > **Contact.** arehmananis@hotmail.com
 
 ### 9.2 Store answers (M27 task 4)
+
+**History (M43):** the Play Store and App Store plan was dropped on 2026-11-12. These answers are kept for reference and not maintained.
 
 **What the answers rest on (checked 2026-11-10):** our code sends data only to Groq (FR-12a, after FR-30's consent; FR-19's lines until M36). The SDKs in the app send more: Google ML Kit (face detection; translation until M30) declares in its iOS privacy manifests, all not linked to the user and not used for tracking: device ID, product interaction, performance data and other data types (analytics and app functionality), other diagnostic data (analytics), and other user content (analytics and app functionality). Google's Android disclosure (developers.google.com/ml-kit/android-data-disclosure) lists device and app information, per-installation identifiers, performance metrics, API configuration, input and output sizes, event types, error codes and, for Translate, the chosen languages; HTTPS; not transferred to third parties. GoogleDataTransport (pulled in by ML Kit) declares other diagnostic data. FFmpeg Kit, `tflite_flutter` and the other plugins send nothing. `device_info_plus`, `package_info_plus`, `url_launcher` and `connectivity_plus` (M33) send nothing either (`connectivity_plus` uses `ACCESS_NETWORK_STATE`, a normal permission Media3 already brought in): Support (FR-31) hands a message to the user's own email or WhatsApp app, which the user sends, like the share sheet. Play doesn't count data the user sends through another app as collected, so the forms below are unchanged; Apple counts only data the app itself transmits, so the label is unchanged too (Claude's reading of the stores' rules, M33; not checked against their latest text. Recheck before submitting, and again if Support ever sends anything in the app). The answers below are cautious where it was unclear: Groq's retention is Groq's, so nothing is called ephemeral.
 
@@ -725,6 +729,8 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 - Apple: every content question "None" or "No"; no unrestricted web access, no user-generated content shown to other users, no messaging, no ads. Expected 4+. The user's own videos are not rated: the app doesn't publish them.
 
 ### 9.3 Listing rules (M27 task 5)
+
+**History (M43):** written for the stores, dropped on 2026-11-12. The no-brands and own-footage rules are still good practice for the IzzyOnDroid and F-Droid listings, but are not required by them.
 
 - **No other brands:** "YouTube", "WhatsApp" and also Instagram, TikTok, Snapchat, Facebook stay out of the app name, subtitle, short and full description, keywords, promotional text, screenshots and preview video, and so do their logos (Play's metadata and impersonation rules; Apple guideline 2.3.7 and 5.2). "Status" alone is a generic word and is fine. Don't say "for WhatsApp Status".
 - **Screenshots and preview:** the owner's own footage, with lyrics the owner may show (own words, or text in the public domain); no third-party video, music video or TV clip. The Size step's preset hints name Reels, TikTok, Shorts, Instagram and Facebook (`frame_controls.dart`), so that screen stays out of screenshots unless the hints are changed (the owner's call; the dead "WhatsApp Status may cut it" warning in `fine_tune_screen.dart` is never shown).
@@ -837,7 +843,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 
 ## 11. Out of scope for v1
 
-- iOS release and Play Store or App Store builds were out of scope for v1. Since 2026-11-05 they are planned: iOS in M26, store readiness in M27.
+- iOS release and Play Store or App Store builds were out of scope for v1. Since 2026-11-05 they were planned (iOS in M26, store readiness in M27); on 2026-11-12 the stores were dropped (M43). iOS stays buildable, not distributed.
 - Local-file or share-into-app input was out of scope; it is now the only input (M23).
 - Multiple clips per reel, music, stickers, text animation.
 - Accounts, cloud sync, analytics.
@@ -1515,7 +1521,7 @@ Request, 2026-11-12: paste a video link and a topic; the app finds the moments a
 Request (2026-11-12): the M43–M47 design above. M43 is the spec, rule and signing work that lets the repo go public under the GPL; no feature code. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** The M43–M47 design, the §12 rows and these tasks.
-- [ ] **2. Off the stores in the spec.** §1 (distribution, downloads, pivot note), §9 rows (Scope, Distribution, YouTube access, Data saving, Signing; new Licence row), §9.1 (hosting in the public repo, store wording out; the link and transcript sends are added by M44 and M45 when built), §9.2 and §9.3 marked historical, §11.
+- [x] **2. Off the stores in the spec.** §1 (distribution, downloads, pivot note), §9 rows (Scope, Distribution, YouTube access, Data saving, Signing; new Licence row), §9.1 (hosting in the public repo, store wording out; the link and transcript sends are added by M44 and M45 when built), §9.2 and §9.3 marked historical, §11.
 - [ ] **3. CLAUDE.md.** Distribution, open source and public repo, signing outside the repo, yt-dlp allowed from M44, runtime updates of yt-dlp only, the one-FFmpeg wording (youtubedl-android's own FFmpeg serves yt-dlp only).
 - [ ] **4. Signing outside the repo.** `android/app/build.gradle.kts` reads `key.properties` from `STATUS_STUDIO_KEY_PROPERTIES`, else `~/.status-studio/key.properties`, else `android/key.properties` (now ignored); `storeFile` is relative to the properties file. Without any, release builds come out unsigned (never debug-signed), which F-Droid needs for its own signing. `android/key.properties` and `android/app/upload-keystore.jks` are untracked and ignored; the files stay on the owner's disk.
 - [ ] **5. Licence.** `LICENSE` with the GPL-3.0 text; About says "Free software under the GNU GPL, version 3. Source code: github.com/abdul-rehman-ghazi/status-studio" (FR-31). **Stale tests:** About finders that count its texts.
