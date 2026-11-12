@@ -10,11 +10,11 @@ import 'package:status_studio/src/features/appearance/application/theme_choice_c
 import 'package:status_studio/src/features/appearance/data/theme_choice_store.dart';
 import 'package:status_studio/src/features/appearance/domain/theme_choice.dart';
 import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
-import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/style/application/caption_appearance_memory.dart';
 import 'package:status_studio/src/features/style/data/caption_appearance_store.dart';
 import 'package:status_studio/src/features/style/domain/caption_settings.dart';
+import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 
 Future<void> main() async {
