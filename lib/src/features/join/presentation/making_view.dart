@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
@@ -94,6 +95,16 @@ class MakeFailureView extends StatelessWidget {
           if (failure is OfflineException) ...[
             const SizedBox(height: 4),
             const Center(child: HintText('Finished cuts are kept.')),
+          ],
+          if (failure case JoinFailedException(:final reason)) ...[
+            const SizedBox(height: 8),
+            // Media3's own words, so a report from the phone says which of
+            // its checks stopped the join.
+            SelectableText(
+              reason,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
           const SizedBox(height: 20),
           FilledButton(onPressed: onTryAgain, child: const Text('Try again')),

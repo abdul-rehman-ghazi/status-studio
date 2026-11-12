@@ -5,6 +5,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -22,6 +23,11 @@ import androidx.media3.transformer.VideoEncoderSettings
 import java.io.File
 
 private const val PROGRESS_INTERVAL_MS = 250L
+
+private const val LOG_TAG = "ClipJoiner"
+
+/** How deep [describe] follows an error's causes. */
+private const val MAX_CAUSES = 4
 
 /** Bits a pixel a second: about 10 Mbit/s at 1080p, so the extra encode loses little. */
 private const val BITS_PER_PIXEL = 5
@@ -160,7 +166,8 @@ class ClipJoiner(private val context: Context) {
             ) {
                 val failed = finish() ?: return
                 File(failed.outputPath).delete()
-                listener.onError(exportException.message ?: "Join failed.")
+                Log.e(LOG_TAG, "Join failed", exportException)
+                listener.onError(describe(exportException))
             }
         }
 
@@ -175,4 +182,18 @@ class ClipJoiner(private val context: Context) {
             }
         }
     }
+}
+
+/**
+ * Media3's error code, message and causes on one line, so the failure shown on Review cuts says
+ * which of Media3's checks stopped the join (spec §8: the detail under "Couldn't join the cuts").
+ */
+@OptIn(markerClass = [UnstableApi::class])
+fun describe(exportException: ExportException): String {
+    val causes = generateSequence(exportException.cause) { it.cause }
+        .take(MAX_CAUSES)
+        .map { "${it.javaClass.simpleName}: ${it.message}" }
+        .toList()
+    return (listOf("${exportException.errorCodeName}: ${exportException.message}") + causes)
+        .joinToString(" <- ")
 }

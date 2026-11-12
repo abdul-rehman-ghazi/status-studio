@@ -104,9 +104,9 @@ class RenderChannel(context: Context, messenger: BinaryMessenger) :
             val spec = JoinSpec.fromMap(arguments.entries.associate { it.key.toString() to it.value })
             joiner.join(spec, joinListener(spec.outputPath, result))
         } catch (error: IllegalArgumentException) {
-            result.error("bad_spec", error.message, null)
+            result.error("bad_spec", "${error.javaClass.simpleName}: ${error.message}", null)
         } catch (error: RuntimeException) {
-            result.error("join_failed", error.message, null)
+            result.error("join_failed", "${error.javaClass.simpleName}: ${error.message}", null)
         }
     }
 
