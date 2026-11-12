@@ -5,21 +5,23 @@ import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// One cut on Review cuts (spec FR-36): its times, words and reason, with
-/// − and + on each edge and Remove.
+/// One moment on Review cuts (spec FR-36): a tick for the clip, its times,
+/// words and reason, with − and + on each edge.
 class CutCard extends StatefulWidget {
   const CutCard({
     required this.cut,
+    required this.ticked,
     required this.onNudge,
-    required this.onRemove,
+    required this.onToggle,
     super.key,
   });
 
   final TopicCut cut;
+  final bool ticked;
 
   /// Called with how far to move the start and the end.
   final void Function({Duration startBy, Duration endBy}) onNudge;
-  final VoidCallback onRemove;
+  final VoidCallback onToggle;
 
   @override
   State<CutCard> createState() => _CutCardState();
@@ -33,7 +35,7 @@ class _CutCardState extends State<CutCard> {
     final cut = widget.cut;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
       decoration: BoxDecoration(
         color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
@@ -43,6 +45,10 @@ class _CutCardState extends State<CutCard> {
         children: [
           Row(
             children: [
+              Checkbox(
+                value: widget.ticked,
+                onChanged: (_) => widget.onToggle(),
+              ),
               Expanded(
                 child: Text(
                   '${formatTimestamp(cut.start)}–${formatTimestamp(cut.end)}'
@@ -50,17 +56,12 @@ class _CutCardState extends State<CutCard> {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              IconButton(
-                tooltip: 'Remove',
-                icon: const Icon(Icons.delete_outline),
-                onPressed: widget.onRemove,
-              ),
             ],
           ),
           GestureDetector(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
               child: Text(
                 cut.text,
                 maxLines: _expanded ? null : 3,
@@ -68,10 +69,11 @@ class _CutCardState extends State<CutCard> {
               ),
             ),
           ),
-          if (cut.reason.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            HintText(cut.reason),
-          ],
+          if (cut.reason.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+              child: HintText(cut.reason),
+            ),
           const SizedBox(height: 4),
           Row(
             children: [

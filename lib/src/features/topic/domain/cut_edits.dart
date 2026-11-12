@@ -1,8 +1,36 @@
+import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
 /// One press of − or + on Review cuts (spec FR-36).
 const cutNudge = Duration(milliseconds: 500);
+
+/// A moment on Review cuts and whether it goes into the clip (spec FR-36).
+/// Ticked cuts may not overlap each other; unticked ones may.
+@immutable
+class ReviewCut {
+  const ReviewCut({required this.cut, required this.ticked});
+
+  final TopicCut cut;
+  final bool ticked;
+
+  ReviewCut withCut(TopicCut changed) =>
+      ReviewCut(cut: changed, ticked: ticked);
+
+  ReviewCut toggled() => ReviewCut(cut: cut, ticked: !ticked);
+
+  @override
+  bool operator ==(Object other) =>
+      other is ReviewCut && other.cut == cut && other.ticked == ticked;
+
+  @override
+  int get hashCode => Object.hash(cut, ticked);
+}
+
+/// Every moment found, none ticked: the user chooses (spec FR-36).
+List<ReviewCut> untickedCuts(List<TopicCut> cuts) => [
+  for (final cut in cuts) ReviewCut(cut: cut, ticked: false),
+];
 
 /// A change to one edge of one cut.
 class CutNudge {
@@ -18,41 +46,70 @@ class CutNudge {
 }
 
 /// [cuts] with [nudge] applied, or unchanged when it would make the cut
-/// shorter than two seconds, leave the video, or run into another cut.
-List<TopicCut> nudgeCut(
-  List<TopicCut> cuts,
+/// shorter than two seconds, leave the video, or, for a ticked cut, run
+/// into another ticked one.
+List<ReviewCut> nudgeCut(
+  List<ReviewCut> cuts,
   CutNudge nudge, {
   required Duration videoLength,
 }) {
-  final cut = cuts[nudge.index];
-  final moved = cut.withTimes(
-    start: cut.start + nudge.startBy,
-    end: cut.end + nudge.endBy,
+  final review = cuts[nudge.index];
+  final moved = review.cut.withTimes(
+    start: review.cut.start + nudge.startBy,
+    end: review.cut.end + nudge.endBy,
   );
-  final others = [...cuts]..removeAt(nudge.index);
   final allowed =
       moved.start >= Duration.zero &&
       moved.end <= videoLength &&
       moved.length >= shortestCut &&
-      !others.any((other) => _overlap(moved, other));
+      !(review.ticked && _overlapsTicked(cuts, moved, except: nudge.index));
   if (!allowed) {
     return cuts;
   }
-  return [...cuts]..[nudge.index] = moved;
+  return [...cuts]..[nudge.index] = review.withCut(moved);
 }
 
-/// [cuts] with [block] added where it falls in video order; unchanged when
-/// it overlaps a cut already there.
-List<TopicCut> addBlockAsCut(List<TopicCut> cuts, TranscriptBlock block) {
-  final added = TopicCut.fromBlock(block);
-  if (cuts.any((cut) => _overlap(added, cut))) {
+/// [cuts] with the one at [index] ticked or unticked; ticking is refused
+/// while it overlaps a ticked cut.
+List<ReviewCut> toggleCut(List<ReviewCut> cuts, int index) {
+  final review = cuts[index];
+  if (!review.ticked && _overlapsTicked(cuts, review.cut, except: index)) {
     return cuts;
   }
-  final position = cuts.indexWhere((cut) => cut.start > added.start);
-  return [...cuts]..insert(position == -1 ? cuts.length : position, added);
+  return [...cuts]..[index] = review.toggled();
 }
+
+/// [cuts] with [block] added, ticked, where it falls in video order;
+/// unchanged when it overlaps a ticked cut.
+List<ReviewCut> addBlockAsCut(List<ReviewCut> cuts, TranscriptBlock block) {
+  final added = TopicCut.fromBlock(block);
+  if (_overlapsTicked(cuts, added, except: -1)) {
+    return cuts;
+  }
+  final position = cuts.indexWhere((review) => review.cut.start > added.start);
+  return [...cuts]..insert(
+    position == -1 ? cuts.length : position,
+    ReviewCut(cut: added, ticked: true),
+  );
+}
+
+/// What goes into the clip, in the list's order.
+List<TopicCut> tickedCuts(List<ReviewCut> cuts) => [
+  for (final review in cuts)
+    if (review.ticked) review.cut,
+];
 
 Duration totalLength(List<TopicCut> cuts) =>
     cuts.fold(Duration.zero, (total, cut) => total + cut.length);
 
-bool _overlap(TopicCut a, TopicCut b) => a.start < b.end && b.start < a.end;
+bool _overlapsTicked(
+  List<ReviewCut> cuts,
+  TopicCut cut, {
+  required int except,
+}) => cuts.indexed.any(
+  (entry) =>
+      entry.$1 != except &&
+      entry.$2.ticked &&
+      cut.start < entry.$2.cut.end &&
+      entry.$2.cut.start < cut.end,
+);

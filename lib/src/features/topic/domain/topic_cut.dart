@@ -59,32 +59,19 @@ class TopicCut {
 /// Shorter cuts are dropped: a blink between two joins.
 const shortestCut = Duration(seconds: 2);
 
-/// The cuts for a clip of about [length] (spec FR-36): [ordered] is walked
-/// best first, each trimmed from its end to the length still free under 110 % of [length], keeping a candidate of at least two seconds that overlaps no
-/// kept one while the total stays within 110 % of [length], until it
-/// reaches 90 %. The kept cuts come back in video order.
-List<TopicCut> fitToLength({
-  required List<MomentCandidate> ordered,
-  required List<TranscriptBlock> blocks,
-  required Duration length,
-}) {
-  final longest = length * 1.1;
-  final enough = length * 0.9;
+/// Every moment Groq found, as cuts in video order, for the user to tick
+/// (spec FR-36). Of two that overlap, the higher score stays; moments under
+/// two seconds are dropped.
+List<TopicCut> candidatesAsCuts(
+  List<MomentCandidate> candidates,
+  List<TranscriptBlock> blocks,
+) {
+  final best = [...candidates]..sort((a, b) => b.score.compareTo(a.score));
   final kept = <MomentCandidate>[];
-  var total = Duration.zero;
-  for (final whole in ordered) {
-    if (total >= enough) {
-      break;
-    }
-    final candidate = _trimmed(whole, blocks, longest - total);
-    final candidateLength = candidate.lengthIn(blocks);
-    final fits =
-        candidateLength >= shortestCut &&
-        total + candidateLength <= longest &&
-        !kept.any(candidate.overlaps);
-    if (fits) {
+  for (final candidate in best) {
+    if (candidate.lengthIn(blocks) >= shortestCut &&
+        !kept.any(candidate.overlaps)) {
       kept.add(candidate);
-      total += candidateLength;
     }
   }
   kept.sort((a, b) => a.firstBlock.compareTo(b.firstBlock));
@@ -92,28 +79,3 @@ List<TopicCut> fitToLength({
     for (final candidate in kept) TopicCut.fromCandidate(candidate, blocks),
   ];
 }
-
-/// [candidate] without its last blocks until it fits in [room], the length
-/// still free: the model often returns moments of 40 s or more, which would
-/// otherwise leave a 60 s clip at one cut (§10 item 11).
-MomentCandidate _trimmed(
-  MomentCandidate candidate,
-  List<TranscriptBlock> blocks,
-  Duration room,
-) {
-  var lastBlock = candidate.lastBlock;
-  while (lastBlock > candidate.firstBlock &&
-      blocks[lastBlock].end - blocks[candidate.firstBlock].start > room) {
-    lastBlock--;
-  }
-  return MomentCandidate(
-    firstBlock: candidate.firstBlock,
-    lastBlock: lastBlock,
-    score: candidate.score,
-    reason: candidate.reason,
-  );
-}
-
-/// Best first by score, for when no picking call ran.
-List<MomentCandidate> byScore(List<MomentCandidate> candidates) =>
-    [...candidates]..sort((a, b) => b.score.compareTo(a.score));

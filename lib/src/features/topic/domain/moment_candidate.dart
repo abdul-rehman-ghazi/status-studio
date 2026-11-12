@@ -89,19 +89,3 @@ MomentCandidate? _candidateOrNull(Map<String, Object?> json) {
     return null;
   }
 }
-
-/// The candidate positions in the picking reply, `{"order": [3, 0, 5]}`,
-/// best first; unknown and repeated positions are dropped. Throws
-/// [GroqUnreadableReplyException] when the reply has no `order` list.
-List<int> pickOrderFromReply(Map<String, Object?> reply, int candidateCount) {
-  final order = reply['order'];
-  if (order is! List<Object?>) {
-    throw const GroqUnreadableReplyException('No order list.');
-  }
-  final seen = <int>{};
-  return order
-      .whereType<int>()
-      .where((position) => position >= 0 && position < candidateCount)
-      .where(seen.add)
-      .toList();
-}

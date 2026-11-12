@@ -47,9 +47,9 @@ class TopicFinderServices {
 }
 
 /// Finds the moments of a linked video about a topic (spec FR-36): the
-/// transcript, cheapest first, then Groq reads it in parts and the best
-/// candidates are fitted to the length. Everything found is saved, so the
-/// same link or topic again sends nothing.
+/// transcript, cheapest first, then Groq reads it in parts. Every moment
+/// found comes back for the user to tick; everything is saved, so the same
+/// link or topic again sends nothing.
 class TopicFinder {
   const TopicFinder(this.services);
 
@@ -64,13 +64,9 @@ class TopicFinder {
     }
     final transcript = _Holder<List<TranscriptBlock>>();
     yield* _transcriptBlocks(request.video, transcript);
-    final found = _Holder<TopicCandidates>();
+    final found = _Holder<List<MomentCandidate>>();
     yield* _candidates(request, transcript.value, found);
-    final cuts = fitToLength(
-      ordered: _ordered(found.value),
-      blocks: transcript.value,
-      length: request.length,
-    );
+    final cuts = candidatesAsCuts(found.value, transcript.value);
     if (cuts.isEmpty) {
       throw const NoMomentsFoundException();
     }
@@ -130,7 +126,7 @@ class TopicFinder {
   Stream<TopicProgress> _candidates(
     TopicRequest request,
     List<TranscriptBlock> blocks,
-    _Holder<TopicCandidates> result,
+    _Holder<List<MomentCandidate>> result,
   ) async* {
     final store = await services.store;
     final youTubeId = request.video.videoId;
@@ -148,18 +144,11 @@ class TopicFinder {
         fraction: index / parts.length,
       );
       final reply = _Holder<Map<String, Object?>>();
-      yield* _patiently(client, _partChat(request, part), reply);
+      yield* _patiently(client, _partChat(request.topic, part), reply);
       candidates.addAll(candidatesFromReply(reply.value, part));
     }
-    final order = _Holder<List<int>>()..value = const [];
-    if (_totalLength(candidates, blocks) > request.length) {
-      yield const TopicStep('Picking the best moments');
-      final reply = _Holder<Map<String, Object?>>();
-      yield* _patiently(client, _pickChat(request, candidates, blocks), reply);
-      order.value = pickOrderFromReply(reply.value, candidates.length);
-    }
-    result.value = TopicCandidates(candidates: candidates, order: order.value);
-    await store.saveCandidates(youTubeId, request.topic, result.value);
+    result.value = candidates;
+    await store.saveCandidates(youTubeId, request.topic, candidates);
   }
 
   /// Sends [chat], waiting out Groq's limits and saying when it carries on
@@ -183,35 +172,12 @@ class TopicFinder {
     }
   }
 
-  GroqChatRequest _partChat(TopicRequest request, List<TranscriptBlock> part) =>
+  GroqChatRequest _partChat(String topic, List<TranscriptBlock> part) =>
       GroqChatRequest(
         model: topicModel,
-        instructions: partInstructions(request.topic, request.length),
+        instructions: partInstructions(topic),
         message: partMessage(part),
       );
-
-  GroqChatRequest _pickChat(
-    TopicRequest request,
-    List<MomentCandidate> candidates,
-    List<TranscriptBlock> blocks,
-  ) => GroqChatRequest(
-    model: topicModel,
-    instructions: pickInstructions(request.topic, request.length),
-    message: pickMessage(candidates, blocks),
-  );
-
-  Duration _totalLength(
-    List<MomentCandidate> candidates,
-    List<TranscriptBlock> blocks,
-  ) => candidates.fold(
-    Duration.zero,
-    (total, candidate) => total + candidate.lengthIn(blocks),
-  );
-
-  /// The picking call's order when one ran, else best score first.
-  List<MomentCandidate> _ordered(TopicCandidates found) => found.order.isEmpty
-      ? byScore(found.candidates)
-      : [for (final position in found.order) found.candidates[position]];
 }
 
 /// Carries a generator's result out to its caller: a generator can't both

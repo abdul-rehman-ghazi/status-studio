@@ -11,7 +11,6 @@ import 'package:status_studio/src/features/topic/application/topic_finder.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
-import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/topic/presentation/add_moment_sheet.dart';
@@ -36,7 +35,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   StreamSubscription<TopicProgress>? _search;
   TopicProgress? _progress;
   Object? _failure;
-  List<TopicCut>? _cuts;
+  List<ReviewCut>? _cuts;
   List<TranscriptBlock> _blocks = const [];
   var _edited = false;
   var _transition = ClipTransition.crossfade;
@@ -72,7 +71,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       bottomNavigationBar: cuts == null || _failure != null
           ? null
           : _ReviewFooter(
-              total: totalLength(cuts),
+              total: totalLength(tickedCuts(cuts)),
               length: widget.request.length,
               transition: _transition,
               onTransition: (chosen) => setState(() => _transition = chosen),
@@ -80,7 +79,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     );
   }
 
-  Widget _body(List<TopicCut>? cuts) {
+  Widget _body(List<ReviewCut>? cuts) {
     if (_failure case final failure?) {
       return _FailureView(
         failure: failure,
@@ -97,7 +96,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     return _CutList(
       cuts: cuts,
       onNudge: _nudge,
-      onRemove: _remove,
+      onToggle: _toggle,
       onReorder: _reorder,
       onAddMoment: () => unawaited(_addMoment()),
     );
@@ -131,7 +130,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     }
     setState(() {
       if (progress is TopicFound) {
-        _cuts = progress.cuts;
+        _cuts = untickedCuts(progress.cuts);
         _blocks = progress.blocks;
         _edited = false;
         _search = null;
@@ -173,7 +172,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     _find();
   }
 
-  void _edit(List<TopicCut> Function(List<TopicCut> cuts) change) {
+  void _edit(List<ReviewCut> Function(List<ReviewCut> cuts) change) {
     final cuts = _cuts;
     if (cuts == null) {
       return;
@@ -196,7 +195,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     ),
   );
 
-  void _remove(int index) => _edit((cuts) => [...cuts]..removeAt(index));
+  void _toggle(int index) => _edit((cuts) => toggleCut(cuts, index));
 
   void _reorder(int from, int to) => _edit((cuts) {
     final reordered = [...cuts];
@@ -334,14 +333,14 @@ class _CutList extends StatelessWidget {
   const _CutList({
     required this.cuts,
     required this.onNudge,
-    required this.onRemove,
+    required this.onToggle,
     required this.onReorder,
     required this.onAddMoment,
   });
 
-  final List<TopicCut> cuts;
+  final List<ReviewCut> cuts;
   final void Function(int index, {Duration startBy, Duration endBy}) onNudge;
-  final void Function(int index) onRemove;
+  final void Function(int index) onToggle;
   final void Function(int from, int to) onReorder;
   final VoidCallback onAddMoment;
 
@@ -357,15 +356,37 @@ class _CutList extends StatelessWidget {
         label: const Text('Add a moment'),
       ),
       itemBuilder: (context, index) {
-        final cut = cuts[index];
+        final review = cuts[index];
         return CutCard(
-          key: ValueKey(cut.start),
-          cut: cut,
+          key: ValueKey(review.cut.start),
+          cut: review.cut,
+          ticked: review.ticked,
           onNudge: ({startBy = Duration.zero, endBy = Duration.zero}) =>
               onNudge(index, startBy: startBy, endBy: endBy),
-          onRemove: () => onRemove(index),
+          onToggle: () => onToggle(index),
         );
       },
+    );
+  }
+}
+
+/// "74 s of 60 s · 14 s over" in the error colour when over: going over is
+/// allowed, the length is a target (spec FR-36).
+class _TotalLine extends StatelessWidget {
+  const _TotalLine({required this.total, required this.length});
+
+  final Duration total;
+  final Duration length;
+
+  @override
+  Widget build(BuildContext context) {
+    final over = total - length;
+    final overText = over > Duration.zero ? ' · ${over.inSeconds} s over' : '';
+    return Text(
+      '${total.inSeconds} s of ${length.inSeconds} s$overText',
+      style: over > Duration.zero
+          ? TextStyle(color: Theme.of(context).colorScheme.error)
+          : null,
     );
   }
 }
@@ -392,7 +413,7 @@ class _ReviewFooter extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('${total.inSeconds} s of ${length.inSeconds} s'),
+            _TotalLine(total: total, length: length),
             const SectionLabel('Transition'),
             TransitionPicker(chosen: transition, onChosen: onTransition),
             const SizedBox(height: 12),

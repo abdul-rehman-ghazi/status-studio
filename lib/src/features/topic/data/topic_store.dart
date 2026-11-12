@@ -7,31 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:status_studio/src/features/topic/domain/moment_candidate.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
-/// What a topic search found for one topic: the candidates, and the order
-/// the picking call gave, if one ran.
-class TopicCandidates {
-  const TopicCandidates({required this.candidates, required this.order});
-
-  factory TopicCandidates.fromJson(Map<String, Object?> json) =>
-      TopicCandidates(
-        candidates: [
-          for (final candidate in json['candidates']! as List<Object?>)
-            MomentCandidate.fromJson(candidate! as Map<String, Object?>),
-        ],
-        order: (json['order']! as List<Object?>).cast<int>(),
-      );
-
-  final List<MomentCandidate> candidates;
-
-  /// Candidate positions, best first; empty when no picking call ran.
-  final List<int> order;
-
-  Map<String, Object?> toJson() => {
-    'candidates': [for (final candidate in candidates) candidate.toJson()],
-    'order': order,
-  };
-}
-
 /// Transcripts and topic candidates of linked videos, under
 /// `topics/<YouTube ID>/` (spec FR-36), so the same link or topic again
 /// sends nothing to Groq. An unreadable file reads as missing.
@@ -56,7 +31,8 @@ class TopicStore {
         for (final block in blocks) block.toJson(),
       ]);
 
-  Future<TopicCandidates?> savedCandidates(
+  /// Every moment Groq found for [topic], or null when it wasn't asked yet.
+  Future<List<MomentCandidate>?> savedCandidates(
     String youTubeId,
     String topic,
   ) async {
@@ -64,14 +40,19 @@ class TopicStore {
     if (saved is! Map<String, Object?>) {
       return null;
     }
-    return TopicCandidates.fromJson(saved);
+    return [
+      for (final candidate in saved['candidates']! as List<Object?>)
+        MomentCandidate.fromJson(candidate! as Map<String, Object?>),
+    ];
   }
 
   Future<void> saveCandidates(
     String youTubeId,
     String topic,
-    TopicCandidates found,
-  ) => _writeJson(_candidatesFile(youTubeId, topic), found.toJson());
+    List<MomentCandidate> candidates,
+  ) => _writeJson(_candidatesFile(youTubeId, topic), {
+    'candidates': [for (final candidate in candidates) candidate.toJson()],
+  });
 
   /// Removes what was last changed before [cutoff], like old scripts.
   Future<void> deleteOlderThan(DateTime cutoff) async {
