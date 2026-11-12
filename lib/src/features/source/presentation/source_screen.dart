@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import 'package:status_studio/src/features/source/data/video_picker.dart';
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/source/presentation/link_section.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -80,6 +82,10 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
           const HintText(
             'Trim it in another app first, or share it to Status Studio.',
           ),
+          if (defaultTargetPlatform == TargetPlatform.android) ...[
+            const SizedBox(height: 24),
+            const LinkSection(),
+          ],
         ],
       ),
       bottomNavigationBar: BottomAction(
