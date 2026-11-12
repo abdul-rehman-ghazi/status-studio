@@ -122,6 +122,7 @@ class LocalVideoImporter {
       videoId: await videoFingerprint(file),
       title: _titleOf(displayName, file.path),
       duration: facts.duration,
+      pictureStart: facts.pictureStart,
     );
   }
 

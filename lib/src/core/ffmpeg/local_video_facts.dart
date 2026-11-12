@@ -12,6 +12,7 @@ class LocalVideoFacts {
     required this.storedHeight,
     required this.hasAudio,
     required this.videoCodec,
+    required this.pictureStart,
   });
 
   final Duration duration;
@@ -25,6 +26,11 @@ class LocalVideoFacts {
 
   /// ffprobe's `codec_name` of the video stream, such as `h264` or `av1`.
   final String videoCodec;
+
+  /// When the first picture comes, rounded up to a tenth of a second. A video
+  /// trimmed elsewhere can keep its sound from zero but start its picture
+  /// later; players and the renderer can't start before the picture (M41).
+  final Duration pictureStart;
 
   /// The bundled FFmpeg has no AV1 decoder (no dav1d, no MediaCodec), so it
   /// can't sample frames or make thumbnails of an AV1 video; such a video is
@@ -76,7 +82,25 @@ LocalVideoFacts parseLocalVideoFacts(String probeJson) {
     videoCodec: video['codec_name'] is String
         ? video['codec_name']! as String
         : '',
+    pictureStart: _pictureStartOf(format, video),
   );
+}
+
+/// The video stream's start against the file's own, so a file whose times
+/// don't begin at zero isn't mistaken for a late picture.
+Duration _pictureStartOf(
+  Map<String, Object?> format,
+  Map<String, Object?> videoStream,
+) {
+  final streamSeconds = _decimalNumber(videoStream['start_time']) ?? 0;
+  final fileSeconds = _decimalNumber(format['start_time']) ?? 0;
+  final lateMilliseconds = ((streamSeconds - fileSeconds) * 1000).round();
+  if (lateMilliseconds <= 0) {
+    return Duration.zero;
+  }
+  // Whole milliseconds first: 0.3 s times ten is a hair over 3 in floating
+  // point and would round up to 0.4 s.
+  return Duration(milliseconds: (lateMilliseconds + 99) ~/ 100 * 100);
 }
 
 /// FFmpeg Kit's output holds every log line, so stray ffprobe messages can

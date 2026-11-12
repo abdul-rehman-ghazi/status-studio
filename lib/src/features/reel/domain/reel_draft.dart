@@ -54,12 +54,15 @@ class ReelDraft {
   /// Source, then Get the script) keeps the clip, frame and caption.
   ReelDraft withVideo(SourceVideo video) {
     if (video.videoId == this.video?.videoId) {
-      return copyWith(video: video);
+      return copyWith(
+        video: video,
+        clip: clip?.startingNoEarlierThan(video.pictureStart),
+      );
     }
     return ReelDraft(
       video: video,
       language: language,
-      clip: _wholeVideo(video),
+      clip: _playableRangeOf(video),
     );
   }
 
@@ -139,7 +142,7 @@ class ReelDraft {
   /// is no clip yet. The caption is refilled only while it is still the
   /// lines' own text, so a caption the user typed stays.
   ReelDraft _selectingLinesInClip(Transcript transcript, ClipRange? clip) {
-    final inClip = clip ?? _wholeVideo(video);
+    final inClip = clip ?? _playableRangeOf(video);
     final followsLines = _captionFollowsLines;
     if (inClip == null || transcript.lines.isEmpty) {
       return copyWith(
@@ -389,8 +392,10 @@ class ReelDraft {
   );
 }
 
-ClipRange? _wholeVideo(SourceVideo? video) =>
-    video == null ? null : ClipRange(start: Duration.zero, end: video.duration);
+/// The whole video from where its picture starts (spec FR-5, M41).
+ClipRange? _playableRangeOf(SourceVideo? video) => video == null
+    ? null
+    : ClipRange(start: video.pictureStart, end: video.duration);
 
 const _tenth = Duration(milliseconds: 100);
 const _typedLineLength = Duration(seconds: 2);

@@ -68,8 +68,10 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 **FR-5 Fine-tune (two steps since M19; changed in M23).** Both steps keep their own player over the same kept video file (FR-1); Next on step 1 opens step 2, and Back returns.
 - **Step 1, Video** (`/fine-tune`, "Step 1 of 2" since M30; "Step 2 of 4" before). The player is pinned; under it the **Trim** tab holds the range, nudges, set-to-playhead and waveform below, and the **Crop** tab holds the frame (FR-6) and the moving crop (FR-22). Trim opens first; the tab stays as last used while the reel is open:
   - **Opening:** the player opens the kept video file at once. Nothing is downloaded (changed in M23).
-  - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole video, drawn as an outline with only the clip range filled; the time already played is not coloured, so it never hides the clip range. The bar and its time follow the interpolated playhead, so they move smoothly between the player's reports; a report that differs a little is blended in, a big one is a seek. The time has a fixed width with equal-width digits, so the bar never changes size. It does not stop at the clip end. (A "Play clip" button, which sought to the clip start and played, was removed after M30: the video arrives trimmed, so it duplicated play.)
+  - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole video, drawn as an outline with only the clip range filled; the time already played is not coloured, so it never hides the clip range. The bar and its time follow the interpolated playhead, so they move smoothly between the player's reports; a report that differs a little is blended in, a big one is a seek. The time has a fixed width with equal-width digits, so the bar never changes size. Play starts where the seek bar is and does not stop at the clip end. (A "Play clip" button, which sought to the clip start and played, was removed after M30: the video arrives trimmed, so it duplicated play. It came back in M41, now stopping at the clip end, because the nudges and set-to-playhead trim the clip further.)
+  - **Play the clip (M41):** a second, smaller button in the video's bottom-left corner (beside Play when the crop window is drawn and Play sits there) plays the clip from its start and pauses at its end, so the user hears the status as it will be. Tooltip "Play the clip from its start". It seeks to the clip start even while playing. Pause, Play or a drag on the seek bar ends clip playing; Play after that starts where the bar is and does not stop at the end. The clip end is read as it is now, so a nudge while it plays moves where it stops. Step 2, Lyrics, doesn't show it: its bar is already the clip.
   - **Range:** the clip defaults to the whole video, from 0 to its length. The nudges narrow it.
+  - **Late picture (M41):** a video trimmed elsewhere can keep its sound from 0 but start its picture later (found: an MKV whose video track starts at 3.979 s). Players and the renderer can't start before the picture, so a seek there lands where the picture starts. The probe records the picture start (the video stream's `start_time` less the file's, rounded up to 0.1 s; `SourceVideo.pictureStart`, saved as `pictureStartMs`, 0 when missing). The clip defaults to start there, nudges and set-to-playhead can't go earlier, and a kept clip that starts earlier is moved up to it when the video is set again or Continue reopens it. Under the nudges the Trim tab says "The picture starts at <time>, so the clip can't start earlier." The sound before it is left out. A video added before M41 reads as 0 until it is shared or picked again. Not covered: an MP4 whose picture starts at 0 but whose first keyframe is later.
   - **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. Both ends can be nudged, so a clip over 60 s can be shortened from either side. A clip that starts out invalid still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
   - **Set to the playhead:** tapping the Start time, or the End time, sets it to where the video is now, rounded to 0.1 s. The nudge rules apply: a time that would leave the clip under **3 s**, or outside the video, changes nothing. It does nothing until the player is ready.
   - **Waveform:** 60 bars over the whole video, with the clip highlighted.
@@ -896,6 +898,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M38 Fade at the ends | A switch on the Trim tab fades the picture, caption and branding in from black and out to black, 0.5 s each end (FR-33) | Built, branch `m38-fade-ends` (stacked on M37), merged into `dev` with M40 (2026-11-11); APK and unsigned iOS build succeed; tests not run |
 | M39 Undo on Lyrics | Undo and Redo in Lyrics' app bar for every line change, with a quick Undo after a delete or a tap-to-time (FR-34) | Built, branch `m39-lyrics-undo` (stacked on M38), merged into `dev` with M40 (2026-11-11); the step label moved under the title after the owner's phone check; tests not run |
 | M40 Lyrics fixes | A clip over silence selects no lines (Add line puts one in); dragging a line scrolls the screen; edits stay the newest script when a run finishes late (FR-21, §15) | Built, branch `m40-lyrics-fixes` (stacked on M39), merged into `dev` (2026-11-11); tests not run |
+| M41 Play the clip | A second button on Fine-tune · Video's player plays the clip from its start and pauses at its end; Play still starts at the seek bar; a clip can't start before a late picture (FR-5) | Built, branch `m41-play-clip` (from `dev`), pushed, not merged; tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1393,6 +1396,15 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - [x] **4. Edits survive a late run.** `ScriptProgressController` saves the edited lines again when a written run (no `savedAt`) ends while `linesEdited`. **New tests to write:** §13 Lyrics fixes, third.
 - [x] **5. Status.** §12 status row; push.
 
+### M41 tasks (branch `m41-play-clip`, from `dev`)
+
+Request (2026-11-12): Fine-tune · Video should play from where the seek bar was dragged and also from the clip start. The owner chose a second button on the video and stopping at the clip end. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-5 (Play the clip), §13 Play the clip.
+- [x] **2. Play the clip.** `ClipPlayer` gets a `_PlayClipButton` (shown only without `onlyRange`) and a `_playingClip` flag: the button seeks to the clip start in file time and plays; `_reportPlayhead` pauses at the clip end while the flag is set; Play, Pause and the seek bar clear it. **New tests to write:** §13 Play the clip. **Stale tests:** finders in `fine_tune_screen_test.dart` or `clip_player_test.dart` that expect one `IconButton` on the player.
+- [x] **3. Status.** §12 status row; push.
+- [x] **4. Late picture (owner's phone check, 2026-11-12).** Play the clip and the seek bar both jumped to 0:04 on a clip starting at 0:00.5: the video track starts at 3.979 s. FR-5 Late picture: `LocalVideoFacts.pictureStart`, `SourceVideo.pictureStart`, `ClipRange.nudgeStart`/`nudgeEnd` take `playable:` (a `ClipRange`) instead of `videoDuration:`, `ClipRange.startingNoEarlierThan`, `ReelDraft.withVideo` and `FineTuneDraft.restoredOnto` move the start up, Trim tab hint. **Stale tests:** callers of `nudgeStart`/`nudgeEnd` with `videoDuration:`, `LocalVideoFacts(...)` without `pictureStart`, `SourceVideo.toJson` expectations without `pictureStartMs`. **New tests to write:** §13 Play the clip, last seven.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1642,6 +1654,20 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - The overlay PNG is identical whether the app is in Light or Dark.
 - The reel preview's caption and branding colours are the same in Light and Dark.
 - The launch splash's first frame uses the phone's brightness, not the saved choice.
+
+**Play the clip (M41):**
+- Fine-tune · Video shows a "Play the clip from its start" button; Lyrics doesn't.
+- Tapping it seeks to the clip start and plays.
+- Playing it pauses once the position reaches the clip end.
+- Play after a pause starts where the bar is and doesn't pause at the clip end.
+- A drag on the seek bar during clip playing stops it pausing at the clip end.
+- A probe whose video stream starts at 3.979 s gives a picture start of 4.0 s; one with no `start_time`, or one starting with the file, gives 0.
+- A picture start of 0.3 s stays 0.3 s (no floating-point round-up).
+- A new video's clip starts at its picture start.
+- A start nudge or set-to-playhead before the picture start changes nothing.
+- The same video set again, or a kept clip restored, starting before the picture start, starts at it.
+- `SourceVideo.fromJson` without `pictureStartMs` reads 0; `toJson` writes it.
+- The Trim tab shows the late-picture hint only when the picture start is above 0.
 
 ## 14. Device checks (removed)
 

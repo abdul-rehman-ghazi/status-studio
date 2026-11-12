@@ -111,6 +111,10 @@ class FineTuneDraft {
   /// Whether the kept clip is still inside [video].
   bool clipFits(SourceVideo video) => clip.end <= video.duration;
 
+  /// A clip kept before the picture start was known may start too early.
+  ClipRange _clipOn(SourceVideo video) =>
+      clip.startingNoEarlierThan(video.pictureStart);
+
   /// The reel as it was left, on [transcript] when it had lines; call only
   /// when it [fits].
   ReelDraft restoredOnto(SourceVideo video, {Transcript? transcript}) {
@@ -122,8 +126,8 @@ class FineTuneDraft {
       // still being written): the lines inside the clip are the selected ones.
       selection: transcript == null
           ? const NoSelection()
-          : linesInClip(transcript, clip),
-      clip: clip,
+          : linesInClip(transcript, _clipOn(video)),
+      clip: _clipOn(video),
       frame: frame,
       caption: caption,
       linesEdited: linesEdited,

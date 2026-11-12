@@ -66,16 +66,12 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void nudgeClipStart(Duration delta) {
     final clip = _requireClip();
-    state = state.withClip(
-      clip.nudgeStart(delta, videoDuration: _requireVideo().duration),
-    );
+    state = state.withClip(clip.nudgeStart(delta, playable: _playableRange()));
   }
 
   void nudgeClipEnd(Duration delta) {
     final clip = _requireClip();
-    state = state.withClip(
-      clip.nudgeEnd(delta, videoDuration: _requireVideo().duration),
-    );
+    state = state.withClip(clip.nudgeEnd(delta, playable: _playableRange()));
   }
 
   void startMovingCrop() => state = state.withMovingCropStarted();
@@ -97,8 +93,8 @@ class ReelDraftController extends Notifier<ReelDraft> {
       state = state.withoutCropKeyframe(index);
 
   /// Sets the clip start to [videoTime], rounded to a tenth of a second. The
-  /// nudge rules apply: a start that leaves under 3 s, or passes the video's
-  /// ends, changes nothing (spec FR-5).
+  /// nudge rules apply: a start that leaves under 3 s, or is before the
+  /// picture starts or past the video's end, changes nothing (spec FR-5).
   void setClipStartAt(Duration videoTime) =>
       nudgeClipStart(_roundedToTenth(videoTime) - _requireClip().start);
 
@@ -123,6 +119,11 @@ class ReelDraftController extends Notifier<ReelDraft> {
     ref
         .read(captionAppearanceMemoryProvider.notifier)
         .remember(caption.appearance);
+  }
+
+  ClipRange _playableRange() {
+    final video = _requireVideo();
+    return ClipRange(start: video.pictureStart, end: video.duration);
   }
 
   ClipRange _requireClip() {
