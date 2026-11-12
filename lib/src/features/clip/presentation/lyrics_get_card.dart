@@ -26,6 +26,57 @@ class _LyricsGetCardState extends State<LyricsGetCard> {
 
   @override
   Widget build(BuildContext context) {
+    return _GetCardBody(
+      language: ScriptLanguagePicker(
+        language: _language,
+        onChanged: (language) => setState(() => _language = language),
+      ),
+      onGet: () => widget.onGet(_language),
+      onType: widget.onType,
+    );
+  }
+}
+
+/// The Get card of a clip joined from a link (spec FR-37): its lyrics come
+/// in the output language chosen on From a link, so there is no picker.
+class LinkedLyricsGetCard extends StatelessWidget {
+  const LinkedLyricsGetCard({
+    super.key,
+    required this.outputLanguage,
+    required this.onGet,
+    required this.onType,
+  });
+
+  final ScriptLanguage outputLanguage;
+  final ValueChanged<ScriptLanguage> onGet;
+  final VoidCallback onType;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GetCardBody(
+      language: Text(
+        'Lyrics in ${outputLanguage.label}, chosen on From a link',
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+      onGet: () => onGet(outputLanguage),
+      onType: onType,
+    );
+  }
+}
+
+class _GetCardBody extends StatelessWidget {
+  const _GetCardBody({
+    required this.language,
+    required this.onGet,
+    required this.onType,
+  });
+
+  final Widget language;
+  final VoidCallback onGet;
+  final VoidCallback onType;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -38,13 +89,10 @@ class _LyricsGetCardState extends State<LyricsGetCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ScriptLanguagePicker(
-                language: _language,
-                onChanged: (language) => setState(() => _language = language),
-              ),
+              language,
               const SizedBox(height: 14),
               FilledButton.icon(
-                onPressed: () => widget.onGet(_language),
+                onPressed: onGet,
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('Get lyrics from Groq'),
               ),
@@ -58,7 +106,7 @@ class _LyricsGetCardState extends State<LyricsGetCard> {
         ),
         const SizedBox(height: 10),
         OutlinedButton(
-          onPressed: widget.onType,
+          onPressed: onType,
           child: const Text('Type them myself'),
         ),
       ],

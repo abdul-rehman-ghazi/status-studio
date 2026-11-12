@@ -4,6 +4,7 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/fake_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/application/real_script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/application/translating_script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
 /// In run order, so screens can compare stages with `index`.
@@ -11,6 +12,8 @@ enum ScriptStage {
   preparingAudio('Cleaning the voice'),
   detectingLanguage('Detecting the language'),
   transcribing('Writing the script'),
+  // Only for a clip joined from a link (spec FR-37).
+  translating('Translating the lyrics'),
   // The last step the run shows; once it's reached the script is done.
   done('Lining up timestamps');
 
@@ -27,6 +30,7 @@ class ScriptProgress {
     required this.transcript,
     this.savedAt,
     this.step,
+    this.translatesTo,
   });
 
   final ScriptStage stage;
@@ -44,6 +48,10 @@ class ScriptProgress {
   /// How much of [stage] is done, for the stages that can be measured:
   /// audio read for preparing it, audio written for transcribing.
   final WorkAmount? step;
+
+  /// The language the lines are translated into, for a clip joined from a
+  /// link (spec FR-37); null when the lines stay as spoken.
+  final ScriptLanguage? translatesTo;
 }
 
 /// Turns a video into a transcript.
@@ -57,5 +65,6 @@ abstract interface class ScriptPipeline {
 
 /// The app's pipeline; tests override it with [FakeScriptPipeline].
 final scriptPipelineProvider = Provider<ScriptPipeline>(
-  (ref) => ref.watch(realScriptPipelineProvider),
+  (ref) =>
+      translatingScriptPipeline(ref, ref.watch(realScriptPipelineProvider)),
 );

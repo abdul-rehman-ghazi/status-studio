@@ -61,3 +61,14 @@ class NoGroqConsentException implements Exception {
   @override
   String toString() => 'NoGroqConsentException';
 }
+
+/// Groq's translation of the lyrics didn't come back line for line (spec
+/// FR-37, §8).
+class LyricsNotTranslatedException implements Exception {
+  const LyricsNotTranslatedException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'LyricsNotTranslatedException: $reason';
+}

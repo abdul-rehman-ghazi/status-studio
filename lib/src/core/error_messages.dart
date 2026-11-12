@@ -32,6 +32,7 @@ String errorMessageFor(Object error) {
       retryAfter,
     ),
     GroqFailedException() => "Groq couldn't write this script.",
+    LyricsNotTranslatedException() => "Groq couldn't translate the lyrics.",
     RenderFailedException() => "Couldn't make the reel.",
     LinkTooLongException() =>
       'This video is too long. Links can be up to 3 hours with captions, '

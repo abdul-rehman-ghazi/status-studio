@@ -20,13 +20,13 @@ String partInstructions(String topic, ScriptLanguage output) =>
     'with JSON only: {"moments": [{"first": <first block number>, "last": '
     '<last block number>, "score": <0 to 1, how exactly it is about the '
     'topic>, "reason": "<one short line in ${output.label}>", "text": '
-    '"<the moment\'s words in ${output.label}${_scriptNote(output)}, '
+    '"<the moment\'s words in ${output.label}${scriptNoteFor(output)}, '
     'translated if spoken in another language>"}]}. Reply with '
     '{"moments": []} when nothing is about the topic.\n\nTopic: $topic';
 
 /// YouTube writes Urdu speech in Hindi script, so Urdu and Punjabi are
 /// asked for in their Perso-Arabic script by name (§10 item 10).
-String _scriptNote(ScriptLanguage output) => switch (output) {
+String scriptNoteFor(ScriptLanguage output) => switch (output) {
   ScriptLanguage.urdu => ' in Urdu (Nastaliq) script, not Hindi script',
   ScriptLanguage.punjabi => ' in Shahmukhi script',
   _ => '',
