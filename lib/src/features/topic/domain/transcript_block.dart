@@ -80,9 +80,10 @@ TranscriptBlock _blockOf(List<TranscriptLine> lines, int number) =>
       text: lines.map((line) => line.text.trim()).join(' '),
     );
 
-/// About 4,500 tokens a part, estimated as UTF-8 bytes ÷ 3, so one part and
+/// Hindi-script captions measured about 5 UTF-8 bytes a token (§10 item
+/// 11), Latin text about 4, so a part is 4,000 to 5,000 tokens and it and
 /// its reply fit in a minute of Groq's free plan (8,000 tokens).
-const partBudgetBytes = 13500;
+const partBudgetBytes = 20000;
 
 /// [blocks] split into parts of at most [partBudgetBytes] prompt bytes; a
 /// block bigger than that is a part on its own.

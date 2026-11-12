@@ -148,7 +148,7 @@ class TopicFinder {
         fraction: index / parts.length,
       );
       final reply = _Holder<Map<String, Object?>>();
-      yield* _patiently(client, _partChat(request.topic, part), reply);
+      yield* _patiently(client, _partChat(request, part), reply);
       candidates.addAll(candidatesFromReply(reply.value, part));
     }
     final order = _Holder<List<int>>()..value = const [];
@@ -183,10 +183,10 @@ class TopicFinder {
     }
   }
 
-  GroqChatRequest _partChat(String topic, List<TranscriptBlock> part) =>
+  GroqChatRequest _partChat(TopicRequest request, List<TranscriptBlock> part) =>
       GroqChatRequest(
         model: topicModel,
-        instructions: partInstructions(topic),
+        instructions: partInstructions(request.topic, request.length),
         message: partMessage(part),
       );
 

@@ -60,7 +60,7 @@ class TopicCut {
 const shortestCut = Duration(seconds: 2);
 
 /// The cuts for a clip of about [length] (spec FR-36): [ordered] is walked
-/// best first, each trimmed from its end to at most 110 % of [length], keeping a candidate of at least two seconds that overlaps no
+/// best first, each trimmed from its end to the length still free under 110 % of [length], keeping a candidate of at least two seconds that overlaps no
 /// kept one while the total stays within 110 % of [length], until it
 /// reaches 90 %. The kept cuts come back in video order.
 List<TopicCut> fitToLength({
@@ -72,10 +72,11 @@ List<TopicCut> fitToLength({
   final enough = length * 0.9;
   final kept = <MomentCandidate>[];
   var total = Duration.zero;
-  for (final candidate in ordered.map((c) => _trimmed(c, blocks, longest))) {
+  for (final whole in ordered) {
     if (total >= enough) {
       break;
     }
+    final candidate = _trimmed(whole, blocks, longest - total);
     final candidateLength = candidate.lengthIn(blocks);
     final fits =
         candidateLength >= shortestCut &&
@@ -92,16 +93,17 @@ List<TopicCut> fitToLength({
   ];
 }
 
-/// [candidate] without its last blocks until it is no longer than
-/// [longest], so one long moment can still make a clip on its own.
+/// [candidate] without its last blocks until it fits in [room], the length
+/// still free: the model often returns moments of 40 s or more, which would
+/// otherwise leave a 60 s clip at one cut (§10 item 11).
 MomentCandidate _trimmed(
   MomentCandidate candidate,
   List<TranscriptBlock> blocks,
-  Duration longest,
+  Duration room,
 ) {
   var lastBlock = candidate.lastBlock;
   while (lastBlock > candidate.firstBlock &&
-      blocks[lastBlock].end - blocks[candidate.firstBlock].start > longest) {
+      blocks[lastBlock].end - blocks[candidate.firstBlock].start > room) {
     lastBlock--;
   }
   return MomentCandidate(
