@@ -51,7 +51,8 @@ private const val REALTIME_PRIORITY = 0
  * Joins a linked video's cuts into one H.264/AAC file (spec FR-37). Each cut is clipped from its
  * own file at exact times. With a blend, two layers play at once (see [TransitionCompositor]):
  * the upper plays each cut with its tail, without gaps; the lower only each cut's lead, at its
- * window, with gaps between (see [LayeredAssetLoaderFactory] for why). Their sound is mixed, each
+ * window, with gaps between, so a second decoder runs only around the joins. Decoding is in
+ * software first (see [softwareFirstAssetLoaderFactory]). Their sound is mixed, each
  * item's volume following [upperVolumeAt] or [lowerVolumeAt]. An AV1 cut is decoded as
  * [VideoConverter] decodes it. One join at a time; must be used from the main thread.
  */
@@ -81,15 +82,14 @@ class ClipJoiner(private val context: Context) {
     /** Throws any exception Media3 raises for a spec it rejects at once. */
     fun join(spec: JoinSpec, listener: Listener) {
         check(running == null) { "A join is already running." }
-        val decoders = LayeredAssetLoaderFactory(context)
         val transformer = Transformer.Builder(context)
-            .setAssetLoaderFactory(decoders)
+            .setAssetLoaderFactory(softwareFirstAssetLoaderFactory(context))
             .setVideoMimeType(MimeTypes.VIDEO_H264)
             .setAudioMimeType(MimeTypes.AUDIO_AAC)
             .setEncoderFactory(encoderFactory(bitrateFor(spec.upper.first().path)))
             .addListener(completionListener(listener))
             .build()
-        transformer.start(composition(spec, decoders), spec.outputPath)
+        transformer.start(composition(spec), spec.outputPath)
         val poll = progressPoll(transformer, listener)
         running = Running(transformer, spec.outputPath, poll, listener)
         mainHandler.post(poll)
@@ -109,14 +109,14 @@ class ClipJoiner(private val context: Context) {
         }
     }
 
-    private fun composition(spec: JoinSpec, decoders: LayeredAssetLoaderFactory): Composition {
+    private fun composition(spec: JoinSpec): Composition {
         val upper = EditedMediaItemSequence.Builder(
             spec.upper.map { item ->
                 editedItem(item) { timeMs -> upperVolumeAt(item, spec.transition, timeMs) }
             },
         ).build()
         if (spec.lower.isEmpty()) return Composition.Builder(upper).setEffects(atJoinFrameRate()).build()
-        return Composition.Builder(upper, lowerSequence(spec, decoders))
+        return Composition.Builder(upper, lowerSequence(spec))
             .setVideoCompositorSettings(TransitionCompositor(spec.transition, spec.windows))
             .setEffects(atJoinFrameRate())
             .build()
@@ -127,7 +127,7 @@ class ClipJoiner(private val context: Context) {
      * layer decodes only around the joins. A gap is black and silent, and the upper layer covers
      * it. It starts with a gap, so its tracks are named up front.
      */
-    private fun lowerSequence(spec: JoinSpec, decoders: LayeredAssetLoaderFactory): EditedMediaItemSequence {
+    private fun lowerSequence(spec: JoinSpec): EditedMediaItemSequence {
         // Naming the tracks is what lets a sequence start with a gap. The older force-track
         // setters must not be called as well: Media3 refuses them on a builder made this way.
         val lower = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO))
@@ -135,7 +135,7 @@ class ClipJoiner(private val context: Context) {
         spec.lower.zip(spec.windows).forEach { (item, window) ->
             addGap(lower, window.startMs - placedMs)
             val lead = editedItem(item) { timeMs -> lowerVolumeAt(item, spec.transition, timeMs) }
-            lower.addItem(decoders.inLowerLayer(lead))
+            lower.addItem(lead)
             placedMs = window.startMs + item.lengthMs
         }
         addGap(lower, spec.lengthMs - placedMs)
