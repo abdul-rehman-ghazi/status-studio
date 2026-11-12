@@ -1,7 +1,12 @@
 import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:status_studio/src/core/json_converters.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
+
+part 'saved_transcript.freezed.dart';
+part 'saved_transcript.g.dart';
 
 /// Source name of a script Groq wrote (FR-14).
 ///
@@ -33,48 +38,37 @@ class TranscriptKey {
 }
 
 /// A finished script kept for reuse (FR-14).
-@immutable
-class SavedTranscript {
-  const SavedTranscript({
-    required this.transcript,
-    required this.source,
-    required this.savedAt,
-  });
+///
+/// Saved flat: `languageCode` and `lines` sit beside `source` and
+/// `savedAt`, so `toJson` is written by hand.
+@Freezed(equal: false, toJson: false)
+abstract class SavedTranscript with _$SavedTranscript {
+  @JsonSerializable(createToJson: false)
+  const factory SavedTranscript({
+    @JsonKey(readValue: readWholeObject)
+    @_TranscriptConverter()
+    required Transcript transcript,
 
-  /// Throws [FormatException] when [json] isn't a saved script.
-  factory SavedTranscript.fromJson(Map<String, Object?> json) {
-    if (json case {
-      'source': final String source,
-      'savedAt': final String savedAt,
-      'languageCode': final String languageCode,
-      'lines': final List<Object?> lines,
-    }) {
-      return SavedTranscript(
-        transcript: Transcript(
-          languageCode: languageCode,
-          lines: lines.map(lineFromJson).toList(),
-        ),
-        source: source,
-        savedAt: DateTime.parse(savedAt),
-      );
-    }
-    throw const FormatException('Not a saved script.');
-  }
+    /// `groq-whisper-large-v3` (older scripts: `groq-whisper-large-v3-turbo`)
+    /// or `edited`.
+    required String source,
+    required DateTime savedAt,
+  }) = _SavedTranscript;
 
-  final Transcript transcript;
+  const SavedTranscript._();
 
-  /// `groq-whisper-large-v3` (older scripts: `groq-whisper-large-v3-turbo`)
-  /// or `edited`.
-  final String source;
-  final DateTime savedAt;
+  /// Throws [CheckedFromJsonException] when [json] isn't a saved script.
+  factory SavedTranscript.fromJson(Map<String, Object?> json) =>
+      _$SavedTranscriptFromJson(json);
 
   Map<String, Object?> toJson() => {
     'source': source,
     'savedAt': savedAt.toUtc().toIso8601String(),
-    'languageCode': transcript.languageCode,
-    'lines': transcript.lines.map(lineToJson).toList(),
+    ...const _TranscriptConverter().toJson(transcript),
   };
 
+  // By moment, not by `DateTime ==`: a script saved with a local time must
+  // equal the UTC one read back.
   @override
   bool operator ==(Object other) =>
       other is SavedTranscript &&
@@ -120,63 +114,81 @@ class SavedScript {
 
 /// Whisper's progress through an unfinished run: the lines of the first
 /// [completedChunks] pieces (FR-14 Resume).
-@immutable
-class PartialTranscript {
-  const PartialTranscript({required this.completedChunks, required this.lines});
+@freezed
+abstract class PartialTranscript with _$PartialTranscript {
+  const factory PartialTranscript({
+    required int completedChunks,
+    @_TranscriptLineConverter() required List<TranscriptLine> lines,
+  }) = _PartialTranscript;
 
-  /// Throws [FormatException] when [json] isn't saved progress.
-  factory PartialTranscript.fromJson(Map<String, Object?> json) {
-    if (json case {
-      'completedChunks': final int completedChunks,
-      'lines': final List<Object?> lines,
-    }) {
-      return PartialTranscript(
-        completedChunks: completedChunks,
-        lines: lines.map(lineFromJson).toList(),
-      );
-    }
-    throw const FormatException('Not saved progress.');
-  }
-
-  final int completedChunks;
-  final List<TranscriptLine> lines;
-
-  Map<String, Object?> toJson() => {
-    'completedChunks': completedChunks,
-    'lines': lines.map(lineToJson).toList(),
-  };
-
-  @override
-  bool operator ==(Object other) =>
-      other is PartialTranscript &&
-      other.completedChunks == completedChunks &&
-      listEquals(other.lines, lines);
-
-  @override
-  int get hashCode => Object.hash(completedChunks, Object.hashAll(lines));
+  /// Throws [CheckedFromJsonException] when [json] isn't saved progress.
+  factory PartialTranscript.fromJson(Map<String, Object?> json) =>
+      _$PartialTranscriptFromJson(json);
 }
 
-Map<String, Object?> lineToJson(TranscriptLine line) => {
-  'index': line.index,
-  'text': line.text,
-  'startMs': line.start.inMilliseconds,
-  'endMs': line.end.inMilliseconds,
-};
+class _TranscriptConverter
+    implements JsonConverter<Transcript, Map<String, Object?>> {
+  const _TranscriptConverter();
 
-/// Throws [FormatException] when [json] isn't a saved line.
-TranscriptLine lineFromJson(Object? json) {
-  if (json case {
-    'index': final int index,
-    'text': final String text,
-    'startMs': final int startMs,
-    'endMs': final int endMs,
-  }) {
-    return TranscriptLine(
-      index: index,
-      text: text,
-      start: Duration(milliseconds: startMs),
-      end: Duration(milliseconds: endMs),
-    );
+  /// Throws [FormatException] when [json] doesn't hold a script's lines.
+  @override
+  Transcript fromJson(Map<String, Object?> json) {
+    if (json case {
+      'languageCode': final String languageCode,
+      'lines': final List<Object?> lines,
+    }) {
+      return Transcript(
+        languageCode: languageCode,
+        lines: lines.map(_lineFromObject).toList(),
+      );
+    }
+    throw const FormatException('Not a saved script.');
+  }
+
+  @override
+  Map<String, Object?> toJson(Transcript transcript) => {
+    'languageCode': transcript.languageCode,
+    'lines': transcript.lines
+        .map(const _TranscriptLineConverter().toJson)
+        .toList(),
+  };
+}
+
+TranscriptLine _lineFromObject(Object? json) {
+  if (json is Map<String, Object?>) {
+    return const _TranscriptLineConverter().fromJson(json);
   }
   throw const FormatException('Not a saved line.');
+}
+
+class _TranscriptLineConverter
+    implements JsonConverter<TranscriptLine, Map<String, Object?>> {
+  const _TranscriptLineConverter();
+
+  /// Throws [FormatException] when [json] isn't a saved line.
+  @override
+  TranscriptLine fromJson(Map<String, Object?> json) {
+    if (json case {
+      'index': final int index,
+      'text': final String text,
+      'startMs': final int startMs,
+      'endMs': final int endMs,
+    }) {
+      return TranscriptLine(
+        index: index,
+        text: text,
+        start: Duration(milliseconds: startMs),
+        end: Duration(milliseconds: endMs),
+      );
+    }
+    throw const FormatException('Not a saved line.');
+  }
+
+  @override
+  Map<String, Object?> toJson(TranscriptLine line) => {
+    'index': line.index,
+    'text': line.text,
+    'startMs': line.start.inMilliseconds,
+    'endMs': line.end.inMilliseconds,
+  };
 }
