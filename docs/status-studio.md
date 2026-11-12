@@ -18,7 +18,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | # | Screen | Route | Job |
 |---|---|---|---|
 | 1 | Home | `/` | Start a reel; recent reels, saved scripts and fine-tunes to continue (FR-24); open Settings; a shared video opens Source (FR-1) |
-| 2 | Source | `/source` | "Choose a video" from the gallery, or the video shared into the app (FR-1); a card with thumbnail, name and length; Next: video (changed in M30: the language, Get the script and Make it without lyrics moved to Lyrics) |
+| 2 | Source | `/source` | "Choose a video" from the gallery, or the video shared into the app (FR-1); on Android, From a link (FR-35, M44); a card with thumbnail, name and length; Next: video (changed in M30: the language, Get the script and Make it without lyrics moved to Lyrics) |
 | 3 | Processing (removed) | — | Removed in M30: the script run (clean the voice, write with Groq, detect the language, line up timestamps) shows on Fine-tune · Lyrics (FR-21). The number stays so references keep working |
 | 4 | Script (removed) | — | Removed in M25 (task 7): it was a read-only list that Fine-tune · Lyrics repeats, editable. Language, Fix with Groq and the saved-script line moved to Fine-tune · Lyrics. The number stays so references keep working |
 | 5 | Fine-tune · Video | `/fine-tune` | "Step 1 of 2" (M30): plays the kept video file with Trim and Crop tabs under it. Trim: the clip's start and end, nudged by ±0.5 s, and the waveform (FR-5). Crop: size, fill and crop (FR-6), and the crop that moves at each scene, with the scene strip, New position here and Follow the person (FR-22, FR-27) |
@@ -26,7 +26,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | 6 | Style (removed) | — | Removed in M30: caption position and size are in the Style sheet on Lyrics (FR-7); the caption is always the lines, in their own language |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Lyrics |
 | 8 | Done | `/done` | Final preview; Save to gallery; Share; Make another |
-| 9 | Settings | `/settings` | A list of categories, each on its own screen since M33: Appearance `/settings/appearance` (FR-32, M35), Groq key `/settings/groq` (FR-12a), Background work `/settings/background` (FR-16), Support `/settings/support` and About `/settings/about` (FR-31). The YouTube reader section was removed in M23 |
+| 9 | Settings | `/settings` | A list of categories, each on its own screen since M33: Appearance `/settings/appearance` (FR-32, M35), Groq key `/settings/groq` (FR-12a), Background work `/settings/background` (FR-16), Downloader `/settings/downloader` (FR-35, M44, Android only), Support `/settings/support` and About `/settings/about` (FR-31). The YouTube reader section was removed in M23 |
 
 - **Visual reference:** the design canvas prototype for screens 1–8. Settings follows the same visual language.
 - **Progress of a script run (on Lyrics since M30):** the step under way, with its bar and percent (`45 %`) and time left (`1:24 left`) once it can be told, and Cancel. Nothing is downloaded, so there is no speed or size line (changed in M23).
@@ -426,6 +426,15 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Lifetime:** while Lyrics is open, Export and Cancel back included. Leaving Lyrics (back to Video, or Fine-tune closing) clears it; it is not kept for Continue later.
 - **Not steps:** the Show lyrics switch, the Style sheet, Type them myself and Get again. Get again (Get, or Replace) clears the history.
 
+**FR-35 Link in (M44, Android only).** Asked by the owner (2026-11-12, M43–M47 design): a long video from a link, to cut one topic out of (FR-36, FR-37). iOS shows none of this.
+- **Source screen:** under the video section, a section **From a link**: a text field "Paste a YouTube link" with a Paste button inside it, and **Read link**. Reading shows a card like the video card: YouTube's thumbnail, the title (two lines), the channel and the length, or the §8 message. Choosing a local video and reading a link don't clear each other; Next: video still acts on the local video only. Topic, length and Find the moments are added by M45.
+- **Links:** YouTube watch, `youtu.be`, Shorts and live links (the M7 parser, `youtube_link.dart`). Other sites are not accepted in M44 (*Claude's call*; the design allowed them unpromised).
+- **Reading:** yt-dlp's `-J` (no download) without JavaScript first, then with QuickJS when the quick run fails or finds no formats (§10 item 4). The facts kept: video ID, title, channel, length, thumbnail URL. The thumbnail is fetched by Flutter's image loader from YouTube's image server, the only network use outside Groq and yt-dlp.
+- **Share in:** a `text/plain` share holding a YouTube link (from the YouTube app's Share, or a browser) opens Source with the link filled in and read, asking first when it would close a reel (as FR-1 does for a video). Text without a YouTube link is ignored.
+- **Downloader in Settings** (`/settings/downloader`, FR-31's list, between Background work and Support): "Downloader", subtitle "yt-dlp <version>, reads video links". The screen shows the yt-dlp version, "Last checked <date>", and **Update downloader** (a spinner while it runs, then "Updated to <version>" or "Already up to date", or the §8 offline message). A hint: "YouTube changes often, so the downloader checks for a new yt-dlp once a week."
+- **Weekly check:** at start-up on Android, when the last successful check is 7 days old or there never was one, yt-dlp updates itself quietly (about 3 MB). A failed check isn't recorded, so the next start tries again. It is the only code fetched at runtime (§9).
+- **APK:** youtubedl-android brings Python, QuickJS and its native libraries, stored uncompressed (legacy JNI packaging) because it unpacks Python from the installed library folder.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -610,10 +619,11 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 
 | Condition | Where | Message | Actions |
 |---|---|---|---|
-| Invalid link (removed in M23: no links) | Source | That doesn't look like a YouTube link. | Edit |
-| Video unavailable, private, age-restricted or live (removed in M23) | Lyrics (Processing until M30) | This video can't be downloaded. | Back |
+| Invalid link (removed in M23, back in M44) | Source | That doesn't look like a YouTube link. | Edit |
+| Video unavailable, private, age-restricted or live (removed in M23, back in M44) | Source (link card) | This video can't be downloaded. | Edit |
+| No network while reading a link (M44) | Source (link card) | You're offline. Connect and try again. | Read link |
 | No network during download (removed in M23: nothing is downloaded; offline errors remain for Groq) | Lyrics (Processing until M30) | You're offline. Connect and try again. | Retry, Back |
-| yt-dlp can't read the video, even after updating (removed in M23) | Source / Processing | Couldn't read this video from YouTube. Try again later. | Retry, Back |
+| yt-dlp can't read the video (removed in M23, back in M44) | Source (link card) | Couldn't read this video from YouTube. Update the downloader in Settings, or try again later. | Read link |
 | The video has no audio track, or can't be read (M23) | Source / Processing | Can't read this video. | Choose another video, Back |
 | An AV1 video can't be converted to H.264 on this phone (M31, FR-1) | Source | This phone can't convert this AV1 video. Save it as H.264 (MP4) in your editor and share it again. | Choose another video, Back |
 | The kept source file is missing (M23) | Recent / Continue | Video not found, choose it again. | Choose a video, Back |
@@ -1527,6 +1537,19 @@ Request (2026-11-12): the M43–M47 design above. M43 is the spec, rule and sign
 - [x] **5. Licence.** `LICENSE` with the GPL-3.0 text; About says "Free software under the GNU GPL, version 3. Source code: github.com/abdul-rehman-ghazi/status-studio" (FR-31). **Stale tests:** About finders that count its texts.
 - [ ] **6. Going public (the owner's steps, not run by Claude).** (a) Back up `upload-keystore.jks` and `key.properties` somewhere safe outside the repo, such as a password manager: losing them means no update can ever install over the released app. (b) Move them to `~/.status-studio/` and fix `storeFile` there. (c) With every branch pushed, in a fresh mirror clone: `git clone --mirror https://github.com/abdul-rehman-ghazi/status-studio.git && cd status-studio.git && git filter-repo --invert-paths --path android/key.properties --path android/app/upload-keystore.jks && git push --force --mirror origin`. (d) Delete the old local clone and clone again (old clones still hold the files). (e) On GitHub: Settings → Change visibility → Public. (f) Publish the first release with the signed APK; then ask IzzyOnDroid to add the app.
 - [x] **7. Status.** §12 status row; push.
+
+### M44 tasks (branch `m44-link-in`, stacked on `m43-off-the-stores`)
+
+Request (2026-11-12): FR-35, from the M43–M47 design. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-35, §2 rows 2 and 9, §8 rows, these tasks.
+- [ ] **2. yt-dlp back on Android.** From `a5294bf^`: the `youtubedl-android` library 0.18.1 and the legacy JNI packaging in `build.gradle.kts`, `youtube/YtDlpChannel.kt` and `YtDlpCommands.kt`, registered in `MainActivity`; Dart `source/data/yt_dlp.dart` (`YtDlp`, `PlatformYtDlp`, `mapYtDlpError`), `VideoUnavailableException` and `YouTubeChangedException` in `source_errors.dart` with their §8 messages. **New tests to write:** `mapYtDlpError` cases (restore from `a5294bf^`).
+- [ ] **3. Reading a link.** `source/domain/youtube_link.dart` (restored), `source/domain/linked_video.dart` (`LinkedVideo`: video ID, title, channel, length, thumbnail URL, read from `-J` JSON), `source/application/linked_video_reader.dart` (quick, then QuickJS when the quick run fails with `YouTubeChangedException` or has no formats). **New tests to write:** link parsing (restore), `LinkedVideo.fromYtDlpJson`, the reader's fallback.
+- [ ] **4. Source screen, From a link.** Android only: the section, Paste, Read link, the card and its §8 messages. **Stale tests:** `source_screen_test.dart` finders that expect one button above the card.
+- [ ] **5. Share a link in.** `VideoInChannel` takes `text/plain` `SEND` and delivers `incomingLink {link}` (the first YouTube link in the text); manifest filter. Dart: `IncomingVideoSource.shares` emits `IncomingShare` (sealed: `IncomingVideo`, `IncomingLink`); `SharedVideoListener` opens Source with either; `SourceScreen.share`. **Stale tests:** everything using `IncomingVideoSource.videos`, `FakeIncomingVideoSource`, or `SourceScreen(sharedVideo:)`.
+- [ ] **6. Downloader in Settings and the weekly check.** `yt_dlp_updater.dart` (restored, plus last-checked read), the start-up hook in `main.dart` (Android only), `/settings/downloader` and its row. **New tests to write:** `updateIfDue` (restore), the Settings row shown on Android only.
+- [ ] **7. Desktop spike for M46.** With yt-dlp on the Mac: exact-time section downloads and how often H.264 ≤ 1080p is offered, on five videos; recorded in §10. The phone half (time on the Redmi, APK size) is the owner's.
+- [ ] **8. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 
