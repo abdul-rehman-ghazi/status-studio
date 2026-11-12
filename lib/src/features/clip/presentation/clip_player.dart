@@ -73,6 +73,10 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
   );
   var _unplayable = false;
 
+  /// Set by Play the clip, so playing pauses at the clip end; any other
+  /// play, pause or seek clears it (spec FR-5, M41).
+  var _playingClip = false;
+
   @override
   void initState() {
     super.initState();
@@ -158,8 +162,9 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
 
   void _reportPlayhead() {
     final value = _player.value;
-    final only = _onlyRangeInFile;
-    if (only != null && value.isPlaying && value.position >= only.end) {
+    final stopAt = _onlyRangeInFile?.end ?? _clipEndWhilePlayingClip;
+    if (stopAt != null && value.isPlaying && value.position >= stopAt) {
+      _playingClip = false;
       unawaited(_player.pause());
     }
     widget.playhead.report(
@@ -168,7 +173,26 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     );
   }
 
+  /// Read at each report rather than kept, so a nudge while the clip plays
+  /// moves where it stops.
+  Duration? get _clipEndWhilePlayingClip =>
+      _playingClip ? _clipInFile.end : null;
+
+  /// The flag is set only after the seek: a report of the old position, past
+  /// the clip end, would otherwise pause the player and clear it.
+  Future<void> _playClipFromStart() async {
+    await _player.seekTo(_clipInFile.start);
+    _playingClip = true;
+    await _player.play();
+  }
+
+  Future<void> _seekFromBar(Duration fileTime) {
+    _playingClip = false;
+    return _player.seekTo(fileTime);
+  }
+
   Future<void> _togglePlayback() async {
+    _playingClip = false;
     if (_player.value.isPlaying) {
       await _player.pause();
       return;
@@ -207,24 +231,7 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
         picture,
         if (value.isInitialized && widget.videoOverlay != null)
           Positioned.fill(child: widget.videoOverlay!),
-        // Over a crop window the middle belongs to dragging it.
-        Positioned.fill(
-          child: Align(
-            alignment: widget.videoOverlay == null
-                ? Alignment.center
-                : Alignment.bottomLeft,
-            child: Padding(
-              padding: EdgeInsets.all(widget.videoOverlay == null ? 0 : 8),
-              child: ValueListenableBuilder<VideoPlayerValue>(
-                valueListenable: _player,
-                builder: (context, value, _) => _PlayButton(
-                  playing: value.isPlaying,
-                  onPressed: value.isInitialized ? _togglePlayback : null,
-                ),
-              ),
-            ),
-          ),
-        ),
+        ..._playButtons(),
       ],
     );
     return ClipRRect(
@@ -251,6 +258,49 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     );
   }
 
+  /// Play in the middle, or in the bottom-left corner over a crop window,
+  /// whose middle belongs to dragging it; Play the clip in that corner too,
+  /// unless the bar is already just the clip.
+  List<Widget> _playButtons() {
+    final playButton = ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: _player,
+      builder: (context, value, _) => _PlayButton(
+        playing: value.isPlaying,
+        onPressed: value.isInitialized ? _togglePlayback : null,
+      ),
+    );
+    final playClipButton = widget.onlyRange == null
+        ? ValueListenableBuilder<VideoPlayerValue>(
+            valueListenable: _player,
+            builder: (context, value, _) => _PlayClipButton(
+              onPressed: value.isInitialized ? _playClipFromStart : null,
+            ),
+          )
+        : null;
+    if (widget.videoOverlay != null) {
+      return [
+        _corner(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              playButton,
+              if (playClipButton != null) ...[
+                const SizedBox(width: 8),
+                playClipButton,
+              ],
+            ],
+          ),
+        ),
+      ];
+    }
+    return [
+      Positioned.fill(child: Center(child: playButton)),
+      if (playClipButton != null) _corner(playClipButton),
+    ];
+  }
+
+  Widget _corner(Widget child) => Positioned(left: 8, bottom: 8, child: child);
+
   @override
   Widget build(BuildContext context) {
     if (_unplayable) {
@@ -270,7 +320,7 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
                 ClipRange(start: Duration.zero, end: value.duration),
             markedClip: widget.onlyRange == null ? _clipInFile : null,
             offset: widget.source.offset,
-            onSeek: value.isInitialized ? _player.seekTo : null,
+            onSeek: value.isInitialized ? _seekFromBar : null,
           ),
         ),
       ],
@@ -491,6 +541,21 @@ class _PlayButton extends StatelessWidget {
       iconSize: 32,
       onPressed: onPressed,
       icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+    );
+  }
+}
+
+class _PlayClipButton extends StatelessWidget {
+  const _PlayClipButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      tooltip: 'Play the clip from its start',
+      onPressed: onPressed,
+      icon: const Icon(Icons.replay),
     );
   }
 }

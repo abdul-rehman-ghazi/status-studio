@@ -1399,7 +1399,7 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 Request (2026-11-12): Fine-tune · Video should play from where the seek bar was dragged and also from the clip start. The owner chose a second button on the video and stopping at the clip end. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** FR-5 (Play the clip), §13 Play the clip.
-- [ ] **2. Play the clip.** `ClipPlayer` gets a `_PlayClipButton` (shown only without `onlyRange`) and a `_playingClip` flag: the button seeks to the clip start in file time and plays; `_reportPlayhead` pauses at the clip end while the flag is set; Play, Pause and the seek bar clear it. **New tests to write:** §13 Play the clip. **Stale tests:** finders in `fine_tune_screen_test.dart` or `clip_player_test.dart` that expect one `IconButton` on the player.
+- [x] **2. Play the clip.** `ClipPlayer` gets a `_PlayClipButton` (shown only without `onlyRange`) and a `_playingClip` flag: the button seeks to the clip start in file time and plays; `_reportPlayhead` pauses at the clip end while the flag is set; Play, Pause and the seek bar clear it. **New tests to write:** §13 Play the clip. **Stale tests:** finders in `fine_tune_screen_test.dart` or `clip_player_test.dart` that expect one `IconButton` on the player.
 - [ ] **3. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
