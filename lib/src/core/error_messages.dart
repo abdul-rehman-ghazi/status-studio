@@ -1,5 +1,6 @@
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/source/domain/youtube_link.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
@@ -12,6 +13,7 @@ String errorMessageFor(Object error) {
     InsufficientStorageException() => 'Not enough space on your phone.',
     VideoUnreadableException() => "Can't read this video.",
     VideoUnavailableException() => "This video can't be downloaded.",
+    InvalidYouTubeLinkException() => "That doesn't look like a YouTube link.",
     YouTubeChangedException() =>
       "Couldn't read this video from YouTube. Update the downloader in "
           'Settings, or try again later.',
