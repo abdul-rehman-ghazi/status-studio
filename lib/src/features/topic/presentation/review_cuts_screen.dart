@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/screen_title.dart';
+import 'package:status_studio/src/features/join/application/background_clip_maker.dart';
 import 'package:status_studio/src/features/join/application/clip_maker.dart';
 import 'package:status_studio/src/features/join/application/cut_previewer.dart';
 import 'package:status_studio/src/features/join/domain/join_errors.dart';
@@ -59,7 +60,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   @override
   void dispose() {
     unawaited(_stopSearch());
-    if (_making != null) unawaited(ref.read(clipMakerProvider).cancel());
+    if (_making != null) unawaited(ref.read(backgroundClipMakerProvider).cancel());
     super.dispose();
   }
 
@@ -108,7 +109,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (_making case final making?) {
       return MakingView(
         progress: making,
-        onCancel: () => unawaited(ref.read(clipMakerProvider).cancel()),
+        onCancel: () => unawaited(ref.read(backgroundClipMakerProvider).cancel()),
       );
     }
     if (_failure case final failure?) {
@@ -282,7 +283,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       _making = const ReadingStreams();
     });
     try {
-      final video = await ref.read(clipMakerProvider).make(
+      final video = await ref.read(backgroundClipMakerProvider).make(
         ClipOrder(
           request: widget.request,
           cuts: ticked,
