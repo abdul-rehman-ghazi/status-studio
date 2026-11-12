@@ -54,8 +54,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.source,
         builder: (context, state) => SourceScreen(
-          sharedVideo: state.extra is IncomingVideo
-              ? state.extra! as IncomingVideo
+          share: state.extra is IncomingShare
+              ? state.extra! as IncomingShare
               : null,
         ),
       ),

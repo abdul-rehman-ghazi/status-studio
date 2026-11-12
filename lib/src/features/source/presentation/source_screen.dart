@@ -23,15 +23,16 @@ import 'package:status_studio/src/features/source/presentation/link_section.dart
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// Step 1: bring in a video, by the gallery picker or by a share (spec FR-1).
+/// Step 1: bring in a video, by the gallery picker or by a share (spec FR-1),
+/// or on Android read a link (FR-35).
 ///
-/// A [sharedVideo] is imported at once; like a picked one, it waits for the
+/// A shared video is imported at once; like a picked one, it waits for the
 /// user to choose a script or none (spec FR-29), so nothing is uploaded
-/// unasked.
+/// unasked. A shared link is filled in and read.
 class SourceScreen extends ConsumerStatefulWidget {
-  const SourceScreen({this.sharedVideo, super.key});
+  const SourceScreen({this.share, super.key});
 
-  final IncomingVideo? sharedVideo;
+  final IncomingShare? share;
 
   @override
   ConsumerState<SourceScreen> createState() => _SourceScreenState();
@@ -48,8 +49,8 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
   @override
   void initState() {
     super.initState();
-    final shared = widget.sharedVideo;
-    if (shared == null) {
+    final shared = widget.share;
+    if (shared is! IncomingVideo) {
       unawaited(_recoverLostPick());
       return;
     }
@@ -84,7 +85,7 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
           ),
           if (defaultTargetPlatform == TargetPlatform.android) ...[
             const SizedBox(height: 24),
-            const LinkSection(),
+            LinkSection(sharedLink: _sharedLink),
           ],
         ],
       ),
@@ -96,6 +97,11 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       ),
     );
   }
+
+  String? get _sharedLink => switch (widget.share) {
+    IncomingLink(:final link) => link,
+    _ => null,
+  };
 
   Future<void> _chooseVideo() async {
     final VideoPickResult picked;
