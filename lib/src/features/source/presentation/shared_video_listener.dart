@@ -26,6 +26,7 @@ const _screensWithoutAReel = {
   AppRoutes.appearanceSettings,
   AppRoutes.groqSettings,
   AppRoutes.backgroundSettings,
+  AppRoutes.downloaderSettings,
   AppRoutes.supportSettings,
   AppRoutes.aboutSettings,
 };

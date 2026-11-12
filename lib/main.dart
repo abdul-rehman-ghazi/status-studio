@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ import 'package:status_studio/src/core/cache_cleanup.dart';
 import 'package:status_studio/src/features/appearance/application/theme_choice_controller.dart';
 import 'package:status_studio/src/features/appearance/data/theme_choice_store.dart';
 import 'package:status_studio/src/features/appearance/domain/theme_choice.dart';
+import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/style/application/caption_appearance_memory.dart';
 import 'package:status_studio/src/features/style/data/caption_appearance_store.dart';
@@ -33,7 +35,25 @@ Future<void> main() async {
   // After the first frame, so housekeeping never delays the app opening.
   WidgetsBinding.instance.addPostFrameCallback((_) {
     unawaited(_cleanUp(container));
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(_updateYtDlp(container));
+    }
   });
+}
+
+/// A failed update isn't recorded, so the next start tries again (FR-35).
+Future<void> _updateYtDlp(ProviderContainer container) async {
+  try {
+    await container.read(ytDlpUpdaterProvider).updateIfDue(DateTime.now());
+  } on Exception catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'yt-dlp update',
+      ),
+    );
+  }
 }
 
 /// Read while the native launch screen still shows, so the first frame

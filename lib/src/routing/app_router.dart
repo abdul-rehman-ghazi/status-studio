@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/export/presentation/done_screen.dart'
 import 'package:status_studio/src/features/export/presentation/export_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/background_work_section.dart';
+import 'package:status_studio/src/features/settings/presentation/downloader_section.dart';
 import 'package:status_studio/src/features/settings/presentation/groq_section.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_page.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
@@ -33,6 +34,7 @@ abstract final class AppRoutes {
   static const appearanceSettings = '/settings/appearance';
   static const groqSettings = '/settings/groq';
   static const backgroundSettings = '/settings/background';
+  static const downloaderSettings = '/settings/downloader';
   static const supportSettings = '/settings/support';
   static const aboutSettings = '/settings/about';
 }
@@ -97,6 +99,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const SettingsPage(
               title: 'Background work',
               section: BackgroundWorkSection(),
+            ),
+          ),
+          GoRoute(
+            path: 'downloader',
+            builder: (context, state) => const SettingsPage(
+              title: 'Downloader',
+              section: DownloaderSection(),
             ),
           ),
           GoRoute(
