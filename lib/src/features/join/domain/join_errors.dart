@@ -59,3 +59,14 @@ class JoinFailedException implements Exception {
   @override
   String toString() => 'JoinFailedException: $reason';
 }
+
+/// The cuts are AV1 and this phone can't decode it for the join (spec
+/// FR-37, §8): Android decodes AV1 in software from Android 10.
+class CutsNotDecodableException implements Exception {
+  const CutsNotDecodableException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'CutsNotDecodableException: $reason';
+}

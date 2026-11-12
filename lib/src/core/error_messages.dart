@@ -1,4 +1,5 @@
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
+import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/youtube_link.dart';
 import 'package:status_studio/src/features/style/domain/follow_errors.dart';
@@ -44,6 +45,10 @@ String errorMessageFor(Object error) {
     GroqUnreadableReplyException() =>
       "Groq's answer couldn't be read. Try again.",
     FollowFailedException() => "Couldn't follow the person. Try again.",
+    NotDownloadableInPartsException() =>
+      "This video can't be downloaded in parts.",
+    JoinFailedException() => "Couldn't join the cuts.",
+    CutsNotDecodableException() => "This phone can't convert this AV1 video.",
     _ => 'Something went wrong. Try again.',
   };
 }

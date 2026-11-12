@@ -31,6 +31,10 @@ class SourceCache {
   File thumbnailFile(String videoId) =>
       File('${_folder(videoId)}/thumbnail.jpg');
 
+  /// Where a clip joined from a link keeps its link, topic and join times
+  /// (spec FR-37).
+  File linkFile(String videoId) => File('${_folder(videoId)}/link.json');
+
   /// The videos already kept for [videoId], whatever their extension.
   List<File> keptLocalVideos(String videoId) {
     final folder = Directory(_folder(videoId));

@@ -4,8 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
-import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/screen_title.dart';
+import 'package:status_studio/src/features/join/application/clip_maker.dart';
+import 'package:status_studio/src/features/join/domain/join_errors.dart';
+import 'package:status_studio/src/features/join/domain/making_progress.dart';
+import 'package:status_studio/src/features/join/presentation/making_view.dart';
+import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
+import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/topic/application/topic_finder.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
@@ -20,7 +25,7 @@ import 'package:status_studio/src/features/transcript/presentation/groq_consent_
 import 'package:status_studio/src/routing/app_router.dart';
 
 /// Finds the moments of a linked video about a topic, then shows them to
-/// check, with the transition and Make the clip (spec FR-36).
+/// check, with the transition and Make the clip (spec FR-36, FR-37).
 class ReviewCutsScreen extends ConsumerStatefulWidget {
   const ReviewCutsScreen({required this.request, super.key});
 
@@ -38,6 +43,8 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   List<TranscriptBlock> _blocks = const [];
   var _edited = false;
   var _transition = ClipTransition.crossfade;
+  MakingProgress? _making;
+  Object? _makeFailure;
 
   @override
   void initState() {
@@ -48,6 +55,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   @override
   void dispose() {
     unawaited(_stopSearch());
+    if (_making != null) unawaited(ref.read(clipMakerProvider).cancel());
     super.dispose();
   }
 
@@ -58,7 +66,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       appBar: AppBar(
         title: const ScreenTitle('Review cuts'),
         actions: [
-          if (cuts != null)
+          if (cuts != null && _making == null)
             IconButton(
               tooltip: 'Find again',
               icon: const Icon(Icons.refresh),
@@ -67,18 +75,38 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         ],
       ),
       body: _body(cuts),
-      bottomNavigationBar: cuts == null || _failure != null
+      bottomNavigationBar:
+          cuts == null ||
+              _failure != null ||
+              _making != null ||
+              _makeFailure != null
           ? null
           : _ReviewFooter(
               total: totalLength(tickedCuts(cuts)),
               length: widget.request.length,
               transition: _transition,
               onTransition: (chosen) => setState(() => _transition = chosen),
+              onMake: tickedCuts(cuts).isEmpty
+                  ? null
+                  : () => unawaited(_make()),
             ),
     );
   }
 
   Widget _body(List<ReviewCut>? cuts) {
+    if (_makeFailure case final failure?) {
+      return MakeFailureView(
+        failure: failure,
+        onTryAgain: () => unawaited(_make()),
+        onBack: () => setState(() => _makeFailure = null),
+      );
+    }
+    if (_making case final making?) {
+      return MakingView(
+        progress: making,
+        onCancel: () => unawaited(ref.read(clipMakerProvider).cancel()),
+      );
+    }
     if (_failure case final failure?) {
       return _FailureView(
         failure: failure,
@@ -206,6 +234,50 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   Future<void> _addMoment() async {
     final block = await showAddMomentSheet(context, _blocks);
     if (block != null) _edit((cuts) => addBlockAsCut(cuts, block));
+  }
+
+  /// Downloads and joins the ticked cuts, then opens Fine-tune · Video on
+  /// the joined clip (spec FR-37). Cancel returns to the list.
+  Future<void> _make() async {
+    final ticked = tickedCuts(_cuts ?? const []);
+    if (ticked.isEmpty) {
+      return;
+    }
+    setState(() {
+      _makeFailure = null;
+      _making = const ReadingStreams();
+    });
+    try {
+      final video = await ref
+          .read(clipMakerProvider)
+          .make(
+            ClipOrder(
+              request: widget.request,
+              cuts: ticked,
+              transition: _transition,
+            ),
+            (progress) {
+              if (mounted) setState(() => _making = progress);
+            },
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _making = null);
+      ref.invalidate(isVideoKeptProvider);
+      ref.read(reelDraftProvider.notifier).setVideo(video);
+      await context.push(AppRoutes.fineTune);
+    } on DownloadCancelledException {
+      if (mounted) setState(() => _making = null);
+    } on Object catch (failure) {
+      // Every failure shows on the screen; none may reach the zone.
+      if (mounted) {
+        setState(() {
+          _making = null;
+          _makeFailure = failure;
+        });
+      }
+    }
   }
 
   Future<bool> _confirmLongScript() => _confirm(
@@ -398,12 +470,16 @@ class _ReviewFooter extends StatelessWidget {
     required this.length,
     required this.transition,
     required this.onTransition,
+    required this.onMake,
   });
 
   final Duration total;
   final Duration length;
   final ClipTransition transition;
   final ValueChanged<ClipTransition> onTransition;
+
+  /// Null until a moment is ticked.
+  final VoidCallback? onMake;
 
   Future<void> _chooseTransition(BuildContext context) async {
     final chosen = await showTransitionSheet(context, transition);
@@ -432,9 +508,7 @@ class _ReviewFooter extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            const FilledButton(onPressed: null, child: Text('Make the clip')),
-            const SizedBox(height: 4),
-            const Center(child: HintText('Coming in the next update')),
+            FilledButton(onPressed: onMake, child: const Text('Make the clip')),
           ],
         ),
       ),
