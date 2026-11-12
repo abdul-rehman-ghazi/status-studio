@@ -83,7 +83,7 @@ _StoredReels _parseEntries(List<Object?> entries) {
   for (final entry in entries) {
     try {
       reels.add(RecentReel.fromJson(entry! as Map<String, Object?>));
-    } on FormatException {
+    } on Exception {
       unreadable.add(entry);
     } on TypeError {
       unreadable.add(entry);

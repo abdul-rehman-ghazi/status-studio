@@ -1,72 +1,68 @@
-import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:status_studio/src/core/json_converters.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
+part 'recent_reel.freezed.dart';
+part 'recent_reel.g.dart';
+
 /// A finished reel in the Recent list (spec §6.1, FR-11).
-@immutable
-class RecentReel {
-  const RecentReel({
-    required this.id,
-    required this.title,
-    required this.videoPath,
-    required this.thumbnailPath,
-    required this.duration,
-    required this.size,
-    required this.createdAt,
-  });
+///
+/// Saved flat: the size is `width` and `height` beside the other keys, so
+/// `toJson` is written by hand.
+@Freezed(toJson: false)
+abstract class RecentReel with _$RecentReel {
+  @JsonSerializable(createToJson: false)
+  const factory RecentReel({
+    required String id,
 
-  /// Throws [FormatException] or [TypeError] for a malformed entry.
-  factory RecentReel.fromJson(Map<String, Object?> json) => RecentReel(
-    id: json['id']! as String,
-    title: json['title']! as String,
-    videoPath: json['videoPath']! as String,
-    thumbnailPath: json['thumbnailPath']! as String,
-    duration: Duration(milliseconds: json['durationMs']! as int),
-    size: OutputSize(json['width']! as int, json['height']! as int),
-    createdAt: DateTime.parse(json['createdAt']! as String),
-  );
+    /// The caption's first line, shown in the list.
+    required String title,
+    required String videoPath,
+    required String thumbnailPath,
+    @JsonKey(name: 'durationMs')
+    @MillisecondsConverter()
+    required Duration duration,
 
-  final String id;
+    /// The MP4's frame size, shown on Done.
+    @JsonKey(readValue: readWholeObject)
+    @_OutputSizeConverter()
+    required OutputSize size,
+    required DateTime createdAt,
+  }) = _RecentReel;
 
-  /// The caption's first line, shown in the list.
-  final String title;
-  final String videoPath;
-  final String thumbnailPath;
-  final Duration duration;
+  const RecentReel._();
 
-  /// The MP4's frame size, shown on Done.
-  final OutputSize size;
-  final DateTime createdAt;
+  /// Throws [CheckedFromJsonException] for a malformed entry.
+  factory RecentReel.fromJson(Map<String, Object?> json) =>
+      _$RecentReelFromJson(json);
 
   Map<String, Object?> toJson() => {
     'id': id,
     'title': title,
     'videoPath': videoPath,
     'thumbnailPath': thumbnailPath,
-    'durationMs': duration.inMilliseconds,
-    'width': size.width,
-    'height': size.height,
+    'durationMs': const MillisecondsConverter().toJson(duration),
+    ...const _OutputSizeConverter().toJson(size),
     'createdAt': createdAt.toIso8601String(),
   };
+}
+
+class _OutputSizeConverter
+    implements JsonConverter<OutputSize, Map<String, Object?>> {
+  const _OutputSizeConverter();
+
+  /// Throws [FormatException] when [json] has no whole-number size.
+  @override
+  OutputSize fromJson(Map<String, Object?> json) {
+    if (json case {'width': final int width, 'height': final int height}) {
+      return OutputSize(width, height);
+    }
+    throw const FormatException('Not a saved size.');
+  }
 
   @override
-  bool operator ==(Object other) =>
-      other is RecentReel &&
-      other.id == id &&
-      other.title == title &&
-      other.videoPath == videoPath &&
-      other.thumbnailPath == thumbnailPath &&
-      other.duration == duration &&
-      other.size == size &&
-      other.createdAt == createdAt;
-
-  @override
-  int get hashCode => Object.hash(
-    id,
-    title,
-    videoPath,
-    thumbnailPath,
-    duration,
-    size,
-    createdAt,
-  );
+  Map<String, Object?> toJson(OutputSize size) => {
+    'width': size.width,
+    'height': size.height,
+  };
 }
