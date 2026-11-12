@@ -9,23 +9,29 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
  * `status_studio/ytdlp`: `quickVideoInfo(videoId)` and `videoInfo(videoId)` return yt-dlp's `-J`
  * JSON, without and with solving YouTube's JavaScript challenges; `update()` returns
- * `updated` or `up_to_date`, `version()` the yt-dlp version. Failures come back as
- * `ytdlp_failed` with yt-dlp's error output as the message.
+ * `updated` or `up_to_date`, `version()` the yt-dlp version. `downloadAudio({videoId,
+ * outputPath})` downloads the audio only and pushes `downloadProgress {processId, fraction}`,
+ * where the process ID is the output path; `cancel(processId)` stops it. Failures come back
+ * as `ytdlp_failed` with yt-dlp's error output as the message.
  */
 class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
     MethodChannel.MethodCallHandler {
     // One thread: yt-dlp runs as a Python process and the first call unpacks Python.
     private val worker = Executors.newSingleThreadExecutor()
+    // Downloads run beside quick calls, so reading another link isn't held up by a long one.
+    private val downloads = Executors.newSingleThreadExecutor()
+    private val channel = MethodChannel(messenger, "status_studio/ytdlp")
     private val mainHandler = Handler(Looper.getMainLooper())
     private var initialized = false
 
     init {
-        MethodChannel(messenger, "status_studio/ytdlp").setMethodCallHandler(this)
+        channel.setMethodCallHandler(this)
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -34,6 +40,8 @@ class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
             "videoInfo" -> withVideoId(call, result) { videoInfo(it, ::videoInfoOptions) }
             "update" -> runInBackground(result) { update() }
             "version" -> runInBackground(result) { version() }
+            "downloadAudio" -> startAudioDownload(call, result)
+            "cancel" -> cancel(call, result)
             else -> result.notImplemented()
         }
     }
@@ -51,8 +59,38 @@ class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
         runInBackground(result) { work(videoId) }
     }
 
-    private fun runInBackground(result: MethodChannel.Result, work: () -> Any) {
-        worker.execute {
+    private fun startAudioDownload(call: MethodCall, result: MethodChannel.Result) {
+        val videoId = call.argument<String>("videoId")
+        val outputPath = call.argument<String>("outputPath")
+        if (videoId == null || outputPath == null) {
+            result.error("bad_args", "downloadAudio needs a video ID and an output path.", null)
+            return
+        }
+        runInBackground(result, downloads) { downloadAudio(videoId, outputPath) }
+    }
+
+    private fun cancel(call: MethodCall, result: MethodChannel.Result) {
+        val processId = call.arguments as? String
+        if (processId != null) YoutubeDL.getInstance().destroyProcessById(processId)
+        result.success(null)
+    }
+
+    private fun downloadAudio(videoId: String, outputPath: String): String {
+        val request = YoutubeDLRequest(videoUrl(videoId))
+        request.addCommands(audioDownloadOptions("${context.cacheDir.absolutePath}/yt-dlp", outputPath))
+        ytDlp().execute(request, outputPath) { percent, _, _ ->
+            val progress = mapOf("processId" to outputPath, "fraction" to percent / 100.0)
+            mainHandler.post { channel.invokeMethod("downloadProgress", progress) }
+        }
+        return outputPath
+    }
+
+    private fun runInBackground(
+        result: MethodChannel.Result,
+        executor: ExecutorService = worker,
+        work: () -> Any,
+    ) {
+        executor.execute {
             try {
                 val value = work()
                 mainHandler.post { result.success(value) }
@@ -66,7 +104,8 @@ class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
         }
     }
 
-    /** Runs on the worker thread only, so the one-time init needs no lock. */
+    /** Both threads may start yt-dlp first, so the one-time init is locked. */
+    @Synchronized
     private fun ytDlp(): YoutubeDL {
         val youtubeDl = YoutubeDL.getInstance()
         if (!initialized) {

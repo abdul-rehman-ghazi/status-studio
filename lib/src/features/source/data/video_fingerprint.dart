@@ -11,9 +11,14 @@ const _idHexLength = 16;
 /// Every video ID starts with this; folders named otherwise are older.
 const videoIdPrefix = 'v_';
 
-final _videoIdPattern = RegExp('^$videoIdPrefix[0-9a-f]{$_idHexLength}\$');
+/// A fingerprint, or `yt_` and an 11-character YouTube ID for a linked
+/// video's audio (spec FR-36).
+final _videoIdPattern = RegExp(
+  '^$videoIdPrefix([0-9a-f]{$_idHexLength}|yt_[A-Za-z0-9_-]{11})\$',
+);
 
-/// Whether [folderName] is a fingerprint ID, not an older (YouTube) one.
+/// Whether [folderName] is a current video ID, not one from before M23
+/// (a bare YouTube ID), which the start-up cleanup removes.
 bool isVideoId(String folderName) => _videoIdPattern.hasMatch(folderName);
 
 /// The video's ID: `v_<16 hex>` from its size and the SHA-256 of its first and

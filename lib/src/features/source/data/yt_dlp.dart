@@ -26,10 +26,59 @@ abstract interface class YtDlp {
   Future<YtDlpUpdate> update();
 
   Future<String> version();
+
+  /// Downloads the audio only to [outputPath] (spec FR-36), reporting the
+  /// fraction done to [onProgress]. The file appears only once whole.
+  Future<void> downloadAudio({
+    required String videoId,
+    required String outputPath,
+    required void Function(double fraction) onProgress,
+  });
+
+  /// Stops the download writing [outputPath]; its future then fails.
+  Future<void> cancelDownload(String outputPath);
 }
 
 class PlatformYtDlp implements YtDlp {
-  const PlatformYtDlp();
+  PlatformYtDlp() {
+    _channel.setMethodCallHandler(_onPlatformCall);
+  }
+
+  /// Keyed by output path, which the platform uses as the process ID.
+  final _progressListeners = <String, void Function(double)>{};
+
+  @override
+  Future<void> downloadAudio({
+    required String videoId,
+    required String outputPath,
+    required void Function(double fraction) onProgress,
+  }) async {
+    _progressListeners[outputPath] = onProgress;
+    try {
+      await _call<String>('downloadAudio', {
+        'videoId': videoId,
+        'outputPath': outputPath,
+      });
+    } finally {
+      _progressListeners.remove(outputPath);
+    }
+  }
+
+  @override
+  Future<void> cancelDownload(String outputPath) =>
+      _channel.invokeMethod<void>('cancel', outputPath);
+
+  Future<void> _onPlatformCall(MethodCall call) async {
+    final arguments = call.arguments;
+    if (call.method != 'downloadProgress' || arguments is! Map) {
+      return;
+    }
+    final listener = _progressListeners[arguments['processId']];
+    final fraction = arguments['fraction'];
+    if (listener != null && fraction is num) {
+      listener(fraction.toDouble().clamp(0, 1));
+    }
+  }
 
   @override
   Future<Map<String, Object?>> quickVideoInfo(String videoId) =>
@@ -107,4 +156,4 @@ Object mapYtDlpError(Object error) {
   return YouTubeChangedException('${error.message}');
 }
 
-final ytDlpProvider = Provider<YtDlp>((ref) => const PlatformYtDlp());
+final ytDlpProvider = Provider<YtDlp>((ref) => PlatformYtDlp());
