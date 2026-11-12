@@ -471,11 +471,12 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | Translation (removed in M30) | — | — |
 | Preview / gallery / share | `video_player` / `gal` / `share_plus` | |
 | Key-value storage | `shared_preferences`, with `shared_preferences_android` overridden to 2.4.26 | `recentReels` (JSON). 2.5.x unregisters its one shared `data_store` instance whenever any Flutter engine detaches, and the foreground service's engine does when a script or export ends, so every later read threw; 2.4.x unregisters per engine. The override and its comment in `pubspec.yaml` go when the plugin stops sharing it. |
+| Saved models (M42) | `freezed`, `json_serializable`, `build_runner` (dev); `freezed_annotation`, `json_annotation` | Code generation at build time only; nothing ships that collects data, so §9.2 is unchanged. `build.yaml` sets `checked: true` |
 | Background work | `flutter_foreground_task`, `flutter_local_notifications` | No TaskHandler: the work stays in the app's isolate. Notifications need core library desugaring |
 
 ### Engineering rules
 
-- **No code generation:** `copyWith`, `==` and `hashCode` are written by hand.
+- **Code generation for saved models (M42):** the four classes saved as JSON (`SourceVideo`, `SavedTranscript`, `PartialTranscript`, `RecentReel`) use `freezed` and `json_serializable`; run `fvm dart run build_runner build -d` after changing one, and commit the generated `*.freezed.dart` and `*.g.dart` files. The saved JSON keeps its pre-M42 shape, so files and preferences written before still read: durations as whole milliseconds under `…Ms` keys, and a script's `languageCode` and `lines` and a reel's `width` and `height` at the top level (these two models write `toJson` by hand, because `json_serializable` can't flatten a field). `json_serializable` runs `checked`, so a malformed file throws `CheckedFromJsonException` (an `Exception`), never a `TypeError`. Every other class writes `copyWith`, `==` and `hashCode` by hand.
 - **Copy:** literal from this document and the canvas. The app is general-purpose: never name a content type (naat, bayan…) in UI or code.
 - **Import boundaries:**
   - Only `LocalVideoImporter` reads shared or picked files and copies them into app storage (M23). No yt-dlp or YouTube code remains.
@@ -899,6 +900,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M39 Undo on Lyrics | Undo and Redo in Lyrics' app bar for every line change, with a quick Undo after a delete or a tap-to-time (FR-34) | Built, branch `m39-lyrics-undo` (stacked on M38), merged into `dev` with M40 (2026-11-11); the step label moved under the title after the owner's phone check; tests not run |
 | M40 Lyrics fixes | A clip over silence selects no lines (Add line puts one in); dragging a line scrolls the screen; edits stay the newest script when a run finishes late (FR-21, §15) | Built, branch `m40-lyrics-fixes` (stacked on M39), merged into `dev` (2026-11-11); tests not run |
 | M41 Play the clip | A second button on Fine-tune · Video's player plays the clip from its start and pauses at its end; Play still starts at the seek bar; a clip can't start before a late picture (FR-5) | Built, branch `m41-play-clip` (from `dev`), merged into `dev` (2026-11-12); tests not run |
+| M42 Freezed models | `SourceVideo`, `SavedTranscript`, `PartialTranscript` and `RecentReel` use `freezed` and `json_serializable`; saved JSON unchanged (§11) | In progress, branch `m42-freezed-models` (from `dev`) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1404,6 +1406,17 @@ Request (2026-11-12): Fine-tune · Video should play from where the seek bar was
 - [x] **2. Play the clip.** `ClipPlayer` gets a `_PlayClipButton` (shown only without `onlyRange`) and a `_playingClip` flag: the button seeks to the clip start in file time and plays; `_reportPlayhead` pauses at the clip end while the flag is set; Play, Pause and the seek bar clear it. **New tests to write:** §13 Play the clip. **Stale tests:** finders in `fine_tune_screen_test.dart` or `clip_player_test.dart` that expect one `IconButton` on the player.
 - [x] **3. Status.** §12 status row; push.
 - [x] **4. Late picture (owner's phone check, 2026-11-12).** Play the clip and the seek bar both jumped to 0:04 on a clip starting at 0:00.5: the video track starts at 3.979 s. FR-5 Late picture: `LocalVideoFacts.pictureStart`, `SourceVideo.pictureStart`, `ClipRange.nudgeStart`/`nudgeEnd` take `playable:` (a `ClipRange`) instead of `videoDuration:`, `ClipRange.startingNoEarlierThan`, `ReelDraft.withVideo` and `FineTuneDraft.restoredOnto` move the start up, Trim tab hint. **Stale tests:** callers of `nudgeStart`/`nudgeEnd` with `videoDuration:`, `LocalVideoFacts(...)` without `pictureStart`, `SourceVideo.toJson` expectations without `pictureStartMs`. **New tests to write:** §13 Play the clip, last seven.
+
+### M42 tasks (branch `m42-freezed-models`, from `dev`)
+
+Request (2026-11-12): move the models that are saved as JSON to `freezed` with generated `fromJson` and `toJson`. The saved shape must not change, or scripts, videos and the Recent list kept on the owner's phone would stop reading. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** §11 engineering rule and stack row, §12 row and these tasks.
+- [ ] **2. Set-up.** `freezed_annotation`, `json_annotation`; dev `freezed`, `json_serializable`, `build_runner`. `build.yaml` with `checked: true`. `analysis_options.yaml` excludes `**/*.g.dart` and `**/*.freezed.dart` and ignores `invalid_annotation_target` (`@JsonKey` on a freezed factory's parameters). New `core/json_converters.dart`: `MillisecondsConverter` (`Duration` as whole milliseconds) and `readWholeObject` (a `readValue` that hands a field the whole object, for fields saved flat).
+- [ ] **3. `SourceVideo`.** Freezed, generated `fromJson`/`toJson`; `pictureStart` `@Default(Duration.zero)`. **Stale tests:** `SourceVideo.fromJson` cases that expect a `FormatException` (now `CheckedFromJsonException`), and a non-int `pictureStartMs` that read as 0 (now throws).
+- [ ] **4. Scripts.** `PartialTranscript` fully generated (lines through a `TranscriptLine` converter). `SavedTranscript` freezed with `equal: false` (its `==` keeps `isAtSameMomentAs`, so a local `savedAt` equals the UTC one read back), generated `fromJson` and a hand-written flat `toJson`. `lineFromJson`/`lineToJson` become the private converter. **Stale tests:** cases that expect `FormatException` from these `fromJson`s or call `lineFromJson`/`lineToJson`; `PartialTranscript.lines` is now unmodifiable.
+- [ ] **5. `RecentReel`.** Freezed, generated `fromJson` (size read from `width` and `height`), hand-written flat `toJson`. `RecentReelsRepository` keeps a malformed entry as unreadable on `CheckedFromJsonException` too. **Stale tests:** `RecentReel.fromJson` cases expecting `TypeError`.
+- [ ] **6. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 
