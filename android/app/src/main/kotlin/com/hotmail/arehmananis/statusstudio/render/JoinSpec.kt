@@ -21,7 +21,7 @@ enum class JoinTransition {
 
 /**
  * One stretch of a cut file in a layer, in the file's own time. The upper layer's items blend
- * out over their last [blendMs]; the lower layer's blend in over their first [blendMs].
+ * out over their last [blendMs]; the lower layer's items are leads, [blendMs] long, blending in.
  */
 data class JoinItem(val path: String, val startMs: Long, val endMs: Long, val blendMs: Long) {
     val lengthMs: Long
@@ -43,21 +43,28 @@ data class JoinSpec(
     val transition: JoinTransition,
     val upper: List<JoinItem>,
     val lower: List<JoinItem>,
+    /** The lower layer's items are the leads, one for each window, in order. */
     val windows: List<TransitionWindow>,
+    /** The joined clip's length, so the lower layer's last gap ends with the upper layer. */
+    val lengthMs: Long,
 ) {
     companion object {
         /** Throws [IllegalArgumentException] for a missing or wrong-typed key. */
         fun fromMap(map: Map<String, Any?>): JoinSpec {
             val upper = map.maps("upper").map(::itemFrom)
             require(upper.isNotEmpty()) { "A join needs at least one cut." }
+            val lower = map.maps("lower").map(::itemFrom)
+            val windows = map.maps("windows").map {
+                TransitionWindow(it.whole("startMs"), it.whole("endMs"))
+            }
+            require(lower.size == windows.size) { "Each window needs its lead." }
             return JoinSpec(
                 outputPath = map.text("outputPath"),
                 transition = JoinTransition.fromName(map.text("transition")),
                 upper = upper,
-                lower = map.maps("lower").map(::itemFrom),
-                windows = map.maps("windows").map {
-                    TransitionWindow(it.whole("startMs"), it.whole("endMs"))
-                },
+                lower = lower,
+                windows = windows,
+                lengthMs = map.whole("lengthMs"),
             )
         }
 

@@ -29,7 +29,7 @@ class JoinItem {
   final Duration end;
 
   /// The upper layer's items blend out over their last [blend]; the lower
-  /// layer's blend in over their first [blend] and are silent after it.
+  /// layer's items are leads, [blend] long, blending in.
   final Duration blend;
 
   Duration get length => end - start;
@@ -59,10 +59,12 @@ class TransitionWindow {
   };
 }
 
-/// What the native joiner plays (spec FR-37): two layers without gaps.
-/// The upper plays each cut with its tail, the lower each cut with its
-/// lead; inside a window the upper gives way to the lower, so the blend
-/// sits in the margins and no word of a cut is faded.
+/// What the native joiner plays (spec FR-37): two layers. The upper plays
+/// each cut with its tail, without gaps; the lower only each cut's lead, at
+/// its window, so a second decoder runs only around the joins (a phone may
+/// have one hardware decoder's worth of 1080p60). Inside a window the upper
+/// gives way to the lower, so the blend sits in the margins and no word of
+/// a cut is faded.
 @immutable
 class JoinPlan {
   const JoinPlan({
@@ -77,7 +79,8 @@ class JoinPlan {
   final ClipTransition transition;
   final List<JoinItem> upper;
 
-  /// Empty when no join blends (Cut, or margins cut short to nothing).
+  /// One lead for each of [windows], in order; empty when no join blends
+  /// (Cut, or margins cut short to nothing).
   final List<JoinItem> lower;
   final List<TransitionWindow> windows;
 
@@ -92,6 +95,7 @@ class JoinPlan {
     'upper': [for (final item in upper) item.toChannel()],
     'lower': [for (final item in lower) item.toChannel()],
     'windows': [for (final window in windows) window.toChannel()],
+    'lengthMs': length.inMilliseconds,
   };
 }
 
@@ -108,22 +112,20 @@ JoinPlan planJoin(List<DownloadedCut> cuts, ClipTransition transition) {
     final tail = index == cuts.length - 1 ? Duration.zero : blends[index];
     if (index > 0) {
       cutStart += lead;
-      windows.add(TransitionWindow(start: cutStart - lead, end: cutStart));
       joinTimes.add(cutStart - lead ~/ 2);
     }
-    upper.add(_item(downloaded, before: Duration.zero, after: tail));
-    lower.add(_item(downloaded, before: lead, after: Duration.zero));
+    if (lead > Duration.zero) {
+      windows.add(TransitionWindow(start: cutStart - lead, end: cutStart));
+      lower.add(_lead(downloaded, lead));
+    }
+    upper.add(_withTail(downloaded, tail));
     cutStart += downloaded.cut.length;
   }
-  final blending = blends.any((blend) => blend > Duration.zero);
   return JoinPlan(
     transition: transition,
     upper: upper,
-    lower: blending ? lower : const [],
-    windows: [
-      for (final window in windows)
-        if (window.end > window.start) window,
-    ],
+    lower: lower,
+    windows: windows,
     joinTimes: joinTimes,
     length: cutStart,
   );
@@ -146,18 +148,24 @@ Duration _shortest(List<Duration> lengths) {
   return shortest < Duration.zero ? Duration.zero : shortest;
 }
 
-/// The upper layer blends out over its tail ([after]); the lower blends in
-/// over its lead ([before]).
-JoinItem _item(
-  DownloadedCut downloaded, {
-  required Duration before,
-  required Duration after,
-}) {
+/// The cut and [tail] after it; it blends out over the tail.
+JoinItem _withTail(DownloadedCut downloaded, Duration tail) {
   final file = downloaded.file;
   return JoinItem(
     path: file.file.path,
-    start: file.positionOf(downloaded.cut.start - before),
-    end: file.positionOf(downloaded.cut.end + after),
-    blend: before > Duration.zero ? before : after,
+    start: file.positionOf(downloaded.cut.start),
+    end: file.positionOf(downloaded.cut.end + tail),
+    blend: tail,
+  );
+}
+
+/// The [lead] before the cut, all of it blending in.
+JoinItem _lead(DownloadedCut downloaded, Duration lead) {
+  final file = downloaded.file;
+  return JoinItem(
+    path: file.file.path,
+    start: file.positionOf(downloaded.cut.start - lead),
+    end: file.positionOf(downloaded.cut.start),
+    blend: lead,
   );
 }

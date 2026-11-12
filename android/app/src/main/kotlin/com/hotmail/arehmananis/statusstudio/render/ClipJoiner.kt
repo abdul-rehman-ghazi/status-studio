@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
@@ -38,9 +39,10 @@ private const val FALLBACK_BITRATE = 10_000_000
 /**
  * Joins a linked video's cuts into one H.264/AAC file (spec FR-37). Each cut is clipped from its
  * own file at exact times. With a blend, two layers play at once (see [TransitionCompositor]):
- * the upper with each cut's tail, the lower with each cut's lead, both without gaps; their sound
- * is mixed, each item's volume following [upperVolumeAt] or [lowerVolumeAt]. An AV1 cut is
- * decoded as [VideoConverter] decodes it. One join at a time; must be used from the main thread.
+ * the upper plays each cut with its tail, without gaps; the lower only each cut's lead, at its
+ * window, with gaps between (see [LayeredAssetLoaderFactory] for why). Their sound is mixed, each
+ * item's volume following [upperVolumeAt] or [lowerVolumeAt]. An AV1 cut is decoded as
+ * [VideoConverter] decodes it. One join at a time; must be used from the main thread.
  */
 @OptIn(markerClass = [UnstableApi::class])
 class ClipJoiner(private val context: Context) {
@@ -68,13 +70,15 @@ class ClipJoiner(private val context: Context) {
     /** Throws any exception Media3 raises for a spec it rejects at once. */
     fun join(spec: JoinSpec, listener: Listener) {
         check(running == null) { "A join is already running." }
+        val decoders = LayeredAssetLoaderFactory(context)
         val transformer = Transformer.Builder(context)
+            .setAssetLoaderFactory(decoders)
             .setVideoMimeType(MimeTypes.VIDEO_H264)
             .setAudioMimeType(MimeTypes.AUDIO_AAC)
             .setEncoderFactory(encoderFactory(bitrateFor(spec.upper.first().path)))
             .addListener(completionListener(listener))
             .build()
-        transformer.start(composition(spec), spec.outputPath)
+        transformer.start(composition(spec, decoders), spec.outputPath)
         val poll = progressPoll(transformer, listener)
         running = Running(transformer, spec.outputPath, poll, listener)
         mainHandler.post(poll)
@@ -94,21 +98,40 @@ class ClipJoiner(private val context: Context) {
         }
     }
 
-    private fun composition(spec: JoinSpec): Composition {
+    private fun composition(spec: JoinSpec, decoders: LayeredAssetLoaderFactory): Composition {
         val upper = EditedMediaItemSequence.Builder(
             spec.upper.map { item ->
                 editedItem(item) { timeMs -> upperVolumeAt(item, spec.transition, timeMs) }
             },
         ).build()
         if (spec.lower.isEmpty()) return Composition.Builder(upper).build()
-        val lower = EditedMediaItemSequence.Builder(
-            spec.lower.map { item ->
-                editedItem(item) { timeMs -> lowerVolumeAt(item, spec.transition, timeMs) }
-            },
-        ).build()
-        return Composition.Builder(upper, lower)
+        return Composition.Builder(upper, lowerSequence(spec, decoders))
             .setVideoCompositorSettings(TransitionCompositor(spec.transition, spec.windows))
             .build()
+    }
+
+    /**
+     * Each cut's lead, placed at its transition's window, with gaps between and after: the lower
+     * layer decodes only around the joins. A gap is black and silent, and the upper layer covers
+     * it. It starts with a gap, so its tracks are named up front.
+     */
+    private fun lowerSequence(spec: JoinSpec, decoders: LayeredAssetLoaderFactory): EditedMediaItemSequence {
+        val lower = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO))
+            .experimentalSetForceAudioTrack(true)
+            .experimentalSetForceVideoTrack(true)
+        var placedMs = 0L
+        spec.lower.zip(spec.windows).forEach { (item, window) ->
+            addGap(lower, window.startMs - placedMs)
+            val lead = editedItem(item) { timeMs -> lowerVolumeAt(item, spec.transition, timeMs) }
+            lower.addItem(decoders.inLowerLayer(lead))
+            placedMs = window.startMs + item.lengthMs
+        }
+        addGap(lower, spec.lengthMs - placedMs)
+        return lower.build()
+    }
+
+    private fun addGap(sequence: EditedMediaItemSequence.Builder, lengthMs: Long) {
+        if (lengthMs > 0) sequence.addGap(lengthMs * 1000)
     }
 
     private fun editedItem(item: JoinItem, volumeAtMs: (Long) -> Float): EditedMediaItem {
