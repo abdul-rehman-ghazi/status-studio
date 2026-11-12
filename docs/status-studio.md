@@ -18,7 +18,8 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | # | Screen | Route | Job |
 |---|---|---|---|
 | 1 | Home | `/` | Start a reel; recent reels, saved scripts and fine-tunes to continue (FR-24); open Settings; a shared video opens Source (FR-1) |
-| 2 | Source | `/source` | "Choose a video" from the gallery, or the video shared into the app (FR-1); on Android, From a link (FR-35, M44); a card with thumbnail, name and length; Next: video (changed in M30: the language, Get the script and Make it without lyrics moved to Lyrics) |
+| 2 | Source | `/source` | "Choose a video" from the gallery, or the video shared into the app (FR-1); on Android, From a link with a topic and length (FR-35, FR-36); a card with thumbnail, name and length; Next: video (changed in M30: the language, Get the script and Make it without lyrics moved to Lyrics) |
+| 2b | Review cuts | `/source/cuts` | Android (M45): finding the moments, then the cuts to check, the transition and Make the clip (FR-36, FR-37) |
 | 3 | Processing (removed) | — | Removed in M30: the script run (clean the voice, write with Groq, detect the language, line up timestamps) shows on Fine-tune · Lyrics (FR-21). The number stays so references keep working |
 | 4 | Script (removed) | — | Removed in M25 (task 7): it was a read-only list that Fine-tune · Lyrics repeats, editable. Language, Fix with Groq and the saved-script line moved to Fine-tune · Lyrics. The number stays so references keep working |
 | 5 | Fine-tune · Video | `/fine-tune` | "Step 1 of 2" (M30): plays the kept video file with Trim and Crop tabs under it. Trim: the clip's start and end, nudged by ±0.5 s, and the waveform (FR-5). Crop: size, fill and crop (FR-6), and the crop that moves at each scene, with the scene strip, New position here and Follow the person (FR-22, FR-27) |
@@ -435,6 +436,27 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Weekly check:** at start-up on Android, when the last successful check is 7 days old or there never was one, yt-dlp updates itself quietly (about 3 MB). A failed check isn't recorded, so the next start tries again. It is the only code fetched at runtime (§9).
 - **APK:** youtubedl-android brings Python, QuickJS and its native libraries, stored uncompressed (legacy JNI packaging) because it unpacks Python from the installed library folder.
 
+**FR-36 Find the topic (M45, Android only).** Asked by the owner (2026-11-12, M43–M47 design): type a topic and a length, and the app finds the moments of a linked video (FR-35) about it, for the user to review before anything big is downloaded.
+- **On Source, under the link card** (once a link is read): **Topic** (a text field, any language: "What should the clip be about?"), **Length** (chips 15 s, 30 s, 60 s (default), 90 s, Custom; Custom asks for seconds from 5 to 300) and **Find the moments**, which opens Review cuts (`/source/cuts`).
+- **Transcript, cheapest first:**
+  1. YouTube's captions: an uploaded track first (in the video's language when YouTube names one, else any), else the auto-generated track in the spoken language (`<code>-orig`), never a machine translation. Fetched as `json3` from the URL yt-dlp gives. Urdu talks usually come as Hindi in Devanagari (§10 item 10); that is fine for finding moments.
+  2. Otherwise the audio only (`bestaudio[ext=m4a]`) is downloaded by yt-dlp into `sources/v_yt_<YouTube ID>/source.m4a` and written by the script pipeline as a video with that ID (FR-26, FR-12a, FR-14): cleaned, sent in pieces, resumed per piece, saved.
+  - **Length caps:** up to 3 hours with captions, 2 hours without (§8 "too long"). Without captions and over 1 hour, Review cuts asks first: "This video has no captions, so Groq writes its script first. That takes a while and uses much of Groq's free daily audio." with Continue and Back.
+- **Blocks:** transcript lines are merged into blocks of at least 5 s (a block ends at the first line end after 5 s), numbered. Cuts are runs of whole blocks, so a cut never starts or stops mid-line.
+- **Reading in parts:** blocks go to Groq's chat model (`openai/gpt-oss-120b`, low reasoning, JSON reply; the spike in §10 may change it) in parts of about 4,500 tokens (estimated as UTF-8 bytes ÷ 3), with the topic. Each part replies with candidate moments: first and last block, a score from 0 to 1, a one-line reason in English. Progress: "Reading the transcript, part 3 of 6".
+- **Picking:** when the candidates add up to more than the length, one more call gets them with the topic and the length and replies with their order, best first. Then the app walks that order (or the score order), keeping a candidate when it doesn't overlap a kept one and the kept total stays within 110 % of the length, until the total reaches 90 %. Candidates under 2 s are dropped. The kept cuts are shown in video order.
+- **Saved:** the transcript of a linked video (captions route) and each topic's candidates and order are saved per YouTube ID (`topics/<YouTube ID>/`), so Find again or the same topic later sends nothing. Saved for 90 days like scripts (FR-14).
+- **Groq's limits:** a 429 within a minute is waited out by the client as today. A longer one shows "Groq's free limit reached, continuing at 3:40" with Cancel and resumes on its own; a wait over 15 minutes is taken as the daily limit (§8), and the saved candidates stay.
+- **Review cuts screen** (`/source/cuts`, title "Review cuts"):
+  - While finding: the step ("Getting the captions", "Writing the script" with the script pipeline's progress, "Reading the transcript, part 3 of 6", "Picking the best moments"), a bar, and Cancel.
+  - One card per cut: `1:02:13–1:02:31 · 18 s`, its transcript text (three lines, tap to expand), the reason in small text; start and end each with − and + (0.5 s, never past the next or previous block edge of another cut, never under 2 s); Remove. Cards can be dragged to reorder.
+  - **Add a moment:** a sheet with the transcript blocks and a search field; tapping a block adds it as a cut in video order.
+  - **Footer:** the total against the length ("58 s of 60 s"), the **Transition** picker, and **Make the clip** (M46; until then it shows "Coming in the next update").
+  - **Transition picker:** Cut, Crossfade (default), Fade through black, Slide, as four tiles each looping a small preview (two coloured panels changing in that way). One transition for every join, 0.3 s.
+  - **Find again** in the app bar: reads the transcript again with the same topic, asking "Replace your edited cuts?" first when cuts were changed. Since the topic's candidates are saved, it only reruns the picking.
+  - Play on a card is added by M46 (it needs the section download).
+- **Consent (FR-30):** finding sends the transcript text and the topic to Groq, so the consent screen says so, and a user who agreed before M45 is asked once more.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -622,6 +644,9 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | Invalid link (removed in M23, back in M44) | Source | That doesn't look like a YouTube link. | Edit |
 | Video unavailable, private, age-restricted or live (removed in M23, back in M44) | Source (link card) | This video can't be downloaded. | Edit |
 | No network while reading a link (M44) | Source (link card) | You're offline. Connect and try again. | Read link |
+| A link over the length cap (M45, FR-36) | Review cuts | This video is too long. Links can be up to 3 hours with captions, or 2 hours without. | Back |
+| No moments about the topic (M45, FR-36) | Review cuts | Couldn't find this topic in the video. Try other words or a longer video. | Find again, Back |
+| Groq's daily limit used up (M45, FR-36) | Review cuts | Groq's free daily limit is used up. Try again tomorrow, or use a key on Groq's paid plan. | Back |
 | No network during download (removed in M23: nothing is downloaded; offline errors remain for Groq) | Lyrics (Processing until M30) | You're offline. Connect and try again. | Retry, Back |
 | yt-dlp can't read the video (removed in M23, back in M44) | Source (link card) | Couldn't read this video from YouTube. Update the downloader in Settings, or try again later. | Read link |
 | The video has no audio track, or can't be read (M23) | Source / Processing | Can't read this video. | Choose another video, Back |
@@ -1557,6 +1582,19 @@ Request (2026-11-12): FR-35, from the M43–M47 design. Tests are the owner's; `
 - [x] **6. Downloader in Settings and the weekly check.** `yt_dlp_updater.dart` (restored, plus last-checked read), the start-up hook in `main.dart` (Android only), `/settings/downloader` and its row. **New tests to write:** `updateIfDue` (restore), the Settings row shown on Android only.
 - [x] **7. Desktop spike for M46.** With yt-dlp on the Mac: exact-time section downloads and how often H.264 ≤ 1080p is offered, on five videos; recorded in §10. The phone half (time on the Redmi, APK size) is the owner's.
 - [x] **8. Status.** §12 status row; push.
+
+### M45 tasks (branch `m45-find-the-topic`, stacked on `m44-link-in`)
+
+Request (2026-11-12): FR-36, from the M43–M47 design. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run. The model spike (Urdu topics over Hindi captions, small model for parts, real token counts) needs a Groq key and is the owner's; the model is one constant.
+
+- [x] **1. Spec.** FR-36, §8 rows, these tasks.
+- [ ] **2. Captions of a linked video.** `CaptionCue`, `linesFromCaptions` and `captionsFromJson3` restored (`a5294bf^`) as `transcript/domain/youtube_captions.dart`; `pickTopicCaptionUrl` (uploaded track, else `-orig` auto track, `json3`); `LinkedVideo.captionsUrl`; `YouTubeCaptionsFetcher` (Dart `HttpClient`). **New tests to write:** json3 parsing and line cleaning (restore), the track pick.
+- [ ] **3. Audio of a linked video for Groq.** Kotlin `downloadAudio(videoId, outputPath)` with progress events; Dart `LinkedAudioDownloader` into `sources/v_yt_<id>/source.m4a`; the script pipeline runs on `SourceVideo(videoId: 'v_yt_<id>')`. **New tests to write:** the downloader's output path and its progress mapping.
+- [ ] **4. Groq chat and consent.** `GroqClient.chatJson` (POST `/chat/completions`, JSON reply, `beforeUpload` first); `GroqRateLimitedException` keeps its wait; consent stored under a new key so earlier agreements ask once more; the consent screen's text. **New tests to write:** `chatJson` request shape and consent check, consent asked again after M45.
+- [ ] **5. Finding moments (domain).** `topic/domain/`: blocks, parts, prompts, reply parsing, the fit to the length; `topic/data/topic_store.dart` (transcripts and candidates per YouTube ID). **New tests to write:** blocks, parts by size, reply parsing (bad JSON, unknown block numbers), the fit (overlaps, 2 s, 90–110 %).
+- [ ] **6. Finding moments (application).** `TopicFinder`: caps, transcript route, parts with waits and resume, picking, saving; progress events. **New tests to write:** captions route, Groq route, caps, long waits, daily limit, saved candidates reused.
+- [ ] **7. Source and Review cuts.** Topic, length, Find the moments; `/source/cuts` with progress, cards, nudges, remove, reorder, Add a moment, total, the transition picker, Find again. **Stale tests:** Source finders (new fields after a read link).
+- [ ] **8. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 
