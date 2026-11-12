@@ -68,7 +68,8 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 **FR-5 Fine-tune (two steps since M19; changed in M23).** Both steps keep their own player over the same kept video file (FR-1); Next on step 1 opens step 2, and Back returns.
 - **Step 1, Video** (`/fine-tune`, "Step 1 of 2" since M30; "Step 2 of 4" before). The player is pinned; under it the **Trim** tab holds the range, nudges, set-to-playhead and waveform below, and the **Crop** tab holds the frame (FR-6) and the moving crop (FR-22). Trim opens first; the tab stays as last used while the reel is open:
   - **Opening:** the player opens the kept video file at once. Nothing is downloaded (changed in M23).
-  - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole video, drawn as an outline with only the clip range filled; the time already played is not coloured, so it never hides the clip range. The bar and its time follow the interpolated playhead, so they move smoothly between the player's reports; a report that differs a little is blended in, a big one is a seek. The time has a fixed width with equal-width digits, so the bar never changes size. It does not stop at the clip end. (A "Play clip" button, which sought to the clip start and played, was removed after M30: the video arrives trimmed, so it duplicated play.)
+  - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole video, drawn as an outline with only the clip range filled; the time already played is not coloured, so it never hides the clip range. The bar and its time follow the interpolated playhead, so they move smoothly between the player's reports; a report that differs a little is blended in, a big one is a seek. The time has a fixed width with equal-width digits, so the bar never changes size. Play starts where the seek bar is and does not stop at the clip end. (A "Play clip" button, which sought to the clip start and played, was removed after M30: the video arrives trimmed, so it duplicated play. It came back in M41, now stopping at the clip end, because the nudges and set-to-playhead trim the clip further.)
+  - **Play the clip (M41):** a second, smaller button in the video's bottom-left corner (beside Play when the crop window is drawn and Play sits there) plays the clip from its start and pauses at its end, so the user hears the status as it will be. Tooltip "Play the clip from its start". It seeks to the clip start even while playing. Pause, Play or a drag on the seek bar ends clip playing; Play after that starts where the bar is and does not stop at the end. The clip end is read as it is now, so a nudge while it plays moves where it stops. Step 2, Lyrics, doesn't show it: its bar is already the clip.
   - **Range:** the clip defaults to the whole video, from 0 to its length. The nudges narrow it.
   - **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. Both ends can be nudged, so a clip over 60 s can be shortened from either side. A clip that starts out invalid still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
   - **Set to the playhead:** tapping the Start time, or the End time, sets it to where the video is now, rounded to 0.1 s. The nudge rules apply: a time that would leave the clip under **3 s**, or outside the video, changes nothing. It does nothing until the player is ready.
@@ -1393,6 +1394,14 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - [x] **4. Edits survive a late run.** `ScriptProgressController` saves the edited lines again when a written run (no `savedAt`) ends while `linesEdited`. **New tests to write:** §13 Lyrics fixes, third.
 - [x] **5. Status.** §12 status row; push.
 
+### M41 tasks (branch `m41-play-clip`, from `dev`)
+
+Request (2026-11-12): Fine-tune · Video should play from where the seek bar was dragged and also from the clip start. The owner chose a second button on the video and stopping at the clip end. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-5 (Play the clip), §13 Play the clip.
+- [ ] **2. Play the clip.** `ClipPlayer` gets a `_PlayClipButton` (shown only without `onlyRange`) and a `_playingClip` flag: the button seeks to the clip start in file time and plays; `_reportPlayhead` pauses at the clip end while the flag is set; Play, Pause and the seek bar clear it. **New tests to write:** §13 Play the clip. **Stale tests:** finders in `fine_tune_screen_test.dart` or `clip_player_test.dart` that expect one `IconButton` on the player.
+- [ ] **3. Status.** §12 status row; push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -1642,6 +1651,13 @@ Tests are the owner's; `fvm flutter analyze` only, and each commit says tests we
 - The overlay PNG is identical whether the app is in Light or Dark.
 - The reel preview's caption and branding colours are the same in Light and Dark.
 - The launch splash's first frame uses the phone's brightness, not the saved choice.
+
+**Play the clip (M41):**
+- Fine-tune · Video shows a "Play the clip from its start" button; Lyrics doesn't.
+- Tapping it seeks to the clip start and plays.
+- Playing it pauses once the position reaches the clip end.
+- Play after a pause starts where the bar is and doesn't pause at the clip end.
+- A drag on the seek bar during clip playing stops it pausing at the clip end.
 
 ## 14. Device checks (removed)
 
