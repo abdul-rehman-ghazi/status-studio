@@ -901,8 +901,13 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M40 Lyrics fixes | A clip over silence selects no lines (Add line puts one in); dragging a line scrolls the screen; edits stay the newest script when a run finishes late (FR-21, §15) | Built, branch `m40-lyrics-fixes` (stacked on M39), merged into `dev` (2026-11-11); tests not run |
 | M41 Play the clip | A second button on Fine-tune · Video's player plays the clip from its start and pauses at its end; Play still starts at the seek bar; a clip can't start before a late picture (FR-5) | Built, branch `m41-play-clip` (from `dev`), merged into `dev` (2026-11-12); tests not run |
 | M42 Freezed models | `SourceVideo`, `SavedTranscript`, `PartialTranscript` and `RecentReel` use `freezed` and `json_serializable`; saved JSON unchanged (§11) | Built, branch `m42-freezed-models` (from `dev`), merged into `dev` (2026-11-12); analyze clean apart from two older unused-widget warnings in `fine_tune_trim_tab.dart`; tests not run |
+| M43 Off the stores | Stores dropped; GPL-3.0 and a public repo; keystore out of history; IzzyOnDroid (M43–M47 design) | Designed (2026-11-12), not started |
+| M44 Link in | Paste or share a link (Android); yt-dlp back, self-updating (FR-35) | Designed (2026-11-12), not started |
+| M45 Find the topic | Topic and length; transcript from captions or Groq; a Groq chat model picks the moments; Review cuts with the transition picker (FR-36) | Designed (2026-11-12), not started |
+| M46 Download and join | Only the cuts download; joined with the transition into one video that opens Fine-tune, a scene per cut (FR-37) | Designed (2026-11-12), not started |
+| M47 F-Droid | ML Kit face detection replaced by an open model; built from source for F-Droid's main repository | Designed (2026-11-12), not started |
 
-**Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
+**Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
 ### M9 tasks (branch `m9-groq-transcription`)
 
@@ -1417,6 +1422,105 @@ Request (2026-11-12): move the models that are saved as JSON to `freezed` with g
 - [x] **4. Scripts.** `PartialTranscript` fully generated (lines through a `TranscriptLine` converter). `SavedTranscript` freezed with `equal: false` (its `==` keeps `isAtSameMomentAs`, so a local `savedAt` equals the UTC one read back), generated `fromJson` and a hand-written flat `toJson`. `lineFromJson`/`lineToJson` become the private converter. **Stale tests:** cases that expect `FormatException` from these `fromJson`s or call `lineFromJson`/`lineToJson`; `PartialTranscript.lines` is now unmodifiable.
 - [x] **5. `RecentReel`.** Freezed, generated `fromJson` (size read from `width` and `height`), hand-written flat `toJson`. `RecentReelsRepository` keeps a malformed entry as unreadable on `CheckedFromJsonException` too. **Stale tests:** `RecentReel.fromJson` cases expecting `TypeError`.
 - [x] **6. Status.** §12 status row; push.
+
+### M43–M47 design: a topic clip from a link, and F-Droid (2026-11-12)
+
+Request, 2026-11-12: paste a video link and a topic; the app finds the moments about that topic, cuts them to a set length (60 s or any length), joins the cuts with a transition, and carries on into the crop and lyrics as today. Reference: ytdlnis (GPL Android front end for yt-dlp). Agreed with the owner in chat. Five milestones, one branch each, stacked from `dev`: `m43-off-the-stores`, `m44-link-in`, `m45-find-the-topic`, `m46-download-and-join`, then `m47-fdroid`. Tests are the owner's; `fvm flutter analyze` only. Items marked *Claude's call* were not asked; the owner can overturn them.
+
+**Why.** The owner's source videos are long (talks, interviews, podcasts, often Urdu) and a status clip wants one topic out of them. Today they must find the moments, cut and join them in another app, then share the result in. This brings that work into the app.
+
+**Decisions taken with the owner.**
+- **Off the stores, onto F-Droid.** The Play Store and App Store plan is dropped. This reverses the 2026-11-05 pivot's distribution decision (§9 Distribution) and makes link downloads allowed again.
+- **Open source.** youtubedl-android is GPL-3.0, and F-Droid lists only open-source apps, so the app becomes GPL-3.0 and the repo goes public. Before that, `android/key.properties` and `android/app/upload-keystore.jks` are removed from git history and kept by the owner outside the repo; release signing reads them from a path outside the repo (or environment variables), and CLAUDE.md's "private repo" rule is replaced.
+- **IzzyOnDroid first, F-Droid next.** IzzyOnDroid takes the APK the owner builds and signs, so it carries M44–M46 as soon as they are done (GitHub releases alongside). F-Droid's main repository builds from source and rejects non-free code, which ML Kit is, so it comes in M47 after ML Kit is replaced. The yt-dlp updater is allowed there with the NonFreeNet anti-feature, as Seal has.
+- **yt-dlp keeps itself working.** "Update downloader" in Settings plus a quiet check about once a week fetches the latest yt-dlp, as M7 did. The rule "no code fetched at runtime" goes.
+- **Android only.** iOS keeps the local-video flow (FR-1) and shows no link input. With the App Store dropped, iOS is kept buildable (`fvm flutter build ios --no-codesign`) but is not distributed; it carries no yt-dlp code or wording.
+- **Transitions:** a picker, default crossfade 0.3 s, on picture and sound.
+- **Content can be Urdu** (and any language the app already handles): the topic can be typed in Urdu, English or Roman Urdu, and the matching is by meaning, not by words.
+
+**Goals.**
+- Paste or share a link, type a topic, pick a length, and get a reviewed list of cuts that add up to about that length.
+- Download only the picked sections, never the whole video.
+- Join the cuts with the chosen transition into one video that goes straight into Fine-tune · Video, where each cut is a scene for the crop (FR-27).
+
+**Non-goals.** No search across several videos or a channel. No playlists. No music, stickers or text animation (§11). No auto-picked crop subject (FR-27 stays). No new caption or lyrics behaviour: Lyrics works on the joined video as on any other.
+
+**Anti-goals.** Downloading the whole video when only sections are needed. A cut that starts or stops mid-word. Sending anything to Groq before the consent (FR-30). Picking the topic moments with no chance to review them before the download. A second FFmpeg build bundled by us for our own video work.
+
+**M43 Off the stores (spec and rule changes, little code).**
+- §1, §9 (Distribution, YouTube access, Data saving), §11, CLAUDE.md: the app is distributed as an APK; link downloads and a self-updating yt-dlp are allowed on Android; "no media downloads" and "no runtime-fetched code" become "downloads only from a link the user gave, and only yt-dlp updates itself".
+- §9.1 privacy policy rewritten for the new sends (the topic and transcript text to Groq, FR-36) and the link downloads; §9.2 store answers and §9.3 listing rules marked historical (kept, not renumbered). `PrivacyInfo.xcprivacy` stays for the iOS build.
+- FR-30 consent stays, and its screen text gains the transcript-and-topic send (FR-36). A user who agreed before M45 is asked again once, since what is sent changed (*Claude's call*).
+- "Pending ideas": "Share from YouTube" is back (FR-35).
+
+- **Going public (owner's steps, listed as a task):** rewrite history without the keystore and `key.properties` (`git filter-repo`), force-push, add `LICENSE` (GPL-3.0), make the repo public, and publish the first release on GitHub; then submit to IzzyOnDroid. Claude prepares the commands and the release notes; the owner runs the force-push and flips the repo public.
+
+**M44 Link in (new FR-35, Android).**
+- **Bring back M7 from git history** where it still fits: youtubedl-android and its Gradle and JNI packaging, `YtDlpChannel.kt`/`YtDlpCommands.kt`, `yt_dlp.dart`, `yt_dlp_info.dart`, `yt_dlp_updater.dart`, `youtube_link.dart`, the caption choice and json3 parser (removed in `a5294bf`). Read without JavaScript first, QuickJS only when no formats are found (§10 item 4).
+- **Source screen:** under "Choose a video", a second card "From a link": a link field (pasted, or filled when a link is shared into the app from the YouTube app or a browser), then **Topic** (free text, any language), then **Length**: chips 15 s, 30 s, 60 s (default), 90 s, and Custom (any length from 5 s to 5 min, *Claude's call* on the bounds). Button: **Find the moments**. Hidden on iOS.
+- **Video facts:** title, channel, length and thumbnail read by yt-dlp and shown on a card, as M7 did.
+- **Links:** YouTube watch, short, `youtu.be` and Shorts links for certain; other sites yt-dlp supports are allowed but not promised (*Claude's call*).
+- **Settings:** a "Downloader" screen in the list (FR-31): yt-dlp version, Update downloader, last checked. The weekly check runs at start-up, quietly, on Wi-Fi or mobile (*Claude's call*).
+- **Share in:** a shared `text/plain` that holds a link opens Source with the link filled; a shared video still opens Source as today (FR-1).
+- **Spike first (§10, new item):** pass conditions: today's yt-dlp in youtubedl-android still reads a YouTube video on the Redmi Note 11 (time recorded); a section downloads at exact times (yt-dlp's section download through its own FFmpeg, or M7's ranged downloader from the segment index); how often H.264 at or under 1080p is offered on five test videos; and the APK size with Python back.
+
+**M45 Find the topic (new FR-36).**
+- **Transcript of the whole video, cheapest first:**
+  1. YouTube's captions in the video's language, uploaded first, auto-generated second (the M7 caption choice). Text only, nothing uploaded to Groq for this.
+  2. If there are none: download the audio only, then clean and send it to Groq Whisper as the script pipeline does (FR-26, FR-12a), piece by piece, with its progress and per-piece resume (FR-14).
+  - **Groq's free plan** (official rate-limits page, 2026-11-12; the key's own limits are on the console's Limits page): `whisper-large-v3` 7,200 audio seconds an hour and 28,800 a day, 20 requests a minute, 2,000 a day; `gpt-oss-120b` 8,000 tokens a minute, 200,000 a day, 1,000 requests a day. Captions cost no Groq audio.
+  - **Length cap by source** (agreed 2026-11-12): up to 3 hours with YouTube captions, up to 2 hours without, so the audio fits one hour's allowance. Longer links are refused (§8 row). Without captions and over 1 hour, a note before starting says it takes a while and uses much of Groq's free daily audio.
+  - **Wait, don't stop** (agreed 2026-11-12): when Groq answers that a limit is reached (HTTP 429), the run shows "Groq's free limit reached, continuing at 3:40" (the time from Groq's `retry-after`) with Cancel, and resumes on its own from the next piece. Pieces done stay saved (FR-14). The foreground service keeps it alive (FR-16).
+  - Saved per YouTube video ID, so the same link with another topic doesn't fetch it again.
+- **Picking the moments:** the transcript lines (with their times) and the topic go to a Groq chat model with the user's key. It returns ranges in the video's time, each with a one-line reason, that best fit the topic and add up to the length. The app then:
+  - snaps each range out to the nearest line edges so no cut chops a word,
+  - keeps them in video order,
+  - drops overlaps and ranges under 2 s (*Claude's call*),
+  - shortens or adds until the cuts' total is within ±10 % of the length. The transitions don't count against it: they play in the margins outside each cut (M46), so a 60 s target with four crossfades runs about 60.9 s (*Claude's call*).
+- **Long transcripts in parts** (agreed 2026-11-12): a long transcript goes in parts sized to fit the tokens-a-minute limit. Each part returns its candidate moments with a score; one last call picks among them. Calls are paced to the limit, with progress "Reading the transcript, part 3 of 6". Rough size (*Claude's estimate*, to be measured): an hour of English talk is about 12,000 tokens and Urdu two to three times that, so one search on an hour of Urdu takes about 4–5 minutes and the free daily allowance covers about six.
+- **Saved candidates:** each part's candidates are saved per video ID and topic, so Find again with the same topic sends nothing; only a new topic spends tokens.
+- **Two models:** a small, fast model reads the parts and a large one makes the final pick, if the spike shows the small one finds the moments well enough; otherwise the large one does both.
+- **Daily limit:** when the day's tokens or requests are used up, the §8 message "Groq's free daily limit is used up. Try again tomorrow, or use a key on Groq's paid plan." with Dismiss. The saved candidates stay.
+- **Spike first (§10, new item):** which Groq chat model picks well for an Urdu talk with a topic typed in Urdu, English and Roman Urdu; whether a small model is good enough for the parts; the tokens an hour of Urdu and English transcript really takes; and the part size that fits the free plan. Pass when a person agrees the picked moments are about the topic on three test videos.
+- **Review cuts screen** (new, `/source/cuts`):
+  - One card per cut: thumbnail at its start, `1:02:13–1:02:31 · 18 s`, its transcript text, and the model's reason in small text.
+  - On each card: Play (on first tap downloads that range at up to 480p with sound into the cache and plays it; YouTube rarely offers a combined stream to play directly, *Claude's call*), ±0.5 s on the start and end, Remove. Drag to reorder (*Claude's call*: allowed, video order by default).
+  - **Add a moment:** opens the transcript with search, and a tap on a line adds it as a cut.
+  - **Footer:** the total against the length (`58 s of 60 s`), the **Transition** picker, and **Make the clip**.
+  - **Find again:** keeps the transcript, sends the topic again, and asks first if cuts were edited.
+- **Transition picker** (on Review cuts, one transition for every join, *Claude's call*): **Cut**, **Crossfade** (default), **Fade through black**, **Slide** (the next cut pushes in from the right), each with a small looping preview tile. Length 0.3 s, fixed for now. Crossfade and Slide overlap the sound too; Fade through black dips the sound with the picture; Cut is a hard cut.
+- **Errors (§8, new rows):** Groq's daily limit (above); a link over the length cap ("This video is too long. Links can be up to 3 hours with captions, or 2 hours without."); no topic found ("Couldn't find this topic in the video. Try other words or a longer video."); the link can't be read, even after updating yt-dlp (brings back the old "Couldn't read this video" row); a private, age-restricted or members-only video; no Groq key (the existing row).
+
+**M46 Download and join (new FR-37).**
+- **Download only the cuts**, each with a margin of the transition's length on both sides, at up to 1080p: H.264 when offered, otherwise the best stream at or under 1080p in any codec, with AV1 going through M31's convert (*Claude's call*), using yt-dlp's section download or the Dart ranged downloader from M7, whichever the M44 spike shows works with the bundled tools. Progress per cut, with speed and size, as M7 showed it; Cancel keeps the finished cuts.
+- **Join** in the native renderer (Media3 on Android) into one H.264/AAC file with the transitions, kept as `sources/<videoId>/source.mp4` with a fingerprint like any shared video (FR-1). It then opens Fine-tune · Video with the clip set to the whole joined video, and each join point marked as a scene for the crop (FR-27).
+- **Join points as scenes** (*Claude's call*): the join times are saved with the source video and added to what `scdet` finds (a blend won't register as a cut). A join is always a scene edge: the 0.5 s merge rule never removes one. The crop's Cut keyframe sits at the middle of the transition.
+- **Where the blend sits:** in the margins. The outgoing cut plays past its snapped end into its margin while the incoming cut starts in its margin before its snapped start, so no word inside a cut is faded. From there it is the normal flow: Trim, Crop, Lyrics (Groq on the joined video's audio, FR-21), Export.
+- **One encode extra:** the join re-encodes once before the final export. Accepted for simplicity: the existing flow then works on one plain file. The join uses a high bitrate to keep the loss small (*Claude's call*).
+- **FFmpeg:** youtubedl-android brings its own FFmpeg for yt-dlp's use only. Our own work (cleaning, thumbnails, frame sampling) stays on `ffmpeg_kit_flutter_new_min`. The "one FFmpeg" rule is reworded to say so (M43).
+- **Recent:** a joined clip appears in Recent like any reel (FR-24), with the topic as its name, and reopens Fine-tune on the joined file. The link and topic are kept with it and shown; reopening Review cuts is not in scope (*Claude's call*).
+
+**M47 F-Droid (main repository).**
+- **Spike first (§10, new item):** run ML Kit and MediaPipe's BlazeFace full-range `.tflite` (Apache 2.0) on the same sampled frames of the reference clips on the Redmi Note 11. Pass when BlazeFace finds at least 95 % of the faces ML Kit finds (a face matched when boxes overlap by IoU ≥ 0.5) and takes no longer per frame than ML Kit's 102 ms (§10 item 7). Fail: F-Droid waits and IzzyOnDroid stays the channel; M47 stops there.
+- **Swap the face detector:** `SubjectDetector` runs BlazeFace through TensorFlow Lite, the way the EfficientDet-Lite0 body detector already runs; `google_mlkit_face_detection` is removed, along with any Google Play Services class it pulled in. FR-23 to FR-27 behaviour doesn't change (faces down to 5 % of the frame, boxes only). iOS uses the same model (*Claude's call*: one detector on both platforms).
+- **Build from source:** an F-Droid metadata file (`com.hotmail.arehmananis.statusstudio.yml`) for `fdroiddata`, Fastlane listing text and screenshots in the repo, and a check that F-Droid's build server accepts the prebuilt FFmpeg Kit and youtubedl-android binaries (if not: a build recipe for them, or the anti-feature F-Droid asks for). Anti-features expected: NonFreeNet (Groq, YouTube).
+- **Submit** the merge request to `fdroiddata` (the owner's account).
+
+**Left to the builder.** Widget structure and file names; the prompt and JSON shape for the chat model; how the transitions are drawn in Media3 (two overlapping sequences, a custom `GlEffect`, or a per-item effect); the preview tiles; the order of restoring M7 files; the exact error text beyond the rows above.
+
+**Spec sections to update when built.** §1, §2 (Source, new Review cuts, Settings), FR-1, FR-23 (detector), new FR-35 to FR-37, FR-30 text, FR-31 (Downloader, licence GPL-3.0 in About), §5 package map and rules, §6.1 types, §8 rows, §9, §9.1–9.3, §10 (three new spike items), §11, §13 (new behaviour), CLAUDE.md (distribution, private repo and signing, runtime code, one-FFmpeg wording).
+
+### M43 tasks (branch `m43-off-the-stores`, from `dev`)
+
+Request (2026-11-12): the M43–M47 design above. M43 is the spec, rule and signing work that lets the repo go public under the GPL; no feature code. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** The M43–M47 design, the §12 rows and these tasks.
+- [ ] **2. Off the stores in the spec.** §1 (distribution, downloads, pivot note), §9 rows (Scope, Distribution, YouTube access, Data saving, Signing; new Licence row), §9.1 (hosting in the public repo, store wording out; the link and transcript sends are added by M44 and M45 when built), §9.2 and §9.3 marked historical, §11.
+- [ ] **3. CLAUDE.md.** Distribution, open source and public repo, signing outside the repo, yt-dlp allowed from M44, runtime updates of yt-dlp only, the one-FFmpeg wording (youtubedl-android's own FFmpeg serves yt-dlp only).
+- [ ] **4. Signing outside the repo.** `android/app/build.gradle.kts` reads `key.properties` from `STATUS_STUDIO_KEY_PROPERTIES`, else `~/.status-studio/key.properties`, else `android/key.properties` (now ignored); `storeFile` is relative to the properties file. Without any, release builds come out unsigned (never debug-signed), which F-Droid needs for its own signing. `android/key.properties` and `android/app/upload-keystore.jks` are untracked and ignored; the files stay on the owner's disk.
+- [ ] **5. Licence.** `LICENSE` with the GPL-3.0 text; About says "Free software under the GNU GPL, version 3. Source code: github.com/abdul-rehman-ghazi/status-studio" (FR-31). **Stale tests:** About finders that count its texts.
+- [ ] **6. Going public (the owner's steps, not run by Claude).** (a) Back up `upload-keystore.jks` and `key.properties` somewhere safe outside the repo, such as a password manager: losing them means no update can ever install over the released app. (b) Move them to `~/.status-studio/` and fix `storeFile` there. (c) With every branch pushed, in a fresh mirror clone: `git clone --mirror https://github.com/abdul-rehman-ghazi/status-studio.git && cd status-studio.git && git filter-repo --invert-paths --path android/key.properties --path android/app/upload-keystore.jks && git push --force --mirror origin`. (d) Delete the old local clone and clone again (old clones still hold the files). (e) On GitHub: Settings → Change visibility → Public. (f) Publish the first release with the signed APK; then ask IzzyOnDroid to add the app.
+- [ ] **7. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 
