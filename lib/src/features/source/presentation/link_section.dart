@@ -55,7 +55,7 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionLabel('From a link'),
+        const SectionLabel('YouTube link'),
         TextField(
           controller: _linkField,
           keyboardType: TextInputType.url,

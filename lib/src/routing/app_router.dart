@@ -15,6 +15,7 @@ import 'package:status_studio/src/features/settings/presentation/groq_section.da
 import 'package:status_studio/src/features/settings/presentation/settings_page.dart';
 import 'package:status_studio/src/features/settings/presentation/settings_screen.dart';
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
+import 'package:status_studio/src/features/source/presentation/link_screen.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/presentation/review_cuts_screen.dart';
@@ -22,7 +23,8 @@ import 'package:status_studio/src/features/topic/presentation/review_cuts_screen
 abstract final class AppRoutes {
   static const home = '/';
   static const source = '/source';
-  static const reviewCuts = '/source/cuts';
+  static const link = '/link';
+  static const reviewCuts = '/link/cuts';
   static const fineTune = '/fine-tune';
   static const lyrics = '/fine-tune/lyrics';
   static const export = '/export';
@@ -59,9 +61,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.source,
         builder: (context, state) => SourceScreen(
-          share: state.extra is IncomingShare
-              ? state.extra! as IncomingShare
+          sharedVideo: state.extra is IncomingVideo
+              ? state.extra! as IncomingVideo
               : null,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.link,
+        builder: (context, state) => LinkScreen(
+          sharedLink: switch (state.extra) {
+            IncomingLink(:final link) => link,
+            _ => null,
+          },
         ),
       ),
       GoRoute(

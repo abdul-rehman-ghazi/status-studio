@@ -21,6 +21,7 @@ final _incomingSharesProvider = StreamProvider<IncomingShare>(
 const _screensWithoutAReel = {
   AppRoutes.home,
   AppRoutes.source,
+  AppRoutes.link,
   AppRoutes.done,
   AppRoutes.settings,
   AppRoutes.appearanceSettings,
@@ -90,7 +91,8 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
     // is only reset once Home has replaced them.
     await SchedulerBinding.instance.endOfFrame;
     ref.read(reelDraftProvider.notifier).startNew();
-    unawaited(router.push<void>(AppRoutes.source, extra: share));
+    final route = share is IncomingLink ? AppRoutes.link : AppRoutes.source;
+    unawaited(router.push<void>(route, extra: share));
   }
 
   /// Only a reel that has reached Fine-tune is worth keeping (FR-24); a

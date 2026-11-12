@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,7 +40,10 @@ class HomeScreen extends ConsumerWidget {
           children: [
             const _Header(),
             const SizedBox(height: 24),
-            _NewReelCard(onTap: () => _startNewReel(context, ref)),
+            _StartCards(
+              onVideo: () => _startNewReel(context, ref, AppRoutes.source),
+              onLink: () => _startNewReel(context, ref, AppRoutes.link),
+            ),
             const SizedBox(height: 28),
             const _RecentSection(),
           ],
@@ -48,10 +52,10 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  void _startNewReel(BuildContext context, WidgetRef ref) {
+  void _startNewReel(BuildContext context, WidgetRef ref, String route) {
     ref.read(scriptOpeningNoticeProvider.notifier).clear();
     ref.read(reelDraftProvider.notifier).startNew();
-    context.push(AppRoutes.source);
+    unawaited(context.push(route));
   }
 }
 
@@ -95,14 +99,68 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _NewReelCard extends StatelessWidget {
-  const _NewReelCard({required this.onTap});
+/// From my videos, and on Android From a YouTube link (spec FR-35), side
+/// by side. iOS has no links, so it keeps the one New reel card.
+class _StartCards extends StatelessWidget {
+  const _StartCards({required this.onVideo, required this.onLink});
 
+  final VoidCallback onVideo;
+  final VoidCallback onLink;
+
+  @override
+  Widget build(BuildContext context) {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return _StartCard(
+        icon: Icons.add_circle,
+        title: 'New reel',
+        subtitle: 'Choose or share a video, then trim and caption it',
+        onTap: onVideo,
+      );
+    }
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _StartCard(
+              icon: Icons.video_library,
+              title: 'From my videos',
+              subtitle: 'Choose or share a trimmed video',
+              onTap: onVideo,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StartCard(
+              icon: Icons.link,
+              title: 'From a YouTube link',
+              subtitle: 'Find a topic in a long video',
+              onTap: onLink,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StartCard extends StatelessWidget {
+  const _StartCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final onAccent = context.palette.onAccent;
     return Material(
       color: context.palette.accent,
       borderRadius: BorderRadius.circular(20),
@@ -110,31 +168,23 @@ class _NewReelCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.add_circle, color: context.palette.onAccent, size: 36),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'New reel',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: context.palette.onAccent,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Choose or share a video, then trim and caption it',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: context.palette.onAccent,
-                      ),
-                    ),
-                  ],
+              Icon(icon, color: onAccent, size: 32),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: textTheme.titleMedium?.copyWith(
+                  color: onAccent,
+                  fontWeight: FontWeight.w700,
                 ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: textTheme.bodySmall?.copyWith(color: onAccent),
               ),
             ],
           ),

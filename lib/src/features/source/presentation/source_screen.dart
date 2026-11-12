@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,20 +18,19 @@ import 'package:status_studio/src/features/source/data/video_picker.dart';
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
-import 'package:status_studio/src/features/source/presentation/link_section.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// Step 1: bring in a video, by the gallery picker or by a share (spec FR-1),
-/// or on Android read a link (FR-35).
+/// Step 1: bring in a video, by the gallery picker or by a share (spec FR-1).
+/// Links have their own screen (FR-35).
 ///
-/// A shared video is imported at once; like a picked one, it waits for the
+/// A [sharedVideo] is imported at once; like a picked one, it waits for the
 /// user to choose a script or none (spec FR-29), so nothing is uploaded
-/// unasked. A shared link is filled in and read.
+/// unasked.
 class SourceScreen extends ConsumerStatefulWidget {
-  const SourceScreen({this.share, super.key});
+  const SourceScreen({this.sharedVideo, super.key});
 
-  final IncomingShare? share;
+  final IncomingVideo? sharedVideo;
 
   @override
   ConsumerState<SourceScreen> createState() => _SourceScreenState();
@@ -49,8 +47,8 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
   @override
   void initState() {
     super.initState();
-    final shared = widget.share;
-    if (shared is! IncomingVideo) {
+    final shared = widget.sharedVideo;
+    if (shared == null) {
       unawaited(_recoverLostPick());
       return;
     }
@@ -83,10 +81,6 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
           const HintText(
             'Trim it in another app first, or share it to Status Studio.',
           ),
-          if (defaultTargetPlatform == TargetPlatform.android) ...[
-            const SizedBox(height: 24),
-            LinkSection(sharedLink: _sharedLink),
-          ],
         ],
       ),
       bottomNavigationBar: BottomAction(
@@ -97,11 +91,6 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       ),
     );
   }
-
-  String? get _sharedLink => switch (widget.share) {
-    IncomingLink(:final link) => link,
-    _ => null,
-  };
 
   Future<void> _chooseVideo() async {
     final VideoPickResult picked;
