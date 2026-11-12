@@ -70,9 +70,17 @@ class SubjectSample {
 /// What detection found over the clip, in time order (spec FR-23).
 @immutable
 class SubjectTrack {
-  const SubjectTrack({required this.samples, this.sceneCuts});
+  const SubjectTrack({
+    required this.samples,
+    this.sceneCuts,
+    this.joinCuts = const [],
+  });
 
   final List<SubjectSample> samples;
+
+  /// Where the cuts of a clip joined from a link meet (spec FR-37): always
+  /// scene edges, whatever the detector saw.
+  final List<Duration> joinCuts;
 
   /// The scene cuts' video times. None when they are not known (the scene
   /// detector gave nothing usable), which is different from an empty list:

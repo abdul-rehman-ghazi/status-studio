@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/frame_arguments.dart';
+import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
@@ -218,6 +219,13 @@ class FollowSubjectController extends Notifier<FollowState> {
     return const FollowIdle();
   }
 
+  /// A clip joined from a link has its joins as scene edges (spec FR-37);
+  /// any other video has none.
+  Future<List<Duration>> _joinCutsOf(String videoId) async {
+    final linked = await ref.read(linkedClipStoreProvider).read(videoId);
+    return linked?.joinTimes ?? const [];
+  }
+
   Future<void> start() async {
     final draft = ref.read(reelDraftProvider);
     final clip = draft.clip;
@@ -251,7 +259,11 @@ class FollowSubjectController extends Notifier<FollowState> {
       if (_isStale(generation)) {
         return;
       }
-      final track = SubjectTrack(samples: samples, sceneCuts: frames.sceneCuts);
+      final track = SubjectTrack(
+        samples: samples,
+        sceneCuts: frames.sceneCuts,
+        joinCuts: await _joinCutsOf(video.videoId),
+      );
       final geometry = FollowGeometry.forFrame(
         frame: draft.frame,
         sourceSize: sourceSize,
