@@ -12,8 +12,7 @@ LinkedFormats linkedFormatsFromYtDlpJson(Map<String, Object?> info) {
   final formats = [
     if (listed is List<Object?>)
       for (final format in listed)
-        if (format is Map<String, Object?> && _isRangeFetchable(format))
-          format,
+        if (format is Map<String, Object?> && _isRangeFetchable(format)) format,
   ];
   return LinkedFormats(
     video: [

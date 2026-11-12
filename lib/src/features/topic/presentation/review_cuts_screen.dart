@@ -248,18 +248,16 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       _making = const ReadingStreams();
     });
     try {
-      final video = await ref
-          .read(clipMakerProvider)
-          .make(
-            ClipOrder(
-              request: widget.request,
-              cuts: ticked,
-              transition: _transition,
-            ),
-            (progress) {
-              if (mounted) setState(() => _making = progress);
-            },
-          );
+      final video = await ref.read(clipMakerProvider).make(
+        ClipOrder(
+          request: widget.request,
+          cuts: ticked,
+          transition: _transition,
+        ),
+        (progress) {
+          if (mounted) setState(() => _making = progress);
+        },
+      );
       if (!mounted) {
         return;
       }

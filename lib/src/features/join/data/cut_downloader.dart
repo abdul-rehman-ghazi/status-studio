@@ -126,7 +126,9 @@ class CutDownloader {
     }
     try {
       final json = jsonDecode(await entry.readAsString());
-      return json is Map<String, Object?> ? CutFile.fromJson(video, json) : null;
+      return json is Map<String, Object?>
+          ? CutFile.fromJson(video, json)
+          : null;
     } on FormatException {
       return null;
     }
@@ -144,8 +146,7 @@ class CutDownloader {
     );
     final audioFile = await downloader.downloadRanges(
       _rangedDownload(audio, File('$name.audio.m4a'), watch.cancel),
-      onBytes: (received) =>
-          watch.onBytes(video.totalBytes + received, total),
+      onBytes: (received) => watch.onBytes(video.totalBytes + received, total),
     );
     final fileStart = video.start < audio.start ? video.start : audio.start;
     final target = File('$name.mp4');

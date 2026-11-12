@@ -10,6 +10,7 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
+import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/library/domain/recent_entries.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
@@ -303,6 +304,13 @@ class _RecentReelRow extends ConsumerWidget {
   }
 }
 
+/// "From a link · " before a clip joined from a link (spec FR-37), whose
+/// name is its topic.
+String _linkNote(WidgetRef ref, String videoId) =>
+    ref.watch(linkedClipProvider(videoId)).value == null
+    ? ''
+    : 'From a link · ';
+
 /// A processed video's whole script, before any clip is cut from it. Tap
 /// reopens Script without downloading (FR-14); long-press offers Delete.
 class _SavedScriptRow extends ConsumerWidget {
@@ -322,7 +330,8 @@ class _SavedScriptRow extends ConsumerWidget {
       title: ScriptText(script.video.title, maxLines: 1),
       subtitle: Text(
         _isKept(ref)
-            ? 'Script · $language · ${formatTimestamp(script.video.duration)} · '
+            ? '${_linkNote(ref, script.video.videoId)}'
+                  'Script · $language · ${formatTimestamp(script.video.duration)} · '
                   '${formatDayMonth(script.saved.savedAt.toLocal())}'
             : _chooseAgainHint,
       ),
@@ -435,7 +444,8 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       title: ScriptText(fineTune.video.title, maxLines: 1),
       subtitle: Text(
         _isKept
-            ? 'Fine-tune · ${formatSeconds(clipLength)} · '
+            ? '${_linkNote(ref, fineTune.video.videoId)}'
+                  'Fine-tune · ${formatSeconds(clipLength)} · '
                   '${formatDayMonth(fineTune.draft.savedAt.toLocal())}'
             : _chooseAgainHint,
       ),
