@@ -6,8 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/features/join/application/clip_maker.dart';
+import 'package:status_studio/src/features/join/application/cut_previewer.dart';
 import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
+import 'package:status_studio/src/features/join/presentation/cut_player_sheet.dart';
 import 'package:status_studio/src/features/join/presentation/making_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
@@ -15,6 +17,7 @@ import 'package:status_studio/src/features/topic/application/topic_finder.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
+import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/topic/presentation/add_moment_sheet.dart';
@@ -44,6 +47,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   var _edited = false;
   var _transition = ClipTransition.crossfade;
   MakingProgress? _making;
+  TopicCut? _preparingPlay;
   Object? _makeFailure;
 
   @override
@@ -126,7 +130,37 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       onToggle: _toggle,
       onReorder: _reorder,
       onAddMoment: () => unawaited(_addMoment()),
+      onPlay: (cut) => unawaited(_play(cut)),
+      preparingPlay: _preparingPlay,
     );
+  }
+
+  /// Downloads the moment at up to 480p, then plays it (spec FR-37). One
+  /// at a time.
+  Future<void> _play(TopicCut cut) async {
+    if (_preparingPlay != null) {
+      return;
+    }
+    setState(() => _preparingPlay = cut);
+    try {
+      final file = await ref
+          .read(cutPreviewerProvider)
+          .prepare(widget.request.video, cut);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _preparingPlay = null);
+      await showCutPlayer(context, file, cut);
+    } on Object {
+      // Any failure only means the moment can't be played; say so.
+      if (!mounted) {
+        return;
+      }
+      setState(() => _preparingPlay = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't play this moment.")),
+      );
+    }
   }
 
   Future<void> _begin() async {
@@ -405,6 +439,8 @@ class _CutList extends StatelessWidget {
     required this.onToggle,
     required this.onReorder,
     required this.onAddMoment,
+    required this.onPlay,
+    required this.preparingPlay,
   });
 
   final List<ReviewCut> cuts;
@@ -412,6 +448,8 @@ class _CutList extends StatelessWidget {
   final void Function(int index) onToggle;
   final void Function(int from, int to) onReorder;
   final VoidCallback onAddMoment;
+  final void Function(TopicCut cut) onPlay;
+  final TopicCut? preparingPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -433,6 +471,8 @@ class _CutList extends StatelessWidget {
           onNudge: ({startBy = Duration.zero, endBy = Duration.zero}) =>
               onNudge(index, startBy: startBy, endBy: endBy),
           onToggle: () => onToggle(index),
+          onPlay: () => onPlay(review.cut),
+          preparingPlay: review.cut == preparingPlay,
         );
       },
     );

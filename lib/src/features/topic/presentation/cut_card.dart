@@ -6,13 +6,15 @@ import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// One moment on Review cuts (spec FR-36): a tick for the clip, its times,
-/// words and reason, with − and + on each edge.
+/// Play (FR-37), its words and reason, with − and + on each edge.
 class CutCard extends StatefulWidget {
   const CutCard({
     required this.cut,
     required this.ticked,
     required this.onNudge,
     required this.onToggle,
+    required this.onPlay,
+    required this.preparingPlay,
     super.key,
   });
 
@@ -22,6 +24,10 @@ class CutCard extends StatefulWidget {
   /// Called with how far to move the start and the end.
   final void Function({Duration startBy, Duration endBy}) onNudge;
   final VoidCallback onToggle;
+  final VoidCallback onPlay;
+
+  /// The moment is being downloaded to play: a spinner in Play's place.
+  final bool preparingPlay;
 
   @override
   State<CutCard> createState() => _CutCardState();
@@ -56,6 +62,20 @@ class _CutCardState extends State<CutCard> {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
+              if (widget.preparingPlay)
+                const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                IconButton(
+                  tooltip: 'Play',
+                  icon: const Icon(Icons.play_circle_outline),
+                  onPressed: widget.onPlay,
+                ),
             ],
           ),
           GestureDetector(
