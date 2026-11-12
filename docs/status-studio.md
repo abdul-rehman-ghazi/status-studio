@@ -900,7 +900,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M39 Undo on Lyrics | Undo and Redo in Lyrics' app bar for every line change, with a quick Undo after a delete or a tap-to-time (FR-34) | Built, branch `m39-lyrics-undo` (stacked on M38), merged into `dev` with M40 (2026-11-11); the step label moved under the title after the owner's phone check; tests not run |
 | M40 Lyrics fixes | A clip over silence selects no lines (Add line puts one in); dragging a line scrolls the screen; edits stay the newest script when a run finishes late (FR-21, §15) | Built, branch `m40-lyrics-fixes` (stacked on M39), merged into `dev` (2026-11-11); tests not run |
 | M41 Play the clip | A second button on Fine-tune · Video's player plays the clip from its start and pauses at its end; Play still starts at the seek bar; a clip can't start before a late picture (FR-5) | Built, branch `m41-play-clip` (from `dev`), merged into `dev` (2026-11-12); tests not run |
-| M42 Freezed models | `SourceVideo`, `SavedTranscript`, `PartialTranscript` and `RecentReel` use `freezed` and `json_serializable`; saved JSON unchanged (§11) | In progress, branch `m42-freezed-models` (from `dev`) |
+| M42 Freezed models | `SourceVideo`, `SavedTranscript`, `PartialTranscript` and `RecentReel` use `freezed` and `json_serializable`; saved JSON unchanged (§11) | Built, branch `m42-freezed-models` (from `dev`), pushed, not merged (2026-11-12); analyze clean apart from two older unused-widget warnings in `fine_tune_trim_tab.dart`; tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" and "Follow automatically" are dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1416,7 +1416,7 @@ Request (2026-11-12): move the models that are saved as JSON to `freezed` with g
 - [x] **3. `SourceVideo`.** Freezed, generated `fromJson`/`toJson`; `pictureStart` `@Default(Duration.zero)`. **Stale tests:** `SourceVideo.fromJson` cases that expect a `FormatException` (now `CheckedFromJsonException`), and a non-int `pictureStartMs` that read as 0 (now throws).
 - [x] **4. Scripts.** `PartialTranscript` fully generated (lines through a `TranscriptLine` converter). `SavedTranscript` freezed with `equal: false` (its `==` keeps `isAtSameMomentAs`, so a local `savedAt` equals the UTC one read back), generated `fromJson` and a hand-written flat `toJson`. `lineFromJson`/`lineToJson` become the private converter. **Stale tests:** cases that expect `FormatException` from these `fromJson`s or call `lineFromJson`/`lineToJson`; `PartialTranscript.lines` is now unmodifiable.
 - [x] **5. `RecentReel`.** Freezed, generated `fromJson` (size read from `width` and `height`), hand-written flat `toJson`. `RecentReelsRepository` keeps a malformed entry as unreadable on `CheckedFromJsonException` too. **Stale tests:** `RecentReel.fromJson` cases expecting `TypeError`.
-- [ ] **6. Status.** §12 status row; push.
+- [x] **6. Status.** §12 status row; push.
 
 ## 13. Behaviour that must stay covered by tests
 
