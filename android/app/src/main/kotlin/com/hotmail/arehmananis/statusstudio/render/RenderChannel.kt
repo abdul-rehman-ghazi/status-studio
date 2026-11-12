@@ -1,10 +1,13 @@
 package com.hotmail.arehmananis.statusstudio.render
 
 import android.content.Context
+import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+
+private const val JOIN_LOG_TAG = "ClipJoiner"
 
 /**
  * `status_studio/render` (`start`, `cancel`, and `convert` and `join`, which answer when the file
@@ -104,9 +107,11 @@ class RenderChannel(context: Context, messenger: BinaryMessenger) :
             val spec = JoinSpec.fromMap(arguments.entries.associate { it.key.toString() to it.value })
             joiner.join(spec, joinListener(spec.outputPath, result))
         } catch (error: IllegalArgumentException) {
-            result.error("bad_spec", "${error.javaClass.simpleName}: ${error.message}", null)
+            Log.e(JOIN_LOG_TAG, "Join spec refused", error)
+            result.error("bad_spec", describe(error), null)
         } catch (error: RuntimeException) {
-            result.error("join_failed", "${error.javaClass.simpleName}: ${error.message}", null)
+            Log.e(JOIN_LOG_TAG, "Join didn't start", error)
+            result.error("join_failed", describe(error), null)
         }
     }
 

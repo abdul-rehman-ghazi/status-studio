@@ -116,9 +116,9 @@ class ClipJoiner(private val context: Context) {
      * it. It starts with a gap, so its tracks are named up front.
      */
     private fun lowerSequence(spec: JoinSpec, decoders: LayeredAssetLoaderFactory): EditedMediaItemSequence {
+        // Naming the tracks is what lets a sequence start with a gap. The older force-track
+        // setters must not be called as well: Media3 refuses them on a builder made this way.
         val lower = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO))
-            .experimentalSetForceAudioTrack(true)
-            .experimentalSetForceVideoTrack(true)
         var placedMs = 0L
         spec.lower.zip(spec.windows).forEach { (item, window) ->
             addGap(lower, window.startMs - placedMs)
@@ -219,4 +219,13 @@ fun describe(exportException: ExportException): String {
         .toList()
     return (listOf("${exportException.errorCodeName}: ${exportException.message}") + causes)
         .joinToString(" <- ")
+}
+
+/**
+ * [error]'s class, message and the line that threw it: Media3's own checks throw with no message,
+ * so the line is what tells them apart.
+ */
+fun describe(error: RuntimeException): String {
+    val thrownAt = error.stackTrace.firstOrNull()?.let { " at ${it.className}.${it.methodName}:${it.lineNumber}" } ?: ""
+    return "${error.javaClass.simpleName}: ${error.message}$thrownAt"
 }
