@@ -10,6 +10,7 @@ class MomentCandidate {
     required this.lastBlock,
     required this.score,
     required this.reason,
+    required this.text,
   });
 
   factory MomentCandidate.fromJson(Map<String, Object?> json) =>
@@ -18,6 +19,7 @@ class MomentCandidate {
         lastBlock: json['last']! as int,
         score: (json['score']! as num).toDouble(),
         reason: json['reason']! as String,
+        text: json['text'] as String? ?? '',
       );
 
   final int firstBlock;
@@ -26,14 +28,19 @@ class MomentCandidate {
   /// From 0 (barely about it) to 1 (exactly about it).
   final double score;
 
-  /// One line in English on why it fits, shown on the cut's card.
+  /// One line on why it fits, in the output language, shown on the card.
   final String reason;
+
+  /// The moment's words in the output language; empty when Groq left them
+  /// out, and the card then shows the transcript's own words.
+  final String text;
 
   Map<String, Object?> toJson() => {
     'first': firstBlock,
     'last': lastBlock,
     'score': score,
     'reason': reason,
+    'text': text,
   };
 
   bool overlaps(MomentCandidate other) =>
@@ -48,10 +55,11 @@ class MomentCandidate {
       other.firstBlock == firstBlock &&
       other.lastBlock == lastBlock &&
       other.score == score &&
-      other.reason == reason;
+      other.reason == reason &&
+      other.text == text;
 
   @override
-  int get hashCode => Object.hash(firstBlock, lastBlock, score, reason);
+  int get hashCode => Object.hash(firstBlock, lastBlock, score, reason, text);
 }
 
 /// The candidates in a part's reply, `{"moments": [{first, last, score,

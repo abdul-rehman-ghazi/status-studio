@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
@@ -62,17 +62,17 @@ class _CutCardState extends State<CutCard> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
-              child: Text(
-                cut.text,
-                maxLines: _expanded ? null : 3,
-                overflow: _expanded ? null : TextOverflow.ellipsis,
-              ),
+              child: ScriptText(cut.text, maxLines: _expanded ? null : 3),
             ),
           ),
           if (cut.reason.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
-              child: HintText(cut.reason),
+              child: ScriptText(
+                cut.reason,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: context.palette.textMuted),
+              ),
             ),
           const SizedBox(height: 4),
           Row(

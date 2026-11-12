@@ -1,3 +1,4 @@
+import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
 /// The chat model every topic search uses (spec FR-36). One constant, so
@@ -8,7 +9,7 @@ const topicModel = 'openai/gpt-oss-120b';
 /// shape. The transcript may be in another script than the topic (Urdu
 /// auto captions come as Hindi in Devanagari, §10 item 10), so meaning
 /// counts, not words.
-String partInstructions(String topic) =>
+String partInstructions(String topic, ScriptLanguage output) =>
     'You find the moments in a video transcript that are about a topic. '
     'Each transcript row is "block number|start second|text". The '
     'transcript may be in a different language or script than the topic '
@@ -18,8 +19,18 @@ String partInstructions(String topic) =>
     'lasting between 8 and 30 seconds (use the start seconds). Reply '
     'with JSON only: {"moments": [{"first": <first block number>, "last": '
     '<last block number>, "score": <0 to 1, how exactly it is about the '
-    'topic>, "reason": "<one short line in English>"}]}. Reply with '
+    'topic>, "reason": "<one short line in ${output.label}>", "text": '
+    '"<the moment\'s words in ${output.label}${_scriptNote(output)}, '
+    'translated if spoken in another language>"}]}. Reply with '
     '{"moments": []} when nothing is about the topic.\n\nTopic: $topic';
+
+/// YouTube writes Urdu speech in Hindi script, so Urdu and Punjabi are
+/// asked for in their Perso-Arabic script by name (§10 item 10).
+String _scriptNote(ScriptLanguage output) => switch (output) {
+  ScriptLanguage.urdu => ' in Urdu (Nastaliq) script, not Hindi script',
+  ScriptLanguage.punjabi => ' in Shahmukhi script',
+  _ => '',
+};
 
 String partMessage(List<TranscriptBlock> part) =>
     part.map((block) => block.promptRow).join('\n');

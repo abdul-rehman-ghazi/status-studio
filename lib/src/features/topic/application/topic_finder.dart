@@ -130,7 +130,11 @@ class TopicFinder {
   ) async* {
     final store = await services.store;
     final youTubeId = request.video.videoId;
-    final saved = await store.savedCandidates(youTubeId, request.topic);
+    final search = (
+      topic: request.topic,
+      outputLanguage: request.outputLanguage,
+    );
+    final saved = await store.savedCandidates(youTubeId, search);
     if (saved != null) {
       result.value = saved;
       return;
@@ -144,11 +148,11 @@ class TopicFinder {
         fraction: index / parts.length,
       );
       final reply = _Holder<Map<String, Object?>>();
-      yield* _patiently(client, _partChat(request.topic, part), reply);
+      yield* _patiently(client, _partChat(request, part), reply);
       candidates.addAll(candidatesFromReply(reply.value, part));
     }
     result.value = candidates;
-    await store.saveCandidates(youTubeId, request.topic, candidates);
+    await store.saveCandidates(youTubeId, search, candidates);
   }
 
   /// Sends [chat], waiting out Groq's limits and saying when it carries on
@@ -172,10 +176,10 @@ class TopicFinder {
     }
   }
 
-  GroqChatRequest _partChat(String topic, List<TranscriptBlock> part) =>
+  GroqChatRequest _partChat(TopicRequest request, List<TranscriptBlock> part) =>
       GroqChatRequest(
         model: topicModel,
-        instructions: partInstructions(topic),
+        instructions: partInstructions(request.topic, request.outputLanguage),
         message: partMessage(part),
       );
 }

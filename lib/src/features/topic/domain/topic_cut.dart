@@ -21,7 +21,9 @@ class TopicCut {
     return TopicCut(
       start: run.first.start,
       end: run.last.end,
-      text: run.map((block) => block.text).join(' '),
+      text: candidate.text.isNotEmpty
+          ? candidate.text
+          : run.map((block) => block.text).join(' '),
       reason: candidate.reason,
     );
   }

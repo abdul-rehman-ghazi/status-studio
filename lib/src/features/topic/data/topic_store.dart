@@ -4,8 +4,12 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/moment_candidate.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
+
+/// A topic and the language its moments are written in (spec FR-36).
+typedef TopicSearch = ({String topic, ScriptLanguage outputLanguage});
 
 /// Transcripts and topic candidates of linked videos, under
 /// `topics/<YouTube ID>/` (spec FR-36), so the same link or topic again
@@ -31,12 +35,12 @@ class TopicStore {
         for (final block in blocks) block.toJson(),
       ]);
 
-  /// Every moment Groq found for [topic], or null when it wasn't asked yet.
+  /// Every moment Groq found for [search], or null when it wasn't asked yet.
   Future<List<MomentCandidate>?> savedCandidates(
     String youTubeId,
-    String topic,
+    TopicSearch search,
   ) async {
-    final saved = await _readJson(_candidatesFile(youTubeId, topic));
+    final saved = await _readJson(_candidatesFile(youTubeId, search));
     if (saved is! Map<String, Object?>) {
       return null;
     }
@@ -48,9 +52,9 @@ class TopicStore {
 
   Future<void> saveCandidates(
     String youTubeId,
-    String topic,
+    TopicSearch search,
     List<MomentCandidate> candidates,
-  ) => _writeJson(_candidatesFile(youTubeId, topic), {
+  ) => _writeJson(_candidatesFile(youTubeId, search), {
     'candidates': [for (final candidate in candidates) candidate.toJson()],
   });
 
@@ -70,12 +74,13 @@ class TopicStore {
   File _blocksFile(String youTubeId) =>
       File('${root.path}/$youTubeId/transcript.json');
 
-  /// The same topic typed with other spacing or capitals is the same topic.
-  File _candidatesFile(String youTubeId, String topic) {
-    final normalised = topic.trim().toLowerCase().replaceAll(
-      RegExp(r'\s+'),
-      ' ',
-    );
+  /// The same topic typed with other spacing or capitals is the same topic;
+  /// another output language is another search.
+  File _candidatesFile(String youTubeId, TopicSearch search) {
+    final normalised = '${search.outputLanguage.whisperCode}:${search.topic}'
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ');
     final key = sha256
         .convert(utf8.encode(normalised))
         .toString()

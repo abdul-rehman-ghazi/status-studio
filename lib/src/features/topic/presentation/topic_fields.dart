@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
+import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 
 const _presetLengths = [
@@ -29,6 +30,7 @@ class TopicFields extends StatefulWidget {
 class _TopicFieldsState extends State<TopicFields> {
   final _topicField = TextEditingController();
   var _length = const Duration(seconds: 60);
+  var _outputLanguage = ScriptLanguage.urdu;
 
   @override
   void dispose() {
@@ -68,6 +70,18 @@ class _TopicFieldsState extends State<TopicFields> {
             ),
           ],
         ),
+        const SectionLabel('Output language'),
+        DropdownButton<ScriptLanguage>(
+          value: _outputLanguage,
+          isExpanded: true,
+          items: [
+            for (final language in outputLanguages)
+              DropdownMenuItem(value: language, child: Text(language.label)),
+          ],
+          onChanged: (language) {
+            if (language != null) setState(() => _outputLanguage = language);
+          },
+        ),
         const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: _topicField.text.trim().isEmpty ? null : _find,
@@ -83,6 +97,7 @@ class _TopicFieldsState extends State<TopicFields> {
       video: widget.video,
       topic: _topicField.text.trim(),
       length: _length,
+      outputLanguage: _outputLanguage,
     ),
   );
 
