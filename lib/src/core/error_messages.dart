@@ -11,6 +11,10 @@ String errorMessageFor(Object error) {
     GroqOfflineException() => "You're offline. Connect and try again.",
     InsufficientStorageException() => 'Not enough space on your phone.',
     VideoUnreadableException() => "Can't read this video.",
+    VideoUnavailableException() => "This video can't be downloaded.",
+    YouTubeChangedException() =>
+      "Couldn't read this video from YouTube. Update the downloader in "
+          'Settings, or try again later.',
     VideoNotConvertibleException() =>
       "This phone can't convert this AV1 video. Save it as H.264 (MP4) in "
           'your editor and share it again.',

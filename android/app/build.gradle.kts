@@ -67,6 +67,16 @@ android {
             signingConfig = signingConfigs.findByName("release")
         }
     }
+
+    // youtubedl-android ships Python as libpython.zip.so and unpacks it from the installed
+    // native library folder, which only exists when native libraries are extracted.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            // A zip, not an ELF library: stripping it only prints errors.
+            keepDebugSymbols += "**/libpython.zip.so"
+        }
+    }
 }
 
 kotlin {
@@ -86,6 +96,8 @@ dependencies {
     implementation("androidx.media3:media3-common:1.11.1")
     // IntentCompat: the typed getParcelableExtra is broken on API 33.
     implementation("androidx.core:core:1.13.1")
+    // yt-dlp with Python and QuickJS (spec FR-35): reads video links, updates itself.
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     testImplementation("junit:junit:4.13.2")
 }
