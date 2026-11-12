@@ -5,7 +5,12 @@ analyzer:
     strict-casts: true
     strict-inference: true
     strict-raw-types: true
+  errors:
+    # @JsonKey on a freezed factory's parameters is read by json_serializable.
+    invalid_annotation_target: ignore
   exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
     - build/**
     - android/**
     - ios/**

@@ -1,0 +1,8 @@
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          # A malformed saved file then throws CheckedFromJsonException, an
+          # Exception the stores already catch, instead of a TypeError.
+          checked: true
