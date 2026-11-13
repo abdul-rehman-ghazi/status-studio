@@ -1697,7 +1697,7 @@ Request (2026-11-13): "recent... continue not showing for youtube links". A join
 Request (2026-11-13): FR-39. Design questions answered by the owner: the Review cuts Play sheet (not Fine-tune), replay around the moved edge, dim and label outside the included part, the card's words unchanged. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** FR-39, these tasks.
-- [ ] **2. Moment with margins.** `CutPreviewer.prepare` downloads the moment with 3 s on both sides, clamped to the video. **New tests to write:** the window with margins, clamped at both ends; a kept file covering it is reused.
+- [x] **2. Moment with margins.** `previewWindowFor` and `previewMargin` in `cut_previewer.dart`; `CutPreviewer.prepare` downloads the moment with 3 s on both sides, clamped to the video. **New tests to write:** the window with margins, clamped at both ends; a kept file covering it is reused.
 - [ ] **3. The sheet.** The bar over the downloaded stretch (included part, playhead, seek), the dim and label outside, Start/End − + with times, the replay around a moved edge, the download when a nudge passes the stretch; Review cuts applies the sheet's nudges with `nudgeCut`. **Stale tests:** anything calling `showCutPlayer` (new parameters). **New tests to write:** a nudge in the sheet changes the card and marks the cuts edited; a refused nudge leaves the edge; the replay window clamped to the stretch; the label shows outside the included part.
 - [ ] **4. Status.** §12 status row, §13 entry; push.
 

@@ -12,11 +12,16 @@ import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 /// Stream links last some hours; an hour leaves a wide margin.
 const _streamsKeptFor = Duration(hours: 1);
 
+/// How much the Play sheet shows before and after a moment, so a nudge
+/// can be heard (spec FR-39).
+const previewMargin = Duration(seconds: 3);
+
 /// Streams read for a video, and when.
 typedef _ReadStreams = ({CutStreams streams, DateTime readAt});
 
-/// Play on a card (spec FR-37): the moment's stretch at up to 480p,
-/// downloaded into the cache as a cut is, and reused when played again.
+/// Play on a card (spec FR-37, FR-39): the moment with [previewMargin]
+/// around it, at up to 480p, downloaded into the cache as a cut is, and
+/// reused when played again.
 class CutPreviewer {
   CutPreviewer({required this.streams, required this.cuts});
 
@@ -55,10 +60,20 @@ class CutPreviewer {
   ) => cuts.download(
     CutRequest(
       youtubeId: video.videoId,
-      window: ClipWindow(start: cut.start, end: cut.end),
+      window: previewWindowFor(cut, video.duration),
       streams: streams,
     ),
     CutDownloadWatch(cancel: DownloadCancel(), onBytes: (_, _) {}),
+  );
+}
+
+/// [cut] with [previewMargin] on both sides, clamped to the video.
+ClipWindow previewWindowFor(TopicCut cut, Duration videoLength) {
+  final start = cut.start - previewMargin;
+  final end = cut.end + previewMargin;
+  return ClipWindow(
+    start: start < Duration.zero ? Duration.zero : start,
+    end: end > videoLength ? videoLength : end,
   );
 }
 
