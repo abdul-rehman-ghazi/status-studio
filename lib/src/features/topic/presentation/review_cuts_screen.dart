@@ -24,8 +24,6 @@ import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
-import 'package:status_studio/src/features/topic/presentation/add_moment_sheet.dart';
-import 'package:status_studio/src/features/topic/presentation/cut_card.dart';
 import 'package:status_studio/src/features/topic/presentation/script_page.dart';
 import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
@@ -126,7 +124,6 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
           ? null
           : _ReviewFooter(
               total: totalLength(tickedCuts(cuts)),
-              length: widget.request.length,
               transition: _transition,
               onTransition: _setTransition,
               onMake: tickedCuts(cuts).isEmpty
@@ -161,27 +158,12 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (cuts == null) {
       return _SearchProgress(
         progress: _progress,
-        waitingLabel: _isScriptFirst
-            ? 'Getting the script'
-            : 'Finding the moments',
+        waitingLabel: 'Getting the script',
         onCancel: () => unawaited(_cancel()),
       );
     }
-    if (_isScriptFirst) {
-      return _scriptPage(cuts);
-    }
-    return _CutList(
-      cuts: cuts,
-      onToggle: _toggle,
-      onReorder: _reorder,
-      onAddMoment: () => unawaited(_addMoment()),
-      onPlay: (cut) => unawaited(_play(cut)),
-      preparingPlay: _preparingPlay,
-    );
+    return _scriptPage(cuts);
   }
-
-  /// Started without a topic: the script is the page (spec FR-41).
-  bool get _isScriptFirst => widget.request.topic.trim().isEmpty;
 
   Widget _scriptPage(List<ReviewCut> cuts) => ScriptPage(
     content: ScriptPageContent(
@@ -208,16 +190,10 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (_topicSearch != null) {
       return;
     }
-    final request = TopicRequest(
-      video: widget.request.video,
-      topic: topic,
-      length: widget.request.length,
-      outputLanguage: widget.request.outputLanguage,
-    );
     setState(() => _topicProgress = const TopicStep('Reading the script'));
     _topicSearch = ref
         .read(topicFinderProvider)
-        .findIn(request, _blocks)
+        .findIn(widget.request, topic, _blocks)
         .listen(
           _onTopicProgress,
           onError: (Object failure, StackTrace stack) {
@@ -313,6 +289,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       return;
     }
     _keep();
+    unawaited(_saver.saveVideo(widget.request.video));
     _find();
   }
 
@@ -506,11 +483,6 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     return reordered;
   });
 
-  Future<void> _addMoment() async {
-    final run = await showAddMomentSheet(context, _blocks);
-    if (run != null) _edit((cuts) => addBlocksAsCut(cuts, run));
-  }
-
   /// Downloads and joins the ticked cuts, then opens Fine-tune · Video on
   /// the joined clip (spec FR-37). Cancel returns to the list.
   Future<void> _make() async {
@@ -538,7 +510,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       }
       setState(() => _making = null);
       // The joined clip's own Recent row takes the session's place.
-      unawaited(_saver.delete(widget.request));
+      unawaited(_saver.delete(widget.request.video.videoId));
       ref.invalidate(isVideoKeptProvider);
       ref.read(reelDraftProvider.notifier).setVideo(video);
       await context.push(AppRoutes.fineTune);
@@ -686,82 +658,19 @@ class _FailureView extends StatelessWidget {
   }
 }
 
-class _CutList extends StatelessWidget {
-  const _CutList({
-    required this.cuts,
-    required this.onToggle,
-    required this.onReorder,
-    required this.onAddMoment,
-    required this.onPlay,
-    required this.preparingPlay,
-  });
-
-  final List<ReviewCut> cuts;
-  final void Function(int index) onToggle;
-  final void Function(int from, int to) onReorder;
-  final VoidCallback onAddMoment;
-  final void Function(TopicCut cut) onPlay;
-  final TopicCut? preparingPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    return ReorderableListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: cuts.length,
-      onReorderItem: onReorder,
-      footer: OutlinedButton.icon(
-        onPressed: onAddMoment,
-        icon: const Icon(Icons.add),
-        label: const Text('Add a moment'),
-      ),
-      itemBuilder: (context, index) {
-        final review = cuts[index];
-        return CutCard(
-          key: ValueKey(review.cut.start),
-          review: review,
-          onToggle: () => onToggle(index),
-          onPlay: () => onPlay(review.cut),
-          preparingPlay: review.cut == preparingPlay,
-        );
-      },
-    );
-  }
-}
-
-/// "74 s of 60 s · 14 s over" in the error colour when over: going over is
-/// allowed, the length is a target (spec FR-36).
-class _TotalLine extends StatelessWidget {
-  const _TotalLine({required this.total, required this.length});
-
-  final Duration total;
-  final Duration length;
-
-  @override
-  Widget build(BuildContext context) {
-    final over = total - length;
-    final overText = over > Duration.zero ? ' · ${over.inSeconds} s over' : '';
-    return Text(
-      '${total.inSeconds} s of ${length.inSeconds} s$overText',
-      style: over > Duration.zero
-          ? TextStyle(color: Theme.of(context).colorScheme.error)
-          : null,
-    );
-  }
-}
-
 /// The total, the transition (its four previews open in a sheet) and Make
 /// the clip, kept short so the moments have the screen.
 class _ReviewFooter extends StatelessWidget {
   const _ReviewFooter({
     required this.total,
-    required this.length,
     required this.transition,
     required this.onTransition,
     required this.onMake,
   });
 
+  /// The ticked moments added up: "58 s" (spec FR-43; there is no length
+  /// to measure it against since M53).
   final Duration total;
-  final Duration length;
   final ClipTransition transition;
   final ValueChanged<ClipTransition> onTransition;
 
@@ -784,9 +693,7 @@ class _ReviewFooter extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(
-                  child: _TotalLine(total: total, length: length),
-                ),
+                Expanded(child: Text('${total.inSeconds} s')),
                 TextButton.icon(
                   onPressed: () => unawaited(_chooseTransition(context)),
                   icon: const Icon(Icons.swap_horiz),

@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/moment_candidate.dart';
-import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
 /// A topic and the language its moments are written in (spec FR-36).
@@ -27,11 +27,9 @@ String transcriptKeyOf(List<TranscriptBlock> blocks) {
   return sha256.convert(utf8.encode(rows)).toString().substring(0, 12);
 }
 
-final _sessionFileName = RegExp(r'^session_[0-9a-f]{16}\.json$');
-
-/// Transcripts, topic candidates and Review cuts sessions of linked videos,
-/// under `topics/<YouTube ID>/` (spec FR-36, FR-38), so the same link or
-/// topic again sends nothing to Groq. An unreadable file reads as missing.
+/// Transcripts, Review cuts sessions and the facts of linked videos, under
+/// `topics/<YouTube ID>/` (spec FR-36, FR-38, FR-43), so the same link
+/// again sends nothing to Groq. An unreadable file reads as missing.
 class TopicStore {
   const TopicStore(this.root);
 
@@ -86,49 +84,30 @@ class TopicStore {
     'candidates': [for (final candidate in candidates) candidate.toJson()],
   });
 
-  /// Keeps [session] for Recent (spec FR-38), one per video and search.
-  Future<void> saveSession(LinkSession session) =>
-      _writeJson(_sessionFile(session.request), session.toJson());
+  /// Keeps [session] for Recent (spec FR-38), one per linked video
+  /// (FR-43): a session in another output language replaces it.
+  Future<void> saveSession(LinkSession session) => _writeJson(
+    _sessionFile(session.request.video.videoId),
+    session.toJson(),
+  );
 
   /// Every readable session, newest first. An unreadable file is skipped
   /// and left on disk.
   Future<List<LinkSession>> sessions() async {
-    if (!await root.exists()) {
-      return const [];
-    }
     final sessions = <LinkSession>[];
-    await for (final folder in root.list()) {
-      if (folder is Directory) {
-        sessions.addAll(await _sessionsIn(folder));
+    for (final youTubeId in await _videoIds()) {
+      if (await session(youTubeId) case final session?) {
+        sessions.add(session);
       }
     }
     sessions.sort((a, b) => b.savedAt.compareTo(a.savedAt));
     return sessions;
   }
 
-  Future<void> deleteSession(TopicRequest request) async {
-    final file = _sessionFile(request);
-    if (await file.exists()) {
-      await file.delete();
-    }
-  }
-
-  Future<List<LinkSession>> _sessionsIn(Directory folder) async {
-    final sessions = <LinkSession>[];
-    await for (final entry in folder.list()) {
-      final name = entry.uri.pathSegments.last;
-      if (entry is! File || !_sessionFileName.hasMatch(name)) {
-        continue;
-      }
-      if (await _readSession(entry) case final session?) {
-        sessions.add(session);
-      }
-    }
-    return sessions;
-  }
-
-  Future<LinkSession?> _readSession(File file) async {
-    final saved = await _readJson(file);
+  /// The session of [youTubeId], or null when there is none or it can't be
+  /// read.
+  Future<LinkSession?> session(String youTubeId) async {
+    final saved = await _readJson(_sessionFile(youTubeId));
     if (saved is! Map<String, Object?>) {
       return null;
     }
@@ -137,6 +116,42 @@ class TopicStore {
     } on FormatException {
       return null;
     }
+  }
+
+  Future<void> deleteSession(String youTubeId) async {
+    final file = _sessionFile(youTubeId);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  /// Keeps what the link card read about [video] (spec FR-44): History
+  /// shows it, and New opens Review cuts with it, after the session goes.
+  Future<void> saveVideo(LinkedVideo video) =>
+      _writeJson(_videoFile(video.videoId), video.toJson());
+
+  /// Null when [youTubeId] was never opened on Review cuts since M53, or
+  /// its file can't be read.
+  Future<LinkedVideo?> savedVideo(String youTubeId) async {
+    final saved = await _readJson(_videoFile(youTubeId));
+    if (saved is! Map<String, Object?>) {
+      return null;
+    }
+    try {
+      return LinkedVideo.fromJson(saved);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Future<List<String>> _videoIds() async {
+    if (!await root.exists()) {
+      return const [];
+    }
+    return [
+      await for (final folder in root.list())
+        if (folder is Directory) folder.path.split('/').last,
+    ];
   }
 
   /// Removes what was last changed before [cutoff], like old scripts.
@@ -162,14 +177,11 @@ class TopicStore {
     'topic_${_searchKey(key.search)}_${key.transcript}.json',
   );
 
-  File _sessionFile(TopicRequest request) {
-    final search = (
-      topic: request.topic,
-      outputLanguage: request.outputLanguage,
-    );
-    final youTubeId = request.video.videoId;
-    return File('${root.path}/$youTubeId/session_${_searchKey(search)}.json');
-  }
+  File _sessionFile(String youTubeId) =>
+      File('${root.path}/$youTubeId/session.json');
+
+  File _videoFile(String youTubeId) =>
+      File('${root.path}/$youTubeId/video.json');
 
   /// The same topic typed with other spacing or capitals is the same topic;
   /// another output language is another search.

@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/topic/application/link_sessions_controller.dart';
 import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
-import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 
 /// Keeps Review cuts on disk as it changes, so it can be continued from
 /// Recent (spec FR-38). All work runs one after another, so the delete after
@@ -20,9 +20,13 @@ class LinkSessionSaver {
   Future<void> save(LinkSession session) =>
       _enqueue(() async => (await store()).saveSession(session));
 
-  /// The clip was made from [request], so its session is spent.
-  Future<void> delete(TopicRequest request) =>
-      _enqueue(() async => (await store()).deleteSession(request));
+  /// The clip was made from [youTubeId], so its session is spent.
+  Future<void> delete(String youTubeId) =>
+      _enqueue(() async => (await store()).deleteSession(youTubeId));
+
+  /// Keeps the link card's facts for History (spec FR-44).
+  Future<void> saveVideo(LinkedVideo video) =>
+      _enqueue(() async => (await store()).saveVideo(video));
 
   Future<void> _enqueue(Future<void> Function() work) {
     final run = _tail.then((_) => _ignoringFailure(work));

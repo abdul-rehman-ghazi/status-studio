@@ -3,14 +3,14 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 
 /// What a clip joined from a link keeps beside its video (spec FR-37):
-/// where it came from, what it is about, and where its cuts meet.
+/// where it came from and where its cuts meet. A `topic` written before
+/// M53 is ignored (FR-43).
 @immutable
 class LinkedClip {
   const LinkedClip({
     required this.youtubeId,
     required this.title,
     required this.channel,
-    required this.topic,
     required this.outputLanguage,
     required this.transition,
     required this.joinTimes,
@@ -22,7 +22,6 @@ class LinkedClip {
       'youtubeId': final String youtubeId,
       'title': final String title,
       'channel': final String channel,
-      'topic': final String topic,
       'outputLanguage': final String languageCode,
       'transition': final String transitionName,
       'joinTimesMs': final List<Object?> joinTimesMs,
@@ -31,7 +30,6 @@ class LinkedClip {
         youtubeId: youtubeId,
         title: title,
         channel: channel,
-        topic: topic,
         outputLanguage: _languageOf(languageCode),
         transition: _transitionOf(transitionName),
         joinTimes: [
@@ -46,7 +44,6 @@ class LinkedClip {
   final String youtubeId;
   final String title;
   final String channel;
-  final String topic;
 
   /// What the lyrics are written in (spec FR-37).
   final ScriptLanguage outputLanguage;
@@ -60,7 +57,6 @@ class LinkedClip {
     'youtubeId': youtubeId,
     'title': title,
     'channel': channel,
-    'topic': topic,
     'outputLanguage': outputLanguage.whisperCode,
     'transition': transition.name,
     'joinTimesMs': [for (final time in joinTimes) time.inMilliseconds],

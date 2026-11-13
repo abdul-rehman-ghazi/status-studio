@@ -8,10 +8,10 @@ const _downloadShare = 0.8;
 
 /// The notifications for Make the clip (spec FR-16, FR-37).
 class ClipNotices implements JobNotices<MakingProgress> {
-  const ClipNotices(this.topic);
+  const ClipNotices(this.clipName);
 
-  /// The clip's name until it is kept.
-  final String topic;
+  /// The clip's name until it is kept: the video's title (spec FR-43).
+  final String clipName;
 
   @override
   BackgroundJob get job => BackgroundJob.clip;
@@ -19,7 +19,7 @@ class ClipNotices implements JobNotices<MakingProgress> {
   @override
   ProgressNotice get starting => ProgressNotice(
     title: "Reading the video's streams",
-    text: topic,
+    text: clipName,
     percent: 0,
   );
 
@@ -28,17 +28,17 @@ class ClipNotices implements JobNotices<MakingProgress> {
     ReadingStreams() => starting,
     DownloadingCut(:final number, :final count) => ProgressNotice(
       title: 'Downloading cut $number of $count',
-      text: topic,
+      text: clipName,
       percent: _percent((number - 1 + event.fraction) / count * _downloadShare),
     ),
     JoiningCuts(:final fraction) => ProgressNotice(
       title: 'Joining the cuts',
-      text: topic,
+      text: clipName,
       percent: _percent(_downloadShare + fraction * (1 - _downloadShare)),
     ),
     KeepingClip() => ProgressNotice(
       title: 'Keeping the clip',
-      text: topic,
+      text: clipName,
       percent: 100,
     ),
   };

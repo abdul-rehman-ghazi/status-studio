@@ -1,33 +1,17 @@
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 
-/// What the user asked for on Source (spec FR-36).
+/// What the user asked for on From a link (spec FR-43): the video and the
+/// language its script is written in. There is no topic or length since
+/// M53; the joined clip is named after the video's title.
 class TopicRequest {
-  const TopicRequest({
-    required this.video,
-    required this.topic,
-    required this.length,
-    required this.outputLanguage,
-  });
+  const TopicRequest({required this.video, required this.outputLanguage});
 
   final LinkedVideo video;
 
-  /// As typed, in any language.
-  final String topic;
-
-  /// The clip's length; the cuts add up to 90–110 % of it.
-  final Duration length;
-
-  /// What the moments' words and reasons are written in (spec FR-36), and
-  /// later the clip's lyrics (FR-37). Never [ScriptLanguage.auto].
+  /// What the script and the moments' words are written in (spec FR-36),
+  /// and later the clip's lyrics (FR-37). Never [ScriptLanguage.auto].
   final ScriptLanguage outputLanguage;
-
-  /// What the joined clip is called: the topic, or the video's title when
-  /// the script came first without one (spec FR-41).
-  String get clipName {
-    final typed = topic.trim();
-    return typed.isEmpty ? video.title : typed;
-  }
 }
 
 /// The languages Output language offers: the lyrics' list without

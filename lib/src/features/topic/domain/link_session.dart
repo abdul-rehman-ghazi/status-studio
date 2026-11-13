@@ -6,9 +6,10 @@ import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 
-const _version = 1;
+const _version = 2;
 
-/// A link left on Review cuts, continued from Recent (spec FR-38).
+/// A link left on Review cuts, continued from Recent (spec FR-38): one per
+/// linked video since M53 (FR-43).
 @immutable
 class LinkSession {
   const LinkSession({
@@ -19,7 +20,8 @@ class LinkSession {
     required this.savedAt,
   });
 
-  /// Throws [FormatException] when [json] isn't a version 1 session.
+  /// Throws [FormatException] when [json] isn't a version 2 session; a
+  /// version 1 one (with a topic, before M53) is unreadable.
   factory LinkSession.fromJson(Map<String, Object?> json) => switch (json) {
     {
       'version': _version,
@@ -36,12 +38,12 @@ class LinkSession {
         edited: edited,
         savedAt: DateTime.parse(savedAt),
       ),
-    _ => throw const FormatException('Not a version 1 link session.'),
+    _ => throw const FormatException('Not a version 2 link session.'),
   };
 
   final TopicRequest request;
 
-  /// In the list's order; null while the moments are still being found.
+  /// In the list's order; null while the script is still being fetched.
   final List<ReviewCut>? cuts;
   final ClipTransition transition;
 
@@ -61,58 +63,20 @@ class LinkSession {
 }
 
 Map<String, Object?> _requestToJson(TopicRequest request) => {
-  'video': _videoToJson(request.video),
-  'topic': request.topic,
-  'lengthMs': request.length.inMilliseconds,
+  'video': request.video.toJson(),
   'outputLanguage': request.outputLanguage.whisperCode,
 };
 
 TopicRequest _requestFromJson(Map<String, Object?> json) => switch (json) {
   {
     'video': final Map<String, Object?> video,
-    'topic': final String topic,
-    'lengthMs': final int lengthMs,
     'outputLanguage': final String language,
   } =>
     TopicRequest(
-      video: _videoFromJson(video),
-      topic: topic,
-      length: Duration(milliseconds: lengthMs),
+      video: LinkedVideo.fromJson(video),
       outputLanguage: _languageOf(language),
     ),
   _ => throw const FormatException('Not a topic request.'),
-};
-
-Map<String, Object?> _videoToJson(LinkedVideo video) => {
-  'id': video.videoId,
-  'title': video.title,
-  'channel': video.channel,
-  'durationMs': video.duration.inMilliseconds,
-  'thumbnailUrl': video.thumbnailUrl,
-  'captionsUrl': video.captionsUrl,
-  'captionsLanguage': video.captionsLanguage,
-};
-
-LinkedVideo _videoFromJson(Map<String, Object?> json) => switch (json) {
-  {
-    'id': final String id,
-    'title': final String title,
-    'channel': final String channel,
-    'durationMs': final int durationMs,
-    'thumbnailUrl': final String? thumbnailUrl,
-    'captionsUrl': final String? captionsUrl,
-  } =>
-    LinkedVideo(
-      videoId: id,
-      title: title,
-      channel: channel,
-      duration: Duration(milliseconds: durationMs),
-      thumbnailUrl: thumbnailUrl,
-      captionsUrl: captionsUrl,
-      // Links kept before M50 have none: their captions aren't read.
-      captionsLanguage: json['captionsLanguage'] as String?,
-    ),
-  _ => throw const FormatException('Not a linked video.'),
 };
 
 Map<String, Object?> _reviewCutToJson(ReviewCut review) => {

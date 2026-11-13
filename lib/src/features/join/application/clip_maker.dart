@@ -167,7 +167,7 @@ class ClipMaker {
     // name in Recent.
     final video = await importer.importVideo(
       path: joined.path,
-      displayName: '${order.request.clipName}.mp4',
+      displayName: '${order.request.video.title}.mp4',
     );
     final linked = order.request.video;
     await _services.links.save(
@@ -176,7 +176,6 @@ class ClipMaker {
         youtubeId: linked.videoId,
         title: linked.title,
         channel: linked.channel,
-        topic: order.request.topic.trim(),
         outputLanguage: order.request.outputLanguage,
         transition: order.transition,
         joinTimes: plan.joinTimes,

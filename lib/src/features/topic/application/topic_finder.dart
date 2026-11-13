@@ -62,11 +62,7 @@ class TopicFinder {
     }
     final transcript = _Holder<List<TranscriptBlock>>();
     yield* _transcriptBlocks(request, transcript);
-    if (request.topic.trim().isEmpty) {
-      yield TopicFound(cuts: const [], blocks: transcript.value);
-      return;
-    }
-    yield* findIn(request, transcript.value);
+    yield TopicFound(cuts: const [], blocks: transcript.value);
   }
 
   /// The topic search alone, on a script in hand (spec FR-36; on the
@@ -74,10 +70,11 @@ class TopicFinder {
   /// [NoMomentsFoundException] when nothing is about the topic.
   Stream<TopicProgress> findIn(
     TopicRequest request,
+    String topic,
     List<TranscriptBlock> blocks,
   ) async* {
     final found = _Holder<List<MomentCandidate>>();
-    yield* _candidates(request, blocks, found);
+    yield* _candidates((request: request, topic: topic), blocks, found);
     final cuts = candidatesAsCuts(found.value, blocks);
     if (cuts.isEmpty) {
       throw const NoMomentsFoundException();
@@ -142,14 +139,15 @@ class TopicFinder {
   }
 
   Stream<TopicProgress> _candidates(
-    TopicRequest request,
+    ({TopicRequest request, String topic}) search,
     List<TranscriptBlock> blocks,
     _Holder<List<MomentCandidate>> result,
   ) async* {
+    final (:request, :topic) = search;
     final store = await services.store;
     final youTubeId = request.video.videoId;
     final key = (
-      search: (topic: request.topic, outputLanguage: request.outputLanguage),
+      search: (topic: topic, outputLanguage: request.outputLanguage),
       transcript: transcriptKeyOf(blocks),
     );
     final saved = await store.savedCandidates(youTubeId, key);
@@ -166,7 +164,7 @@ class TopicFinder {
         fraction: index / parts.length,
       );
       final reply = _Holder<Map<String, Object?>>();
-      yield* _patiently(client, _partChat(request, part), reply);
+      yield* _patiently(client, _partChat(search, part), reply);
       candidates.addAll(candidatesFromReply(reply.value, part));
     }
     result.value = candidates;
@@ -194,10 +192,15 @@ class TopicFinder {
     }
   }
 
-  GroqChatRequest _partChat(TopicRequest request, List<TranscriptBlock> part) =>
-      GroqChatRequest(
+  GroqChatRequest _partChat(
+    ({TopicRequest request, String topic}) search,
+    List<TranscriptBlock> part,
+  ) => GroqChatRequest(
         model: topicModel,
-        instructions: partInstructions(request.topic, request.outputLanguage),
+        instructions: partInstructions(
+          search.topic,
+          search.request.outputLanguage,
+        ),
         message: partMessage(part),
       );
 }

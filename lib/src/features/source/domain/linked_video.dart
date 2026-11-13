@@ -38,6 +38,30 @@ class LinkedVideo {
     );
   }
 
+  /// Throws [FormatException] for a JSON that isn't a kept linked video
+  /// (spec FR-38, FR-43).
+  factory LinkedVideo.fromJson(Map<String, Object?> json) => switch (json) {
+    {
+      'id': final String id,
+      'title': final String title,
+      'channel': final String channel,
+      'durationMs': final int durationMs,
+      'thumbnailUrl': final String? thumbnailUrl,
+      'captionsUrl': final String? captionsUrl,
+    } =>
+      LinkedVideo(
+        videoId: id,
+        title: title,
+        channel: channel,
+        duration: Duration(milliseconds: durationMs),
+        thumbnailUrl: thumbnailUrl,
+        captionsUrl: captionsUrl,
+        // Links kept before M50 have none: their captions aren't read.
+        captionsLanguage: json['captionsLanguage'] as String?,
+      ),
+    _ => throw const FormatException('Not a linked video.'),
+  };
+
   /// YouTube's 11-character ID.
   final String videoId;
   final String title;
@@ -57,6 +81,16 @@ class LinkedVideo {
   /// is the output language (M50). Null when there is no track, or for a
   /// link kept before M50.
   final String? captionsLanguage;
+
+  Map<String, Object?> toJson() => {
+    'id': videoId,
+    'title': title,
+    'channel': channel,
+    'durationMs': duration.inMilliseconds,
+    'thumbnailUrl': thumbnailUrl,
+    'captionsUrl': captionsUrl,
+    'captionsLanguage': captionsLanguage,
+  };
 }
 
 String _channelOf(Map<String, Object?> info) =>

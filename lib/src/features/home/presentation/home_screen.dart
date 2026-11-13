@@ -585,7 +585,7 @@ class _LinkSessionRow extends ConsumerWidget {
       leading: const _LinkThumbnail(),
       title: ScriptText(session.request.video.title, maxLines: 1),
       subtitle: Text(
-        '${session.request.topic.trim().isEmpty ? 'Script' : session.request.topic} · Review cuts · '
+        'Script · Review cuts · '
         '${formatDayMonth(session.savedAt.toLocal())}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,

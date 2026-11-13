@@ -103,12 +103,7 @@ class _TopicFieldsState extends State<TopicFields> {
   }
 
   void _find() => widget.onFind(
-    TopicRequest(
-      video: widget.video,
-      topic: _topicField.text.trim(),
-      length: _length,
-      outputLanguage: _outputLanguage,
-    ),
+    TopicRequest(video: widget.video, outputLanguage: _outputLanguage),
   );
 
   Future<void> _askCustomLength() async {

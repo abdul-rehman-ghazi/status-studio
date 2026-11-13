@@ -15,11 +15,11 @@ class LinkSessionsController extends AsyncNotifier<List<LinkSession>> {
     return store.sessions();
   }
 
-  /// Deletes the session only; the saved transcript and moments stay, so
-  /// the same search sends nothing to Groq.
+  /// Deletes the session only; the saved script stays, so the same link
+  /// sends nothing to Groq.
   Future<void> delete(LinkSession session) async {
     final store = await ref.read(topicStoreProvider.future);
-    await store.deleteSession(session.request);
+    await store.deleteSession(session.request.video.videoId);
     ref.invalidateSelf();
     await future;
   }
