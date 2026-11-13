@@ -1,3 +1,4 @@
+import java.io.File
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -7,12 +8,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Release signing reads android/key.properties; storeFile is relative to android/app.
-// Without it, release builds fail instead of silently falling back to debug keys.
+// The repo is public (spec §9 Signing), so the key lives outside it. Without one a release
+// build is unsigned, never debug-signed: F-Droid signs its own builds.
+val keystorePropertiesFile: File? = listOfNotNull(
+    System.getenv("STATUS_STUDIO_KEY_PROPERTIES")?.let { File(it) },
+    File(System.getProperty("user.home"), ".status-studio/key.properties"),
+    rootProject.file("key.properties"),
+).firstOrNull { it.exists() }
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+keystorePropertiesFile?.let { keystoreProperties.load(FileInputStream(it)) }
+
+// storeFile is relative to the properties file; the older android/key.properties named it
+// relative to android/app, so that is tried when nothing is beside the properties file.
+fun keystoreFile(storeFilePath: String): File {
+    val besideProperties = keystorePropertiesFile!!.parentFile.resolve(storeFilePath)
+    return if (besideProperties.exists()) besideProperties else file(storeFilePath)
 }
 
 android {
@@ -42,17 +52,29 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = (keystoreProperties["storeFile"] as String?)?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
+        if (keystorePropertiesFile != null) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String?
+                keyPassword = keystoreProperties["keyPassword"] as String?
+                storeFile = (keystoreProperties["storeFile"] as String?)?.let { keystoreFile(it) }
+                storePassword = keystoreProperties["storePassword"] as String?
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
+        }
+    }
+
+    // youtubedl-android ships Python as libpython.zip.so and unpacks it from the installed
+    // native library folder, which only exists when native libraries are extracted.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            // A zip, not an ELF library: stripping it only prints errors.
+            keepDebugSymbols += "**/libpython.zip.so"
         }
     }
 }
@@ -74,6 +96,8 @@ dependencies {
     implementation("androidx.media3:media3-common:1.11.1")
     // IntentCompat: the typed getParcelableExtra is broken on API 33.
     implementation("androidx.core:core:1.13.1")
+    // yt-dlp with Python and QuickJS (spec FR-35): reads video links, updates itself.
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     testImplementation("junit:junit:4.13.2")
 }

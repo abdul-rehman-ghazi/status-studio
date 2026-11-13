@@ -80,6 +80,7 @@ class VideoInChannel(private val context: Context, messenger: BinaryMessenger) :
      */
     fun receive(intent: Intent?): Boolean {
         if (intent == null || disposed) return false
+        if (receiveLink(intent)) return true
         val mimeType = mimeTypeOf(intent)
         if (!isVideoShare(intent.action, mimeType)) return false
         val sharedUri = sharedUriOf(intent) ?: return false
@@ -87,6 +88,14 @@ class VideoInChannel(private val context: Context, messenger: BinaryMessenger) :
             val outcome = stageOutcome(sharedUri, mimeType)
             mainHandler.post { if (!disposed) deliveries.deliver(outcome.first, outcome.second) }
         }
+        return true
+    }
+
+    /** A YouTube link shared as text (spec FR-35); other text is left alone. */
+    private fun receiveLink(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_SEND || intent.type != "text/plain") return false
+        val link = firstYouTubeLink(intent.getStringExtra(Intent.EXTRA_TEXT)) ?: return false
+        deliveries.deliver("incomingLink", mapOf("link" to link))
         return true
     }
 

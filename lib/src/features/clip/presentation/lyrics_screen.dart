@@ -12,6 +12,7 @@ import 'package:status_studio/src/features/clip/application/lyrics_undo_controll
 import 'package:status_studio/src/features/clip/presentation/clip_lines_list.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_source_player.dart';
 import 'package:status_studio/src/features/clip/presentation/lyrics_get_card.dart';
+import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
@@ -330,14 +331,29 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     final run = ref.watch(scriptProgressProvider);
     return [
       const ScriptRunSection(),
-      if (!isWriting && !run.hasError) ...[
-        LyricsGetCard(
-          initialLanguage: draft.language,
-          onGet: _getLyrics,
-          onType: () => unawaited(_typeLyrics()),
-        ),
-      ],
+      if (!isWriting && !run.hasError) ...[_getCard(draft)],
     ];
+  }
+
+  /// A clip joined from a link gets its lyrics in its output language
+  /// (spec FR-37); any other video picks the language.
+  Widget _getCard(ReelDraft draft) {
+    final videoId = draft.video?.videoId;
+    final linked = videoId == null
+        ? null
+        : ref.watch(linkedClipProvider(videoId)).value;
+    if (linked != null) {
+      return LinkedLyricsGetCard(
+        outputLanguage: linked.outputLanguage,
+        onGet: _getLyrics,
+        onType: () => unawaited(_typeLyrics()),
+      );
+    }
+    return LyricsGetCard(
+      initialLanguage: draft.language,
+      onGet: _getLyrics,
+      onType: () => unawaited(_typeLyrics()),
+    );
   }
 
   /// Off stops a script still being written (spec FR-29); the lines stay.

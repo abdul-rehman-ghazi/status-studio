@@ -1,0 +1,70 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/clip/domain/clip_window.dart';
+import 'package:status_studio/src/features/join/data/cut_downloader.dart';
+import 'package:status_studio/src/features/join/data/linked_streams_reader.dart';
+import 'package:status_studio/src/features/join/domain/cut_file.dart';
+import 'package:status_studio/src/features/join/domain/download_cancel.dart';
+import 'package:status_studio/src/features/join/domain/join_errors.dart';
+import 'package:status_studio/src/features/join/domain/stream_choice.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
+import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
+
+/// Stream links last some hours; an hour leaves a wide margin.
+const _streamsKeptFor = Duration(hours: 1);
+
+/// Streams read for a video, and when.
+typedef _ReadStreams = ({CutStreams streams, DateTime readAt});
+
+/// Play on a card (spec FR-37): the moment's stretch at up to 480p,
+/// downloaded into the cache as a cut is, and reused when played again.
+class CutPreviewer {
+  CutPreviewer({required this.streams, required this.cuts});
+
+  final LinkedStreamsReader streams;
+  final CutDownloader cuts;
+
+  /// Reading streams takes yt-dlp several seconds, so they are kept for
+  /// the next card.
+  final _read = <String, _ReadStreams>{};
+
+  /// Throws as [CutDownloader.download] and [LinkedStreamsReader.read] do.
+  Future<CutFile> prepare(LinkedVideo video, TopicCut cut) async {
+    try {
+      return await _download(video, cut, await _streamsFor(video.videoId));
+    } on ExpiredStreamUrlException {
+      _read.remove(video.videoId);
+      return _download(video, cut, await _streamsFor(video.videoId));
+    }
+  }
+
+  Future<CutStreams> _streamsFor(String youtubeId) async {
+    final kept = _read[youtubeId];
+    if (kept != null &&
+        DateTime.now().difference(kept.readAt) < _streamsKeptFor) {
+      return kept.streams;
+    }
+    final read = streamsForPreview(await streams.read(youtubeId));
+    _read[youtubeId] = (streams: read, readAt: DateTime.now());
+    return read;
+  }
+
+  Future<CutFile> _download(
+    LinkedVideo video,
+    TopicCut cut,
+    CutStreams streams,
+  ) => cuts.download(
+    CutRequest(
+      youtubeId: video.videoId,
+      window: ClipWindow(start: cut.start, end: cut.end),
+      streams: streams,
+    ),
+    CutDownloadWatch(cancel: DownloadCancel(), onBytes: (_, _) {}),
+  );
+}
+
+final cutPreviewerProvider = Provider<CutPreviewer>(
+  (ref) => CutPreviewer(
+    streams: ref.watch(linkedStreamsReaderProvider),
+    cuts: ref.watch(cutDownloaderProvider),
+  ),
+);

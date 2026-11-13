@@ -235,7 +235,10 @@ typedef _StepAmounts = ({WorkRate rate, WorkAmount latest, Duration latestAt});
 /// How much of a step is done, and how fast, as last measured.
 typedef _StepReading = ({WorkAmount amount, double? perSecond});
 
+/// A clip joined from a link is written as spoken, detected automatically,
+/// then translated (spec FR-37).
 List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
+  final translatesTo = progress?.translatesTo;
   return [
     (
       label: ScriptStage.preparingAudio.label,
@@ -244,7 +247,10 @@ List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
     ),
     (
       label: ScriptStage.detectingLanguage.label,
-      detail: _languageDetail(language, progress),
+      detail: _languageDetail(
+        translatesTo == null ? language : ScriptLanguage.auto,
+        progress,
+      ),
       stage: ScriptStage.detectingLanguage,
     ),
     (
@@ -252,6 +258,12 @@ List<_Step> _scriptSteps(ScriptLanguage language, ScriptProgress? progress) {
       detail: 'Groq, in the cloud',
       stage: ScriptStage.transcribing,
     ),
+    if (translatesTo != null)
+      (
+        label: 'Translating into ${translatesTo.label}',
+        detail: 'Groq, in the cloud; only the translation is kept',
+        stage: ScriptStage.translating,
+      ),
     (
       label: ScriptStage.done.label,
       detail: 'So every line knows when it is said',

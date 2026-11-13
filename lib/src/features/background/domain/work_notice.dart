@@ -3,7 +3,10 @@ import 'package:flutter/foundation.dart';
 /// Work that keeps running when the user leaves the app (spec FR-16).
 enum BackgroundJob {
   script(resultNotificationId: 2),
-  export(resultNotificationId: 3);
+  export(resultNotificationId: 3),
+
+  /// Make the clip from a link (spec FR-37).
+  clip(resultNotificationId: 4);
 
   const BackgroundJob({required this.resultNotificationId});
 

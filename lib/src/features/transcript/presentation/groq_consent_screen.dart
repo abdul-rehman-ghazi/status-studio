@@ -8,9 +8,11 @@ import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/features/transcript/application/groq_consent_controller.dart';
 
 const _points = [
-  'To write the lyrics, Status Studio sends your video\'s sound to Groq, '
-      'a third-party AI service, using your own Groq key.',
-  'What is sent: the sound only, cleaned to one channel, in pieces.',
+  'To write the lyrics, and to find a topic in a linked video, Status '
+      'Studio sends to Groq, a third-party AI service, using your own Groq '
+      'key.',
+  "What is sent: the video's sound, cleaned to one channel, in pieces; and, "
+      "to find a topic, the video's transcript and the topic you type.",
   'What is not sent: the picture. Nothing goes to us: Status Studio has '
       'no server and no account.',
   "Groq's terms and privacy policy apply (groq.com). You can withdraw "
@@ -50,7 +52,7 @@ class _GroqConsentScreenState extends ConsumerState<_GroqConsentScreen> {
     return Dialog.fullscreen(
       child: Scaffold(
         appBar: AppBar(
-          title: const ScreenTitle('Send audio to Groq?'),
+          title: const ScreenTitle('Send to Groq?'),
           automaticallyImplyLeading: false,
         ),
         body: ListView(
@@ -62,8 +64,8 @@ class _GroqConsentScreenState extends ConsumerState<_GroqConsentScreen> {
                 child: Text(point),
               ),
             const HintText(
-              'Without lyrics, nothing leaves your phone and you need no '
-              'key.',
+              'Without lyrics or a link, nothing leaves your phone and you '
+              'need no key.',
             ),
           ],
         ),

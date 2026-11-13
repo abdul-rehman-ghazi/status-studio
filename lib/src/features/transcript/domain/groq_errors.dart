@@ -43,6 +43,16 @@ class NoGroqKeyException implements Exception {
   String toString() => 'NoGroqKeyException';
 }
 
+/// Groq's chat reply wasn't the JSON asked for (spec FR-36).
+class GroqUnreadableReplyException implements Exception {
+  const GroqUnreadableReplyException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'GroqUnreadableReplyException: $reason';
+}
+
 /// The user hasn't agreed to send audio or lines to Groq (spec FR-30).
 /// Thrown before anything is sent.
 class NoGroqConsentException implements Exception {
@@ -50,4 +60,15 @@ class NoGroqConsentException implements Exception {
 
   @override
   String toString() => 'NoGroqConsentException';
+}
+
+/// Groq's translation of the lyrics didn't come back line for line (spec
+/// FR-37, §8).
+class LyricsNotTranslatedException implements Exception {
+  const LyricsNotTranslatedException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'LyricsNotTranslatedException: $reason';
 }

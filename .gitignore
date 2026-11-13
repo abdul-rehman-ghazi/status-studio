@@ -55,3 +55,10 @@ app.*.map.json
 
 # Reference clips for manual checks; too big to commit and never bundled
 assets/videos/
+
+# Signing keys never go in the repo: it is public (spec §9 Signing).
+*.jks
+*.keystore
+key.properties
+*.p12
+*.mobileprovision

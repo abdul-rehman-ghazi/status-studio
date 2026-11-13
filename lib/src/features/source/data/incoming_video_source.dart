@@ -7,23 +7,39 @@ import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
 const _channel = MethodChannel('status_studio/video_in');
 
-/// Videos shared into the app from elsewhere (spec FR-1): the one that
-/// launched it first, then any later share while it runs.
+/// Videos (spec FR-1) and, on Android, YouTube links (FR-35) shared into the
+/// app from elsewhere: the one that launched it first, then any later share
+/// while it runs.
 abstract interface class IncomingVideoSource {
-  /// A broadcast stream. A share that fails to copy arrives as an error:
+  /// A broadcast stream. A video that fails to copy arrives as an error:
   /// [InsufficientStorageException] or [VideoUnreadableException].
-  Stream<IncomingVideo> get videos;
+  Stream<IncomingShare> get shares;
 }
 
-/// Turns the platform's share messages into videos: anything that isn't a
-/// video is dropped, and so is a share reported a second time.
-Stream<IncomingVideo> incomingVideosFrom(
+/// Turns the platform's share messages into shares: anything that is
+/// neither a link nor a video is dropped, and so is a video reported a
+/// second time.
+Stream<IncomingShare> incomingSharesFrom(
   Stream<Map<Object?, Object?>> messages,
 ) {
   final reportedPaths = <String>{};
-  bool isFirstReport(IncomingVideo video) => reportedPaths.add(video.path);
+  bool isFirstReport(IncomingShare share) =>
+      share is! IncomingVideo || reportedPaths.add(share.path);
 
-  return messages.where(_isVideoShare).map(_videoFrom).where(isFirstReport);
+  return messages
+      .map(_shareFrom)
+      .where((share) => share != null)
+      .cast<IncomingShare>()
+      .where(isFirstReport);
+}
+
+/// Null for a message that is neither, which the stream drops.
+IncomingShare? _shareFrom(Map<Object?, Object?> message) {
+  final link = message['link'];
+  if (link is String && link.isNotEmpty) {
+    return IncomingLink(link);
+  }
+  return _isVideoShare(message) ? _videoFrom(message) : null;
 }
 
 bool _isVideoShare(Map<Object?, Object?> message) {
@@ -54,7 +70,7 @@ class PlatformIncomingVideoSource implements IncomingVideoSource {
     // The controller buffers until the first listener subscribes, so the
     // launch share is not lost; `asBroadcastStream` then serves any number
     // of listeners and tells us when the first arrives and the last leaves.
-    videos = incomingVideosFrom(_messages.stream).asBroadcastStream(
+    shares = incomingSharesFrom(_messages.stream).asBroadcastStream(
       onListen: (subscription) {
         subscription.resume();
         unawaited(_startListening());
@@ -70,7 +86,7 @@ class PlatformIncomingVideoSource implements IncomingVideoSource {
   var _listening = false;
 
   @override
-  late final Stream<IncomingVideo> videos;
+  late final Stream<IncomingShare> shares;
 
   Future<void> _startListening() async {
     _listening = true;
@@ -106,7 +122,7 @@ class PlatformIncomingVideoSource implements IncomingVideoSource {
   void _dispatch(String method, Object? arguments) {
     if (arguments is! Map<Object?, Object?>) return;
     switch (method) {
-      case 'incomingVideo':
+      case 'incomingVideo' || 'incomingLink':
         _messages.add(arguments);
       case 'incomingVideoFailed':
         _messages.addError(_copyFailure(arguments));

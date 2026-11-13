@@ -1,3 +1,25 @@
+/// The video is private, age-restricted, removed or otherwise can't be
+/// downloaded (spec §8, FR-35).
+class VideoUnavailableException implements Exception {
+  const VideoUnavailableException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'VideoUnavailableException: $reason';
+}
+
+/// YouTube answered in a way yt-dlp couldn't read: usually a YouTube change
+/// that a newer yt-dlp handles (spec §8, FR-35).
+class YouTubeChangedException implements Exception {
+  const YouTubeChangedException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'YouTubeChangedException: $reason';
+}
+
 /// The network dropped during a download (spec §8).
 class OfflineException implements Exception {
   const OfflineException(this.reason);

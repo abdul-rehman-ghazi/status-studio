@@ -122,3 +122,10 @@ fun failureCodeOf(error: Exception): String {
     if (error is InsufficientStorageException || isOutOfSpace(error.message)) return "no_space"
     return "copy_failed"
 }
+
+private val youTubeLinkPattern =
+    Regex("""https?://(?:www\.|m\.)?(?:youtube\.com|youtu\.be)/\S+""", RegexOption.IGNORE_CASE)
+
+/** The YouTube app shares "Title https://youtu.be/…", so the link is picked out of the text. */
+fun firstYouTubeLink(sharedText: String?): String? =
+    sharedText?.let { youTubeLinkPattern.find(it)?.value }

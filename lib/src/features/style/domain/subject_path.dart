@@ -63,17 +63,29 @@ class SubjectScene {
   final List<SubjectSample> samples;
 }
 
-/// The scenes of [track]: split at the detected cuts and at the jumps the
-/// detector missed. A stretch with no samples is left out.
+/// The scenes of [track]: split at the detected cuts, at the jumps the
+/// detector missed, and at a joined clip's joins (spec FR-37). A stretch
+/// with no samples is left out.
 List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
+  final found = _withMissedJumps(
+    track.sceneCuts ?? const [],
+    _cutsFromJumps(track.samples, geometry),
+  );
   final cuts = _cutsInsideClip(
-    _withMissedJumps(
-      track.sceneCuts ?? const [],
-      _cutsFromJumps(track.samples, geometry),
-    ),
+    _withJoins(found, track.joinCuts),
+    track.joinCuts,
     geometry.clip,
   );
   return _scenesBetween(track.samples, cuts, geometry.clip);
+}
+
+/// A found cut within half a second of a join gives way to it: the blend
+/// may register as a cut a little off the join (spec FR-37).
+List<Duration> _withJoins(List<Duration> found, List<Duration> joins) {
+  final apart = found.where(
+    (cut) => !joins.any((join) => (cut - join).abs() < _keyframeSpacing),
+  );
+  return [...apart, ...joins];
 }
 
 /// The cuts that make a scene long enough to hold its keyframe: one within
@@ -81,17 +93,24 @@ List<SubjectScene> scenesOf(SubjectTrack track, FollowGeometry geometry) {
 /// boundary, or the user's answer for that scene would be dropped by the
 /// keyframe spacing. A cut is compared as its keyframe will be (a little
 /// before it, see [cutKeyframeLead]), and the clip's ends as theirs are (rounded
-/// inwards to a tenth of a second).
-List<Duration> _cutsInsideClip(List<Duration> cuts, ClipRange clip) {
+/// inwards to a tenth of a second). A join (in [joins]) is measured against
+/// the clip's ends only: no found cut is that close to it (see [_withJoins]).
+List<Duration> _cutsInsideClip(
+  List<Duration> cuts,
+  List<Duration> joins,
+  ClipRange clip,
+) {
   final inside =
       cuts.where((cut) => cut > clip.start && cut < clip.end).toList()..sort();
   final kept = <Duration>[];
-  var previous = _roundedUpToTenth(clip.start);
+  final earliest = _roundedUpToTenth(clip.start);
+  var previous = earliest;
   final latest = _roundedDownToTenth(clip.end);
   for (final cut in inside) {
     final at = cut - cutKeyframeLead;
+    final after = joins.contains(cut) ? earliest : previous;
     final longEnough =
-        at - previous >= _keyframeSpacing && latest - at >= _keyframeSpacing;
+        at - after >= _keyframeSpacing && latest - at >= _keyframeSpacing;
     if (longEnough) {
       kept.add(cut);
       previous = at;

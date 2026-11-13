@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
+import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/library/domain/recent_entries.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
@@ -20,6 +22,8 @@ import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/topic/application/link_sessions_controller.dart';
+import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
@@ -39,7 +43,10 @@ class HomeScreen extends ConsumerWidget {
           children: [
             const _Header(),
             const SizedBox(height: 24),
-            _NewReelCard(onTap: () => _startNewReel(context, ref)),
+            _StartCards(
+              onVideo: () => _startNewReel(context, ref, AppRoutes.source),
+              onLink: () => _startNewReel(context, ref, AppRoutes.link),
+            ),
             const SizedBox(height: 28),
             const _RecentSection(),
           ],
@@ -48,10 +55,10 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  void _startNewReel(BuildContext context, WidgetRef ref) {
+  void _startNewReel(BuildContext context, WidgetRef ref, String route) {
     ref.read(scriptOpeningNoticeProvider.notifier).clear();
     ref.read(reelDraftProvider.notifier).startNew();
-    context.push(AppRoutes.source);
+    unawaited(context.push(route));
   }
 }
 
@@ -95,14 +102,68 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _NewReelCard extends StatelessWidget {
-  const _NewReelCard({required this.onTap});
+/// From my videos, and on Android From a YouTube link (spec FR-35), side
+/// by side. iOS has no links, so it keeps the one New reel card.
+class _StartCards extends StatelessWidget {
+  const _StartCards({required this.onVideo, required this.onLink});
 
+  final VoidCallback onVideo;
+  final VoidCallback onLink;
+
+  @override
+  Widget build(BuildContext context) {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return _StartCard(
+        icon: Icons.add_circle,
+        title: 'New reel',
+        subtitle: 'Choose or share a video, then trim and caption it',
+        onTap: onVideo,
+      );
+    }
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _StartCard(
+              icon: Icons.video_library,
+              title: 'From my videos',
+              subtitle: 'Choose or share a trimmed video',
+              onTap: onVideo,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StartCard(
+              icon: Icons.link,
+              title: 'From a YouTube link',
+              subtitle: 'Find a topic in a long video',
+              onTap: onLink,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StartCard extends StatelessWidget {
+  const _StartCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final onAccent = context.palette.onAccent;
     return Material(
       color: context.palette.accent,
       borderRadius: BorderRadius.circular(20),
@@ -110,31 +171,23 @@ class _NewReelCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Row(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.add_circle, color: context.palette.onAccent, size: 36),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'New reel',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: context.palette.onAccent,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Choose or share a video, then trim and caption it',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: context.palette.onAccent,
-                      ),
-                    ),
-                  ],
+              Icon(icon, color: onAccent, size: 32),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: textTheme.titleMedium?.copyWith(
+                  color: onAccent,
+                  fontWeight: FontWeight.w700,
                 ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: textTheme.bodySmall?.copyWith(color: onAccent),
               ),
             ],
           ),
@@ -150,9 +203,12 @@ class _RecentSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rows = _newestFirst(
-      reels: ref.watch(recentReelsProvider).value ?? const [],
-      scripts: ref.watch(savedScriptsProvider).value ?? const [],
-      fineTunes: ref.watch(fineTuneDraftsProvider).value ?? const [],
+      RecentLists(
+        reels: ref.watch(recentReelsProvider).value ?? const [],
+        scripts: ref.watch(savedScriptsProvider).value ?? const [],
+        fineTunes: ref.watch(fineTuneDraftsProvider).value ?? const [],
+        linkSessions: ref.watch(linkSessionsProvider).value ?? const [],
+      ),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,27 +221,17 @@ class _RecentSection extends ConsumerWidget {
   }
 }
 
-/// Finished reels, scripts and fine-tunes to continue in one list, newest
-/// first.
-List<Widget> _newestFirst({
-  required List<RecentReel> reels,
-  required List<SavedScript> scripts,
-  required List<SavedFineTune> fineTunes,
-}) {
-  final entries = recentEntries(
-    reels: reels,
-    scripts: scripts,
-    fineTunes: fineTunes,
-  );
-  return [
-    for (final entry in entries)
-      switch (entry) {
-        ReelEntry(:final reel) => _RecentReelRow(reel: reel),
-        ScriptEntry(:final script) => _SavedScriptRow(script: script),
-        FineTuneEntry(:final fineTune) => _FineTuneRow(fineTune: fineTune),
-      },
-  ];
-}
+/// Finished reels, scripts, and fine-tunes and links to continue in one
+/// list, newest first.
+List<Widget> _newestFirst(RecentLists lists) => [
+  for (final entry in recentEntries(lists))
+    switch (entry) {
+      ReelEntry(:final reel) => _RecentReelRow(reel: reel),
+      ScriptEntry(:final script) => _SavedScriptRow(script: script),
+      FineTuneEntry(:final fineTune) => _FineTuneRow(fineTune: fineTune),
+      LinkSessionEntry(:final session) => _LinkSessionRow(session: session),
+    },
+];
 
 class _EmptyRecent extends StatelessWidget {
   const _EmptyRecent();
@@ -253,6 +299,13 @@ class _RecentReelRow extends ConsumerWidget {
   }
 }
 
+/// "From a link · " before a clip joined from a link (spec FR-37), whose
+/// name is its topic.
+String _linkNote(WidgetRef ref, String videoId) =>
+    ref.watch(linkedClipProvider(videoId)).value == null
+    ? ''
+    : 'From a link · ';
+
 /// A processed video's whole script, before any clip is cut from it. Tap
 /// reopens Script without downloading (FR-14); long-press offers Delete.
 class _SavedScriptRow extends ConsumerWidget {
@@ -272,7 +325,8 @@ class _SavedScriptRow extends ConsumerWidget {
       title: ScriptText(script.video.title, maxLines: 1),
       subtitle: Text(
         _isKept(ref)
-            ? 'Script · $language · ${formatTimestamp(script.video.duration)} · '
+            ? '${_linkNote(ref, script.video.videoId)}'
+                  'Script · $language · ${formatTimestamp(script.video.duration)} · '
                   '${formatDayMonth(script.saved.savedAt.toLocal())}'
             : _chooseAgainHint,
       ),
@@ -385,7 +439,8 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       title: ScriptText(fineTune.video.title, maxLines: 1),
       subtitle: Text(
         _isKept
-            ? 'Fine-tune · ${formatSeconds(clipLength)} · '
+            ? '${_linkNote(ref, fineTune.video.videoId)}'
+                  'Fine-tune · ${formatSeconds(clipLength)} · '
                   '${formatDayMonth(fineTune.draft.savedAt.toLocal())}'
             : _chooseAgainHint,
       ),
@@ -510,6 +565,63 @@ class _FineTuneThumbnail extends StatelessWidget {
         child: ColoredBox(
           color: context.palette.surface,
           child: Icon(Icons.tune, color: context.palette.textMuted),
+        ),
+      ),
+    );
+  }
+}
+
+/// A link left on Review cuts (FR-38). Tap opens Review cuts with the cuts
+/// as left; long-press offers Delete, which keeps the saved moments.
+class _LinkSessionRow extends ConsumerWidget {
+  const _LinkSessionRow({required this.session});
+
+  final LinkSession session;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const _LinkThumbnail(),
+      title: ScriptText(session.request.video.title, maxLines: 1),
+      subtitle: Text(
+        '${session.request.topic} · Review cuts · '
+        '${formatDayMonth(session.savedAt.toLocal())}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Text(
+        'Continue',
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: context.palette.accent,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      onTap: () => context.push(AppRoutes.reviewCuts, extra: session),
+      onLongPress: () => unawaited(_offerDelete(context, ref)),
+    );
+  }
+
+  Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
+    if (await _confirmAction(context, 'Delete')) {
+      await ref.read(linkSessionsProvider.notifier).delete(session);
+    }
+  }
+}
+
+class _LinkThumbnail extends StatelessWidget {
+  const _LinkThumbnail();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 48,
+        height: 64,
+        child: ColoredBox(
+          color: context.palette.surface,
+          child: Icon(Icons.link, color: context.palette.textMuted),
         ),
       ),
     );

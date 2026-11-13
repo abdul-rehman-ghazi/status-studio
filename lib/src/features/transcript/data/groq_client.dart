@@ -17,6 +17,23 @@ const scriptModel = 'whisper-large-v3';
 /// transcriber, so tool/voice_check.dart can apply the same rule.
 const groqNoSpeechCutoff = 0.6;
 
+/// A chat request whose reply must be one JSON object (spec FR-36).
+class GroqChatRequest {
+  const GroqChatRequest({
+    required this.model,
+    required this.instructions,
+    required this.message,
+  });
+
+  final String model;
+
+  /// The system message: what to do and the reply's shape.
+  final String instructions;
+
+  /// The user message: the transcript part or the candidates.
+  final String message;
+}
+
 /// One stretch of speech Groq reports for a piece, timed within the piece.
 class GroqSegment {
   const GroqSegment({
@@ -92,6 +109,45 @@ class GroqClient {
       return request;
     });
     return _segmentsOf(reply);
+  }
+
+  /// Sends [chat] and returns the JSON object Groq replies with. Throws
+  /// [GroqUnreadableReplyException] when the reply isn't one.
+  Future<Map<String, Object?>> chatJson(GroqChatRequest chat) async {
+    await beforeUpload();
+    final body = utf8.encode(jsonEncode(_chatBody(chat)));
+    final reply = await _send(() async {
+      final request = await _open('POST', '/chat/completions');
+      request.headers.contentType = ContentType.json;
+      request.add(body);
+      return request;
+    });
+    return _chatContentOf(reply);
+  }
+
+  Map<String, Object?> _chatBody(GroqChatRequest chat) => {
+    'model': chat.model,
+    'messages': [
+      {'role': 'system', 'content': chat.instructions},
+      {'role': 'user', 'content': chat.message},
+    ],
+    'response_format': {'type': 'json_object'},
+    'temperature': 0,
+    // Reasoning tokens count against the free plan's tokens per minute.
+    if (chat.model.startsWith('openai/gpt-oss')) 'reasoning_effort': 'low',
+  };
+
+  Map<String, Object?> _chatContentOf(String reply) {
+    try {
+      final decoded = jsonDecode(reply) as Map<String, Object?>;
+      final choices = decoded['choices']! as List<Object?>;
+      final message =
+          (choices.first! as Map<String, Object?>)['message']!
+              as Map<String, Object?>;
+      return jsonDecode(message['content']! as String) as Map<String, Object?>;
+    } on Object catch (error) {
+      throw GroqUnreadableReplyException('$error');
+    }
   }
 
   Future<HttpClientRequest> _open(String method, String path) async {

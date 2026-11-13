@@ -24,6 +24,11 @@ class AboutSection extends ConsumerWidget {
           'lyrics in any language.',
         ),
         const SizedBox(height: 4),
+        const HintText(
+          'Free software under the GNU GPL, version 3. Source code: '
+          'github.com/abdul-rehman-ghazi/status-studio',
+        ),
+        const SizedBox(height: 4),
         TextButton(
           style: TextButton.styleFrom(padding: EdgeInsets.zero),
           onPressed: () => showLicensePage(

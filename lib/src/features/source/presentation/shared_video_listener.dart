@@ -13,19 +13,21 @@ import 'package:status_studio/src/features/source/data/incoming_video_source.dar
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
-final _incomingVideosProvider = StreamProvider<IncomingVideo>(
-  (ref) => ref.watch(incomingVideoSourceProvider).videos,
+final _incomingSharesProvider = StreamProvider<IncomingShare>(
+  (ref) => ref.watch(incomingVideoSourceProvider).shares,
 );
 
 /// Screens where no reel is being made, so a shared video needs no question.
 const _screensWithoutAReel = {
   AppRoutes.home,
   AppRoutes.source,
+  AppRoutes.link,
   AppRoutes.done,
   AppRoutes.settings,
   AppRoutes.appearanceSettings,
   AppRoutes.groqSettings,
   AppRoutes.backgroundSettings,
+  AppRoutes.downloaderSettings,
   AppRoutes.supportSettings,
   AppRoutes.aboutSettings,
 };
@@ -36,8 +38,8 @@ bool sharedVideoWouldCloseAReel({
   required ReelDraft draft,
 }) => draft.video != null && !_screensWithoutAReel.contains(currentPath);
 
-/// Opens Source for every video shared into the app, asking first when it
-/// would close a reel in progress (spec FR-1).
+/// Opens Source for every video (spec FR-1) or link (FR-35) shared into the
+/// app, asking first when it would close a reel in progress.
 class SharedVideoListener extends ConsumerStatefulWidget {
   const SharedVideoListener({required this.child, super.key});
 
@@ -53,7 +55,7 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(_incomingVideosProvider, (previous, next) {
+    ref.listen(_incomingSharesProvider, (previous, next) {
       switch (next) {
         case AsyncData(:final value):
           unawaited(_open(value));
@@ -66,14 +68,14 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
     return widget.child;
   }
 
-  Future<void> _open(IncomingVideo video) async {
+  Future<void> _open(IncomingShare share) async {
     final router = ref.read(appRouterProvider);
     final wouldClose = sharedVideoWouldCloseAReel(
       currentPath: _currentPath(router),
       draft: ref.read(reelDraftProvider),
     );
-    if (wouldClose && !await _confirmNewReel()) {
-      await _deleteStagedCopy(video);
+    if (wouldClose && !await _confirmNewReel(share)) {
+      if (share is IncomingVideo) await _deleteStagedCopy(share);
       return;
     }
     // The top screen is animated out, not removed, so it is still mounted
@@ -89,7 +91,8 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
     // is only reset once Home has replaced them.
     await SchedulerBinding.instance.endOfFrame;
     ref.read(reelDraftProvider.notifier).startNew();
-    unawaited(router.push<void>(AppRoutes.source, extra: video));
+    final route = share is IncomingLink ? AppRoutes.link : AppRoutes.source;
+    unawaited(router.push<void>(route, extra: share));
   }
 
   /// Only a reel that has reached Fine-tune is worth keeping (FR-24); a
@@ -116,7 +119,7 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
     return configuration.isEmpty ? AppRoutes.home : router.state.uri.path;
   }
 
-  Future<bool> _confirmNewReel() async {
+  Future<bool> _confirmNewReel(IncomingShare share) async {
     final context = _navigatorContext();
     if (context == null || _asking) {
       return false;
@@ -126,7 +129,10 @@ class _SharedVideoListenerState extends ConsumerState<SharedVideoListener> {
       final start = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Start a new reel from this video?'),
+          title: Text(switch (share) {
+            IncomingVideo() => 'Start a new reel from this video?',
+            IncomingLink() => 'Start a new reel from this link?',
+          }),
           content: const Text("The one you're making will close."),
           actions: [
             TextButton(

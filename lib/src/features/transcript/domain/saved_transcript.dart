@@ -18,6 +18,10 @@ const groqSource = 'groq-whisper-large-v3';
 /// AI fixed before M36 (FR-18, FR-19).
 const editedSource = 'edited';
 
+/// Source name of a linked clip's script translated by Groq's chat model
+/// into the output language (spec FR-37).
+const translatedSource = 'groq-translated';
+
 /// Which saved scripts belong together: one video, one requested language
 /// (`auto` counts as its own language).
 @immutable

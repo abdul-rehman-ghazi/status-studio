@@ -22,6 +22,7 @@ import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// Step 1: bring in a video, by the gallery picker or by a share (spec FR-1).
+/// Links have their own screen (FR-35).
 ///
 /// A [sharedVideo] is imported at once; like a picked one, it waits for the
 /// user to choose a script or none (spec FR-29), so nothing is uploaded
