@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/features/transcript/application/groq_allowance_controller.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
 import 'package:status_studio/src/features/transcript/data/groq_consent_store.dart';
 import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
@@ -30,11 +31,13 @@ class GroqKeyController extends AsyncNotifier<bool> {
   Future<void> saveKey(String apiKey) async {
     await ref.read(groqKeyCheckerProvider)(apiKey);
     await _store.saveKey(apiKey);
+    await ref.read(groqAllowanceProvider.notifier).forget();
     state = const AsyncData(true);
   }
 
   Future<void> removeKey() async {
     await _store.removeKey();
+    await ref.read(groqAllowanceProvider.notifier).forget();
     state = const AsyncData(false);
   }
 }

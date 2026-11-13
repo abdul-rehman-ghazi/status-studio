@@ -8,6 +8,7 @@ import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/transcript/application/groq_allowance_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
 import 'package:status_studio/src/features/transcript/data/audio_preparer.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
@@ -16,6 +17,7 @@ import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
 import 'package:status_studio/src/features/transcript/data/groq_transcriber.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/audio_piece.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_allowance.dart';
 import 'package:status_studio/src/features/transcript/domain/language_inference.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/features/transcript/domain/segment_lines.dart';
@@ -330,6 +332,7 @@ final realScriptPipelineProvider = Provider<ScriptPipeline>(
       groq: () => _groqTranscriber(
         ref.read(groqKeyStoreProvider),
         ref.read(groqConsentStoreProvider),
+        ref.read(groqAllowanceProvider.notifier).record,
       ),
     ),
   ),
@@ -341,10 +344,15 @@ final realScriptPipelineProvider = Provider<ScriptPipeline>(
 Future<GroqTranscriber> _groqTranscriber(
   GroqKeyStore keys,
   GroqConsentStore consent,
+  void Function(GroqAllowance) onAllowance,
 ) async {
   final apiKey = await keys.savedKey();
   await consent.requireGiven();
   return GroqTranscriber(
-    GroqClient(apiKey: apiKey, beforeUpload: consent.requireGiven),
+    GroqClient(
+      apiKey: apiKey,
+      beforeUpload: consent.requireGiven,
+      onAllowance: onAllowance,
+    ),
   );
 }
