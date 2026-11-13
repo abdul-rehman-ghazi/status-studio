@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
@@ -14,14 +13,12 @@ import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/library/domain/recent_entries.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
-import 'package:status_studio/src/features/reel/application/fine_tune_draft_saver.dart';
+import 'package:status_studio/src/features/library/presentation/unfinished_work_actions.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
-import 'package:status_studio/src/features/reel/application/fine_tune_resumer.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
-import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/topic/application/link_sessions_controller.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
@@ -293,7 +290,7 @@ class _RecentReelRow extends ConsumerWidget {
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
-    if (await _confirmAction(context, 'Delete')) {
+    if (await confirmAction(context, 'Delete')) {
       await ref.read(recentReelsProvider.notifier).delete(reel.id);
     }
   }
@@ -328,7 +325,7 @@ class _SavedScriptRow extends ConsumerWidget {
             ? '${_linkNote(ref, script.video.videoId)}'
                   'Script · $language · ${formatTimestamp(script.video.duration)} · '
                   '${formatDayMonth(script.saved.savedAt.toLocal())}'
-            : _chooseAgainHint,
+            : chooseAgainHint,
       ),
       onTap: () => unawaited(_openScript(context, ref)),
       onLongPress: () => unawaited(_offerDelete(context, ref)),
@@ -342,9 +339,9 @@ class _SavedScriptRow extends ConsumerWidget {
   /// (nothing is uploaded for a saved script, FR-14). With the kept video
   /// gone the user is asked for it again first (spec FR-1).
   Future<void> _openScript(BuildContext context, WidgetRef ref) async {
-    if (!await _isStillKept(ref, script.video.videoId)) {
+    if (!await isStillKept(ref, script.video.videoId)) {
       if (context.mounted) {
-        _askForTheVideoAgain(context, ref, script.video.videoId);
+        askForTheVideoAgain(context, ref, script.video.videoId);
       }
       return;
     }
@@ -363,33 +360,10 @@ class _SavedScriptRow extends ConsumerWidget {
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
-    if (await _confirmAction(context, 'Delete')) {
+    if (await confirmAction(context, 'Delete')) {
       await ref.read(savedScriptsProvider.notifier).delete(script);
     }
   }
-}
-
-const _chooseAgainHint = 'Choose or share the video again';
-
-/// A row shows "choose again" from a cached answer; the video may have been
-/// imported since, so a tap that finds "gone" looks at the phone again.
-Future<bool> _isStillKept(WidgetRef ref, String videoId) async {
-  if (ref.read(isVideoKeptProvider(videoId)).value ?? true) {
-    return true;
-  }
-  return ref.refresh(isVideoKeptProvider(videoId).future);
-}
-
-/// The kept video is gone: say so and open Source. The script and the kept
-/// fine-tune stay, and the same video chosen again finds them (spec FR-1).
-void _askForTheVideoAgain(BuildContext context, WidgetRef ref, String videoId) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(errorMessageFor(KeptVideoMissingException(videoId))),
-    ),
-  );
-  ref.read(reelDraftProvider.notifier).startNew();
-  context.push(AppRoutes.source);
 }
 
 class _ScriptThumbnail extends StatelessWidget {
@@ -442,7 +416,7 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
             ? '${_linkNote(ref, fineTune.video.videoId)}'
                   'Fine-tune · ${formatSeconds(clipLength)} · '
                   '${formatDayMonth(fineTune.draft.savedAt.toLocal())}'
-            : _chooseAgainHint,
+            : chooseAgainHint,
       ),
       trailing: Text(
         'Continue',
@@ -463,71 +437,15 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       return;
     }
     setState(() => _opening = true);
-    if (!await _isStillKept(ref, fineTune.video.videoId)) {
-      if (mounted) {
-        setState(() => _opening = false);
-      }
-      if (context.mounted) {
-        _askForTheVideoAgain(context, ref, fineTune.video.videoId);
-      }
-      return;
-    }
-    final FineTuneResume outcome;
     try {
-      outcome = await ref.read(fineTuneResumerProvider).resume(fineTune);
+      await continueFineTune(context, ref, fineTune);
     } finally {
-      if (mounted) {
-        setState(() => _opening = false);
-      }
+      if (mounted) setState(() => _opening = false);
     }
-    if (!context.mounted) {
-      return;
-    }
-    _open(context, ref, outcome);
-    if (outcome is! FineTuneReady) {
-      // The resumer deleted the kept fine-tune.
-      ref.invalidate(fineTuneDraftsProvider);
-    }
-  }
-
-  void _open(BuildContext context, WidgetRef ref, FineTuneResume outcome) {
-    final video = fineTune.video;
-    final notices = ref.read(scriptOpeningNoticeProvider.notifier);
-    final draft = ref.read(reelDraftProvider.notifier);
-    notices.clear();
-    switch (outcome) {
-      case FineTuneReady(draft: final restored):
-        draft.restore(restored);
-        unawaited(ref.read(fineTuneDraftSaverProvider).rememberKept(restored));
-        _startScript(ref);
-        context.push(AppRoutes.fineTune);
-      case FineTuneScriptGone(:final startOver):
-        draft.restore(startOver);
-        // Lyrics offers to get the script again; nothing starts unasked.
-        notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptGone);
-        context.push(AppRoutes.fineTune);
-      case FineTuneScriptChanged(:final startOver):
-        draft.restore(startOver);
-        notices.show(video.videoId, ScriptOpeningNotice.fineTuneScriptChanged);
-        _startScript(ref);
-        context.push(AppRoutes.fineTune);
-    }
-  }
-
-  /// Reads the saved script back, or resumes one still being written. A
-  /// fine-tune kept before it had lines starts nothing: Lyrics offers the
-  /// script (M30).
-  void _startScript(WidgetRef ref) {
-    if (fineTune.draft.lines == null) {
-      return;
-    }
-    ref
-        .read(scriptProgressProvider.notifier)
-        .start(fineTune.video, fineTune.draft.language);
   }
 
   Future<void> _offerDeleteProgress(BuildContext context, WidgetRef ref) async {
-    if (!await _confirmAction(context, 'Delete')) {
+    if (!await confirmAction(context, 'Delete')) {
       return;
     }
     await ref.read(fineTuneDraftsProvider.notifier).delete(fineTune);
@@ -603,7 +521,7 @@ class _LinkSessionRow extends ConsumerWidget {
   }
 
   Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
-    if (await _confirmAction(context, 'Delete')) {
+    if (await confirmAction(context, 'Delete')) {
       await ref.read(linkSessionsProvider.notifier).delete(session);
     }
   }
@@ -626,19 +544,4 @@ class _LinkThumbnail extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Asks with a one-item sheet, as long-press menus do on Android.
-Future<bool> _confirmAction(BuildContext context, String label) async {
-  final delete = await showModalBottomSheet<bool>(
-    context: context,
-    builder: (context) => SafeArea(
-      child: ListTile(
-        leading: const Icon(Icons.delete_outline),
-        title: Text(label),
-        onTap: () => Navigator.of(context).pop(true),
-      ),
-    ),
-  );
-  return delete ?? false;
 }

@@ -9,6 +9,7 @@ import 'package:status_studio/src/features/clip/presentation/lyrics_screen.dart'
 import 'package:status_studio/src/features/export/presentation/done_screen.dart';
 import 'package:status_studio/src/features/export/presentation/export_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
+import 'package:status_studio/src/features/library/presentation/history_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/background_work_section.dart';
 import 'package:status_studio/src/features/settings/presentation/downloader_section.dart';
 import 'package:status_studio/src/features/settings/presentation/groq_section.dart';
@@ -30,6 +31,7 @@ abstract final class AppRoutes {
   static const lyrics = '/fine-tune/lyrics';
   static const export = '/export';
   static const done = '/done';
+  static const history = '/history';
 
   /// Done for the recent reel [reelId] (FR-11).
   static String doneFor(String reelId) =>
@@ -92,6 +94,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.done,
         builder: (context, state) =>
             DoneScreen(reelId: state.uri.queryParameters['id'] ?? ''),
+      ),
+      GoRoute(
+        path: AppRoutes.history,
+        builder: (context, state) => const HistoryScreen(),
       ),
       GoRoute(
         path: AppRoutes.reviewCuts,
