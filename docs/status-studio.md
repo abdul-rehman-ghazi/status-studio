@@ -564,7 +564,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Beside Get:** a hint "41 min of Groq audio left this hour" under Get lyrics from Groq (Fine-tune · Lyrics) and under Get the script (From a link). Hidden when there is no figure.
 - **Before a script:** when the audio still to send is more than the minutes left, the app asks "Not enough Groq time left": "This needs about 52 min of audio; 41 min are left this hour. Groq stops when it runs out. The lines written so far are kept, and getting the script again carries on after the reset, in 12 min." with **Not now** and **Go on**. Not asked when there is no figure.
   - **Audio still to send:** on Fine-tune · Lyrics, nothing for Get when the script in that language is saved; otherwise the video's length less the pieces a partial run already wrote (FR-14). Get again counts the same way, since it resumes a partial run too.
-  - **On Review cuts** (a link without captions whose script isn't saved), after the long-script question: the whole video's length (*Claude's call*: the link's audio and its partial run are found only after the download, so they aren't read here).
+  - **On Review cuts** (a link without captions whose script isn't saved), after the long-script question: the whole video's length (*Claude's call*: the link's audio and its partial run are found only after the download, so they aren't read here). A continued session is asked too, though it skips the long-script question, since the allowance may have run low since (*Claude's call*).
 - **Not covered:** Groq's daily allowance (28,800 s on the free plan) is not in the headers, so the figure can show minutes left when the day's are used up; the §8 limit message still covers that. Whether Groq sends `x-ratelimit-remaining-audio-seconds` under that name is the owner's phone check: §10 item 5 saw the limit header only.
 
 ## 4. Non-functional requirements
@@ -1091,7 +1091,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M52 Louder sound | A Trim tab switch raises quiet sound to a steady level with a limiter, measured at export (FR-42) | Built, branch `m52-louder-sound` (stacked on `m51-script-first`), merged into `dev` with M49–M52 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain); Kotlin compiles. Also on the branch (M52 tasks 6–7): "Not in the clip" over Fine-tune · Video's player, and a nudge replays its edge (FR-5). The phone check is the owner's (a quiet clip comes out louder without crackle; `loudnorm` is in the min FFmpeg build). Tests not run |
 | M53 Links without a topic | No topic search: link → Get the script → pick moments on the script page, with a word search; one session per linked video (FR-43, FR-28) | Built, branch `m53-links-without-topic` (from `dev`), merged into `dev` with M53–M54 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
 | M54 History | A History screen grouping reels, scripts and unfinished work per video, with New, Continue and the source times each reel used; Carry on on Home (FR-44) | Built, branch `m54-history` (stacked on `m53-links-without-topic`), merged into `dev` with M53–M54 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
-| M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | In progress, branch `m55-groq-allowance` (from `dev`) |
+| M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | Built, branch `m55-groq-allowance` (from `dev`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's: Groq sends `x-ratelimit-remaining-audio-seconds` and `x-ratelimit-reset-audio-seconds` on a script piece. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1856,8 +1856,8 @@ Request (2026-11-13): FR-45. Tests are the owner's; `fvm flutter analyze` only, 
 - [x] **2. Reading the headers.** `transcript/domain/groq_allowance.dart`: `GroqAllowance` (limit, remaining, `resetsAt`, `seenAt`; JSON), `leftAt(DateTime now)`, and `parseGroqDuration` (`2m12s`, `7.66s`, `1h2m3s`, `250ms`). `GroqClient` takes an `onAllowance` callback and calls it for every reply with the three audio headers, a 429 included. **New tests to write:** a reply with the headers reports them; a reply missing one reports nothing; `parseGroqDuration` reads hours, minutes, seconds with decimals and milliseconds; left now is the whole limit from the reset time on.
 - [x] **3. Keeping the figure.** `transcript/data/groq_allowance_store.dart` (shared preferences, JSON) and `groqAllowanceProvider` (`record`, `forget`); the script pipeline's Groq client records into it; saving or removing a key forgets it. **New tests to write:** a recorded figure survives a restart; Remove forgets it; an unreadable stored figure counts as none.
 - [x] **4. Showing it.** Settings' lines under "Key works"; the hint under Get lyrics from Groq and Get the script. **New tests to write:** no figure shows nothing; after the reset time Settings shows the whole limit and "Refilled since".
-- [ ] **5. The warning.** `audioStillToSend` (saved script: none; else length less written pieces) and the "Not enough Groq time left" question on Get, Get again and Review cuts. **New tests to write:** a saved script needs nothing; a partial run of 3 pieces takes 4:30 off; Not now starts nothing; no figure asks nothing.
-- [ ] **6. Status.** §12 row, §13 entries; push.
+- [x] **5. The warning.** `audioStillToSend` (saved script: none; else length less written pieces) and the "Not enough Groq time left" question on Get, Get again and Review cuts. **New tests to write:** a saved script needs nothing; a partial run of 3 pieces takes 4:30 off; Not now starts nothing; no figure asks nothing.
+- [x] **6. Status.** §12 row, §13 entries; push.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -2137,6 +2137,13 @@ Request (2026-11-13): FR-45. Tests are the owner's; `fvm flutter analyze` only, 
   - The gain for −24 LUFS is +10 dB; −40 LUFS is held at +15 dB; −10 LUFS, −14.3 LUFS and −70 LUFS give 1.
   - `louderSound` is off for a new reel and a new video, kept through the fine-tune JSON (absent reads off) and a start-over.
   - The spec map has `soundGain` only above 1; a measurement that throws renders without it.
+- **Groq allowance (FR-45, M55):**
+  - `GroqClient` reports an allowance for a reply carrying the three audio headers, a 429 included, and nothing when one is missing or unreadable.
+  - `parseGroqDuration` reads `2m12s`, `7.66s`, `1h2m3s` and `250ms`, and throws on other text.
+  - `leftAt` is the remaining seconds before the reset time and the whole limit from it on.
+  - A recorded allowance survives a restart; an unreadable stored one reads as none; saving or removing a key forgets it.
+  - `audioStillToSend` is zero for a saved script and takes 90 s off per written piece; `audioStillToSendAgain` ignores the saved script.
+  - The question isn't asked without a figure or when enough is left; Not now starts nothing; Review cuts doesn't ask for a link with captions or a saved script.
 
 ## 14. Device checks (removed)
 

@@ -31,6 +31,7 @@ import 'package:status_studio/src/features/topic/presentation/script_page.dart';
 import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_shortfall_question.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
 /// Gets a linked video's script, then the script page where the user picks
@@ -231,20 +232,35 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     }
   }
 
-  /// A continued session skips the long-script question: it was answered
-  /// when the session began. So does a script already saved: nothing is
-  /// sent to Groq for it (spec FR-36).
   Future<void> _begin() async {
-    if (widget.continued == null &&
-        needsLongScriptWarning(widget.request) &&
-        !await _isScriptSaved() &&
-        !await _confirmLongScript()) {
+    if (!await _goOnWithTheScript()) {
       if (mounted) context.pop();
       return;
     }
     _keep();
     unawaited(_saver.saveVideo(widget.request.video));
     _find();
+  }
+
+  /// Nothing is asked when nothing goes to Groq: captions or a saved
+  /// script. A continued session skips the long-script question, answered
+  /// when it began (spec FR-36), but not Groq's allowance, which may have
+  /// run low since (FR-45). The whole video counts: the link's partial run
+  /// is found only after the audio downloads.
+  Future<bool> _goOnWithTheScript() async {
+    final request = widget.request;
+    if (captionsUrlFor(request) != null || await _isScriptSaved()) {
+      return true;
+    }
+    if (widget.continued == null &&
+        needsLongScriptWarning(request) &&
+        !await _confirmLongScript()) {
+      return false;
+    }
+    if (!mounted) {
+      return false;
+    }
+    return goOnWhenGroqIsShort(context, ref, request.video.duration);
   }
 
   /// An unreadable store counts as no script: asking is the safe side.

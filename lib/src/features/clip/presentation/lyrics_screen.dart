@@ -16,12 +16,17 @@ import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/style/presentation/reel_preview.dart';
 import 'package:status_studio/src/features/style/presentation/reel_stage.dart';
+import 'package:status_studio/src/features/transcript/application/audio_still_to_send.dart';
 import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_editing_service.dart';
 import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
+import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/line_selection.dart';
+import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_shortfall_question.dart';
 import 'package:status_studio/src/features/transcript/presentation/lyrics_tools.dart';
 import 'package:status_studio/src/features/transcript/presentation/script_run_section.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -369,9 +374,16 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     controller.hideLyrics();
   }
 
-  void _getLyrics(ScriptLanguage language) {
+  void _getLyrics(ScriptLanguage language) =>
+      unawaited(_getLyricsWhenGroqHasTime(language));
+
+  Future<void> _getLyricsWhenGroqHasTime(ScriptLanguage language) async {
     final video = ref.read(reelDraftProvider).video;
     if (video == null) {
+      return;
+    }
+    final needed = _audioToSend(audioStillToSend, video, language);
+    if (!await _goOnWith(needed) || !mounted) {
       return;
     }
     _dropPendingSave();
@@ -411,6 +423,14 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     if (language == null || !mounted) {
       return;
     }
+    final needed = _audioToSend(
+      language == draft.language ? audioStillToSendAgain : audioStillToSend,
+      video,
+      language,
+    );
+    if (!await _goOnWith(needed) || !mounted) {
+      return;
+    }
     _dropPendingSave();
     ref.read(reelDraftProvider.notifier)
       ..forgetLineEdits()
@@ -422,6 +442,29 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     } else {
       run.start(video, language);
     }
+  }
+
+  /// An unreadable store asks nothing: the run itself will report it.
+  Future<Duration> _audioToSend(
+    AudioStillToSend count,
+    SourceVideo video,
+    ScriptLanguage language,
+  ) async {
+    try {
+      final store = await ref.read(transcriptStoreProvider.future);
+      final key = TranscriptKey(videoId: video.videoId, language: language);
+      return await count(store, key, video.duration);
+    } on Exception {
+      return Duration.zero;
+    }
+  }
+
+  Future<bool> _goOnWith(Future<Duration> needed) async {
+    final duration = await needed;
+    if (!mounted) {
+      return false;
+    }
+    return goOnWhenGroqIsShort(context, ref, duration);
   }
 
   Future<bool> _confirmReplacingEdits() async {
