@@ -42,9 +42,11 @@ Future<void> main() async {
   });
 }
 
-/// Linked videos' transcripts and topics are kept as long as scripts (FR-36).
+/// Linked videos' transcripts are kept as long as scripts (FR-36); files
+/// of the topic search go (FR-43).
 Future<void> _deleteOldTopics(ProviderContainer container) async {
   final topics = await container.read(topicStoreProvider.future);
+  await topics.deleteRetired();
   await topics.deleteOlderThan(
     DateTime.now().subtract(const Duration(days: 90)),
   );

@@ -8,6 +8,12 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
+/// Files written before M53: a session per topic and a topic's candidates
+/// (without the transcript key before M50).
+final _retiredFileName = RegExp(
+  r'^(session_[0-9a-f]{16}|topic_[0-9a-f]{16}(_[0-9a-f]{12})?)\.json$',
+);
+
 /// Transcripts, Review cuts sessions and the facts of linked videos, under
 /// `topics/<YouTube ID>/` (spec FR-36, FR-38, FR-43), so the same link
 /// again sends nothing to Groq. An unreadable file reads as missing.
@@ -108,6 +114,20 @@ class TopicStore {
       await for (final folder in root.list())
         if (folder is Directory) folder.path.split('/').last,
     ];
+  }
+
+  /// Deletes the sessions and topic candidates of before M53 (spec FR-43).
+  /// Saved transcripts stay: they are the costly part. Cheap and harmless
+  /// to repeat, so it runs at every start.
+  Future<void> deleteRetired() async {
+    for (final youTubeId in await _videoIds()) {
+      await for (final entry in Directory('${root.path}/$youTubeId').list()) {
+        if (entry is File &&
+            _retiredFileName.hasMatch(entry.uri.pathSegments.last)) {
+          await entry.delete();
+        }
+      }
+    }
   }
 
   /// Removes what was last changed before [cutoff], like old scripts.
