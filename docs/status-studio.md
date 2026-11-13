@@ -487,6 +487,14 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Continue** opens Review cuts on the same request without the long-script question (it was answered, or the script is saved). The moments are found again from the saved transcript and moments, nothing sent to Groq when the search had finished; then the kept cuts replace the found list, as left, with the transition. A session left while finding carries on finding (it may send to Groq what wasn't saved yet, after FR-30 consent as before). Find again still asks before replacing edited cuts.
 - **Spent by Make the clip:** once the clip is joined and kept (FR-37), the session is deleted; the joined clip's own fine-tune row ("From a link · Fine-tune …", FR-24) takes its place.
 
+**FR-39 Trim while playing (M49, Android only).** Asked by the owner (2026-11-13): "fine tune clips required while playing mode to see what part is now included". Choices made with the owner from mockups (2026-11-13).
+- **Play on a card** (FR-37) downloads the moment with 3 s before and after it (clamped to the video), at up to 480p as before (*Claude's call* on 3 s).
+- **The sheet's bar** covers that whole stretch: the included part in the accent colour, before and after it grey, with the playhead; a tap or drag seeks. While the playhead is outside the included part, the picture is dimmed with "Not in the clip" over it.
+- **Start − + and End − +** under the bar, each with its exact time to a tenth of a second, move the edge by 0.5 s under the card's rules (FR-36: never under 2 s, never outside the video, a ticked cut never into another ticked one). A nudge changes the card at once and counts as an edit (Find again asks first; the session is kept, FR-38).
+- **After a nudge** the player jumps to 2 s before the edge that moved and plays to 2 s past it, then pauses, so the new start or stop is heard (*Claude's call* on 2 s). A nudge past the downloaded stretch first downloads the moment again with its margins (a spinner over the picture).
+- **Opening** plays from the included start and pauses at the included end. Play after a pause goes on from the playhead; at the end of the stretch it starts again at the included start.
+- **Words:** the card's words stay as Groq wrote them; nothing is sent for a nudge and no transcript lines are shown (the owner: the Hindi-script transcript is of no use, and rewriting the words costs Groq).
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -1002,6 +1010,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M46 Download and join | Only the cuts download; joined with the transition into one video that opens Fine-tune, a scene per cut (FR-37) | Built, branch `m46-download-and-join` (stacked on `m45-find-the-topic`), merged into `dev` (2026-11-13). Range download and stream-copy mux checked from the Mac; Kotlin compiles. Lyrics translated into the output language (task 1 design with the owner). Phone checks are the owner's: the join's layers, blends and sound on the Redmi, Play, and the translation with a Groq key. Tests not run |
 | M47 F-Droid | ML Kit face detection replaced by an open model; built from source for F-Droid's main repository | Designed (2026-11-12), not started |
 | M48 Continue a link | A link left on Review cuts has a Recent row; Continue reopens the cuts as left (FR-38) | Built, branch `m48-continue-a-link` (stacked on `m46-download-and-join`), merged into `dev` with M43–M46 (2026-11-13). Analyze clean (two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
+| M49 Trim while playing | Play on a card shows the moment with 3 s around it, what is included, and nudges that replay the edge (FR-39) | In progress, branch `m49-trim-while-playing` (from `dev`) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1682,6 +1691,15 @@ Request (2026-11-13): "recent... continue not showing for youtube links". A join
 - [x] **3. Kept on Review cuts.** `topic/application/link_session_saver.dart` (one write after another, failures ignored, Recent refreshed after each), `topic/application/link_sessions_controller.dart` (`linkSessionsProvider`, delete). Review cuts saves on opening, when the cuts are found and on every edit or transition change; deletes the session once the clip is kept; takes an optional `LinkSession` to continue, skipping the long-script question and putting its cuts over the found ones. The `/link/cuts` route takes a `TopicRequest` or a `LinkSession`. **Stale tests:** Review cuts tests that don't override `topicStoreProvider` now write a session through it. **New tests to write:** Review cuts saves a session on opening, after an edit and on the transition; Make the clip deletes it; a continued session shows its cuts and transition, not the found list, and asks no long-script question.
 - [x] **4. Recent row.** `LinkSessionEntry` in `recentEntries`, which now takes one `RecentLists` (four lists would pass the three-parameter limit); Home's `_LinkSessionRow` (link icon, video title, `<topic> · Review cuts · <d MMM>`, Continue; tap opens Review cuts with the session; long-press Delete). **Stale tests:** `recentEntries` calls (named lists become `RecentLists(..., linkSessions: [])`); Home tests that don't override `topicStoreProvider` now list sessions through it. **New tests to write:** `recentEntries` places a session by its saved time; the row's title and subtitle; tap opens Review cuts; Delete removes it.
 - [x] **5. Status.** §12 status row and §13 entry; no package map row (no new package); push.
+
+### M49 tasks (branch `m49-trim-while-playing`, from `dev`)
+
+Request (2026-11-13): FR-39. Design questions answered by the owner: the Review cuts Play sheet (not Fine-tune), replay around the moved edge, dim and label outside the included part, the card's words unchanged. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-39, these tasks.
+- [ ] **2. Moment with margins.** `CutPreviewer.prepare` downloads the moment with 3 s on both sides, clamped to the video. **New tests to write:** the window with margins, clamped at both ends; a kept file covering it is reused.
+- [ ] **3. The sheet.** The bar over the downloaded stretch (included part, playhead, seek), the dim and label outside, Start/End − + with times, the replay around a moved edge, the download when a nudge passes the stretch; Review cuts applies the sheet's nudges with `nudgeCut`. **Stale tests:** anything calling `showCutPlayer` (new parameters). **New tests to write:** a nudge in the sheet changes the card and marks the cuts edited; a refused nudge leaves the edge; the replay window clamped to the stretch; the label shows outside the included part.
+- [ ] **4. Status.** §12 status row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
