@@ -9,6 +9,7 @@ import 'package:status_studio/src/core/cache_cleanup.dart';
 import 'package:status_studio/src/features/appearance/application/theme_choice_controller.dart';
 import 'package:status_studio/src/features/appearance/data/theme_choice_store.dart';
 import 'package:status_studio/src/features/appearance/domain/theme_choice.dart';
+import 'package:status_studio/src/features/library/data/recent_reels_repository.dart';
 import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/style/application/caption_appearance_memory.dart';
@@ -42,15 +43,17 @@ Future<void> main() async {
   });
 }
 
-/// Linked videos' transcripts are kept as long as scripts (FR-36); files
-/// of the topic search go (FR-43).
+/// Linked videos' transcripts never expire (FR-44); files of the topic
+/// search go (FR-43).
 Future<void> _deleteOldTopics(ProviderContainer container) async {
   final topics = await container.read(topicStoreProvider.future);
   await topics.deleteRetired();
-  await topics.deleteOlderThan(
-    DateTime.now().subtract(const Duration(days: 90)),
-  );
 }
+
+/// Reels made before M54 recorded no source; the owner chose to delete
+/// them rather than keep an "Older reels" section (FR-44).
+Future<void> _deleteReelsWithoutSource(ProviderContainer container) =>
+    container.read(recentReelsRepositoryProvider).deleteWithoutSource();
 
 /// A failed update isn't recorded, so the next start tries again (FR-35).
 Future<void> _updateYtDlp(ProviderContainer container) async {
@@ -114,6 +117,7 @@ Future<void> _cleanUp(ProviderContainer container) async {
       now: DateTime.now(),
     );
     await _deleteOldTopics(container);
+    await _deleteReelsWithoutSource(container);
   } on Object catch (error, stackTrace) {
     // A failed cleanup only leaves old files behind; report and carry on.
     FlutterError.reportError(

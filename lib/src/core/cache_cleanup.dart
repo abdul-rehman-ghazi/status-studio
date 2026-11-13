@@ -6,9 +6,9 @@ import 'package:status_studio/src/features/transcript/data/transcript_store.dart
 /// Deletes the `sources/<id>` folders in [sources] that were imported but
 /// never scripted: no `transcripts/<id>` folder in [transcripts] at all, and
 /// nothing in them changed for [maxAge] (spec §4 Storage). A video whose
-/// script or fine-tune draft is kept is never deleted here; the 90-day
-/// transcript prune removes it, folder and all. Returns how many were
-/// deleted.
+/// script or fine-tune draft is kept is never deleted here; after 90 days
+/// unused its kept files go and its script stays (FR-44). Returns how many
+/// were deleted.
 Future<int> deleteOrphanedSources(
   Directory sources, {
   required Directory transcripts,
@@ -72,8 +72,9 @@ Future<int> deleteFoldersWithoutFingerprint(Directory root) async {
   return deleted;
 }
 
-/// Startup housekeeping: old saved scripts with their videos (FR-14: 90
-/// days, at most 200 videos), videos imported but never scripted, and the
+/// Startup housekeeping: kept videos unused for 90 days, their scripts
+/// staying (FR-44; until M54 the scripts went too, and beyond 200 videos),
+/// videos imported but never scripted, and the
 /// folders of videos from before M23. Each runs even if another fails; the
 /// first failure is then rethrown to be reported.
 Future<void> cleanUpOnStart({
@@ -92,7 +93,7 @@ Future<void> cleanUpOnStart({
     firstFailure = failure;
   }
   await Future.wait([
-    scripts.then((store) => store.prune()),
+    scripts.then((store) => store.deleteUnusedKeptVideos()),
     Future.wait([sources, scripts]).then(
       (both) => deleteOrphanedSources(
         both[0] as Directory,

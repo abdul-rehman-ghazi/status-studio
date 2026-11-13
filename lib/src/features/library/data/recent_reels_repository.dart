@@ -51,6 +51,25 @@ class RecentReelsRepository {
     ));
   }
 
+  /// Deletes the stored reels that recorded no source (made before M54,
+  /// spec FR-44), with their MP4s and thumbnails. Other unreadable entries
+  /// stay untouched.
+  Future<void> deleteWithoutSource() async {
+    final stored = await _stored();
+    final withoutSource = stored.unreadable.where(_hasNoSource).toList();
+    if (withoutSource.isEmpty) {
+      return;
+    }
+    withoutSource.forEach(_deleteEntryFiles);
+    await _save((
+      reels: stored.reels,
+      unreadable: [
+        for (final entry in stored.unreadable)
+          if (!_hasNoSource(entry)) entry,
+      ],
+    ));
+  }
+
   Future<_StoredReels> _stored() async {
     final json = await preferences.getString(_key);
     if (json == null) {
@@ -92,13 +111,32 @@ _StoredReels _parseEntries(List<Object?> entries) {
   return (reels: reels, unreadable: unreadable);
 }
 
+bool _hasNoSource(Object? entry) =>
+    entry is Map<String, Object?> && entry['sourceVideoId'] == null;
+
+/// An unreadable entry's files, as far as its paths can be read.
+void _deleteEntryFiles(Object? entry) {
+  if (entry is! Map<String, Object?>) {
+    return;
+  }
+  for (final path in [entry['videoPath'], entry['thumbnailPath']]) {
+    if (path is String) {
+      _deleteFile(path);
+    }
+  }
+}
+
+void _deleteFile(String path) {
+  final file = File(path);
+  if (file.existsSync()) {
+    file.deleteSync();
+  }
+}
+
 /// Unlinking is quick even for a large MP4, so this needn't be async.
 void _deleteFiles(RecentReel reel) {
   for (final path in [reel.videoPath, reel.thumbnailPath]) {
-    final file = File(path);
-    if (file.existsSync()) {
-      file.deleteSync();
-    }
+    _deleteFile(path);
   }
 }
 

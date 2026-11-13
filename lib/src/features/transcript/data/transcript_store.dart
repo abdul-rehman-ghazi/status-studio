@@ -9,7 +9,7 @@ import 'package:status_studio/src/features/transcript/domain/saved_transcript.da
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 const _keepUnused = Duration(days: 90);
-const _maximumVideos = 200;
+const _linkFile = 'link.json';
 const _lastUsedFile = 'last_used';
 const _videoFile = 'video.json';
 const _partialSuffix = '.partial.json';
@@ -159,42 +159,36 @@ class TranscriptStore {
     }
   }
 
-  /// Removes videos unused for 90 days, then the least recently used beyond
-  /// 200, with their kept video file. Returns how many videos were removed.
-  Future<int> prune() async {
-    if (!await root.exists()) {
+  /// Deletes the kept video files of videos unused for 90 days; their
+  /// scripts stay, since they never expire (spec FR-44). A joined clip's
+  /// `link.json` stays too, so its scripts still group under its YouTube
+  /// video. Returns how many videos lost their files.
+  Future<int> deleteUnusedKeptVideos() async {
+    final sources = keptVideos;
+    if (sources == null || !await root.exists()) {
       return 0;
     }
-    final videos = <({Directory folder, DateTime lastUsed})>[];
-    await for (final folder in root.list().where((e) => e is Directory)) {
-      final directory = folder as Directory;
-      videos.add((folder: directory, lastUsed: await _lastUsed(directory)));
-    }
-    videos.sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
     final cutoff = clock().subtract(_keepUnused);
-    final removed = [
-      for (final (rank, video) in videos.indexed)
-        if (rank >= _maximumVideos || video.lastUsed.isBefore(cutoff))
-          video.folder,
-    ];
-    for (final folder in removed) {
-      await _deleteKeptVideo(folder);
-      await folder.delete(recursive: true);
+    var deleted = 0;
+    await for (final folder in root.list().where((e) => e is Directory)) {
+      final videoId = folder.uri.pathSegments.lastWhere(
+        (name) => name.isNotEmpty,
+      );
+      final kept = Directory('${sources.path}/$videoId');
+      if (await kept.exists() &&
+          (await _lastUsed(folder as Directory)).isBefore(cutoff)) {
+        await _deleteKeptFiles(kept);
+        deleted++;
+      }
     }
-    return removed.length;
+    return deleted;
   }
 
-  Future<void> _deleteKeptVideo(Directory transcriptFolder) async {
-    final sources = keptVideos;
-    if (sources == null) {
-      return;
-    }
-    final videoId = transcriptFolder.uri.pathSegments.lastWhere(
-      (name) => name.isNotEmpty,
-    );
-    final kept = Directory('${sources.path}/$videoId');
-    if (await kept.exists()) {
-      await kept.delete(recursive: true);
+  Future<void> _deleteKeptFiles(Directory kept) async {
+    await for (final entry in kept.list()) {
+      if (entry.uri.pathSegments.last != _linkFile) {
+        await entry.delete(recursive: true);
+      }
     }
   }
 

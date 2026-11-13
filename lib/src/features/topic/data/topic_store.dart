@@ -156,21 +156,8 @@ class TopicStore {
     }
   }
 
-  /// Removes what was last changed before [cutoff], like old scripts.
-  Future<void> deleteOlderThan(DateTime cutoff) async {
-    if (!await root.exists()) {
-      return;
-    }
-    await for (final folder in root.list()) {
-      if (folder is Directory &&
-          (await folder.stat()).modified.isBefore(cutoff)) {
-        await folder.delete(recursive: true);
-      }
-    }
-  }
-
   /// `transcript.json`, written before M50 in whatever language the
-  /// captions had, is no longer read; it goes with its folder's age.
+  /// captions had, is no longer read; it goes only with Delete video.
   File _blocksFile(String youTubeId, ScriptLanguage language) =>
       File('${root.path}/$youTubeId/transcript_${language.whisperCode}.json');
 
