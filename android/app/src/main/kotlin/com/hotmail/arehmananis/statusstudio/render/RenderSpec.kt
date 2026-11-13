@@ -40,6 +40,8 @@ data class RenderSpec(
     val audioMimeType: String,
     /** How long the picture fades in and out; 0 for no fade (spec FR-33). */
     val fadeMs: Long = 0,
+    /** The sound's linear gain; 1 leaves it as it is (spec FR-42). */
+    val soundGain: Float = 1f,
 ) {
     companion object {
         /** Throws [IllegalArgumentException] for a missing or wrong-typed key. */
@@ -58,6 +60,8 @@ data class RenderSpec(
                 audioMimeType = map.string("audioMimeType"),
                 // Dart sends it only when the fade is on.
                 fadeMs = (map["fadeMs"] as? Number)?.toLong() ?: 0L,
+                // Dart sends it only when the sound is raised.
+                soundGain = (map["soundGain"] as? Number)?.toFloat() ?: 1f,
             )
 
         private fun fillFrom(map: Map<String, Any?>): Fill =

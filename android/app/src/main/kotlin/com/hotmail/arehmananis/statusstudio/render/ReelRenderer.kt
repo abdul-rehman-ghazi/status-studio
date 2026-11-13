@@ -9,6 +9,7 @@ import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.Crop
@@ -125,9 +126,12 @@ class ReelRenderer(private val context: Context) {
             .setClippingConfiguration(clipping)
             .build()
         return EditedMediaItem.Builder(mediaItem)
-            .setEffects(Effects(listOf(), videoEffects(spec, overlay)))
+            .setEffects(Effects(audioEffects(spec), videoEffects(spec, overlay)))
             .build()
     }
+
+    private fun audioEffects(spec: RenderSpec): List<AudioProcessor> =
+        if (spec.soundGain > 1f) listOf(LoudnessBoost(spec.soundGain)) else listOf()
 
     /** Framing first, then the caption and branding overlay, then the fade, if any (FR-33). */
     private fun videoEffects(spec: RenderSpec, overlay: TimedCaptionOverlay): List<Effect> {

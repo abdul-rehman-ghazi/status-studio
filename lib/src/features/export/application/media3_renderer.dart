@@ -3,12 +3,15 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:status_studio/src/core/ffmpeg/media_probe.dart';
+import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/clip/domain/fade.dart';
 import 'package:status_studio/src/features/export/application/renderer.dart';
+import 'package:status_studio/src/features/export/data/loudness_meter.dart';
 import 'package:status_studio/src/features/export/domain/overlay_layout.dart';
 import 'package:status_studio/src/features/export/domain/reel_file_name.dart';
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/export/domain/render_spec.dart';
+import 'package:status_studio/src/features/export/domain/sound_boost.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
@@ -23,6 +26,7 @@ class RenderServices {
   const RenderServices({
     required this.clipSourceFor,
     required this.probe,
+    required this.loudnessMeter,
     required this.paintOverlay,
     required this.outputDirectory,
   });
@@ -30,6 +34,7 @@ class RenderServices {
   /// The downloaded clip covering the draft's clip (FR-15).
   final Future<ClipSource> Function(ReelDraft draft) clipSourceFor;
   final MediaProbe probe;
+  final LoudnessMeter loudnessMeter;
   final Future<Uint8List> Function(OverlaySpec spec) paintOverlay;
 
   /// Where finished reels are written.
@@ -126,8 +131,27 @@ class Media3Renderer implements Renderer {
         captionCues: await _writeCueOverlays(draft, run, stem, output),
         outputPath: await _freeOutputPath(folder, draft),
         fade: draft.fadeEnds ? fadeLengthFor(clip) : Duration.zero,
+        soundGain: draft.louderSound ? await _soundGainFor(source, clip) : 1,
       ),
     );
+  }
+
+  /// A clip that can't be measured, such as one with no sound track, is
+  /// rendered without the boost rather than failing the export (FR-42).
+  Future<double> _soundGainFor(ClipSource source, ClipRange clip) async {
+    final inFile = ClipRange(
+      start: clip.start - source.offset,
+      end: clip.end - source.offset,
+    );
+    try {
+      final loudness = await services.loudnessMeter.measure(
+        source.file.path,
+        inFile,
+      );
+      return soundGainFor(loudness);
+    } on LoudnessUnreadableException {
+      return 1;
+    }
   }
 
   /// `<kalam>-<start>-<end>.mp4` (FR-9); a second reel with the same name

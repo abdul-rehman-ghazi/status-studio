@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:status_studio/src/core/ffmpeg/media_probe.dart';
 import 'package:status_studio/src/features/export/application/media3_renderer.dart';
+import 'package:status_studio/src/features/export/data/loudness_meter.dart';
 import 'package:status_studio/src/features/export/data/overlay_painter.dart';
 import 'package:status_studio/src/features/export/domain/render_errors.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
@@ -38,6 +39,7 @@ final rendererProvider = Provider<Renderer>(
     RenderServices(
       clipSourceFor: (draft) => _clipSourceFor(ref, draft),
       probe: ref.watch(mediaProbeProvider),
+      loudnessMeter: ref.watch(loudnessMeterProvider),
       paintOverlay: paintOverlayPng,
       outputDirectory: _reelsDirectory(),
     ),
