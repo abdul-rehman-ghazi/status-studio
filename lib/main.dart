@@ -37,7 +37,8 @@ Future<void> main() async {
   // After the first frame, so housekeeping never delays the app opening.
   WidgetsBinding.instance.addPostFrameCallback((_) {
     unawaited(_cleanUp(container));
-    if (defaultTargetPlatform == TargetPlatform.android) {
+    if (defaultTargetPlatform == TargetPlatform.android &&
+        _weeklyYtDlpUpdates) {
       unawaited(_updateYtDlp(container));
     }
   });
@@ -54,6 +55,15 @@ Future<void> _deleteOldTopics(ProviderContainer container) async {
 /// them rather than keep an "Older reels" section (FR-44).
 Future<void> _deleteReelsWithoutSource(ProviderContainer container) =>
     container.read(recentReelsRepositoryProvider).deleteWithoutSource();
+
+/// F-Droid's build turns the weekly update off with
+/// `--dart-define=WEEKLY_YTDLP_UPDATES=false`, as F-Droid's build of Seal
+/// (another youtubedl-android app) does: F-Droid frowns on code fetched
+/// without asking. Update downloader in Settings still works (FR-35).
+const _weeklyYtDlpUpdates = bool.fromEnvironment(
+  'WEEKLY_YTDLP_UPDATES',
+  defaultValue: true,
+);
 
 /// A failed update isn't recorded, so the next start tries again (FR-35).
 Future<void> _updateYtDlp(ProviderContainer container) async {

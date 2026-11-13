@@ -1,0 +1,43 @@
+# Draft for fdroiddata (spec §12, M47 task 5). Copy to metadata/ in a fork of
+# https://gitlab.com/fdroid/fdroiddata once §9's prebuilt-library question is
+# settled; `fdroid lint` and `fdroid build` there are the real check.
+Categories:
+  - Multimedia
+License: GPL-3.0-only
+SourceCode: https://github.com/abdul-rehman-ghazi/status-studio
+IssueTracker: https://github.com/abdul-rehman-ghazi/status-studio/issues
+Changelog: https://github.com/abdul-rehman-ghazi/status-studio/releases
+
+AutoName: Status Studio
+
+RepoType: git
+Repo: https://github.com/abdul-rehman-ghazi/status-studio.git
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: Writes scripts with Groq's hosted speech-to-text and chat models, using the user's own key; downloads parts of linked videos from YouTube and other sites through yt-dlp; Update downloader in Settings fetches yt-dlp from GitHub (the weekly automatic update is off in this build).
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: v0.1.0
+    output: build/app/outputs/flutter-apk/app-release.apk
+    srclibs:
+      - flutter@3.47.8
+    rm:
+      - ios
+    prebuild:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --dart-define=WEEKLY_YTDLP_UPDATES=false
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1

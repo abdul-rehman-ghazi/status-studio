@@ -1,0 +1,33 @@
+<p>Status Studio turns a video into a short clip for WhatsApp Status, Reels, Shorts or TikTok, in any language.</p>
+
+<p><b>Two ways in</b></p>
+<ul>
+<li>Share a video you already trimmed into the app, or pick it from the gallery.</li>
+<li>Paste or share a link to a long talk or programme. The app writes its script, you pick the moments you want on the script page, and only those parts are downloaded and joined.</li>
+</ul>
+
+<p><b>Fine-tune</b></p>
+<ul>
+<li>Trim the start and end in half-second steps.</li>
+<li>Choose the size: 9:16, 4:5, 1:1, 16:9 or a free crop.</li>
+<li>At every scene, choose what the crop follows: a face, a body or a fixed spot. The app never guesses for you.</li>
+<li>Make quiet sound louder.</li>
+</ul>
+
+<p><b>Lyrics</b></p>
+<ul>
+<li>Get the words written out by Groq's Whisper with your own free Groq key, or type them.</li>
+<li>Edit and time each line. Lines show one at a time, with proper Nastaliq and Naskh for Urdu, Arabic and Persian.</li>
+<li>Choose the caption's place, size and look.</li>
+</ul>
+
+<p>The export is an MP4 with the app's name and logo, ready to save or share. History keeps your reels and scripts per video, so you can make another clip from the same video without writing its script again.</p>
+
+<p><b>Privacy</b></p>
+<ul>
+<li>Your video never leaves your phone. Face and body detection, voice cleaning and rendering all run on the phone.</li>
+<li>Nothing is sent until you tap Get lyrics from Groq and agree once. Then only the cleaned voice audio and, for a link, the script's text go to Groq, with your own key, which is kept in secure storage.</li>
+<li>No accounts, no ads, no analytics.</li>
+</ul>
+
+<p>Links use yt-dlp, which updates itself from GitHub.</p>
