@@ -38,6 +38,17 @@ class FfmpegRunner {
     return finished.future;
   }
 
+  /// The log of a run that succeeded, for filters that report through it
+  /// (`loudnorm`, spec FR-42). Throws [FfmpegFailedException] otherwise.
+  Future<String> runForLog(List<String> arguments) async {
+    final finished = Completer<String>();
+    await FFmpegKit.executeWithArgumentsAsync(
+      arguments,
+      (session) => unawaited(_completeWithLog(session, finished)),
+    );
+    return finished.future;
+  }
+
   Future<void> cancel() => FFmpegKit.cancel();
 }
 
@@ -88,6 +99,19 @@ Future<void> _complete(FFmpegSession session, Completer<void> finished) async {
     return;
   }
   final log = await session.getAllLogsAsString() ?? '';
+  finished.completeError(FfmpegFailedException(log));
+}
+
+Future<void> _completeWithLog(
+  FFmpegSession session,
+  Completer<String> finished,
+) async {
+  final returnCode = await session.getReturnCode();
+  final log = await session.getAllLogsAsString() ?? '';
+  if (ReturnCode.isSuccess(returnCode)) {
+    finished.complete(log);
+    return;
+  }
   finished.completeError(FfmpegFailedException(log));
 }
 
