@@ -3,7 +3,7 @@ import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
-import 'package:status_studio/src/features/transcript/presentation/groq_allowance_text.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_usage_text.dart';
 
 /// Output language and Get the script under a read link (spec FR-43).
 class ScriptFields extends StatefulWidget {
@@ -44,7 +44,7 @@ class _ScriptFieldsState extends State<ScriptFields> {
           icon: const Icon(Icons.subject),
           label: const Text('Get the script'),
         ),
-        const GroqAllowanceHint(),
+        const GroqUsageHint(),
       ],
     );
   }

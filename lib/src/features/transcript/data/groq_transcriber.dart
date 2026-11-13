@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
 import 'package:status_studio/src/features/transcript/domain/audio_piece.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
+import 'package:status_studio/src/features/transcript/domain/groq_usage.dart';
 import 'package:status_studio/src/features/transcript/domain/segment_lines.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -42,12 +44,16 @@ class GroqTranscription {
   const GroqTranscription({
     required this.pieces,
     required this.language,
+    required this.audioLength,
     this.completedPieces = 0,
     this.firstIndex = 0,
   });
 
   final List<AudioPiece> pieces;
   final ScriptLanguage language;
+
+  /// Where the last piece ends, for counting what was sent (FR-45).
+  final Duration audioLength;
   final int completedPieces;
   final int firstIndex;
 }
@@ -56,9 +62,10 @@ class GroqTranscription {
 /// [WhisperTranscriber] emits so the pipeline treats both alike. Groq
 /// reports no progress inside a piece, so each piece is 0 then done.
 class GroqTranscriber {
-  GroqTranscriber(this._client);
+  GroqTranscriber(this._client, this._usage);
 
   final GroqClient _client;
+  final GroqUsageRecorder _usage;
   var _cancelled = false;
 
   Stream<ChunkEvent> transcribePieces(GroqTranscription job) async* {
@@ -74,12 +81,8 @@ class GroqTranscriber {
       }
       yield ChunkProgress(position: position, fraction: 0);
       final piece = job.pieces[position];
-      final segments = await _client.transcribe(
-        piece.file,
-        languageCode: job.language == ScriptLanguage.auto
-            ? null
-            : job.language.whisperCode,
-      );
+      final segments = await _transcribe(piece, job.language);
+      await _usage.audioSent(_lengthOf(job, position));
       final lines = linesFromSegments(
         _speech(segments),
         offset: piece.start,
@@ -88,6 +91,33 @@ class GroqTranscriber {
       nextIndex += lines.length;
       yield ChunkWritten(lines);
     }
+  }
+
+  /// A refusal for Groq's limit is counted, so the figure shows none left
+  /// until Groq's wait ends (spec FR-45).
+  Future<List<GroqSegment>> _transcribe(
+    AudioPiece piece,
+    ScriptLanguage language,
+  ) async {
+    try {
+      return await _client.transcribe(
+        piece.file,
+        languageCode: language == ScriptLanguage.auto
+            ? null
+            : language.whisperCode,
+      );
+    } on GroqRateLimitedException catch (refusal) {
+      await _usage.limitReached(refusal.retryAfter);
+      rethrow;
+    }
+  }
+
+  Duration _lengthOf(GroqTranscription job, int position) {
+    final pieces = job.pieces;
+    final end = position + 1 < pieces.length
+        ? pieces[position + 1].start
+        : job.audioLength;
+    return end - pieces[position].start;
   }
 
   /// Stops before the next piece.

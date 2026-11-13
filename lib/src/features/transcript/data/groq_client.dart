@@ -3,14 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:status_studio/src/features/transcript/domain/groq_allowance.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 
 const _longestWait = Duration(seconds: 60);
 const _defaultWait = Duration(seconds: 5);
-const _audioLimitHeader = 'x-ratelimit-limit-audio-seconds';
-const _audioRemainingHeader = 'x-ratelimit-remaining-audio-seconds';
-const _audioResetHeader = 'x-ratelimit-reset-audio-seconds';
 
 /// The model every script is written with (spec FR-12a).
 const scriptModel = 'whisper-large-v3';
@@ -60,15 +56,12 @@ class GroqClient {
     required this.apiKey,
     required this.beforeUpload,
     this.model = scriptModel,
-    this.onAllowance,
     Uri? baseUri,
     HttpClient? httpClient,
     Future<void> Function(Duration)? wait,
-    DateTime Function()? clock,
   }) : _baseUri = baseUri ?? Uri.parse('https://api.groq.com/openai/v1'),
        _http = httpClient ?? HttpClient(),
-       _wait = wait ?? Future<void>.delayed,
-       _clock = clock ?? DateTime.now;
+       _wait = wait ?? Future<void>.delayed;
 
   final String apiKey;
 
@@ -79,13 +72,9 @@ class GroqClient {
 
   /// Only tool/voice_check.dart passes another model, to compare them.
   final String model;
-
-  /// Told the audio allowance each reply reports (spec FR-45).
-  final void Function(GroqAllowance)? onAllowance;
   final Uri _baseUri;
   final HttpClient _http;
   final Future<void> Function(Duration) _wait;
-  final DateTime Function() _clock;
 
   /// Throws [GroqKeyRejectedException] unless Groq accepts the key. Free,
   /// and sends no audio.
@@ -176,7 +165,6 @@ class GroqClient {
     var serverErrors = 0;
     for (var attempt = 0; ; attempt++) {
       final response = await _respond(open);
-      _reportAllowance(response.headers);
       final status = response.statusCode;
       if (status == HttpStatus.ok) {
         return utf8.decodeStream(response);
@@ -211,36 +199,6 @@ class GroqClient {
     } on HandshakeException {
       throw const GroqOfflineException();
     }
-  }
-
-  /// Only replies to audio carry these headers; others report nothing.
-  void _reportAllowance(HttpHeaders headers) {
-    final report = onAllowance;
-    if (report == null) {
-      return;
-    }
-    final GroqAllowance allowance;
-    try {
-      allowance = _allowanceIn(headers);
-    } on FormatException {
-      return;
-    }
-    report(allowance);
-  }
-
-  /// Throws [FormatException] when a header is missing or unreadable.
-  GroqAllowance _allowanceIn(HttpHeaders headers) {
-    String header(String name) =>
-        headers.value(name) ?? (throw FormatException('No $name'));
-    final now = _clock();
-    return GroqAllowance(
-      limit: Duration(seconds: num.parse(header(_audioLimitHeader)).floor()),
-      remaining: Duration(
-        seconds: num.parse(header(_audioRemainingHeader)).floor(),
-      ),
-      resetsAt: now.add(parseGroqDuration(header(_audioResetHeader))),
-      seenAt: now,
-    );
   }
 
   Duration _retryAfter(HttpClientResponse response) {
