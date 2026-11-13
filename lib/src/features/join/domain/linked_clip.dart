@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/features/join/domain/joined_cut.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 
@@ -14,6 +15,7 @@ class LinkedClip {
     required this.outputLanguage,
     required this.transition,
     required this.joinTimes,
+    required this.cuts,
   });
 
   /// Throws [FormatException] for a JSON that isn't a saved linked clip.
@@ -36,6 +38,11 @@ class LinkedClip {
           for (final time in joinTimesMs)
             if (time is int) Duration(milliseconds: time),
         ],
+        // A clip joined before M54 kept no cut times (spec FR-44).
+        cuts: switch (json['cuts']) {
+          final List<Object?> cuts => cuts.map(JoinedCut.fromJson).toList(),
+          _ => const [],
+        },
       );
     }
     throw const FormatException('Not a saved linked clip.');
@@ -53,6 +60,10 @@ class LinkedClip {
   /// scene edges for the crop (FR-27).
   final List<Duration> joinTimes;
 
+  /// Each cut's source and joined times; empty for a clip joined before
+  /// M54.
+  final List<JoinedCut> cuts;
+
   Map<String, Object?> toJson() => {
     'youtubeId': youtubeId,
     'title': title,
@@ -60,6 +71,7 @@ class LinkedClip {
     'outputLanguage': outputLanguage.whisperCode,
     'transition': transition.name,
     'joinTimesMs': [for (final time in joinTimes) time.inMilliseconds],
+    'cuts': [for (final cut in cuts) cut.toJson()],
   };
 }
 

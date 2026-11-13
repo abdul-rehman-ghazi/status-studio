@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/ffmpeg/ffmpeg_runner.dart';
 import 'package:status_studio/src/core/ffmpeg/thumbnail_arguments.dart';
+import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
+import 'package:status_studio/src/features/join/domain/linked_clip.dart';
 import 'package:status_studio/src/features/library/data/recent_reels_repository.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
+import 'package:status_studio/src/features/library/domain/used_ranges.dart';
 import 'package:status_studio/src/features/reel/domain/reel_draft.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
@@ -19,14 +22,16 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
   Future<List<RecentReel>> build() =>
       ref.watch(recentReelsRepositoryProvider).load();
 
-  /// Records the reel rendered to [videoPath] from [draft] at [size], with
-  /// a thumbnail of its first frame beside it.
+  /// Records the reel rendered to [videoPath] from [draft] at [size], and
+  /// where it came from (spec FR-44), with a thumbnail of its first frame
+  /// beside it.
   Future<RecentReel> keep(
     String videoPath,
     ReelDraft draft,
     OutputSize size,
   ) async {
     final id = _idOf(videoPath);
+    final source = await _sourceOf(draft);
     final reel = RecentReel(
       id: id,
       title: _titleOf(draft),
@@ -35,11 +40,30 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
       duration: draft.clip?.length ?? Duration.zero,
       size: size,
       createdAt: DateTime.now(),
+      sourceVideoId: source.videoId,
+      youtubeId: source.linked?.youtubeId,
+      usedRanges: source.usedRanges,
     );
     await _writeThumbnail(reel);
     await ref.read(recentReelsRepositoryProvider).add(reel);
     ref.invalidateSelf();
     return reel;
+  }
+
+  /// Throws [StateError] for a draft without a video or clip: Export can't
+  /// render one.
+  Future<_ReelSource> _sourceOf(ReelDraft draft) async {
+    final video = draft.video;
+    final clip = draft.clip;
+    if (video == null || clip == null) {
+      throw StateError('A reel was kept from a draft without a clip.');
+    }
+    final linked = await ref.read(linkedClipStoreProvider).read(video.videoId);
+    return (
+      videoId: video.videoId,
+      linked: linked,
+      usedRanges: usedRangesFor(clip, linked),
+    );
   }
 
   Future<void> delete(String id) async {
@@ -65,6 +89,12 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
     }
   }
 }
+
+typedef _ReelSource = ({
+  String videoId,
+  LinkedClip? linked,
+  List<SourceRange> usedRanges,
+});
 
 String _idOf(String videoPath) {
   final name = File(videoPath).uri.pathSegments.last;

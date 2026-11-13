@@ -179,6 +179,7 @@ class ClipMaker {
         outputLanguage: order.request.outputLanguage,
         transition: order.transition,
         joinTimes: plan.joinTimes,
+        cuts: plan.cuts,
       ),
     );
     return video;

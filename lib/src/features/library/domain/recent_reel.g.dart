@@ -27,6 +27,12 @@ _RecentReel _$RecentReelFromJson(Map<String, dynamic> json) =>
           'createdAt',
           (v) => DateTime.parse(v as String),
         ),
+        sourceVideoId: $checkedConvert('sourceVideoId', (v) => v as String),
+        youtubeId: $checkedConvert('youtubeId', (v) => v as String?),
+        usedRanges: $checkedConvert(
+          'usedRanges',
+          (v) => const _SourceRangesConverter().fromJson(v as List),
+        ),
       );
       return val;
     }, fieldKeyMap: const {'duration': 'durationMs'});

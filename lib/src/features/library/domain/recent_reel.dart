@@ -1,11 +1,14 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:status_studio/src/core/json_converters.dart';
+import 'package:status_studio/src/features/library/domain/used_ranges.dart';
 import 'package:status_studio/src/features/style/domain/frame_settings.dart';
 
 part 'recent_reel.freezed.dart';
 part 'recent_reel.g.dart';
 
-/// A finished reel in the Recent list (spec §6.1, FR-11).
+/// A finished reel in the Recent list (spec §6.1, FR-11), and where it came
+/// from, for History (FR-44). A stored reel without [sourceVideoId] (made
+/// before M54) is unreadable.
 ///
 /// Saved flat: the size is `width` and `height` beside the other keys, so
 /// `toJson` is written by hand.
@@ -28,6 +31,15 @@ abstract class RecentReel with _$RecentReel {
     @_OutputSizeConverter()
     required OutputSize size,
     required DateTime createdAt,
+
+    /// The fingerprint of the video it was rendered from.
+    required String sourceVideoId,
+
+    /// The YouTube video a joined link clip came from; null otherwise.
+    String? youtubeId,
+
+    /// What it used of its source, in source order (spec FR-44).
+    @_SourceRangesConverter() required List<SourceRange> usedRanges,
   }) = _RecentReel;
 
   const RecentReel._();
@@ -44,7 +56,24 @@ abstract class RecentReel with _$RecentReel {
     'durationMs': const MillisecondsConverter().toJson(duration),
     ...const _OutputSizeConverter().toJson(size),
     'createdAt': createdAt.toIso8601String(),
+    'sourceVideoId': sourceVideoId,
+    'youtubeId': youtubeId,
+    'usedRanges': const _SourceRangesConverter().toJson(usedRanges),
   };
+}
+
+class _SourceRangesConverter
+    implements JsonConverter<List<SourceRange>, List<Object?>> {
+  const _SourceRangesConverter();
+
+  @override
+  List<SourceRange> fromJson(List<Object?> json) =>
+      json.map(SourceRange.fromJson).toList();
+
+  @override
+  List<Object?> toJson(List<SourceRange> ranges) => [
+    for (final range in ranges) range.toJson(),
+  ];
 }
 
 class _OutputSizeConverter

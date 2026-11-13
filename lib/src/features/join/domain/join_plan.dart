@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/join/domain/cut_file.dart';
 import 'package:status_studio/src/features/join/domain/cut_window.dart';
+import 'package:status_studio/src/features/join/domain/joined_cut.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 
@@ -73,6 +74,7 @@ class JoinPlan {
     required this.lower,
     required this.windows,
     required this.joinTimes,
+    required this.cuts,
     required this.length,
   });
 
@@ -87,6 +89,10 @@ class JoinPlan {
   /// Where each cut gives way to the next, in the joined clip's time: the
   /// middle of its transition. These are scene edges for the crop.
   final List<Duration> joinTimes;
+
+  /// Each cut's source times and where it starts in the joined clip,
+  /// without the margins, for a reel's used ranges (spec FR-44).
+  final List<JoinedCut> cuts;
   final Duration length;
 
   Map<String, Object?> toChannel(String outputPath) => {
@@ -106,6 +112,7 @@ JoinPlan planJoin(List<DownloadedCut> cuts, ClipTransition transition) {
   final lower = <JoinItem>[];
   final windows = <TransitionWindow>[];
   final joinTimes = <Duration>[];
+  final joined = <JoinedCut>[];
   var cutStart = Duration.zero;
   for (final (index, downloaded) in cuts.indexed) {
     final lead = index == 0 ? Duration.zero : blends[index - 1];
@@ -119,6 +126,13 @@ JoinPlan planJoin(List<DownloadedCut> cuts, ClipTransition transition) {
       lower.add(_lead(downloaded, lead));
     }
     upper.add(_withTail(downloaded, tail));
+    joined.add(
+      JoinedCut(
+        sourceStart: downloaded.cut.start,
+        sourceEnd: downloaded.cut.end,
+        joinedStart: cutStart,
+      ),
+    );
     cutStart += downloaded.cut.length;
   }
   return JoinPlan(
@@ -127,6 +141,7 @@ JoinPlan planJoin(List<DownloadedCut> cuts, ClipTransition transition) {
     lower: lower,
     windows: windows,
     joinTimes: joinTimes,
+    cuts: joined,
     length: cutStart,
   );
 }
