@@ -20,6 +20,7 @@ import 'package:status_studio/src/features/topic/application/link_session_saver.
 import 'package:status_studio/src/features/topic/application/moment_words_writer.dart';
 import 'package:status_studio/src/features/topic/application/topic_finder.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
+import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
@@ -231,10 +232,12 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   }
 
   /// A continued session skips the long-script question: it was answered
-  /// when the session began.
+  /// when the session began. So does a script already saved: nothing is
+  /// sent to Groq for it (spec FR-36).
   Future<void> _begin() async {
     if (widget.continued == null &&
         needsLongScriptWarning(widget.request) &&
+        !await _isScriptSaved() &&
         !await _confirmLongScript()) {
       if (mounted) context.pop();
       return;
@@ -242,6 +245,21 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     _keep();
     unawaited(_saver.saveVideo(widget.request.video));
     _find();
+  }
+
+  /// An unreadable store counts as no script: asking is the safe side.
+  Future<bool> _isScriptSaved() async {
+    final request = widget.request;
+    try {
+      final store = await ref.read(topicStoreProvider.future);
+      final saved = await store.savedBlocks(
+        request.video.videoId,
+        request.outputLanguage,
+      );
+      return saved != null;
+    } on Exception {
+      return false;
+    }
   }
 
   /// Saves the screen as it is for Recent (spec FR-38).
