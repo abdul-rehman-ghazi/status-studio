@@ -3,9 +3,8 @@ import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/data/groq_chat_client.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
-import 'package:status_studio/src/features/transcript/data/groq_consent_store.dart';
-import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/lyrics_translation.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
@@ -195,26 +194,12 @@ ScriptProgress _reopened(SavedTranscript saved, ScriptLanguage target) =>
       translatesTo: target,
     );
 
-/// The key first, so a user without one is sent to Settings before being
-/// asked for consent (as the script pipeline does).
-Future<GroqClient> _groqClient(
-  GroqKeyStore keys,
-  GroqConsentStore consent,
-) async {
-  final apiKey = await keys.savedKey();
-  await consent.requireGiven();
-  return GroqClient(apiKey: apiKey, beforeUpload: consent.requireGiven);
-}
-
 ScriptPipeline translatingScriptPipeline(Ref ref, ScriptPipeline written) =>
     TranslatingScriptPipeline(
       TranslatingScriptPipelineServices(
         written: written,
         store: ref.watch(transcriptStoreProvider.future),
         links: ref.watch(linkedClipStoreProvider),
-        groq: () => _groqClient(
-          ref.read(groqKeyStoreProvider),
-          ref.read(groqConsentStoreProvider),
-        ),
+        groq: ref.watch(groqChatClientProvider),
       ),
     );

@@ -13,9 +13,8 @@ import 'package:status_studio/src/features/topic/domain/topic_prompts.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
+import 'package:status_studio/src/features/transcript/data/groq_chat_client.dart';
 import 'package:status_studio/src/features/transcript/data/groq_client.dart';
-import 'package:status_studio/src/features/transcript/data/groq_consent_store.dart';
-import 'package:status_studio/src/features/transcript/data/groq_key_store.dart';
 import 'package:status_studio/src/features/transcript/data/youtube_captions_fetcher.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
@@ -197,21 +196,7 @@ final topicFinderProvider = Provider<TopicFinder>(
       audio: ref.watch(linkedAudioDownloaderProvider),
       scripts: ref.watch(scriptPipelineProvider),
       store: ref.watch(topicStoreProvider.future),
-      groq: () => _groqClient(
-        ref.read(groqKeyStoreProvider),
-        ref.read(groqConsentStoreProvider),
-      ),
+      groq: ref.watch(groqChatClientProvider),
     ),
   ),
 );
-
-/// The key first, so a user without one is sent to Settings before being
-/// asked for consent (as the script pipeline does).
-Future<GroqClient> _groqClient(
-  GroqKeyStore keys,
-  GroqConsentStore consent,
-) async {
-  final apiKey = await keys.savedKey();
-  await consent.requireGiven();
-  return GroqClient(apiKey: apiKey, beforeUpload: consent.requireGiven);
-}

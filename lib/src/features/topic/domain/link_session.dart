@@ -45,7 +45,8 @@ class LinkSession {
   final List<ReviewCut>? cuts;
   final ClipTransition transition;
 
-  /// Whether the user changed the found cuts, so Find again asks first.
+  /// Whether the user changed the found cuts. Find again asked first until
+  /// it left the app bar (M49, FR-40); kept so older sessions still read.
   final bool edited;
   final DateTime savedAt;
 
@@ -117,6 +118,7 @@ Map<String, Object?> _reviewCutToJson(ReviewCut review) => {
   'text': review.cut.text,
   'reason': review.cut.reason,
   'ticked': review.ticked,
+  'needsWords': review.needsWords,
 };
 
 ReviewCut _reviewCutFromJson(Object? json) => switch (json) {
@@ -135,6 +137,8 @@ ReviewCut _reviewCutFromJson(Object? json) => switch (json) {
         reason: reason,
       ),
       ticked: ticked,
+      // Sessions kept before M49 have no mark.
+      needsWords: json['needsWords'] == true,
     ),
   _ => throw const FormatException('Not a review cut.'),
 };

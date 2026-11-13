@@ -9,22 +9,47 @@ const cutNudge = Duration(milliseconds: 500);
 /// Ticked cuts may not overlap each other; unticked ones may.
 @immutable
 class ReviewCut {
-  const ReviewCut({required this.cut, required this.ticked});
+  const ReviewCut({
+    required this.cut,
+    required this.ticked,
+    this.needsWords = false,
+  });
 
   final TopicCut cut;
   final bool ticked;
 
-  ReviewCut withCut(TopicCut changed) =>
-      ReviewCut(cut: changed, ticked: ticked);
+  /// Its words no longer match its times (an edge moved), or are the
+  /// transcript's own (added from it); Update words rewrites them (spec
+  /// FR-40).
+  final bool needsWords;
 
-  ReviewCut toggled() => ReviewCut(cut: cut, ticked: !ticked);
+  /// [changed] times: the words wait for Update words.
+  ReviewCut moved(TopicCut changed) =>
+      ReviewCut(cut: changed, ticked: ticked, needsWords: true);
+
+  /// [text] written for the times as they are.
+  ReviewCut withWords(String text) => ReviewCut(
+    cut: TopicCut(
+      start: cut.start,
+      end: cut.end,
+      text: text,
+      reason: cut.reason,
+    ),
+    ticked: ticked,
+  );
+
+  ReviewCut toggled() =>
+      ReviewCut(cut: cut, ticked: !ticked, needsWords: needsWords);
 
   @override
   bool operator ==(Object other) =>
-      other is ReviewCut && other.cut == cut && other.ticked == ticked;
+      other is ReviewCut &&
+      other.cut == cut &&
+      other.ticked == ticked &&
+      other.needsWords == needsWords;
 
   @override
-  int get hashCode => Object.hash(cut, ticked);
+  int get hashCode => Object.hash(cut, ticked, needsWords);
 }
 
 /// Every moment found, none ticked: the user chooses (spec FR-36).
@@ -66,7 +91,7 @@ List<ReviewCut> nudgeCut(
   if (!allowed) {
     return cuts;
   }
-  return [...cuts]..[nudge.index] = review.withCut(moved);
+  return [...cuts]..[nudge.index] = review.moved(moved);
 }
 
 /// [cuts] with the one at [index] ticked or unticked; ticking is refused
@@ -89,9 +114,28 @@ List<ReviewCut> addBlockAsCut(List<ReviewCut> cuts, TranscriptBlock block) {
   final position = cuts.indexWhere((review) => review.cut.start > added.start);
   return [...cuts]..insert(
     position == -1 ? cuts.length : position,
-    ReviewCut(cut: added, ticked: true),
+    ReviewCut(cut: added, ticked: true, needsWords: true),
   );
 }
+
+/// The moments whose words wait for Update words (spec FR-40).
+List<TopicCut> cutsNeedingWords(List<ReviewCut> cuts) => [
+  for (final review in cuts)
+    if (review.needsWords) review.cut,
+];
+
+/// [cuts] with each moment in [written] given its new words, matched by its
+/// times as sent; a moment trimmed again meanwhile keeps waiting.
+List<ReviewCut> withWrittenWords(
+  List<ReviewCut> cuts,
+  Map<TopicCut, String> written,
+) => [
+  for (final review in cuts)
+    if (written[review.cut] case final text?)
+      review.withWords(text)
+    else
+      review,
+];
 
 /// What goes into the clip, in the list's order.
 List<TopicCut> tickedCuts(List<ReviewCut> cuts) => [

@@ -15,6 +15,7 @@ import 'package:status_studio/src/features/join/presentation/making_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/topic/application/link_session_saver.dart';
+import 'package:status_studio/src/features/topic/application/moment_words_writer.dart';
 import 'package:status_studio/src/features/topic/application/topic_finder.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
@@ -61,6 +62,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   List<ReviewCut>? _keptCuts;
   late final LinkSessionSaver _saver;
   MakingProgress? _making;
+  var _writingWords = false;
   TopicCut? _preparingPlay;
   Object? _makeFailure;
 
@@ -93,11 +95,21 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       appBar: AppBar(
         title: const ScreenTitle('Review cuts'),
         actions: [
-          if (cuts != null && _making == null)
+          if (cuts != null && _making == null && _writingWords)
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (cuts != null &&
+              _making == null &&
+              cutsNeedingWords(cuts).isNotEmpty)
             IconButton(
-              tooltip: 'Find again',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => unawaited(_findAgain()),
+              tooltip: 'Update words',
+              icon: const Icon(Icons.translate),
+              onPressed: () => unawaited(_updateWords()),
             ),
         ],
       ),
@@ -256,7 +268,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   }
 
   /// A continued session's cuts win over the found ones once; Find again
-  /// later shows what is found.
+  /// after a failure shows what is found.
   void _showFound(TopicFound found) {
     final kept = _keptCuts;
     _cuts = kept ?? untickedCuts(found.cuts);
@@ -292,11 +304,51 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (mounted) context.pop();
   }
 
-  Future<void> _findAgain() async {
-    if (_edited && !await _confirmReplaceEdits()) {
+  /// Rewrites the words of trimmed and added moments (spec FR-40).
+  Future<void> _updateWords() async {
+    if (_writingWords) {
       return;
     }
-    _find();
+    setState(() => _writingWords = true);
+    try {
+      await _writeWordsAskingConsent();
+    } on Object catch (failure) {
+      // Any failure leaves the words waiting; say why.
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(errorMessageFor(failure))));
+      }
+    } finally {
+      if (mounted) setState(() => _writingWords = false);
+    }
+  }
+
+  Future<void> _writeWordsAskingConsent() async {
+    try {
+      await _writeWords();
+    } on NoGroqConsentException {
+      if (!mounted || !await askForGroqConsent(context)) {
+        return;
+      }
+      await _writeWords();
+    }
+  }
+
+  Future<void> _writeWords() async {
+    final waiting = cutsNeedingWords(_cuts ?? const []);
+    if (waiting.isEmpty) {
+      return;
+    }
+    final written = await ref
+        .read(momentWordsWriterProvider)
+        .write(
+          MomentWordsOrder(
+            cuts: waiting,
+            blocks: _blocks,
+            output: widget.request.outputLanguage,
+          ),
+        );
+    if (mounted) _edit((cuts) => withWrittenWords(cuts, written));
   }
 
   void _edit(List<ReviewCut> Function(List<ReviewCut> cuts) change) {
@@ -407,12 +459,6 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         'This video has no captions, so Groq writes its script first. That '
         'takes a while and uses much of Groq\'s free daily audio.',
     confirmLabel: 'Continue',
-  );
-
-  Future<bool> _confirmReplaceEdits() => _confirm(
-    title: 'Replace your edited cuts?',
-    message: 'Finding again replaces the cuts you changed.',
-    confirmLabel: 'Replace',
   );
 
   Future<bool> _confirm({
@@ -553,8 +599,7 @@ class _CutList extends StatelessWidget {
         final review = cuts[index];
         return CutCard(
           key: ValueKey(review.cut.start),
-          cut: review.cut,
-          ticked: review.ticked,
+          review: review,
           onToggle: () => onToggle(index),
           onPlay: () => onPlay(review.cut),
           preparingPlay: review.cut == preparingPlay,

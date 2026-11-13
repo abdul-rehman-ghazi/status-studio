@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
-import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
+import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// One moment on Review cuts (spec FR-36): a tick for the clip, its times,
 /// Play (FR-37), its words and reason. Its edges are trimmed in the Play
-/// sheet (FR-39).
+/// sheet (FR-39); until Update words, a trimmed or added moment says its
+/// words are old (FR-40).
 class CutCard extends StatefulWidget {
   const CutCard({
-    required this.cut,
-    required this.ticked,
+    required this.review,
     required this.onToggle,
     required this.onPlay,
     required this.preparingPlay,
     super.key,
   });
 
-  final TopicCut cut;
-  final bool ticked;
+  final ReviewCut review;
 
   final VoidCallback onToggle;
   final VoidCallback onPlay;
@@ -35,7 +35,7 @@ class _CutCardState extends State<CutCard> {
 
   @override
   Widget build(BuildContext context) {
-    final cut = widget.cut;
+    final cut = widget.review.cut;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
@@ -49,7 +49,7 @@ class _CutCardState extends State<CutCard> {
           Row(
             children: [
               Checkbox(
-                value: widget.ticked,
+                value: widget.review.ticked,
                 onChanged: (_) => widget.onToggle(),
               ),
               Expanded(
@@ -82,6 +82,11 @@ class _CutCardState extends State<CutCard> {
               child: ScriptText(cut.text, maxLines: _expanded ? null : 3),
             ),
           ),
+          if (widget.review.needsWords)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(10, 4, 10, 0),
+              child: HintText('Words not updated yet'),
+            ),
           if (cut.reason.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
