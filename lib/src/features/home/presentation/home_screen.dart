@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,21 +9,15 @@ import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/branding/presentation/logo_mark.dart';
 import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
-import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
 import 'package:status_studio/src/features/library/domain/recent_entries.dart';
-import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/library/presentation/unfinished_work_actions.dart';
 import 'package:status_studio/src/features/reel/application/fine_tune_drafts_controller.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
-import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/application/link_sessions_controller.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
-import 'package:status_studio/src/features/transcript/application/saved_scripts_controller.dart';
 import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
-import 'package:status_studio/src/features/transcript/application/script_progress_controller.dart';
-import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -45,7 +38,8 @@ class HomeScreen extends ConsumerWidget {
               onLink: () => _startNewReel(context, ref, AppRoutes.link),
             ),
             const SizedBox(height: 28),
-            const _RecentSection(),
+            const _CarryOnSection(),
+            const _HistoryRow(),
           ],
         ),
       ),
@@ -194,199 +188,67 @@ class _StartCard extends StatelessWidget {
   }
 }
 
-class _RecentSection extends ConsumerWidget {
-  const _RecentSection();
+/// Unfinished work only (spec FR-44): link sessions and kept fine-tunes,
+/// newest first, at most three; hidden when there is none.
+class _CarryOnSection extends ConsumerWidget {
+  const _CarryOnSection();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rows = _newestFirst(
+    final entries = recentEntries(
       RecentLists(
-        reels: ref.watch(recentReelsProvider).value ?? const [],
-        scripts: ref.watch(savedScriptsProvider).value ?? const [],
         fineTunes: ref.watch(fineTuneDraftsProvider).value ?? const [],
         linkSessions: ref.watch(linkSessionsProvider).value ?? const [],
       ),
     );
+    if (entries.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionLabel('Recent'),
+        const SectionLabel('Carry on'),
         const SizedBox(height: 4),
-        if (rows.isEmpty) const _EmptyRecent() else ...rows,
+        for (final entry in entries)
+          switch (entry) {
+            FineTuneEntry(:final fineTune) => _FineTuneRow(fineTune: fineTune),
+            LinkSessionEntry(:final session) => _LinkSessionRow(
+              session: session,
+            ),
+          },
+        const SizedBox(height: 12),
       ],
     );
   }
 }
 
-/// Finished reels, scripts, and fine-tunes and links to continue in one
-/// list, newest first.
-List<Widget> _newestFirst(RecentLists lists) => [
-  for (final entry in recentEntries(lists))
-    switch (entry) {
-      ReelEntry(:final reel) => _RecentReelRow(reel: reel),
-      ScriptEntry(:final script) => _SavedScriptRow(script: script),
-      FineTuneEntry(:final fineTune) => _FineTuneRow(fineTune: fineTune),
-      LinkSessionEntry(:final session) => _LinkSessionRow(session: session),
-    },
-];
-
-class _EmptyRecent extends StatelessWidget {
-  const _EmptyRecent();
+/// Always shown: History holds every video, its reels and scripts (spec
+/// FR-44).
+class _HistoryRow extends StatelessWidget {
+  const _HistoryRow();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: context.palette.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        'Your reels and scripts will appear here.',
-        style: Theme.of(context).textTheme.bodyMedium
-            ?.copyWith(color: context.palette.textMuted),
-      ),
-    );
-  }
-}
-
-/// Thumbnail, first caption line, duration and date (FR-11). Tap opens
-/// Done; long-press offers Delete.
-class _RecentReelRow extends ConsumerWidget {
-  const _RecentReelRow({required this.reel});
-
-  final RecentReel reel;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: SizedBox(
-          width: 48,
-          height: 64,
-          child: Image.file(
-            File(reel.thumbnailPath),
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => ColoredBox(
-              color: context.palette.surface,
-              child: Icon(
-                Icons.movie_outlined,
-                color: context.palette.textMuted,
-              ),
-            ),
-          ),
-        ),
-      ),
-      title: ScriptText(reel.title, maxLines: 1),
-      subtitle: Text(
-        '${formatSeconds(reel.duration)} · ${formatDayMonth(reel.createdAt)}',
-      ),
-      onTap: () => context.push(AppRoutes.doneFor(reel.id)),
-      onLongPress: () => unawaited(_offerDelete(context, ref)),
+      leading: Icon(Icons.history, color: context.palette.accent),
+      title: Text('History', style: Theme.of(context).textTheme.titleMedium),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push(AppRoutes.history),
     );
-  }
-
-  Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
-    if (await confirmAction(context, 'Delete')) {
-      await ref.read(recentReelsProvider.notifier).delete(reel.id);
-    }
   }
 }
 
 /// "From a link · " before a clip joined from a link (spec FR-37), whose
-/// name is its topic.
+/// name is the video's title.
 String _linkNote(WidgetRef ref, String videoId) =>
     ref.watch(linkedClipProvider(videoId)).value == null
     ? ''
     : 'From a link · ';
 
-/// A processed video's whole script, before any clip is cut from it. Tap
-/// reopens Script without downloading (FR-14); long-press offers Delete.
-class _SavedScriptRow extends ConsumerWidget {
-  const _SavedScriptRow({required this.script});
-
-  final SavedScript script;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final language = scriptLanguageLabel(
-      script.language,
-      script.saved.transcript.languageCode,
-    );
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: const _ScriptThumbnail(),
-      title: ScriptText(script.video.title, maxLines: 1),
-      subtitle: Text(
-        _isKept(ref)
-            ? '${_linkNote(ref, script.video.videoId)}'
-                  'Script · $language · ${formatTimestamp(script.video.duration)} · '
-                  '${formatDayMonth(script.saved.savedAt.toLocal())}'
-            : chooseAgainHint,
-      ),
-      onTap: () => unawaited(_openScript(context, ref)),
-      onLongPress: () => unawaited(_offerDelete(context, ref)),
-    );
-  }
-
-  bool _isKept(WidgetRef ref) =>
-      ref.watch(isVideoKeptProvider(script.video.videoId)).value ?? true;
-
-  /// Opens Fine-tune · Video with the saved script read back into the reel
-  /// (nothing is uploaded for a saved script, FR-14). With the kept video
-  /// gone the user is asked for it again first (spec FR-1).
-  Future<void> _openScript(BuildContext context, WidgetRef ref) async {
-    if (!await isStillKept(ref, script.video.videoId)) {
-      if (context.mounted) {
-        askForTheVideoAgain(context, ref, script.video.videoId);
-      }
-      return;
-    }
-    if (!context.mounted) {
-      return;
-    }
-    ref.read(scriptOpeningNoticeProvider.notifier).clear();
-    ref.read(reelDraftProvider.notifier)
-      ..startNew()
-      ..setVideo(script.video)
-      ..setLanguage(script.language);
-    ref
-        .read(scriptProgressProvider.notifier)
-        .start(script.video, script.language);
-    unawaited(context.push(AppRoutes.fineTune));
-  }
-
-  Future<void> _offerDelete(BuildContext context, WidgetRef ref) async {
-    if (await confirmAction(context, 'Delete')) {
-      await ref.read(savedScriptsProvider.notifier).delete(script);
-    }
-  }
-}
-
-class _ScriptThumbnail extends StatelessWidget {
-  const _ScriptThumbnail();
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: 48,
-        height: 64,
-        child: ColoredBox(
-          color: context.palette.surface,
-          child: Icon(Icons.subject, color: context.palette.textMuted),
-        ),
-      ),
-    );
-  }
-}
-
 /// A fine-tune kept at Fine-tune, to continue later (FR-24). Long-press
-/// offers Delete, which removes the fine-tune and the video's script.
+/// offers Delete, which removes the fine-tune only: the script stays for
+/// History (spec FR-44; until M54 the script went too).
 class _FineTuneRow extends ConsumerStatefulWidget {
   const _FineTuneRow({required this.fineTune});
 
@@ -449,24 +311,6 @@ class _FineTuneRowState extends ConsumerState<_FineTuneRow> {
       return;
     }
     await ref.read(fineTuneDraftsProvider.notifier).delete(fineTune);
-    await _deleteItsScript(ref);
-  }
-
-  /// Without this the script row would show again where the fine-tune was.
-  /// A fine-tune that never had lines leaves the video's scripts alone.
-  Future<void> _deleteItsScript(WidgetRef ref) async {
-    if (fineTune.draft.lines == null) {
-      return;
-    }
-    final scripts = await ref.read(savedScriptsProvider.future);
-    final script = scripts.where(
-      (saved) =>
-          saved.video.videoId == fineTune.video.videoId &&
-          saved.language == fineTune.draft.language,
-    );
-    for (final saved in script) {
-      await ref.read(savedScriptsProvider.notifier).delete(saved);
-    }
   }
 }
 
