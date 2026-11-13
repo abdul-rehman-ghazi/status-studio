@@ -10,12 +10,13 @@ import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/source/application/linked_video_reader.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
-import 'package:status_studio/src/features/topic/presentation/topic_fields.dart';
+import 'package:status_studio/src/features/topic/presentation/script_fields.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// From a link (spec FR-35, Android only): paste or share a YouTube link,
-/// read what the video is, then ask for a topic (FR-36).
+/// read what the video is, then the output language and Get the script
+/// (FR-43).
 class LinkSection extends ConsumerStatefulWidget {
   const LinkSection({this.sharedLink, super.key});
 
@@ -79,10 +80,10 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
         if (_videoRequest case final request?) _LinkedVideoCard(request),
         if (_video case final video?) ...[
           const SizedBox(height: 8),
-          TopicFields(
+          ScriptFields(
             key: ValueKey(video.videoId),
             video: video,
-            onFind: (request) =>
+            onGet: (request) =>
                 unawaited(context.push(AppRoutes.reviewCuts, extra: request)),
           ),
         ],

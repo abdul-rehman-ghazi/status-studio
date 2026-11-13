@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/features/source/presentation/link_section.dart';
 
-/// From a YouTube link (spec FR-35, FR-36, Android only): read a link, then
-/// ask for a topic and a length. Opened from Home or by a shared link.
+/// From a YouTube link (spec FR-35, FR-43, Android only): read a link, then
+/// the output language and Get the script. Opened from Home or by a shared
+/// link.
 class LinkScreen extends StatelessWidget {
   const LinkScreen({this.sharedLink, super.key});
 

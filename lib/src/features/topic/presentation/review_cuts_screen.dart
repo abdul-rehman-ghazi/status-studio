@@ -30,9 +30,9 @@ import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
-/// Finds the moments of a linked video about a topic, then shows them to
-/// check, with the transition and Make the clip (spec FR-36, FR-37). Kept
-/// as it changes, to continue from Recent (FR-38).
+/// Gets a linked video's script, then the script page where the user picks
+/// the moments, with the transition and Make the clip (spec FR-43, FR-37).
+/// Kept as it changes, to continue from Recent (FR-38).
 class ReviewCutsScreen extends ConsumerStatefulWidget {
   const ReviewCutsScreen({required this.request, this.continued, super.key});
 
@@ -148,7 +148,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (_failure case final failure?) {
       return _FailureView(
         failure: failure,
-        onFindAgain: _find,
+        onTryAgain: _find,
         onBack: () => context.pop(),
       );
     }
@@ -544,12 +544,12 @@ class _SearchProgress extends StatelessWidget {
 class _FailureView extends StatelessWidget {
   const _FailureView({
     required this.failure,
-    required this.onFindAgain,
+    required this.onTryAgain,
     required this.onBack,
   });
 
   final Object failure;
-  final VoidCallback onFindAgain;
+  final VoidCallback onTryAgain;
   final VoidCallback onBack;
 
   @override
@@ -581,8 +581,8 @@ class _FailureView extends StatelessWidget {
             )
           else
             FilledButton(
-              onPressed: onFindAgain,
-              child: const Text('Find again'),
+              onPressed: onTryAgain,
+              child: const Text('Try again'),
             ),
           const SizedBox(height: 8),
           OutlinedButton(onPressed: onBack, child: const Text('Back')),
