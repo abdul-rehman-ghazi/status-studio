@@ -21,6 +21,13 @@ class TopicRequest {
   /// What the moments' words and reasons are written in (spec FR-36), and
   /// later the clip's lyrics (FR-37). Never [ScriptLanguage.auto].
   final ScriptLanguage outputLanguage;
+
+  /// What the joined clip is called: the topic, or the video's title when
+  /// the script came first without one (spec FR-41).
+  String get clipName {
+    final typed = topic.trim();
+    return typed.isEmpty ? video.title : typed;
+  }
 }
 
 /// The languages Output language offers: the lyrics' list without
