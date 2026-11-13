@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/features/topic/domain/block_run.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -37,9 +38,7 @@ class _AddMomentSheetState extends State<_AddMomentSheet> {
   final _tappedRow = GlobalKey();
   var _search = '';
 
-  /// The chosen run, as positions in the transcript.
-  int? _first;
-  int? _last;
+  BlockRun? _run;
   int? _tapped;
 
   @override
@@ -49,16 +48,10 @@ class _AddMomentSheetState extends State<_AddMomentSheet> {
     super.dispose();
   }
 
-  /// The first tap starts the run; a later one sets its end, inside the run
-  /// too; one before the run starts it again there.
   void _tap(int index) {
-    final first = _first;
     final wasSearching = _search.isNotEmpty;
     setState(() {
-      if (first == null || index < first) {
-        _first = index;
-      }
-      _last = index;
+      _run = BlockRun.tapped(_run, index);
       _tapped = index;
       _search = '';
     });
@@ -86,12 +79,6 @@ class _AddMomentSheetState extends State<_AddMomentSheet> {
         }
       });
     });
-  }
-
-  bool _isChosen(int index) {
-    final first = _first;
-    final last = _last;
-    return first != null && last != null && index >= first && index <= last;
   }
 
   @override
@@ -131,7 +118,7 @@ class _AddMomentSheetState extends State<_AddMomentSheet> {
                 final block = blocks[index];
                 return ListTile(
                   key: index == _tapped ? _tappedRow : null,
-                  selected: _isChosen(index),
+                  selected: _run?.includes(index) ?? false,
                   selectedTileColor: context.palette.accent.withValues(
                     alpha: 0.15,
                   ),
@@ -142,19 +129,10 @@ class _AddMomentSheetState extends State<_AddMomentSheet> {
               },
             ),
           ),
-          _AddButton(run: _run()),
+          _AddButton(run: _run?.of(blocks) ?? const []),
         ],
       ),
     );
-  }
-
-  List<TranscriptBlock> _run() {
-    final first = _first;
-    final last = _last;
-    if (first == null || last == null) {
-      return const [];
-    }
-    return widget.blocks.sublist(first, last + 1);
   }
 }
 

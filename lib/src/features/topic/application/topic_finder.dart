@@ -52,22 +52,37 @@ class TopicFinder {
 
   final TopicFinderServices services;
 
-  /// Ends with [TopicFound]. Throws [LinkTooLongException],
-  /// [NoMomentsFoundException], [GroqDailyLimitException] and the Groq,
-  /// network and script errors.
+  /// Ends with [TopicFound]. Without a topic it stops at the script, with
+  /// no moments and no chat call (spec FR-41). Throws
+  /// [LinkTooLongException], [NoMomentsFoundException],
+  /// [GroqDailyLimitException] and the Groq, network and script errors.
   Stream<TopicProgress> find(TopicRequest request) async* {
     if (isTooLongForTopics(request)) {
       throw LinkTooLongException(request.video.duration);
     }
     final transcript = _Holder<List<TranscriptBlock>>();
     yield* _transcriptBlocks(request, transcript);
+    if (request.topic.trim().isEmpty) {
+      yield TopicFound(cuts: const [], blocks: transcript.value);
+      return;
+    }
+    yield* findIn(request, transcript.value);
+  }
+
+  /// The topic search alone, on a script in hand (spec FR-36; on the
+  /// script page, FR-41). Ends with [TopicFound]; throws
+  /// [NoMomentsFoundException] when nothing is about the topic.
+  Stream<TopicProgress> findIn(
+    TopicRequest request,
+    List<TranscriptBlock> blocks,
+  ) async* {
     final found = _Holder<List<MomentCandidate>>();
-    yield* _candidates(request, transcript.value, found);
-    final cuts = candidatesAsCuts(found.value, transcript.value);
+    yield* _candidates(request, blocks, found);
+    final cuts = candidatesAsCuts(found.value, blocks);
     if (cuts.isEmpty) {
       throw const NoMomentsFoundException();
     }
-    yield TopicFound(cuts: cuts, blocks: transcript.value);
+    yield TopicFound(cuts: cuts, blocks: blocks);
   }
 
   /// Stops an audio download under way; the stream's own cancel stops the
