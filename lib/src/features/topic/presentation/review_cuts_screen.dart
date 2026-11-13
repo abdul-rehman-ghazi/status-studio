@@ -150,7 +150,6 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     }
     return _CutList(
       cuts: cuts,
-      onNudge: _nudge,
       onToggle: _toggle,
       onReorder: _reorder,
       onAddMoment: () => unawaited(_addMoment()),
@@ -525,7 +524,6 @@ class _FailureView extends StatelessWidget {
 class _CutList extends StatelessWidget {
   const _CutList({
     required this.cuts,
-    required this.onNudge,
     required this.onToggle,
     required this.onReorder,
     required this.onAddMoment,
@@ -534,7 +532,6 @@ class _CutList extends StatelessWidget {
   });
 
   final List<ReviewCut> cuts;
-  final void Function(int index, {Duration startBy, Duration endBy}) onNudge;
   final void Function(int index) onToggle;
   final void Function(int from, int to) onReorder;
   final VoidCallback onAddMoment;
@@ -558,8 +555,6 @@ class _CutList extends StatelessWidget {
           key: ValueKey(review.cut.start),
           cut: review.cut,
           ticked: review.ticked,
-          onNudge: ({startBy = Duration.zero, endBy = Duration.zero}) =>
-              onNudge(index, startBy: startBy, endBy: endBy),
           onToggle: () => onToggle(index),
           onPlay: () => onPlay(review.cut),
           preparingPlay: review.cut == preparingPlay,
