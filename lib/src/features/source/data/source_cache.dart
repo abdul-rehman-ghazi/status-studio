@@ -35,6 +35,17 @@ class SourceCache {
   /// (spec FR-37).
   File linkFile(String videoId) => File('${_folder(videoId)}/link.json');
 
+  /// The fingerprints with a folder here.
+  Future<List<String>> videoIds() async {
+    if (!await root.exists()) {
+      return const [];
+    }
+    return [
+      await for (final folder in root.list())
+        if (folder is Directory) folder.path.split('/').last,
+    ];
+  }
+
   /// Deletes everything kept for [videoId]: its video, thumbnail and
   /// `link.json` (spec FR-43, FR-44).
   Future<void> deleteVideo(String videoId) async {

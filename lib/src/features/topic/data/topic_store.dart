@@ -135,6 +135,15 @@ class TopicStore {
     ];
   }
 
+  /// Deletes everything kept for [youTubeId]: transcripts, session and
+  /// facts (spec FR-44, Delete video).
+  Future<void> deleteVideo(String youTubeId) async {
+    final folder = Directory('${root.path}/$youTubeId');
+    if (await folder.exists()) {
+      await folder.delete(recursive: true);
+    }
+  }
+
   /// Deletes the sessions and topic candidates of before M53 (spec FR-43).
   /// Saved transcripts stay: they are the costly part. Cheap and harmless
   /// to repeat, so it runs at every start.

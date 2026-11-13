@@ -121,6 +121,15 @@ class TranscriptStore {
     }
   }
 
+  /// Removes everything saved for [videoId]: every language, unfinished
+  /// runs, its details and its kept fine-tune (spec FR-44, Delete video).
+  Future<void> deleteVideo(String videoId) async {
+    final folder = _folder(videoId);
+    if (await folder.exists()) {
+      await folder.delete(recursive: true);
+    }
+  }
+
   Future<PartialTranscript> loadPartial(
     TranscriptKey key,
     String source,

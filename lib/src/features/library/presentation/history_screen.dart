@@ -11,9 +11,12 @@ import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/library/application/history_provider.dart';
 import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
+import 'package:status_studio/src/features/library/application/video_deleter.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/library/domain/video_history.dart';
+import 'package:status_studio/src/features/library/presentation/history_new.dart';
 import 'package:status_studio/src/features/library/presentation/unfinished_work_actions.dart';
+import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/source/application/video_thumbnail.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -75,9 +78,25 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             group: group,
             unfolded: _unfolded.contains(group.key),
             onFold: () => setState(() => _toggle(group.key)),
+            actions: _GroupActions(
+              onNew: () => unawaited(startNewFrom(context, ref, group)),
+              onDelete: () => unawaited(_offerDeleteVideo(group)),
+            ),
           ),
       ],
     );
+  }
+
+  /// The long-press menu, then a question naming what goes.
+  Future<void> _offerDeleteVideo(VideoHistory group) async {
+    if (!await confirmAction(context, 'Delete video') || !mounted) {
+      return;
+    }
+    if (!await _confirmDeleteVideo(context)) {
+      return;
+    }
+    await ref.read(videoDeleterProvider).deleteVideo(group);
+    _unfolded.remove(group.key);
   }
 
   void _toggle(HistoryVideo key) {
@@ -100,6 +119,39 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ],
     ),
   );
+}
+
+/// *Claude's call* for the words (spec FR-44 says only "asks first").
+Future<bool> _confirmDeleteVideo(BuildContext context) async {
+  final delete = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Delete this video?'),
+      content: const Text(
+        'Its scripts, unfinished work and reels in the app will be '
+        'deleted. Copies saved to the gallery stay.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Keep'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+  return delete ?? false;
+}
+
+/// What a group's parent row asks History to do.
+class _GroupActions {
+  const _GroupActions({required this.onNew, required this.onDelete});
+
+  final VoidCallback onNew;
+  final VoidCallback onDelete;
 }
 
 class _EmptyHistory extends StatelessWidget {
@@ -125,11 +177,13 @@ class _HistoryGroup extends StatelessWidget {
     required this.group,
     required this.unfolded,
     required this.onFold,
+    required this.actions,
   });
 
   final VideoHistory group;
   final bool unfolded;
   final VoidCallback onFold;
+  final _GroupActions actions;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +200,7 @@ class _HistoryGroup extends StatelessWidget {
             group: group,
             unfolded: unfolded,
             onFold: onFold,
+            actions: actions,
           ),
           if (unfolded && unfinished != null) _UnfinishedRow(unfinished),
           if (unfolded)
@@ -156,22 +211,32 @@ class _HistoryGroup extends StatelessWidget {
   }
 }
 
-class _ParentRow extends StatelessWidget {
+class _ParentRow extends ConsumerWidget {
   const _ParentRow({
     required this.group,
     required this.unfolded,
     required this.onFold,
+    required this.actions,
   });
 
   final VideoHistory group;
   final bool unfolded;
   final VoidCallback onFold;
+  final _GroupActions actions;
+
+  /// A local video whose kept file is gone (spec FR-44): New asks for it.
+  bool _isGone(WidgetRef ref) => switch (group.key) {
+    LocalVideoKey(:final videoId) =>
+      !(ref.watch(isVideoKeptProvider(videoId)).value ?? true),
+    LinkedVideoKey() => false,
+  };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: onFold,
+      onLongPress: actions.onDelete,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
         child: Row(
@@ -183,11 +248,14 @@ class _ParentRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ScriptText(group.title, maxLines: 2),
-                  HintText(groupSummary(group)),
+                  HintText(
+                    _isGone(ref) ? chooseAgainHint : groupSummary(group),
+                  ),
                 ],
               ),
             ),
             Icon(unfolded ? Icons.expand_less : Icons.expand_more),
+            TextButton(onPressed: actions.onNew, child: const Text('New')),
           ],
         ),
       ),

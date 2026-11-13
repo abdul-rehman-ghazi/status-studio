@@ -215,6 +215,14 @@ class CutDownloader {
     }
   }
 
+  /// Deletes every cut downloaded from [youtubeId] (spec FR-44).
+  Future<void> deleteCutsOf(String youtubeId) async {
+    final cuts = await _cutsFolder(youtubeId);
+    if (await cuts.exists()) {
+      await cuts.delete(recursive: true);
+    }
+  }
+
   Future<Directory> _cutsFolder(String youtubeId) async =>
       Directory('${(await folder).path}/$youtubeId');
 }
