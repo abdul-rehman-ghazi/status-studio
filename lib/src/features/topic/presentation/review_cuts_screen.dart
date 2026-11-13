@@ -14,10 +14,12 @@ import 'package:status_studio/src/features/join/presentation/cut_player_sheet.da
 import 'package:status_studio/src/features/join/presentation/making_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
+import 'package:status_studio/src/features/topic/application/link_session_saver.dart';
 import 'package:status_studio/src/features/topic/application/topic_finder.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
+import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
@@ -29,11 +31,18 @@ import 'package:status_studio/src/features/transcript/presentation/groq_consent_
 import 'package:status_studio/src/routing/app_router.dart';
 
 /// Finds the moments of a linked video about a topic, then shows them to
-/// check, with the transition and Make the clip (spec FR-36, FR-37).
+/// check, with the transition and Make the clip (spec FR-36, FR-37). Kept
+/// as it changes, to continue from Recent (FR-38).
 class ReviewCutsScreen extends ConsumerStatefulWidget {
-  const ReviewCutsScreen({required this.request, super.key});
+  const ReviewCutsScreen({required this.request, this.continued, super.key});
+
+  /// Opens the session left on Review cuts: its cuts replace the found ones.
+  ReviewCutsScreen.continuing(LinkSession session, {super.key})
+    : request = session.request,
+      continued = session;
 
   final TopicRequest request;
+  final LinkSession? continued;
 
   @override
   ConsumerState<ReviewCutsScreen> createState() => _ReviewCutsScreenState();
@@ -47,6 +56,10 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   List<TranscriptBlock> _blocks = const [];
   var _edited = false;
   var _transition = ClipTransition.crossfade;
+
+  /// A continued session's cuts, shown in place of the first found list.
+  List<ReviewCut>? _keptCuts;
+  late final LinkSessionSaver _saver;
   MakingProgress? _making;
   TopicCut? _preparingPlay;
   Object? _makeFailure;
@@ -54,14 +67,22 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   @override
   void initState() {
     super.initState();
+    // Read now: a save after leaving the screen can't use ref.
+    _saver = ref.read(linkSessionSaverProvider);
+    if (widget.continued case final session?) {
+      _keptCuts = session.cuts;
+      _edited = session.edited;
+      _transition = session.transition;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_begin()));
   }
 
   @override
   void dispose() {
     unawaited(_stopSearch());
-    if (_making != null)
+    if (_making != null) {
       unawaited(ref.read(backgroundClipMakerProvider).cancel());
+    }
     super.dispose();
   }
 
@@ -91,7 +112,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
               total: totalLength(tickedCuts(cuts)),
               length: widget.request.length,
               transition: _transition,
-              onTransition: (chosen) => setState(() => _transition = chosen),
+              onTransition: _setTransition,
               onMake: tickedCuts(cuts).isEmpty
                   ? null
                   : () => unawaited(_make()),
@@ -166,13 +187,35 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     }
   }
 
+  /// A continued session skips the long-script question: it was answered
+  /// when the session began.
   Future<void> _begin() async {
-    if (needsLongScriptWarning(widget.request.video) &&
+    if (widget.continued == null &&
+        needsLongScriptWarning(widget.request.video) &&
         !await _confirmLongScript()) {
       if (mounted) context.pop();
       return;
     }
+    _keep();
     _find();
+  }
+
+  /// Saves the screen as it is for Recent (spec FR-38).
+  void _keep() => unawaited(
+    _saver.save(
+      LinkSession(
+        request: widget.request,
+        cuts: _cuts ?? _keptCuts,
+        transition: _transition,
+        edited: _edited,
+        savedAt: DateTime.now(),
+      ),
+    ),
+  );
+
+  void _setTransition(ClipTransition chosen) {
+    setState(() => _transition = chosen);
+    _keep();
   }
 
   void _find() {
@@ -194,13 +237,24 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     }
     setState(() {
       if (progress is TopicFound) {
-        _cuts = untickedCuts(progress.cuts);
-        _blocks = progress.blocks;
-        _edited = false;
-        _search = null;
+        _showFound(progress);
       }
       _progress = progress;
     });
+    if (progress is TopicFound) {
+      _keep();
+    }
+  }
+
+  /// A continued session's cuts win over the found ones once; Find again
+  /// later shows what is found.
+  void _showFound(TopicFound found) {
+    final kept = _keptCuts;
+    _cuts = kept ?? untickedCuts(found.cuts);
+    _edited = kept != null && _edited;
+    _keptCuts = null;
+    _blocks = found.blocks;
+    _search = null;
   }
 
   Future<void> _onFailure(Object failure) async {
@@ -245,6 +299,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       _cuts = change(cuts);
       _edited = true;
     });
+    _keep();
   }
 
   void _nudge(
@@ -299,6 +354,8 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         return;
       }
       setState(() => _making = null);
+      // The joined clip's own Recent row takes the session's place.
+      unawaited(_saver.delete(widget.request));
       ref.invalidate(isVideoKeptProvider);
       ref.read(reelDraftProvider.notifier).setVideo(video);
       await context.push(AppRoutes.fineTune);

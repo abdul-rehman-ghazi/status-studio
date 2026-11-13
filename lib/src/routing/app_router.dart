@@ -17,6 +17,7 @@ import 'package:status_studio/src/features/settings/presentation/settings_screen
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/presentation/link_screen.dart';
 import 'package:status_studio/src/features/source/presentation/source_screen.dart';
+import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/presentation/review_cuts_screen.dart';
 
@@ -94,8 +95,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.reviewCuts,
-        builder: (context, state) =>
-            ReviewCutsScreen(request: state.extra! as TopicRequest),
+        builder: (context, state) => switch (state.extra) {
+          final LinkSession session => ReviewCutsScreen.continuing(session),
+          _ => ReviewCutsScreen(request: state.extra! as TopicRequest),
+        },
       ),
       GoRoute(
         path: AppRoutes.settings,
