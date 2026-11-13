@@ -32,9 +32,9 @@ M1–M8 are done and merged into `dev`. Saved scripts in Recent and model downlo
 | Navigation | [go_router](https://pub.dev/packages/go_router) |
 | Reading YouTube videos (Android) | [yt-dlp](https://github.com/yt-dlp/yt-dlp) through [youtubedl-android](https://github.com/JunkFood02/youtubedl-android) (Python and QuickJS bundled, updates itself) |
 | Downloads | `dart:io` `HttpClient` byte-range requests |
-| Speech to text (on device) | [whisper_ggml](https://pub.dev/packages/whisper_ggml) (whisper.cpp) |
+| Speech to text | Groq's hosted Whisper, with the user's own key (`dart:io` `HttpClient`) |
 | Video and audio processing | [ffmpeg_kit_flutter_new_min](https://pub.dev/packages/ffmpeg_kit_flutter_new_min) (LGPL build) |
-| Translation (on device) | [google_mlkit_translation](https://pub.dev/packages/google_mlkit_translation) |
+| Face and body detection (on device) | [tflite_flutter](https://pub.dev/packages/tflite_flutter) with MediaPipe BlazeFace full range and EfficientDet-Lite0 (Apache 2.0, `assets/models/`) |
 | Preview | [video_player](https://pub.dev/packages/video_player) |
 | Save and share | [gal](https://pub.dev/packages/gal), [share_plus](https://pub.dev/packages/share_plus) |
 | Files | [path_provider](https://pub.dev/packages/path_provider) |
@@ -84,7 +84,7 @@ Keep a separate backup of the keystore and its password outside the repo: an app
 ## Platforms
 
 - **Android**: primary target. Application ID `com.hotmail.arehmananis.statusstudio`. Minimum SDK 24 (required by FFmpeg Kit).
-- **iOS**: same code, bundle ID `com.hotmail.arehmananis.statusstudio`. Not built yet. ML Kit translation needs iOS 15.5 or later.
+- **iOS**: same code, bundle ID `com.hotmail.arehmananis.statusstudio`, deployment target 15.5. It builds, but has never run on a device.
 
 Downloading from YouTube is against YouTube's terms and app store policies, so this app is meant to be installed directly (APK), not published to Google Play or the App Store.
 
