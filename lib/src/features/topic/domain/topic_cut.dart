@@ -28,11 +28,12 @@ class TopicCut {
     );
   }
 
-  /// A block the user added from the transcript has no reason.
-  factory TopicCut.fromBlock(TranscriptBlock block) => TopicCut(
-    start: block.start,
-    end: block.end,
-    text: block.text,
+  /// A run of blocks the user added from the transcript (spec FR-36, M50),
+  /// first to last in video order; it has no reason.
+  factory TopicCut.fromBlocks(List<TranscriptBlock> run) => TopicCut(
+    start: run.first.start,
+    end: run.last.end,
+    text: run.map((block) => block.text).join(' '),
     reason: '',
   );
 

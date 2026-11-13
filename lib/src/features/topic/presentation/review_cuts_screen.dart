@@ -405,8 +405,8 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   });
 
   Future<void> _addMoment() async {
-    final block = await showAddMomentSheet(context, _blocks);
-    if (block != null) _edit((cuts) => addBlockAsCut(cuts, block));
+    final run = await showAddMomentSheet(context, _blocks);
+    if (run != null) _edit((cuts) => addBlocksAsCut(cuts, run));
   }
 
   /// Downloads and joins the ticked cuts, then opens Fine-tune · Video on

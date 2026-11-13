@@ -104,10 +104,13 @@ List<ReviewCut> toggleCut(List<ReviewCut> cuts, int index) {
   return [...cuts]..[index] = review.toggled();
 }
 
-/// [cuts] with [block] added, ticked, where it falls in video order;
-/// unchanged when it overlaps a ticked cut.
-List<ReviewCut> addBlockAsCut(List<ReviewCut> cuts, TranscriptBlock block) {
-  final added = TopicCut.fromBlock(block);
+/// [cuts] with the run of blocks [run] added as one moment, ticked, where
+/// it falls in video order; unchanged when it overlaps a ticked cut.
+List<ReviewCut> addBlocksAsCut(
+  List<ReviewCut> cuts,
+  List<TranscriptBlock> run,
+) {
+  final added = TopicCut.fromBlocks(run);
   if (_overlapsTicked(cuts, added, except: -1)) {
     return cuts;
   }

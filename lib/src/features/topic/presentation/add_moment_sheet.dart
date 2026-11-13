@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
+import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
+import 'package:status_studio/src/theme/app_theme.dart';
 
-/// The transcript with a search field; returns the block tapped (spec
-/// FR-36, Add a moment), or null when closed.
-Future<TranscriptBlock?> showAddMomentSheet(
+/// A guess at a row's height, to bring a block near view before it is built;
+/// the exact place follows once it is.
+const _estimatedRowHeight = 80.0;
+
+/// The transcript with a search field; returns the run of blocks chosen,
+/// first to last (spec FR-36, Add a moment; grouped since M50), or null
+/// when closed.
+Future<List<TranscriptBlock>?> showAddMomentSheet(
   BuildContext context,
   List<TranscriptBlock> blocks,
-) => showModalBottomSheet<TranscriptBlock>(
+) => showModalBottomSheet<List<TranscriptBlock>>(
   context: context,
   isScrollControlled: true,
   showDragHandle: true,
@@ -25,15 +32,76 @@ class _AddMomentSheet extends StatefulWidget {
 }
 
 class _AddMomentSheetState extends State<_AddMomentSheet> {
+  final _searchField = TextEditingController();
+  final _scroll = ScrollController();
+  final _tappedRow = GlobalKey();
   var _search = '';
+
+  /// The chosen run, as positions in the transcript.
+  int? _first;
+  int? _last;
+  int? _tapped;
+
+  @override
+  void dispose() {
+    _searchField.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// The first tap starts the run; a later one sets its end, inside the run
+  /// too; one before the run starts it again there.
+  void _tap(int index) {
+    final first = _first;
+    final wasSearching = _search.isNotEmpty;
+    setState(() {
+      if (first == null || index < first) {
+        _first = index;
+      }
+      _last = index;
+      _tapped = index;
+      _search = '';
+    });
+    _searchField.clear();
+    if (wasSearching) _keepInView(index);
+  }
+
+  /// After the search is cleared, the tapped block is brought back into
+  /// view, so the run's end is picked in context.
+  void _keepInView(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) {
+        return;
+      }
+      _scroll.jumpTo(
+        (index * _estimatedRowHeight).clamp(
+          0,
+          _scroll.position.maxScrollExtent,
+        ),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final row = _tappedRow.currentContext;
+        if (row != null && row.mounted) {
+          Scrollable.ensureVisible(row, alignment: 0.3);
+        }
+      });
+    });
+  }
+
+  bool _isChosen(int index) {
+    final first = _first;
+    final last = _last;
+    return first != null && last != null && index >= first && index <= last;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final shown = _search.isEmpty
-        ? widget.blocks
-        : widget.blocks
-              .where((block) => block.text.toLowerCase().contains(_search))
-              .toList();
+    final blocks = widget.blocks;
+    final shown = [
+      for (final (index, block) in blocks.indexed)
+        if (_search.isEmpty || block.text.toLowerCase().contains(_search))
+          index,
+    ];
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * 0.8,
       child: Column(
@@ -41,6 +109,7 @@ class _AddMomentSheetState extends State<_AddMomentSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextField(
+              controller: _searchField,
               decoration: const InputDecoration(
                 hintText: 'Search the transcript',
                 prefixIcon: Icon(Icons.search),
@@ -49,20 +118,71 @@ class _AddMomentSheetState extends State<_AddMomentSheet> {
                   setState(() => _search = text.trim().toLowerCase()),
             ),
           ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: HintText('Tap the first line, then the last.'),
+          ),
           Expanded(
             child: ListView.builder(
+              controller: _scroll,
               itemCount: shown.length,
-              itemBuilder: (context, index) {
-                final block = shown[index];
+              itemBuilder: (context, position) {
+                final index = shown[position];
+                final block = blocks[index];
                 return ListTile(
-                  title: Text(block.text),
+                  key: index == _tapped ? _tappedRow : null,
+                  selected: _isChosen(index),
+                  selectedTileColor: context.palette.accent.withValues(
+                    alpha: 0.15,
+                  ),
+                  title: ScriptText(block.text),
                   subtitle: HintText(formatTimestamp(block.start)),
-                  onTap: () => Navigator.of(context).pop(block),
+                  onTap: () => _tap(index),
                 );
               },
             ),
           ),
+          _AddButton(run: _run()),
         ],
+      ),
+    );
+  }
+
+  List<TranscriptBlock> _run() {
+    final first = _first;
+    final last = _last;
+    if (first == null || last == null) {
+      return const [];
+    }
+    return widget.blocks.sublist(first, last + 1);
+  }
+}
+
+/// "Add 1:02:13–1:02:31 · 18 s", off until a line is tapped.
+class _AddButton extends StatelessWidget {
+  const _AddButton({required this.run});
+
+  final List<TranscriptBlock> run;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = run.isEmpty
+        ? 'Add'
+        : 'Add ${formatTimestamp(run.first.start)}–'
+              '${formatTimestamp(run.last.end)} · '
+              '${(run.last.end - run.first.start).inSeconds} s';
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: run.isEmpty
+                ? null
+                : () => Navigator.of(context).pop(run),
+            child: Text(label),
+          ),
+        ),
       ),
     );
   }
