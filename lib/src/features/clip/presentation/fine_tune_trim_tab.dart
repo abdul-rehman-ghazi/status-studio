@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,8 @@ import 'package:status_studio/src/features/reel/application/reel_draft_controlle
 import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
+
+const _edgeReplay = Duration(seconds: 2);
 
 /// Fine-tune · Video's Trim tab: the clip's length, its waveform, and its
 /// start and end with the nudges (spec FR-5).
@@ -46,7 +50,10 @@ class FineTuneTrimTab extends ConsumerWidget {
               child: _NudgeCard(
                 edge: _ClipEdge.start,
                 time: clip.start,
-                onNudge: controller.nudgeClipStart,
+                onNudge: (by) {
+                  controller.nudgeClipStart(by);
+                  _replayMovedEdge(clip.start, _clipNow(ref)?.start);
+                },
                 onSetToPlayhead: () =>
                     _setToPlayhead(controller.setClipStartAt),
               ),
@@ -56,7 +63,10 @@ class FineTuneTrimTab extends ConsumerWidget {
               child: _NudgeCard(
                 edge: _ClipEdge.end,
                 time: clip.end,
-                onNudge: controller.nudgeClipEnd,
+                onNudge: (by) {
+                  controller.nudgeClipEnd(by);
+                  _replayMovedEdge(clip.end, _clipNow(ref)?.end);
+                },
                 onSetToPlayhead: () => _setToPlayhead(controller.setClipEndAt),
               ),
             ),
@@ -74,6 +84,20 @@ class FineTuneTrimTab extends ConsumerWidget {
         if (defaultTargetPlatform == TargetPlatform.android)
           const _LouderSoundSwitch(),
       ],
+    );
+  }
+
+  ClipRange? _clipNow(WidgetRef ref) => ref.read(reelDraftProvider).clip;
+
+  /// After a nudge the player plays from 2 s before the moved edge to 2 s
+  /// past it, so the new start or end is heard (spec FR-5, as FR-39). A
+  /// nudge the rules ignored replays nothing.
+  void _replayMovedEdge(Duration edgeBefore, Duration? edgeAfter) {
+    if (edgeAfter == null || edgeAfter == edgeBefore || !playhead.isReady) {
+      return;
+    }
+    unawaited(
+      playhead.playBetween(edgeAfter - _edgeReplay, edgeAfter + _edgeReplay),
     );
   }
 

@@ -9,6 +9,13 @@ import 'package:flutter/foundation.dart';
 const _blendWithin = Duration(milliseconds: 250);
 const _blendShare = 0.3;
 
+/// What a player lends the playhead while attached, in video time.
+typedef PlayheadControls = ({
+  Future<void> Function(Duration videoTime) seek,
+  Future<void> Function(Duration fromVideoTime, Duration toVideoTime)
+  playBetween,
+});
+
 class ClipPlayhead extends ChangeNotifier {
   ClipPlayhead({Duration Function()? clock})
     : _clock = clock ?? _stopwatchClock();
@@ -17,12 +24,12 @@ class ClipPlayhead extends ChangeNotifier {
   Duration _reportedPosition = Duration.zero;
   Duration _reportedAt = Duration.zero;
   var _isPlaying = false;
-  Future<void> Function(Duration videoTime)? _seek;
+  PlayheadControls? _controls;
 
   bool get isPlaying => _isPlaying;
 
   /// False until a player is attached, and while none is.
-  bool get isReady => _seek != null;
+  bool get isReady => _controls != null;
 
   Duration get position {
     if (!_isPlaying) {
@@ -49,21 +56,28 @@ class ClipPlayhead extends ChangeNotifier {
 
   /// Called by a player when it is created; it does not notify, because
   /// players are created while the tree builds.
-  void attach(Future<void> Function(Duration videoTime) seek) => _seek = seek;
+  void attach(PlayheadControls controls) => _controls = controls;
 
   /// Does not notify: players go away while the tree is torn down. Readers
   /// see [isPlaying] and [isReady] change the next time they look.
   void detach() {
-    _seek = null;
+    _controls = null;
     _isPlaying = false;
   }
 
-  Future<void> seekTo(Duration videoTime) async {
-    final seek = _seek;
-    if (seek == null) {
+  Future<void> seekTo(Duration videoTime) => _requireControls().seek(videoTime);
+
+  /// Plays from [fromVideoTime] and pauses at [toVideoTime]; both are held
+  /// inside the video.
+  Future<void> playBetween(Duration fromVideoTime, Duration toVideoTime) =>
+      _requireControls().playBetween(fromVideoTime, toVideoTime);
+
+  PlayheadControls _requireControls() {
+    final controls = _controls;
+    if (controls == null) {
       throw StateError('The playhead was moved before a player was ready.');
     }
-    await seek(videoTime);
+    return controls;
   }
 }
 

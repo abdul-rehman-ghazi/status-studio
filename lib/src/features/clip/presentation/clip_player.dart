@@ -78,10 +78,14 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
   /// play, pause or seek clears it (spec FR-5, M41).
   var _playingClip = false;
 
+  /// Set by [_playBetween], in the clip file's time: playing pauses there.
+  /// Any other play, pause or seek clears it.
+  Duration? _replayEndInFile;
+
   @override
   void initState() {
     super.initState();
-    widget.playhead.attach(_seekToVideoTime);
+    widget.playhead.attach((seek: _seekToVideoTime, playBetween: _playBetween));
     _player.addListener(_reportPlayhead);
     unawaited(_initialize());
   }
@@ -163,9 +167,10 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
 
   void _reportPlayhead() {
     final value = _player.value;
-    final stopAt = _onlyRangeInFile?.end ?? _clipEndWhilePlayingClip;
+    final stopAt =
+        _onlyRangeInFile?.end ?? _clipEndWhilePlayingClip ?? _replayEndInFile;
     if (stopAt != null && value.isPlaying && value.position >= stopAt) {
-      _playingClip = false;
+      _stopPlayingToAnEnd();
       unawaited(_player.pause());
     }
     widget.playhead.report(
@@ -182,18 +187,46 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
   /// The flag is set only after the seek: a report of the old position, past
   /// the clip end, would otherwise pause the player and clear it.
   Future<void> _playClipFromStart() async {
+    _replayEndInFile = null;
     await _player.seekTo(_clipInFile.start);
     _playingClip = true;
     await _player.play();
   }
 
-  Future<void> _seekFromBar(Duration fileTime) {
+  /// Hears a stretch, such as the edge a nudge just moved (spec FR-5). The
+  /// end is set only after the seek, as in [_playClipFromStart].
+  Future<void> _playBetween(
+    Duration fromVideoTime,
+    Duration toVideoTime,
+  ) async {
+    _stopPlayingToAnEnd();
+    await _player.seekTo(_inFile(fromVideoTime));
+    _replayEndInFile = _inFile(toVideoTime);
+    await _player.play();
+  }
+
+  /// [videoTime] in the clip file's time, held inside the file.
+  Duration _inFile(Duration videoTime) {
+    final fileTime = videoTime - widget.source.offset;
+    if (fileTime < Duration.zero) {
+      return Duration.zero;
+    }
+    final fileLength = _player.value.duration;
+    return fileTime > fileLength ? fileLength : fileTime;
+  }
+
+  void _stopPlayingToAnEnd() {
     _playingClip = false;
+    _replayEndInFile = null;
+  }
+
+  Future<void> _seekFromBar(Duration fileTime) {
+    _stopPlayingToAnEnd();
     return _player.seekTo(fileTime);
   }
 
   Future<void> _togglePlayback() async {
-    _playingClip = false;
+    _stopPlayingToAnEnd();
     if (_player.value.isPlaying) {
       await _player.pause();
       return;
