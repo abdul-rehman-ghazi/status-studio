@@ -35,6 +35,15 @@ class SourceCache {
   /// (spec FR-37).
   File linkFile(String videoId) => File('${_folder(videoId)}/link.json');
 
+  /// Deletes everything kept for [videoId]: its video, thumbnail and
+  /// `link.json` (spec FR-43, FR-44).
+  Future<void> deleteVideo(String videoId) async {
+    final folder = Directory(_folder(videoId));
+    if (await folder.exists()) {
+      await folder.delete(recursive: true);
+    }
+  }
+
   /// The videos already kept for [videoId], whatever their extension.
   List<File> keptLocalVideos(String videoId) {
     final folder = Directory(_folder(videoId));

@@ -10,6 +10,9 @@ import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/source/application/linked_video_reader.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
+import 'package:status_studio/src/features/topic/application/unfinished_link_work.dart';
+import 'package:status_studio/src/features/topic/domain/topic_request.dart';
+import 'package:status_studio/src/features/topic/presentation/replace_unfinished_dialog.dart';
 import 'package:status_studio/src/features/topic/presentation/script_fields.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
@@ -83,12 +86,28 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
           ScriptFields(
             key: ValueKey(video.videoId),
             video: video,
-            onGet: (request) =>
-                unawaited(context.push(AppRoutes.reviewCuts, extra: request)),
+            onGet: (request) => unawaited(_getScript(request)),
           ),
         ],
       ],
     );
+  }
+
+  /// One unfinished piece of work per linked video (spec FR-43): starting
+  /// again asks first, then deletes the old one.
+  Future<void> _getScript(TopicRequest request) async {
+    final works = ref.read(unfinishedLinkWorksProvider);
+    final unfinished = await works.unfinishedLinkWork(request.video.videoId);
+    if (!mounted) {
+      return;
+    }
+    if (!unfinished.isEmpty) {
+      if (!await askToReplaceUnfinished(context)) {
+        return;
+      }
+      await works.delete(unfinished);
+    }
+    if (mounted) await context.push(AppRoutes.reviewCuts, extra: request);
   }
 
   Future<void> _paste() async {
