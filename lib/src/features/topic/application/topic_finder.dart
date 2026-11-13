@@ -133,11 +133,11 @@ class TopicFinder {
   ) async* {
     final store = await services.store;
     final youTubeId = request.video.videoId;
-    final search = (
-      topic: request.topic,
-      outputLanguage: request.outputLanguage,
+    final key = (
+      search: (topic: request.topic, outputLanguage: request.outputLanguage),
+      transcript: transcriptKeyOf(blocks),
     );
-    final saved = await store.savedCandidates(youTubeId, search);
+    final saved = await store.savedCandidates(youTubeId, key);
     if (saved != null) {
       result.value = saved;
       return;
@@ -155,7 +155,7 @@ class TopicFinder {
       candidates.addAll(candidatesFromReply(reply.value, part));
     }
     result.value = candidates;
-    await store.saveCandidates(youTubeId, search, candidates);
+    await store.saveCandidates(youTubeId, key, candidates);
   }
 
   /// Sends [chat], waiting out Groq's limits and saying when it carries on

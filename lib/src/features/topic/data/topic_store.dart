@@ -13,6 +13,20 @@ import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 /// A topic and the language its moments are written in (spec FR-36).
 typedef TopicSearch = ({String topic, ScriptLanguage outputLanguage});
 
+/// A search's candidates belong to the transcript they were found in: their
+/// block numbers mean nothing in another (M50 wrote new transcripts from
+/// the audio, and moments saved from the old ones pointed past their end).
+typedef CandidatesKey = ({TopicSearch search, String transcript});
+
+/// A short fingerprint of [blocks]: their times and words.
+String transcriptKeyOf(List<TranscriptBlock> blocks) {
+  final rows = [
+    for (final block in blocks)
+      '${block.start.inMilliseconds}|${block.end.inMilliseconds}|${block.text}',
+  ].join('\n');
+  return sha256.convert(utf8.encode(rows)).toString().substring(0, 12);
+}
+
 final _sessionFileName = RegExp(r'^session_[0-9a-f]{16}\.json$');
 
 /// Transcripts, topic candidates and Review cuts sessions of linked videos,
@@ -47,12 +61,14 @@ class TopicStore {
     for (final block in blocks) block.toJson(),
   ]);
 
-  /// Every moment Groq found for [search], or null when it wasn't asked yet.
+  /// Every moment Groq found for [key]'s search in [key]'s transcript, or
+  /// null when it wasn't asked yet. Candidates saved before M50 carry no
+  /// transcript and are never read.
   Future<List<MomentCandidate>?> savedCandidates(
     String youTubeId,
-    TopicSearch search,
+    CandidatesKey key,
   ) async {
-    final saved = await _readJson(_candidatesFile(youTubeId, search));
+    final saved = await _readJson(_candidatesFile(youTubeId, key));
     if (saved is! Map<String, Object?>) {
       return null;
     }
@@ -64,9 +80,9 @@ class TopicStore {
 
   Future<void> saveCandidates(
     String youTubeId,
-    TopicSearch search,
+    CandidatesKey key,
     List<MomentCandidate> candidates,
-  ) => _writeJson(_candidatesFile(youTubeId, search), {
+  ) => _writeJson(_candidatesFile(youTubeId, key), {
     'candidates': [for (final candidate in candidates) candidate.toJson()],
   });
 
@@ -141,8 +157,10 @@ class TopicStore {
   File _blocksFile(String youTubeId, ScriptLanguage language) =>
       File('${root.path}/$youTubeId/transcript_${language.whisperCode}.json');
 
-  File _candidatesFile(String youTubeId, TopicSearch search) =>
-      File('${root.path}/$youTubeId/topic_${_searchKey(search)}.json');
+  File _candidatesFile(String youTubeId, CandidatesKey key) => File(
+    '${root.path}/$youTubeId/'
+    'topic_${_searchKey(key.search)}_${key.transcript}.json',
+  );
 
   File _sessionFile(TopicRequest request) {
     final search = (

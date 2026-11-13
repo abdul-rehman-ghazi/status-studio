@@ -8,6 +8,14 @@ import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 
 /// Spec §8 copy for a failure from the data layer.
+/// The message for an error the app doesn't name.
+const somethingWentWrong = 'Something went wrong. Try again.';
+
+/// False for an error that only gets [somethingWentWrong]: a screen then
+/// shows the error's own text too, so a report says what broke.
+bool hasOwnMessage(Object error) =>
+    errorMessageFor(error) != somethingWentWrong;
+
 String errorMessageFor(Object error) {
   return switch (error) {
     OfflineException() ||
@@ -50,7 +58,7 @@ String errorMessageFor(Object error) {
       "This video can't be downloaded in parts.",
     JoinFailedException() => "Couldn't join the cuts.",
     CutsNotDecodableException() => "This phone can't convert this AV1 video.",
-    _ => 'Something went wrong. Try again.',
+    _ => somethingWentWrong,
   };
 }
 

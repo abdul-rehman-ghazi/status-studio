@@ -72,7 +72,10 @@ List<TopicCut> candidatesAsCuts(
   final best = [...candidates]..sort((a, b) => b.score.compareTo(a.score));
   final kept = <MomentCandidate>[];
   for (final candidate in best) {
-    if (candidate.lengthIn(blocks) >= shortestCut &&
+    // A candidate naming blocks this transcript doesn't have is left out,
+    // so a stale one can never break the list.
+    if (candidate.lastBlock < blocks.length &&
+        candidate.lengthIn(blocks) >= shortestCut &&
         !kept.any(candidate.overlaps)) {
       kept.add(candidate);
     }

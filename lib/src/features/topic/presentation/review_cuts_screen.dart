@@ -249,7 +249,14 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     _search = ref
         .read(topicFinderProvider)
         .find(widget.request)
-        .listen(_onProgress, onError: _onFailure, cancelOnError: true);
+        .listen(
+          _onProgress,
+          onError: (Object failure, StackTrace stack) {
+            debugPrint('Review cuts failed: $failure\n$stack');
+            unawaited(_onFailure(failure));
+          },
+          cancelOnError: true,
+        );
   }
 
   void _onProgress(TopicProgress progress) {
@@ -550,6 +557,14 @@ class _FailureView extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
+          if (!hasOwnMessage(failure)) ...[
+            const SizedBox(height: 8),
+            SelectableText(
+              '$failure',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 20),
           if (failure is NoGroqKeyException)
             FilledButton(
