@@ -23,8 +23,13 @@ class TopicStore {
 
   final Directory root;
 
-  Future<List<TranscriptBlock>?> savedBlocks(String youTubeId) async {
-    final saved = await _readJson(_blocksFile(youTubeId));
+  /// The transcript in [language], or null when there is none yet (M50: a
+  /// transcript in another language is never reused).
+  Future<List<TranscriptBlock>?> savedBlocks(
+    String youTubeId,
+    ScriptLanguage language,
+  ) async {
+    final saved = await _readJson(_blocksFile(youTubeId, language));
     if (saved is! List<Object?>) {
       return null;
     }
@@ -34,10 +39,13 @@ class TopicStore {
     ];
   }
 
-  Future<void> saveBlocks(String youTubeId, List<TranscriptBlock> blocks) =>
-      _writeJson(_blocksFile(youTubeId), [
-        for (final block in blocks) block.toJson(),
-      ]);
+  Future<void> saveBlocks(
+    String youTubeId,
+    ScriptLanguage language,
+    List<TranscriptBlock> blocks,
+  ) => _writeJson(_blocksFile(youTubeId, language), [
+    for (final block in blocks) block.toJson(),
+  ]);
 
   /// Every moment Groq found for [search], or null when it wasn't asked yet.
   Future<List<MomentCandidate>?> savedCandidates(
@@ -128,8 +136,10 @@ class TopicStore {
     }
   }
 
-  File _blocksFile(String youTubeId) =>
-      File('${root.path}/$youTubeId/transcript.json');
+  /// `transcript.json`, written before M50 in whatever language the
+  /// captions had, is no longer read; it goes with its folder's age.
+  File _blocksFile(String youTubeId, ScriptLanguage language) =>
+      File('${root.path}/$youTubeId/transcript_${language.whisperCode}.json');
 
   File _candidatesFile(String youTubeId, TopicSearch search) =>
       File('${root.path}/$youTubeId/topic_${_searchKey(search)}.json');

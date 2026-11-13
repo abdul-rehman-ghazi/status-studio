@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/data/linked_audio_downloader.dart';
-import 'package:status_studio/src/features/source/domain/linked_video.dart';
-import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/topic/domain/moment_candidate.dart';
@@ -62,7 +60,7 @@ class TopicFinder {
       throw LinkTooLongException(request.video.duration);
     }
     final transcript = _Holder<List<TranscriptBlock>>();
-    yield* _transcriptBlocks(request.video, transcript);
+    yield* _transcriptBlocks(request, transcript);
     final found = _Holder<List<MomentCandidate>>();
     yield* _candidates(request, transcript.value, found);
     final cuts = candidatesAsCuts(found.value, transcript.value);
@@ -77,32 +75,38 @@ class TopicFinder {
   Future<void> cancel(TopicRequest request) =>
       services.audio.cancel(request.video);
 
+  /// The transcript in the output language (spec FR-36, M50): YouTube's
+  /// captions when they are in it, else written by Groq from the audio in
+  /// it. Saved per language, so a transcript in another one isn't reused.
   Stream<TopicProgress> _transcriptBlocks(
-    LinkedVideo video,
+    TopicRequest request,
     _Holder<List<TranscriptBlock>> result,
   ) async* {
     final store = await services.store;
-    final saved = await store.savedBlocks(video.videoId);
+    final youTubeId = request.video.videoId;
+    final language = request.outputLanguage;
+    final saved = await store.savedBlocks(youTubeId, language);
     if (saved != null) {
       result.value = saved;
       return;
     }
     final lines = _Holder<List<TranscriptLine>>();
-    final captionsUrl = video.captionsUrl;
+    final captionsUrl = captionsUrlFor(request);
     if (captionsUrl != null) {
       yield const TopicStep('Getting the captions');
       lines.value = await services.captions.fetch(captionsUrl);
     } else {
-      yield* _writtenByGroq(video, lines);
+      yield* _writtenByGroq(request, lines);
     }
     result.value = blocksFromLines(lines.value);
-    await store.saveBlocks(video.videoId, result.value);
+    await store.saveBlocks(youTubeId, language, result.value);
   }
 
   Stream<TopicProgress> _writtenByGroq(
-    LinkedVideo video,
+    TopicRequest request,
     _Holder<List<TranscriptLine>> result,
   ) async* {
+    final video = request.video;
     final downloaded = StreamController<double>();
     final download =
         services.audio
@@ -115,7 +119,7 @@ class TopicFinder {
     final audio = await download;
     await for (final progress in services.scripts.run(
       audio,
-      ScriptLanguage.auto,
+      request.outputLanguage,
     )) {
       yield TopicStep(progress.stage.label, fraction: progress.fraction);
       result.value = progress.transcript.lines;
