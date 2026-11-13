@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
 /// A run of transcript blocks being chosen for a moment (spec FR-36, M50;
@@ -32,3 +33,9 @@ class BlockRun {
   @override
   int get hashCode => Object.hash(first, last);
 }
+
+/// "Add 1:02:13–1:02:31 · 18 s" for a chosen run of blocks.
+String addRunLabel(List<TranscriptBlock> run) =>
+    'Add ${formatTimestamp(run.first.start)}–'
+    '${formatTimestamp(run.last.end)} · '
+    '${(run.last.end - run.first.start).inSeconds} s';

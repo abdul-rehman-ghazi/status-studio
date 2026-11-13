@@ -26,6 +26,7 @@ import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/topic/presentation/add_moment_sheet.dart';
 import 'package:status_studio/src/features/topic/presentation/cut_card.dart';
+import 'package:status_studio/src/features/topic/presentation/script_page.dart';
 import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
@@ -64,6 +65,8 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   MakingProgress? _making;
   var _writingWords = false;
   TopicCut? _preparingPlay;
+  StreamSubscription<TopicProgress>? _topicSearch;
+  TopicProgress? _topicProgress;
   Object? _makeFailure;
 
   @override
@@ -82,6 +85,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   @override
   void dispose() {
     unawaited(_stopSearch());
+    unawaited(_topicSearch?.cancel());
     if (_making != null) {
       unawaited(ref.read(backgroundClipMakerProvider).cancel());
     }
@@ -157,8 +161,14 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (cuts == null) {
       return _SearchProgress(
         progress: _progress,
+        waitingLabel: _isScriptFirst
+            ? 'Getting the script'
+            : 'Finding the moments',
         onCancel: () => unawaited(_cancel()),
       );
+    }
+    if (_isScriptFirst) {
+      return _scriptPage(cuts);
     }
     return _CutList(
       cuts: cuts,
@@ -168,6 +178,91 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       onPlay: (cut) => unawaited(_play(cut)),
       preparingPlay: _preparingPlay,
     );
+  }
+
+  /// Started without a topic: the script is the page (spec FR-41).
+  bool get _isScriptFirst => widget.request.topic.trim().isEmpty;
+
+  Widget _scriptPage(List<ReviewCut> cuts) => ScriptPage(
+    content: ScriptPageContent(
+      cuts: cuts,
+      blocks: _blocks,
+      topicSearch: _topicProgress,
+      preparingPlay: _preparingPlay,
+    ),
+    actions: ScriptPageActions(
+      onSearch: _searchTopic,
+      onCancelSearch: () => unawaited(_stopTopicSearch()),
+      onAddRun: (run) => _edit((cuts) => addBlocksAsCut(cuts, run)),
+      moments: MomentActions(
+        onToggle: _toggle,
+        onPlay: (cut) => unawaited(_play(cut)),
+        onReorder: _reorder,
+      ),
+    ),
+  );
+
+  /// A topic searched on the script page (spec FR-41): only its chat calls,
+  /// and what it finds joins the moments already there.
+  void _searchTopic(String topic) {
+    if (_topicSearch != null) {
+      return;
+    }
+    final request = TopicRequest(
+      video: widget.request.video,
+      topic: topic,
+      length: widget.request.length,
+      outputLanguage: widget.request.outputLanguage,
+    );
+    setState(() => _topicProgress = const TopicStep('Reading the script'));
+    _topicSearch = ref
+        .read(topicFinderProvider)
+        .findIn(request, _blocks)
+        .listen(
+          _onTopicProgress,
+          onError: (Object failure, StackTrace stack) {
+            debugPrint('Topic search failed: $failure\n$stack');
+            unawaited(_onTopicFailure(failure, topic));
+          },
+          cancelOnError: true,
+        );
+  }
+
+  void _onTopicProgress(TopicProgress progress) {
+    if (!mounted) {
+      return;
+    }
+    if (progress is TopicFound) {
+      _topicSearch = null;
+      setState(() => _topicProgress = null);
+      _edit((cuts) => mergeFound(cuts, progress.cuts));
+      return;
+    }
+    setState(() => _topicProgress = progress);
+  }
+
+  Future<void> _onTopicFailure(Object failure, String topic) async {
+    _topicSearch = null;
+    if (!mounted) {
+      return;
+    }
+    setState(() => _topicProgress = null);
+    if (failure is NoGroqConsentException) {
+      if (await askForGroqConsent(context)) _searchTopic(topic);
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(errorMessageFor(failure))));
+  }
+
+  Future<void> _stopTopicSearch() async {
+    final search = _topicSearch;
+    _topicSearch = null;
+    if (mounted) setState(() => _topicProgress = null);
+    await search?.cancel();
   }
 
   /// Downloads the moment at up to 480p, then plays it (spec FR-37). One
@@ -497,9 +592,16 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
 }
 
 class _SearchProgress extends StatelessWidget {
-  const _SearchProgress({required this.progress, required this.onCancel});
+  const _SearchProgress({
+    required this.progress,
+    required this.waitingLabel,
+    required this.onCancel,
+  });
 
   final TopicProgress? progress;
+
+  /// Shown before the first step comes.
+  final String waitingLabel;
   final VoidCallback onCancel;
 
   @override
@@ -529,7 +631,7 @@ class _SearchProgress extends StatelessWidget {
         WaitingForGroq(:final resumesAt) =>
           "Groq's free limit reached, continuing at "
               '${TimeOfDay.fromDateTime(resumesAt).format(context)}',
-        TopicFound() || null => 'Finding the moments',
+        TopicFound() || null => waitingLabel,
       };
 }
 

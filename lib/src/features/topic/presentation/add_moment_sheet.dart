@@ -144,11 +144,7 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = run.isEmpty
-        ? 'Add'
-        : 'Add ${formatTimestamp(run.first.start)}–'
-              '${formatTimestamp(run.last.end)} · '
-              '${(run.last.end - run.first.start).inSeconds} s';
+    final label = run.isEmpty ? 'Add' : addRunLabel(run);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
