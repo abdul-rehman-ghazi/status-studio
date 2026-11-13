@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
+import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
 /// Files written before M53: a session per topic and a topic's candidates
@@ -13,6 +14,9 @@ import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 final _retiredFileName = RegExp(
   r'^(session_[0-9a-f]{16}|topic_[0-9a-f]{16}(_[0-9a-f]{12})?)\.json$',
 );
+
+/// A linked video's transcript in one output language (spec FR-44).
+typedef SavedLinkScript = ({ScriptLanguage language, DateTime savedAt});
 
 /// Transcripts, Review cuts sessions and the facts of linked videos, under
 /// `topics/<YouTube ID>/` (spec FR-36, FR-38, FR-43), so the same link
@@ -38,6 +42,20 @@ class TopicStore {
     ];
   }
 
+  /// The output languages [youTubeId]'s transcript is saved in, each with
+  /// when it was saved, for History (spec FR-44).
+  Future<List<SavedLinkScript>> savedScripts(String youTubeId) async {
+    final saved = <SavedLinkScript>[];
+    for (final language in outputLanguages) {
+      final file = _blocksFile(youTubeId, language);
+      if (await file.exists()) {
+        final savedAt = (await file.stat()).modified;
+        saved.add((language: language, savedAt: savedAt));
+      }
+    }
+    return saved;
+  }
+
   Future<void> saveBlocks(
     String youTubeId,
     ScriptLanguage language,
@@ -57,7 +75,7 @@ class TopicStore {
   /// and left on disk.
   Future<List<LinkSession>> sessions() async {
     final sessions = <LinkSession>[];
-    for (final youTubeId in await _videoIds()) {
+    for (final youTubeId in await videoIds()) {
       if (await session(youTubeId) case final session?) {
         sessions.add(session);
       }
@@ -106,7 +124,8 @@ class TopicStore {
     }
   }
 
-  Future<List<String>> _videoIds() async {
+  /// Every linked video with a folder here.
+  Future<List<String>> videoIds() async {
     if (!await root.exists()) {
       return const [];
     }
@@ -120,7 +139,7 @@ class TopicStore {
   /// Saved transcripts stay: they are the costly part. Cheap and harmless
   /// to repeat, so it runs at every start.
   Future<void> deleteRetired() async {
-    for (final youTubeId in await _videoIds()) {
+    for (final youTubeId in await videoIds()) {
       await for (final entry in Directory('${root.path}/$youTubeId').list()) {
         if (entry is File &&
             _retiredFileName.hasMatch(entry.uri.pathSegments.last)) {
