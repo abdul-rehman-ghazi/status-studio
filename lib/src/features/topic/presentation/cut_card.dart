@@ -15,6 +15,7 @@ class CutCard extends StatefulWidget {
     required this.onToggle,
     required this.onPlay,
     required this.preparingPlay,
+    this.usedIn,
     super.key,
   });
 
@@ -25,6 +26,9 @@ class CutCard extends StatefulWidget {
 
   /// The moment is being downloaded to play: a spinner in Play's place.
   final bool preparingPlay;
+
+  /// The newest reel that used part of this moment (spec FR-44), if any.
+  final String? usedIn;
 
   @override
   State<CutCard> createState() => _CutCardState();
@@ -82,12 +86,38 @@ class _CutCardState extends State<CutCard> {
               child: ScriptText(cut.text, maxLines: _expanded ? null : 3),
             ),
           ),
+          if (widget.usedIn case final reelName?)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+              child: UsedTag(reelName),
+            ),
           if (widget.review.needsWords)
             const Padding(
               padding: EdgeInsets.fromLTRB(10, 4, 10, 0),
               child: HintText('Words not updated yet'),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// `In <reel name>` on a moment or script block a reel already used (spec
+/// FR-44). A mark only: the block can still be chosen.
+class UsedTag extends StatelessWidget {
+  const UsedTag(this.reelName, {super.key});
+
+  final String reelName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'In $reelName',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: context.palette.accent,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

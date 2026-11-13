@@ -1,16 +1,19 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/core/time_format.dart';
+import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/topic/domain/block_run.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/script_search.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
+import 'package:status_studio/src/features/topic/domain/used_marks.dart';
 import 'package:status_studio/src/features/topic/presentation/cut_card.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -20,10 +23,14 @@ class ScriptPageContent {
     required this.cuts,
     required this.blocks,
     required this.preparingPlay,
+    required this.usedReels,
   });
 
   final List<ReviewCut> cuts;
   final List<TranscriptBlock> blocks;
+
+  /// This video's reels, for the `In <reel name>` marks (spec FR-44).
+  final List<RecentReel> usedReels;
 
   /// The moment being downloaded to play, if any.
   final TopicCut? preparingPlay;
@@ -68,11 +75,15 @@ class _ScriptPageState extends State<ScriptPage> {
   final _scroll = ScrollController();
   final _searchField = TextEditingController();
   late List<FoldedText> _foldedBlocks = _fold(widget.content.blocks);
+  late Map<int, String> _usedBlocks = _usedOf(widget.content);
   List<ScriptMatch> _matches = const [];
   var _current = 0;
 
   /// Built blocks' keys, to reveal a match and to measure the blocks.
   final _blockKeys = <int, GlobalKey>{};
+
+  static Map<int, String> _usedOf(ScriptPageContent content) =>
+      usedBlocks(content.blocks, content.usedReels);
 
   static List<FoldedText> _fold(List<TranscriptBlock> blocks) => [
     for (final block in blocks) FoldedText.of(block.text),
@@ -81,6 +92,11 @@ class _ScriptPageState extends State<ScriptPage> {
   @override
   void didUpdateWidget(ScriptPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final old = oldWidget.content;
+    if (!identical(old.blocks, widget.content.blocks) ||
+        !listEquals(old.usedReels, widget.content.usedReels)) {
+      _usedBlocks = _usedOf(widget.content);
+    }
     if (!identical(oldWidget.content.blocks, widget.content.blocks)) {
       _foldedBlocks = _fold(widget.content.blocks);
       _matches = matchesIn(_foldedBlocks, _searchField.text);
@@ -225,6 +241,7 @@ class _ScriptPageState extends State<ScriptPage> {
                 itemCount: content.blocks.length,
                 itemBuilder: (context, index) {
                   final block = content.blocks[index];
+                  final usedIn = _usedBlocks[index];
                   return KeyedSubtree(
                     key: _blockKeys.putIfAbsent(index, GlobalKey.new),
                     child: ListTile(
@@ -232,6 +249,9 @@ class _ScriptPageState extends State<ScriptPage> {
                       selectedTileColor: context.palette.accent.withValues(
                         alpha: 0.15,
                       ),
+                      tileColor: usedIn == null
+                          ? null
+                          : context.palette.accent.withValues(alpha: 0.06),
                       title: _HighlightedScriptText(
                         text: block.text,
                         matches: [
@@ -240,7 +260,15 @@ class _ScriptPageState extends State<ScriptPage> {
                         ],
                         current: current,
                       ),
-                      subtitle: HintText(formatTimestamp(block.start)),
+                      subtitle: usedIn == null
+                          ? HintText(formatTimestamp(block.start))
+                          : Row(
+                              children: [
+                                HintText(formatTimestamp(block.start)),
+                                const SizedBox(width: 8),
+                                Flexible(child: UsedTag(usedIn)),
+                              ],
+                            ),
                       onTap: () =>
                           setState(() => _run = BlockRun.tapped(_run, index)),
                     ),
@@ -277,6 +305,11 @@ class _ScriptPageState extends State<ScriptPage> {
               onToggle: () => moments.onToggle(index),
               onPlay: () => moments.onPlay(review.cut),
               preparingPlay: review.cut == content.preparingPlay,
+              usedIn: newestReelOver(
+                review.cut.start,
+                review.cut.end,
+                content.usedReels,
+              ),
             ),
           );
         },
@@ -350,9 +383,7 @@ class _ScriptSearchBar extends StatelessWidget {
     final hasMatches = found.count > 0;
     return [
       const SizedBox(width: 8),
-      Text(
-        hasMatches ? '${found.current + 1} of ${found.count}' : 'No match',
-      ),
+      Text(hasMatches ? '${found.current + 1} of ${found.count}' : 'No match'),
       IconButton(
         tooltip: 'Previous match',
         icon: const Icon(Icons.keyboard_arrow_up),

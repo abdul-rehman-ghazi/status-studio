@@ -12,6 +12,8 @@ import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/join/presentation/cut_player_sheet.dart';
 import 'package:status_studio/src/features/join/presentation/making_view.dart';
+import 'package:status_studio/src/features/library/application/recent_reels_controller.dart';
+import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
 import 'package:status_studio/src/features/topic/application/link_session_saver.dart';
@@ -167,6 +169,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       cuts: cuts,
       blocks: _blocks,
       preparingPlay: _preparingPlay,
+      usedReels: _reelsOfThisVideo(),
     ),
     actions: ScriptPageActions(
       onAddRun: (run) => _edit((cuts) => addBlocksAsCut(cuts, run)),
@@ -177,6 +180,17 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       ),
     ),
   );
+
+  /// The reels made from this linked video, for the used marks (spec
+  /// FR-44).
+  List<RecentReel> _reelsOfThisVideo() {
+    final youtubeId = widget.request.video.videoId;
+    final reels = ref.watch(recentReelsProvider).value ?? const [];
+    return [
+      for (final reel in reels)
+        if (reel.youtubeId == youtubeId) reel,
+    ];
+  }
 
   /// Downloads the moment at up to 480p, then plays it (spec FR-37). One
   /// at a time.
@@ -580,10 +594,7 @@ class _FailureView extends StatelessWidget {
               child: const Text('Settings'),
             )
           else
-            FilledButton(
-              onPressed: onTryAgain,
-              child: const Text('Try again'),
-            ),
+            FilledButton(onPressed: onTryAgain, child: const Text('Try again')),
           const SizedBox(height: 8),
           OutlinedButton(onPressed: onBack, child: const Text('Back')),
         ],

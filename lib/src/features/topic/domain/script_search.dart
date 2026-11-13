@@ -79,8 +79,7 @@ List<ScriptMatch> matchesIn(List<FoldedText> foldedBlocks, String query) {
 int nextMatchIndex(int current, int count) => (current + 1) % count;
 
 /// ˄ before the first match goes to the last.
-int previousMatchIndex(int current, int count) =>
-    (current - 1 + count) % count;
+int previousMatchIndex(int current, int count) => (current - 1 + count) % count;
 
 Iterable<ScriptMatch> _matchesInBlock(
   int blockIndex,
