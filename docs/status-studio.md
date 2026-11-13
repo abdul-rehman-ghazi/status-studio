@@ -509,6 +509,15 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Names:** with no topic, the joined clip, its notification and Recent use the video's title (*Claude's call*), and the Continue row (FR-38) says "Script · Review cuts".
 - **Continue:** a session without a topic reopens on the script page with its moments.
 
+**FR-42 Louder sound (M52, Android only).** Asked by the owner (2026-11-13): "can there be boost audio option? for clips with low volume". The owner said "implement it" to Claude's proposal: one switch that sets the level automatically, with a limiter, Android first.
+- **Switch:** "Make the sound louder" on Fine-tune · Video's Trim tab, under "Fade in and out", with the hint "Quiet sound is raised to a steady level, and loud peaks are held down. You hear it in the saved reel." Off by default; a new reel starts with it off. iOS doesn't show it (AVFoundation's audio mix can't go above full volume; *Claude's call*: Android first).
+- **Measured at export:** before the render, FFmpeg measures the clip's integrated loudness (`loudnorm` with `print_format=json`, `input_i` in LUFS) over the clip's range only. The gain in dB is −14 LUFS less that loudness, held between 0 and +15 dB, so a loud clip is never made quieter and a very quiet one isn't raised into hiss. Under +0.5 dB, or a loudness of −70 LUFS or lower (silence), the reel renders as without the switch.
+- **Per clip:** the switch belongs to each reel, and the gain comes from that clip's own range, so each reel gets its own level. A joined link clip (FR-37) is one video by then, measured as a whole.
+- **No sound to measure:** a clip without a sound track, or a measurement that fails, renders without the boost rather than failing the export (*Claude's call*).
+- **Render:** the render spec carries `soundGain`, the linear gain (absent when there is none). Android adds an audio processor, `LoudnessBoost`, that multiplies each sample by the gain and then runs a peak limiter (ceiling −1 dBFS, instant attack, 150 ms release), so peaks never clip.
+- **Preview:** neither player plays it louder (`video_player` can't go above full volume); the hint says so.
+- **Kept:** with the fine-tune (FR-24, `louderSound`; a file without it reads as off), and through a start-over.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, needed by ML Kit 9 face detection; translation, which first needed it, went in M30). iOS is built in M26. Store builds become possible (§9, M27).
@@ -599,7 +608,7 @@ enum CaptionPosition { top, bottom }  enum CaptionSize { small, medium, large } 
 enum CaptionLook { box, shadow }  enum BoxColours { whiteOnBlack, blackOnWhite, yellowOnBlack, whiteOnGreen }  enum ShadowColours { white, yellow, blackGlow, gold }   // M37
 class CaptionAppearance { CaptionLook look; BoxColours boxColours; ShadowColours shadowColours; }   // M37
 class CaptionSettings { String text; CaptionPosition position; CaptionSize size; CaptionAppearance appearance; }
-// ReelDraft and FineTuneDraft also carry bool fadeEnds (FR-33, M38).
+// ReelDraft and FineTuneDraft also carry bool fadeEnds (FR-33, M38) and bool louderSound (FR-42, M52).
 class ReelDraft { SourceVideo? video; ScriptLanguage language; Transcript? transcript; LineSelection selection; ClipRange? clip; FrameSettings frame; CaptionSettings caption; }
 class RecentReel { String id; String title; String videoPath; String thumbnailPath; Duration duration; OutputSize size; DateTime createdAt; } // title: first caption line
 class SavedTranscript { Transcript transcript; String source; DateTime savedAt; } // groq-whisper-large-v3 (captions removed in M23) 
@@ -1027,6 +1036,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M49 Trim while playing | Play on a card shows the moment with 5 s around it, what is included, and nudges that replay the edge (FR-39); Update words rewrites a trimmed or added moment's words (FR-40) | Built, branch `m49-trim-while-playing` (from `dev`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
 | M50 Script from the audio | Captions in another language than the output are left; Groq writes the transcript from the audio in the output language; Add a moment groups lines (FR-36) | Built, branch `m50-script-from-audio` (stacked on `m49-trim-while-playing`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's (a Hindi-captioned Urdu talk with Urdu output: the audio downloads, Groq writes Urdu, Add a moment shows Urdu). Tests not run |
 | M51 Script first | No topic needed: Get the script, read it on Review cuts, add moments from it, search a topic later (FR-41) | Built, branch `m51-script-first` (stacked on `m50-script-from-audio`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
+| M52 Louder sound | A Trim tab switch raises quiet sound to a steady level with a limiter, measured at export (FR-42) | In progress, branch `m52-louder-sound` (stacked on `m51-script-first`) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1742,6 +1752,16 @@ Request (2026-11-13): FR-41. Design questions answered by the owner: the script 
 - [x] **4. The script page.** Built: `topic/presentation/script_page.dart` (`ScriptPage`, `ScriptPageContent`, `ScriptPageActions`, `MomentActions`; long-press reorder in a `SliverReorderableList`), `BlockRun` and `addRunLabel` shared with Add a moment; Review cuts' `_searchTopic` (`findIn` on the saved script, `mergeFound`, consent asked then searched) and "Getting the script" while it loads. Review cuts without a topic: the field and its search, Your moments, the script with the run, the Add bar; Continue reopens on it. **New tests to write:** the page shows the script with no topic; a run's Add bar adds one ticked moment; a later search merges; a search failure's snackbar.
 - [x] **5. Names.** `TopicRequest.clipName` (the topic, else the video's title) for the joined clip's name and its notification; the Continue row says "Script · Review cuts". The clip, its notification, Recent and the Continue row without a topic. **New tests to write:** the clip named after the video's title without a topic; the Continue row's "Script · Review cuts".
 - [x] **6. Status.** §12 row, §13 entry; push.
+
+### M52 tasks (branch `m52-louder-sound`, stacked on `m51-script-first`)
+
+Request (2026-11-13): FR-42. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-42, these tasks.
+- [ ] **2. The gain.** `export/domain/sound_boost.dart`: the loudness read from `loudnorm`'s JSON in FFmpeg's log, and the gain from it (target −14 LUFS, 0 to +15 dB, none under +0.5 dB or at −70 LUFS or lower). `LoudnessMeter` runs FFmpeg over the clip's range; `FfmpegRunner.runForLog` returns the log of a run that succeeded. **New tests to write:** the JSON read from a real log; no JSON is an error; the gain for −24 LUFS is +10 dB; held at +15 dB; none for a loud clip, under +0.5 dB and for silence.
+- [ ] **3. The switch and the draft.** `louderSound` on `ReelDraft` and `FineTuneDraft` (JSON, start-over), the controller's `makeSoundLouder`/`keepSoundAsIs`, the Trim tab switch on Android. **New tests to write:** off by default and for a new video; kept JSON with and without it; start-over keeps it; the switch shows on Android only.
+- [ ] **4. The render.** `RenderJob.soundGain` and `soundGain` in the spec map; `Media3Renderer` measures when the switch is on, and renders without the boost when it can't measure; Kotlin `RenderSpec.soundGain` and `LoudnessBoost` in `ReelRenderer`'s audio effects. **New tests to write:** `soundGain` in the map only when above 1; a failed measurement renders without it.
+- [ ] **5. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
