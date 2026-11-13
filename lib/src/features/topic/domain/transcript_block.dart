@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
 
@@ -35,10 +33,6 @@ class TranscriptBlock {
     'endMs': end.inMilliseconds,
     'text': text,
   };
-
-  /// How the block is written for Groq: its number, its start in whole
-  /// seconds and its text, on one line.
-  String get promptRow => '$number|${start.inSeconds}|$text';
 
   @override
   bool operator ==(Object other) =>
@@ -79,30 +73,3 @@ TranscriptBlock _blockOf(List<TranscriptLine> lines, int number) =>
       end: lines.last.end,
       text: lines.map((line) => line.text.trim()).join(' '),
     );
-
-/// Hindi-script captions measured about 5 UTF-8 bytes a token (§10 item
-/// 11), Latin text about 4, so a part is 4,000 to 5,000 tokens and it and
-/// its reply fit in a minute of Groq's free plan (8,000 tokens).
-const partBudgetBytes = 20000;
-
-/// [blocks] split into parts of at most [partBudgetBytes] prompt bytes; a
-/// block bigger than that is a part on its own.
-List<List<TranscriptBlock>> partsOf(List<TranscriptBlock> blocks) {
-  final parts = <List<TranscriptBlock>>[];
-  var part = <TranscriptBlock>[];
-  var partBytes = 0;
-  for (final block in blocks) {
-    final bytes = utf8.encode(block.promptRow).length + 1;
-    if (part.isNotEmpty && partBytes + bytes > partBudgetBytes) {
-      parts.add(part);
-      part = [];
-      partBytes = 0;
-    }
-    part.add(block);
-    partBytes += bytes;
-  }
-  if (part.isNotEmpty) {
-    parts.add(part);
-  }
-  return parts;
-}

@@ -29,12 +29,7 @@ class ReviewCut {
 
   /// [text] written for the times as they are.
   ReviewCut withWords(String text) => ReviewCut(
-    cut: TopicCut(
-      start: cut.start,
-      end: cut.end,
-      text: text,
-      reason: cut.reason,
-    ),
+    cut: TopicCut(start: cut.start, end: cut.end, text: text),
     ticked: ticked,
   );
 
@@ -51,11 +46,6 @@ class ReviewCut {
   @override
   int get hashCode => Object.hash(cut, ticked, needsWords);
 }
-
-/// Every moment found, none ticked: the user chooses (spec FR-36).
-List<ReviewCut> untickedCuts(List<TopicCut> cuts) => [
-  for (final cut in cuts) ReviewCut(cut: cut, ticked: false),
-];
 
 /// A change to one edge of one cut.
 class CutNudge {
@@ -139,27 +129,6 @@ List<ReviewCut> withWrittenWords(
     else
       review,
 ];
-
-/// [cuts] with [found] joined in, unticked and in video order (spec FR-41):
-/// moments already there stay as they are, and a found one overlapping any
-/// of them is left out.
-List<ReviewCut> mergeFound(List<ReviewCut> cuts, List<TopicCut> found) {
-  final added = [
-    for (final cut in found)
-      if (!cuts.any((review) => _overlap(review.cut, cut)))
-        ReviewCut(cut: cut, ticked: false),
-  ];
-  final merged = [...cuts];
-  for (final review in added) {
-    final position = merged.indexWhere(
-      (kept) => kept.cut.start > review.cut.start,
-    );
-    merged.insert(position == -1 ? merged.length : position, review);
-  }
-  return merged;
-}
-
-bool _overlap(TopicCut a, TopicCut b) => a.start < b.end && b.start < a.end;
 
 /// What goes into the clip, in the list's order.
 List<TopicCut> tickedCuts(List<ReviewCut> cuts) => [

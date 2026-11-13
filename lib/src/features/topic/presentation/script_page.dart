@@ -3,7 +3,6 @@ import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/presentation/script_text.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
-import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/domain/block_run.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
@@ -16,15 +15,11 @@ class ScriptPageContent {
   const ScriptPageContent({
     required this.cuts,
     required this.blocks,
-    required this.topicSearch,
     required this.preparingPlay,
   });
 
   final List<ReviewCut> cuts;
   final List<TranscriptBlock> blocks;
-
-  /// The topic search under way, or null when none is.
-  final TopicProgress? topicSearch;
 
   /// The moment being downloaded to play, if any.
   final TopicCut? preparingPlay;
@@ -32,20 +27,13 @@ class ScriptPageContent {
 
 /// What the script page asks Review cuts to do.
 class ScriptPageActions {
-  const ScriptPageActions({
-    required this.onSearch,
-    required this.onCancelSearch,
-    required this.onAddRun,
-    required this.moments,
-  });
+  const ScriptPageActions({required this.onAddRun, required this.moments});
 
-  final ValueChanged<String> onSearch;
-  final VoidCallback onCancelSearch;
   final ValueChanged<List<TranscriptBlock>> onAddRun;
   final MomentActions moments;
 }
 
-/// What a moment card can do, as on the list of a topic search.
+/// What a moment card can do.
 class MomentActions {
   const MomentActions({
     required this.onToggle,
@@ -58,8 +46,8 @@ class MomentActions {
   final void Function(int from, int to) onReorder;
 }
 
-/// Review cuts without a topic (spec FR-41): a topic field, your moments,
-/// and the whole script, where a run of blocks becomes a moment.
+/// Review cuts (spec FR-41, FR-43): your moments and the whole script,
+/// where a run of blocks becomes a moment.
 class ScriptPage extends StatefulWidget {
   const ScriptPage({required this.content, required this.actions, super.key});
 
@@ -92,13 +80,6 @@ class _ScriptPageState extends State<ScriptPage> {
         Expanded(
           child: CustomScrollView(
             slivers: [
-              SliverToBoxAdapter(
-                child: _TopicSearchField(
-                  progress: content.topicSearch,
-                  onSearch: widget.actions.onSearch,
-                  onCancel: widget.actions.onCancelSearch,
-                ),
-              ),
               SliverToBoxAdapter(
                 child: _MomentsHeader(
                   count: content.cuts.length,
@@ -172,90 +153,6 @@ class _ScriptPageState extends State<ScriptPage> {
     );
   }
 }
-
-/// "Find moments about…" and, while a search runs, its step, bar and
-/// Cancel.
-class _TopicSearchField extends StatefulWidget {
-  const _TopicSearchField({
-    required this.progress,
-    required this.onSearch,
-    required this.onCancel,
-  });
-
-  final TopicProgress? progress;
-  final ValueChanged<String> onSearch;
-  final VoidCallback onCancel;
-
-  @override
-  State<_TopicSearchField> createState() => _TopicSearchFieldState();
-}
-
-class _TopicSearchFieldState extends State<_TopicSearchField> {
-  final _field = TextEditingController();
-
-  @override
-  void dispose() {
-    _field.dispose();
-    super.dispose();
-  }
-
-  void _search() {
-    final topic = _field.text.trim();
-    if (topic.isNotEmpty) widget.onSearch(topic);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = widget.progress;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _field,
-            enabled: progress == null,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _search(),
-            decoration: InputDecoration(
-              hintText: 'Find moments about…',
-              suffixIcon: IconButton(
-                tooltip: 'Find',
-                icon: const Icon(Icons.search),
-                onPressed: progress == null ? _search : null,
-              ),
-            ),
-          ),
-          if (progress != null) ...[
-            const SizedBox(height: 8),
-            Text(searchStepLabel(context, progress)),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(
-              value: progress is TopicStep ? progress.fraction : null,
-            ),
-            Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: TextButton(
-                onPressed: widget.onCancel,
-                child: const Text('Cancel'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// What a topic search is doing, for its progress line.
-String searchStepLabel(BuildContext context, TopicProgress progress) =>
-    switch (progress) {
-      TopicStep(:final label) => label,
-      WaitingForGroq(:final resumesAt) =>
-        "Groq's free limit reached, continuing at "
-            '${TimeOfDay.fromDateTime(resumesAt).format(context)}',
-      TopicFound() => 'Finding the moments',
-    };
 
 class _MomentsHeader extends StatelessWidget {
   const _MomentsHeader({

@@ -83,7 +83,6 @@ Map<String, Object?> _reviewCutToJson(ReviewCut review) => {
   'startMs': review.cut.start.inMilliseconds,
   'endMs': review.cut.end.inMilliseconds,
   'text': review.cut.text,
-  'reason': review.cut.reason,
   'ticked': review.ticked,
   'needsWords': review.needsWords,
 };
@@ -93,15 +92,14 @@ ReviewCut _reviewCutFromJson(Object? json) => switch (json) {
     'startMs': final int startMs,
     'endMs': final int endMs,
     'text': final String text,
-    'reason': final String reason,
     'ticked': final bool ticked,
   } =>
     ReviewCut(
+      // A `reason` kept before M53 is ignored (spec FR-43).
       cut: TopicCut(
         start: Duration(milliseconds: startMs),
         end: Duration(milliseconds: endMs),
         text: text,
-        reason: reason,
       ),
       ticked: ticked,
       // Sessions kept before M49 have no mark.

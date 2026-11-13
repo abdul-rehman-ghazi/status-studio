@@ -45,12 +45,6 @@ String errorMessageFor(Object error) {
     LinkTooLongException() =>
       'This video is too long. Links can be up to 3 hours with captions, '
           'or 2 hours without.',
-    NoMomentsFoundException() =>
-      "Couldn't find this topic in the video. Try other words or a longer "
-          'video.',
-    GroqDailyLimitException() =>
-      "Groq's free daily limit is used up. Try again tomorrow, or use a key "
-          "on Groq's paid plan.",
     GroqUnreadableReplyException() =>
       "Groq's answer couldn't be read. Try again.",
     FollowFailedException() => "Couldn't follow the person. Try again.",

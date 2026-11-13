@@ -137,7 +137,7 @@ class _StartCards extends StatelessWidget {
             child: _StartCard(
               icon: Icons.link,
               title: 'From a YouTube link',
-              subtitle: 'Find a topic in a long video',
+              subtitle: 'Pick moments from a long video',
               onTap: onLink,
             ),
           ),

@@ -5,8 +5,8 @@ import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// One moment on Review cuts (spec FR-36): a tick for the clip, its times,
-/// Play (FR-37), its words and reason. Its edges are trimmed in the Play
+/// One moment on Review cuts (spec FR-36, FR-43): a tick for the clip, its
+/// times, Play (FR-37) and its words. Its edges are trimmed in the Play
 /// sheet (FR-39); until Update words, a trimmed or added moment says its
 /// words are old (FR-40).
 class CutCard extends StatefulWidget {
@@ -86,15 +86,6 @@ class _CutCardState extends State<CutCard> {
             const Padding(
               padding: EdgeInsets.fromLTRB(10, 4, 10, 0),
               child: HintText('Words not updated yet'),
-            ),
-          if (cut.reason.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
-              child: ScriptText(
-                cut.reason,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: context.palette.textMuted),
-              ),
             ),
         ],
       ),

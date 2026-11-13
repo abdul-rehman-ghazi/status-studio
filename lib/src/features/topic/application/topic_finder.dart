@@ -4,21 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/data/linked_audio_downloader.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/data/topic_store.dart';
-import 'package:status_studio/src/features/topic/domain/moment_candidate.dart';
-import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_errors.dart';
-import 'package:status_studio/src/features/topic/domain/topic_prompts.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/transcript/application/script_pipeline.dart';
-import 'package:status_studio/src/features/transcript/data/groq_chat_client.dart';
-import 'package:status_studio/src/features/transcript/data/groq_client.dart';
 import 'package:status_studio/src/features/transcript/data/youtube_captions_fetcher.dart';
-import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript.dart';
-
-/// A wait this long can only be the daily allowance (spec FR-36).
-const _dailyLimitWait = Duration(minutes: 15);
 
 /// What [TopicFinder] works with; tests override each.
 class TopicFinderServices {
@@ -27,59 +18,31 @@ class TopicFinderServices {
     required this.audio,
     required this.scripts,
     required this.store,
-    required this.groq,
-    this.wait = Future<void>.delayed,
-    this.clock = DateTime.now,
   });
 
   final YouTubeCaptionsFetcher captions;
   final LinkedAudioDownloader audio;
   final ScriptPipeline scripts;
   final Future<TopicStore> store;
-
-  /// Throws [NoGroqKeyException], then [NoGroqConsentException].
-  final Future<GroqClient> Function() groq;
-  final Future<void> Function(Duration) wait;
-  final DateTime Function() clock;
 }
 
-/// Finds the moments of a linked video about a topic (spec FR-36): the
-/// transcript, cheapest first, then Groq reads it in parts. Every moment
-/// found comes back for the user to tick; everything is saved, so the same
-/// link or topic again sends nothing.
+/// Gets the script of a linked video, cheapest first (spec FR-36, FR-43):
+/// the user picks every moment from it. It is saved, so the same link
+/// again sends nothing.
 class TopicFinder {
   const TopicFinder(this.services);
 
   final TopicFinderServices services;
 
-  /// Ends with [TopicFound]. Without a topic it stops at the script, with
-  /// no moments and no chat call (spec FR-41). Throws
-  /// [LinkTooLongException], [NoMomentsFoundException],
-  /// [GroqDailyLimitException] and the Groq, network and script errors.
+  /// Ends with [TopicFound]. Throws [LinkTooLongException] and the Groq,
+  /// network and script errors.
   Stream<TopicProgress> find(TopicRequest request) async* {
     if (isTooLongForTopics(request)) {
       throw LinkTooLongException(request.video.duration);
     }
     final transcript = _Holder<List<TranscriptBlock>>();
     yield* _transcriptBlocks(request, transcript);
-    yield TopicFound(cuts: const [], blocks: transcript.value);
-  }
-
-  /// The topic search alone, on a script in hand (spec FR-36; on the
-  /// script page, FR-41). Ends with [TopicFound]; throws
-  /// [NoMomentsFoundException] when nothing is about the topic.
-  Stream<TopicProgress> findIn(
-    TopicRequest request,
-    String topic,
-    List<TranscriptBlock> blocks,
-  ) async* {
-    final found = _Holder<List<MomentCandidate>>();
-    yield* _candidates((request: request, topic: topic), blocks, found);
-    final cuts = candidatesAsCuts(found.value, blocks);
-    if (cuts.isEmpty) {
-      throw const NoMomentsFoundException();
-    }
-    yield TopicFound(cuts: cuts, blocks: blocks);
+    yield TopicFound(transcript.value);
   }
 
   /// Stops an audio download under way; the stream's own cancel stops the
@@ -137,72 +100,6 @@ class TopicFinder {
       result.value = progress.transcript.lines;
     }
   }
-
-  Stream<TopicProgress> _candidates(
-    ({TopicRequest request, String topic}) search,
-    List<TranscriptBlock> blocks,
-    _Holder<List<MomentCandidate>> result,
-  ) async* {
-    final (:request, :topic) = search;
-    final store = await services.store;
-    final youTubeId = request.video.videoId;
-    final key = (
-      search: (topic: topic, outputLanguage: request.outputLanguage),
-      transcript: transcriptKeyOf(blocks),
-    );
-    final saved = await store.savedCandidates(youTubeId, key);
-    if (saved != null) {
-      result.value = saved;
-      return;
-    }
-    final client = await services.groq();
-    final candidates = <MomentCandidate>[];
-    final parts = partsOf(blocks);
-    for (final (index, part) in parts.indexed) {
-      yield TopicStep(
-        'Reading the transcript, part ${index + 1} of ${parts.length}',
-        fraction: index / parts.length,
-      );
-      final reply = _Holder<Map<String, Object?>>();
-      yield* _patiently(client, _partChat(search, part), reply);
-      candidates.addAll(candidatesFromReply(reply.value, part));
-    }
-    result.value = candidates;
-    await store.saveCandidates(youTubeId, key, candidates);
-  }
-
-  /// Sends [chat], waiting out Groq's limits and saying when it carries on
-  /// (spec FR-36). The client already waits out a minute or less.
-  Stream<TopicProgress> _patiently(
-    GroqClient client,
-    GroqChatRequest chat,
-    _Holder<Map<String, Object?>> result,
-  ) async* {
-    while (true) {
-      try {
-        result.value = await client.chatJson(chat);
-        return;
-      } on GroqRateLimitedException catch (limit) {
-        if (limit.retryAfter > _dailyLimitWait) {
-          throw GroqDailyLimitException(limit.retryAfter);
-        }
-        yield WaitingForGroq(services.clock().add(limit.retryAfter));
-        await services.wait(limit.retryAfter);
-      }
-    }
-  }
-
-  GroqChatRequest _partChat(
-    ({TopicRequest request, String topic}) search,
-    List<TranscriptBlock> part,
-  ) => GroqChatRequest(
-        model: topicModel,
-        instructions: partInstructions(
-          search.topic,
-          search.request.outputLanguage,
-        ),
-        message: partMessage(part),
-      );
 }
 
 /// Carries a generator's result out to its caller: a generator can't both
@@ -218,7 +115,6 @@ final topicFinderProvider = Provider<TopicFinder>(
       audio: ref.watch(linkedAudioDownloaderProvider),
       scripts: ref.watch(scriptPipelineProvider),
       store: ref.watch(topicStoreProvider.future),
-      groq: ref.watch(groqChatClientProvider),
     ),
   ),
 );
