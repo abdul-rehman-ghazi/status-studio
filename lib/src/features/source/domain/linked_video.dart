@@ -11,6 +11,7 @@ class LinkedVideo {
     required this.duration,
     required this.thumbnailUrl,
     required this.captionsUrl,
+    required this.captionsLanguage,
   });
 
   /// Throws [YouTubeChangedException] when the JSON lacks the title or the
@@ -25,13 +26,15 @@ class LinkedVideo {
     if (formats is! List || formats.isEmpty) {
       throw const YouTubeChangedException('yt-dlp found no formats.');
     }
+    final captions = pickTopicCaptions(info);
     return LinkedVideo(
       videoId: '${info['id']}',
       title: title,
       channel: _channelOf(info),
       duration: Duration(milliseconds: (durationSeconds * 1000).round()),
       thumbnailUrl: _textOrNull(info['thumbnail']),
-      captionsUrl: pickTopicCaptionUrl(info),
+      captionsUrl: captions?.url,
+      captionsLanguage: captions?.languageCode,
     );
   }
 
@@ -46,9 +49,14 @@ class LinkedVideo {
   /// Null when YouTube offers no thumbnail; the card then shows its icon.
   final String? thumbnailUrl;
 
-  /// The caption track the topic search reads (FR-36); null when Groq must
-  /// write the script.
+  /// The caption track the topic search may read (FR-36); null when Groq
+  /// must write the script.
   final String? captionsUrl;
+
+  /// The track's language code, e.g. `hi`; captions are read only when it
+  /// is the output language (M50). Null when there is no track, or for a
+  /// link kept before M50.
+  final String? captionsLanguage;
 }
 
 String _channelOf(Map<String, Object?> info) =>

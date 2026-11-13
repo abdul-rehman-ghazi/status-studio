@@ -58,7 +58,7 @@ class TopicFinder {
   /// [NoMomentsFoundException], [GroqDailyLimitException] and the Groq,
   /// network and script errors.
   Stream<TopicProgress> find(TopicRequest request) async* {
-    if (isTooLongForTopics(request.video)) {
+    if (isTooLongForTopics(request)) {
       throw LinkTooLongException(request.video.duration);
     }
     final transcript = _Holder<List<TranscriptBlock>>();

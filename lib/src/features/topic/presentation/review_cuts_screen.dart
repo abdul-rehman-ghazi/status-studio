@@ -212,7 +212,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   /// when the session began.
   Future<void> _begin() async {
     if (widget.continued == null &&
-        needsLongScriptWarning(widget.request.video) &&
+        needsLongScriptWarning(widget.request) &&
         !await _confirmLongScript()) {
       if (mounted) context.pop();
       return;
@@ -456,8 +456,10 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   Future<bool> _confirmLongScript() => _confirm(
     title: 'No captions',
     message:
-        'This video has no captions, so Groq writes its script first. That '
-        'takes a while and uses much of Groq\'s free daily audio.',
+        'This video has no captions in '
+        '${widget.request.outputLanguage.label}, so Groq writes its script '
+        'first. That takes a while and uses much of Groq\'s free daily '
+        'audio.',
     confirmLabel: 'Continue',
   );
 

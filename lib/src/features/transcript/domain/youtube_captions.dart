@@ -25,25 +25,49 @@ class CaptionCue {
   int get hashCode => Object.hash(text, start, end);
 }
 
-/// The `json3` URL of the track the topic search reads, or null when the
-/// video has none worth reading (spec FR-36): an uploaded track, in the
-/// video's language when YouTube names one, else the auto-generated track
-/// in the spoken language (`<code>-orig`). Machine translations are never
-/// picked: they are a second guess on top of the first.
-String? pickTopicCaptionUrl(Map<String, Object?> info) {
+/// The caption track the topic search may read (spec FR-36): its `json3`
+/// URL and its language.
+@immutable
+class TopicCaptions {
+  const TopicCaptions({required this.url, required this.languageCode});
+
+  final String url;
+
+  /// The track's language without region or `-orig`: `hi` for `hi-orig`,
+  /// `en` for `en-US`.
+  final String languageCode;
+}
+
+/// The track the topic search reads, or null when the video has none worth
+/// reading (spec FR-36): an uploaded track, in the video's language when
+/// YouTube names one, else the auto-generated track in the spoken language
+/// (`<code>-orig`). Machine translations are never picked: they are a
+/// second guess on top of the first. Whether its language suits the search
+/// is decided per search (M50).
+TopicCaptions? pickTopicCaptions(Map<String, Object?> info) {
   final uploaded = _tracksOf(info['subtitles'])..remove('live_chat');
   final language = info['language'];
   final uploadedKey = uploaded.containsKey(language)
       ? language! as String
       : uploaded.keys.firstOrNull;
   if (uploadedKey != null) {
-    return _json3Url(uploaded[uploadedKey]);
+    return _captionsOf(uploadedKey, uploaded[uploadedKey]);
   }
   final automatic = _tracksOf(info['automatic_captions']);
   final spokenKey = automatic.keys
       .where((key) => key.endsWith('-orig'))
       .firstOrNull;
-  return spokenKey == null ? null : _json3Url(automatic[spokenKey]);
+  return spokenKey == null
+      ? null
+      : _captionsOf(spokenKey, automatic[spokenKey]);
+}
+
+TopicCaptions? _captionsOf(String trackKey, Object? formats) {
+  final url = _json3Url(formats);
+  if (url == null) {
+    return null;
+  }
+  return TopicCaptions(url: url, languageCode: trackKey.split('-').first);
 }
 
 Map<String, Object?> _tracksOf(Object? tracks) =>

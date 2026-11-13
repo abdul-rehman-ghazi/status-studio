@@ -90,6 +90,7 @@ Map<String, Object?> _videoToJson(LinkedVideo video) => {
   'durationMs': video.duration.inMilliseconds,
   'thumbnailUrl': video.thumbnailUrl,
   'captionsUrl': video.captionsUrl,
+  'captionsLanguage': video.captionsLanguage,
 };
 
 LinkedVideo _videoFromJson(Map<String, Object?> json) => switch (json) {
@@ -108,6 +109,8 @@ LinkedVideo _videoFromJson(Map<String, Object?> json) => switch (json) {
       duration: Duration(milliseconds: durationMs),
       thumbnailUrl: thumbnailUrl,
       captionsUrl: captionsUrl,
+      // Links kept before M50 have none: their captions aren't read.
+      captionsLanguage: json['captionsLanguage'] as String?,
     ),
   _ => throw const FormatException('Not a linked video.'),
 };
