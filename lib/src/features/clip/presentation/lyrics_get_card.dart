@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_allowance_text.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// Lyrics before there are any (spec FR-3, M30): the language, Get lyrics
@@ -96,6 +97,7 @@ class _GetCardBody extends StatelessWidget {
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('Get lyrics from Groq'),
               ),
+              const GroqAllowanceHint(),
               const SizedBox(height: 8),
               const HintText(
                 'Sends the cleaned voice to Groq with your key. The picture '

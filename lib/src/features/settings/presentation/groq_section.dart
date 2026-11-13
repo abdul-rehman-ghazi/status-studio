@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/settings/application/groq_settings_co
 import 'package:status_studio/src/features/settings/presentation/groq_key_help_sheet.dart';
 import 'package:status_studio/src/features/transcript/application/groq_consent_controller.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_allowance_text.dart';
 
 /// What the last Save found, shown under the key field.
 sealed class _KeyCheck {
@@ -123,7 +124,10 @@ class _GroqSectionState extends ConsumerState<GroqSection> {
         message,
         style: TextStyle(color: errorColor),
       ),
-      null when hasKey => const HintText('Key works'),
+      null when hasKey => const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [HintText('Key works'), GroqAllowanceDetails()],
+      ),
       null => const SizedBox.shrink(),
     };
   }
