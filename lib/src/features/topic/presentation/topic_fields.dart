@@ -16,7 +16,8 @@ const _presetLengths = [
 const _shortestCustom = 5;
 const _longestCustom = 300;
 
-/// Topic, length and Find the moments under a read link (spec FR-36).
+/// Topic (optional, FR-41), length and Find the moments or Get the script
+/// under a read link (spec FR-36).
 class TopicFields extends StatefulWidget {
   const TopicFields({required this.video, required this.onFind, super.key});
 
@@ -50,7 +51,7 @@ class _TopicFieldsState extends State<TopicFields> {
           textInputAction: TextInputAction.done,
           onChanged: (_) => setState(() {}),
           decoration: const InputDecoration(
-            hintText: 'What should the clip be about?',
+            hintText: 'What should the clip be about? (optional)',
           ),
         ),
         const SectionLabel('Length'),
@@ -83,11 +84,20 @@ class _TopicFieldsState extends State<TopicFields> {
           },
         ),
         const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: _topicField.text.trim().isEmpty ? null : _find,
-          icon: const Icon(Icons.auto_awesome),
-          label: const Text('Find the moments'),
-        ),
+        // Without a topic the script comes first; a topic can be searched
+        // on Review cuts later (spec FR-41).
+        if (_topicField.text.trim().isEmpty)
+          FilledButton.icon(
+            onPressed: _find,
+            icon: const Icon(Icons.subject),
+            label: const Text('Get the script'),
+          )
+        else
+          FilledButton.icon(
+            onPressed: _find,
+            icon: const Icon(Icons.auto_awesome),
+            label: const Text('Find the moments'),
+          ),
       ],
     );
   }

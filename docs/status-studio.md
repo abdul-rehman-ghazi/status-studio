@@ -1738,7 +1738,7 @@ Request (2026-11-13): FR-41. Design questions answered by the owner: the script 
 
 - [x] **1. Spec.** FR-41, these tasks.
 - [x] **2. Finder.** `find` with an empty topic stops after the transcript (`TopicFound` with no cuts, no "not found"); `findIn(request, blocks)` runs only the topic search on a script in hand; `mergeFound` adds found moments unticked in video order, leaving out overlaps. The run choice of Add a moment moves to `topic/domain/block_run.dart` for both places. **New tests to write:** `find` without a topic makes no chat call; `findIn` reuses saved candidates; `mergeFound` (kept moments untouched, overlaps left out, video order); `BlockRun.tap` cases.
-- [ ] **3. From a link.** Topic optional; Get the script / Find the moments. **Stale tests:** From a link finders that expect the button off with no topic.
+- [x] **3. From a link.** Topic optional (hint "What should the clip be about? (optional)"); Get the script / Find the moments. **Stale tests:** From a link finders that expect the button off with no topic.
 - [ ] **4. The script page.** Review cuts without a topic: the field and its search, Your moments, the script with the run, the Add bar; Continue reopens on it. **New tests to write:** the page shows the script with no topic; a run's Add bar adds one ticked moment; a later search merges; a search failure's snackbar.
 - [ ] **5. Names.** The clip, its notification, Recent and the Continue row without a topic. **New tests to write:** the clip named after the video's title without a topic; the Continue row's "Script · Review cuts".
 - [ ] **6. Status.** §12 row, §13 entry; push.
