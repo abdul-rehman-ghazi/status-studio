@@ -60,7 +60,8 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   @override
   void dispose() {
     unawaited(_stopSearch());
-    if (_making != null) unawaited(ref.read(backgroundClipMakerProvider).cancel());
+    if (_making != null)
+      unawaited(ref.read(backgroundClipMakerProvider).cancel());
     super.dispose();
   }
 
@@ -109,7 +110,8 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (_making case final making?) {
       return MakingView(
         progress: making,
-        onCancel: () => unawaited(ref.read(backgroundClipMakerProvider).cancel()),
+        onCancel: () =>
+            unawaited(ref.read(backgroundClipMakerProvider).cancel()),
       );
     }
     if (_failure case final failure?) {

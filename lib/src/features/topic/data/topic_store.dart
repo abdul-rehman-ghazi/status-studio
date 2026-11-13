@@ -5,15 +5,19 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/moment_candidate.dart';
+import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 
 /// A topic and the language its moments are written in (spec FR-36).
 typedef TopicSearch = ({String topic, ScriptLanguage outputLanguage});
 
-/// Transcripts and topic candidates of linked videos, under
-/// `topics/<YouTube ID>/` (spec FR-36), so the same link or topic again
-/// sends nothing to Groq. An unreadable file reads as missing.
+final _sessionFileName = RegExp(r'^session_[0-9a-f]{16}\.json$');
+
+/// Transcripts, topic candidates and Review cuts sessions of linked videos,
+/// under `topics/<YouTube ID>/` (spec FR-36, FR-38), so the same link or
+/// topic again sends nothing to Groq. An unreadable file reads as missing.
 class TopicStore {
   const TopicStore(this.root);
 
@@ -58,6 +62,59 @@ class TopicStore {
     'candidates': [for (final candidate in candidates) candidate.toJson()],
   });
 
+  /// Keeps [session] for Recent (spec FR-38), one per video and search.
+  Future<void> saveSession(LinkSession session) =>
+      _writeJson(_sessionFile(session.request), session.toJson());
+
+  /// Every readable session, newest first. An unreadable file is skipped
+  /// and left on disk.
+  Future<List<LinkSession>> sessions() async {
+    if (!await root.exists()) {
+      return const [];
+    }
+    final sessions = <LinkSession>[];
+    await for (final folder in root.list()) {
+      if (folder is Directory) {
+        sessions.addAll(await _sessionsIn(folder));
+      }
+    }
+    sessions.sort((a, b) => b.savedAt.compareTo(a.savedAt));
+    return sessions;
+  }
+
+  Future<void> deleteSession(TopicRequest request) async {
+    final file = _sessionFile(request);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  Future<List<LinkSession>> _sessionsIn(Directory folder) async {
+    final sessions = <LinkSession>[];
+    await for (final entry in folder.list()) {
+      final name = entry.uri.pathSegments.last;
+      if (entry is! File || !_sessionFileName.hasMatch(name)) {
+        continue;
+      }
+      if (await _readSession(entry) case final session?) {
+        sessions.add(session);
+      }
+    }
+    return sessions;
+  }
+
+  Future<LinkSession?> _readSession(File file) async {
+    final saved = await _readJson(file);
+    if (saved is! Map<String, Object?>) {
+      return null;
+    }
+    try {
+      return LinkSession.fromJson(saved);
+    } on FormatException {
+      return null;
+    }
+  }
+
   /// Removes what was last changed before [cutoff], like old scripts.
   Future<void> deleteOlderThan(DateTime cutoff) async {
     if (!await root.exists()) {
@@ -74,18 +131,26 @@ class TopicStore {
   File _blocksFile(String youTubeId) =>
       File('${root.path}/$youTubeId/transcript.json');
 
+  File _candidatesFile(String youTubeId, TopicSearch search) =>
+      File('${root.path}/$youTubeId/topic_${_searchKey(search)}.json');
+
+  File _sessionFile(TopicRequest request) {
+    final search = (
+      topic: request.topic,
+      outputLanguage: request.outputLanguage,
+    );
+    final youTubeId = request.video.videoId;
+    return File('${root.path}/$youTubeId/session_${_searchKey(search)}.json');
+  }
+
   /// The same topic typed with other spacing or capitals is the same topic;
   /// another output language is another search.
-  File _candidatesFile(String youTubeId, TopicSearch search) {
+  String _searchKey(TopicSearch search) {
     final normalised = '${search.outputLanguage.whisperCode}:${search.topic}'
         .trim()
         .toLowerCase()
         .replaceAll(RegExp(r'\s+'), ' ');
-    final key = sha256
-        .convert(utf8.encode(normalised))
-        .toString()
-        .substring(0, 16);
-    return File('${root.path}/$youTubeId/topic_$key.json');
+    return sha256.convert(utf8.encode(normalised)).toString().substring(0, 16);
   }
 
   Future<Object?> _readJson(File file) async {
