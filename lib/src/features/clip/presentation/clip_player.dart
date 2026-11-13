@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/clip/presentation/not_in_clip_shade.dart';
 import 'package:status_studio/src/features/clip/presentation/playhead_redraw.dart';
 import 'package:status_studio/src/features/source/domain/clip_source.dart';
 import 'package:status_studio/src/routing/app_router.dart';
@@ -229,6 +230,14 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     final stage = Stack(
       children: [
         picture,
+        // With onlyRange the player never leaves the clip.
+        if (value.isInitialized && widget.onlyRange == null)
+          Positioned.fill(
+            child: OutsideClipShade(
+              playhead: widget.playhead,
+              clip: widget.clip,
+            ),
+          ),
         if (value.isInitialized && widget.videoOverlay != null)
           Positioned.fill(child: widget.videoOverlay!),
         ..._playButtons(),

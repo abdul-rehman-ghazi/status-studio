@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
+import 'package:status_studio/src/features/clip/presentation/not_in_clip_shade.dart';
 import 'package:status_studio/src/features/join/domain/cut_file.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
@@ -258,20 +259,7 @@ class _Picture extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       fit: StackFit.expand,
-      children: [
-        VideoPlayer(player),
-        if (!isIncluded)
-          ColoredBox(
-            color: Colors.black54,
-            child: Center(
-              child: Text(
-                'Not in the clip',
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(color: Colors.white),
-              ),
-            ),
-          ),
-      ],
+      children: [VideoPlayer(player), if (!isIncluded) const NotInClipShade()],
     );
   }
 }
