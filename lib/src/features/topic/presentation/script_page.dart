@@ -9,9 +9,7 @@ import 'package:status_studio/src/core/script_detection.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/topic/domain/block_run.dart';
-import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/script_search.dart';
-import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/topic/domain/used_marks.dart';
 import 'package:status_studio/src/features/topic/presentation/cut_card.dart';
@@ -19,51 +17,22 @@ import 'package:status_studio/src/theme/app_theme.dart';
 
 /// What the script page shows (spec FR-41).
 class ScriptPageContent {
-  const ScriptPageContent({
-    required this.cuts,
-    required this.blocks,
-    required this.preparingPlay,
-    required this.usedReels,
-  });
+  const ScriptPageContent({required this.blocks, required this.usedReels});
 
-  final List<ReviewCut> cuts;
   final List<TranscriptBlock> blocks;
 
   /// This video's reels, for the `In <reel name>` marks (spec FR-44).
   final List<RecentReel> usedReels;
-
-  /// The moment being downloaded to play, if any.
-  final TopicCut? preparingPlay;
 }
 
-/// What the script page asks Review cuts to do.
-class ScriptPageActions {
-  const ScriptPageActions({required this.onAddRun, required this.moments});
-
-  final ValueChanged<List<TranscriptBlock>> onAddRun;
-  final MomentActions moments;
-}
-
-/// What a moment card can do.
-class MomentActions {
-  const MomentActions({
-    required this.onToggle,
-    required this.onPlay,
-    required this.onReorder,
-  });
-
-  final ValueChanged<int> onToggle;
-  final ValueChanged<TopicCut> onPlay;
-  final void Function(int from, int to) onReorder;
-}
-
-/// Review cuts (spec FR-41, FR-43): Search the script (FR-28), your
-/// moments and the whole script, where a run of blocks becomes a moment.
+/// Review cuts (spec FR-41, FR-43): Search the script (FR-28) and the whole
+/// script, where a run of blocks becomes a moment. The moments themselves
+/// are in a panel from the footer (FR-46).
 class ScriptPage extends StatefulWidget {
-  const ScriptPage({required this.content, required this.actions, super.key});
+  const ScriptPage({required this.content, required this.onAddRun, super.key});
 
   final ScriptPageContent content;
-  final ScriptPageActions actions;
+  final ValueChanged<List<TranscriptBlock>> onAddRun;
 
   @override
   State<ScriptPage> createState() => _ScriptPageState();
@@ -71,7 +40,6 @@ class ScriptPage extends StatefulWidget {
 
 class _ScriptPageState extends State<ScriptPage> {
   BlockRun? _run;
-  var _momentsOpen = true;
   final _scroll = ScrollController();
   final _searchField = TextEditingController();
   late List<FoldedText> _foldedBlocks = _fold(widget.content.blocks);
@@ -116,7 +84,7 @@ class _ScriptPageState extends State<ScriptPage> {
     if (run == null) {
       return;
     }
-    widget.actions.onAddRun(run.of(widget.content.blocks));
+    widget.onAddRun(run.of(widget.content.blocks));
     setState(() => _run = null);
   }
 
@@ -217,14 +185,6 @@ class _ScriptPageState extends State<ScriptPage> {
           child: CustomScrollView(
             controller: _scroll,
             slivers: [
-              SliverToBoxAdapter(
-                child: _MomentsHeader(
-                  count: content.cuts.length,
-                  open: _momentsOpen,
-                  onToggle: () => setState(() => _momentsOpen = !_momentsOpen),
-                ),
-              ),
-              if (_momentsOpen) _moments(content),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
@@ -287,38 +247,8 @@ class _ScriptPageState extends State<ScriptPage> {
       ],
     );
   }
-
-  Widget _moments(ScriptPageContent content) {
-    final moments = widget.actions.moments;
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      sliver: SliverReorderableList(
-        itemCount: content.cuts.length,
-        onReorderItem: moments.onReorder,
-        itemBuilder: (context, index) {
-          final review = content.cuts[index];
-          return ReorderableDelayedDragStartListener(
-            key: ValueKey(review.cut.start),
-            index: index,
-            child: CutCard(
-              review: review,
-              onToggle: () => moments.onToggle(index),
-              onPlay: () => moments.onPlay(review.cut),
-              preparingPlay: review.cut == content.preparingPlay,
-              usedIn: newestReelOver(
-                review.cut.start,
-                review.cut.end,
-                content.usedReels,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
 }
 
-/// What the search bar does; its text lives in the page's controller.
 class _SearchBarActions {
   const _SearchBarActions({
     required this.onChanged,
@@ -447,31 +377,6 @@ class _HighlightedScriptText extends StatelessWidget {
     }
     spans.add(TextSpan(text: text.substring(shownTo)));
     return spans;
-  }
-}
-
-class _MomentsHeader extends StatelessWidget {
-  const _MomentsHeader({
-    required this.count,
-    required this.open,
-    required this.onToggle,
-  });
-
-  final int count;
-  final bool open;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-      title: Text(
-        'Your moments ($count)',
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
-      trailing: Icon(open ? Icons.expand_less : Icons.expand_more),
-      onTap: onToggle,
-    );
   }
 }
 

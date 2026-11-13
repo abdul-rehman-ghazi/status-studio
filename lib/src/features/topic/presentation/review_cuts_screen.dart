@@ -27,6 +27,7 @@ import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
+import 'package:status_studio/src/features/topic/presentation/moments_panel.dart';
 import 'package:status_studio/src/features/topic/presentation/script_page.dart';
 import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
@@ -66,6 +67,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   late final LinkSessionSaver _saver;
   MakingProgress? _making;
   var _writingWords = false;
+  var _momentsOpen = false;
   TopicCut? _preparingPlay;
   Object? _makeFailure;
 
@@ -93,6 +95,19 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Back closes Your moments before it leaves Review cuts (spec FR-46).
+    return PopScope(
+      canPop: !_momentsOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _closeMoments();
+      },
+      child: _scaffold(),
+    );
+  }
+
+  void _closeMoments() => setState(() => _momentsOpen = false);
+
+  Widget _scaffold() {
     final cuts = _cuts;
     return Scaffold(
       appBar: AppBar(
@@ -124,12 +139,18 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
               _makeFailure != null
           ? null
           : _ReviewFooter(
-              total: totalLength(tickedCuts(cuts)),
-              transition: _transition,
-              onTransition: _setTransition,
-              onMake: tickedCuts(cuts).isEmpty
-                  ? null
-                  : () => unawaited(_make()),
+              summary: (
+                momentCount: cuts.length,
+                total: totalLength(tickedCuts(cuts)),
+                transition: _transition,
+              ),
+              actions: (
+                onMoments: () => setState(() => _momentsOpen = !_momentsOpen),
+                onTransition: _setTransition,
+                onMake: tickedCuts(cuts).isEmpty
+                    ? null
+                    : () => unawaited(_make()),
+              ),
             ),
     );
   }
@@ -163,24 +184,28 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         onCancel: () => unawaited(_cancel()),
       );
     }
-    return _scriptPage(cuts);
+    return Stack(
+      children: [_scriptPage(), if (_momentsOpen) _momentsPanel(cuts)],
+    );
   }
 
-  Widget _scriptPage(List<ReviewCut> cuts) => ScriptPage(
-    content: ScriptPageContent(
+  Widget _scriptPage() => ScriptPage(
+    content: ScriptPageContent(blocks: _blocks, usedReels: _reelsOfThisVideo()),
+    onAddRun: (run) => _edit((cuts) => addBlocksAsCut(cuts, run)),
+  );
+
+  Widget _momentsPanel(List<ReviewCut> cuts) => MomentsPanel(
+    content: MomentsPanelContent(
       cuts: cuts,
-      blocks: _blocks,
       preparingPlay: _preparingPlay,
       usedReels: _reelsOfThisVideo(),
     ),
-    actions: ScriptPageActions(
-      onAddRun: (run) => _edit((cuts) => addBlocksAsCut(cuts, run)),
-      moments: MomentActions(
-        onToggle: _toggle,
-        onPlay: (cut) => unawaited(_play(cut)),
-        onReorder: _reorder,
-      ),
+    actions: MomentActions(
+      onToggle: _toggle,
+      onPlay: (cut) => unawaited(_play(cut)),
+      onReorder: _reorder,
     ),
+    onClose: _closeMoments,
   );
 
   /// The reels made from this linked video, for the used marks (spec
@@ -477,6 +502,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     }
     setState(() {
       _makeFailure = null;
+      _momentsOpen = false;
       _making = const ReadingStreams();
     });
     try {
@@ -637,51 +663,67 @@ class _FailureView extends StatelessWidget {
   }
 }
 
-/// The total, the transition (its four previews open in a sheet) and Make
-/// the clip, kept short so the moments have the screen.
-class _ReviewFooter extends StatelessWidget {
-  const _ReviewFooter({
-    required this.total,
-    required this.transition,
-    required this.onTransition,
-    required this.onMake,
-  });
+/// What the footer sums up.
+typedef _FooterSummary = ({
+  int momentCount,
 
   /// The ticked moments added up: "58 s" (spec FR-43; there is no length
   /// to measure it against since M53).
-  final Duration total;
-  final ClipTransition transition;
-  final ValueChanged<ClipTransition> onTransition;
+  Duration total,
+  ClipTransition transition,
+});
 
-  /// Null until a moment is ticked.
-  final VoidCallback? onMake;
+/// What the footer's buttons do; [onMake] is null until a moment is ticked.
+typedef _FooterActions = ({
+  VoidCallback onMoments,
+  ValueChanged<ClipTransition> onTransition,
+  VoidCallback? onMake,
+});
+
+/// Moments (n), which opens Your moments over the script (spec FR-46), the
+/// total, the transition (its four previews open in a sheet) and Make the
+/// clip, kept short so the script has the screen.
+class _ReviewFooter extends StatelessWidget {
+  const _ReviewFooter({required this.summary, required this.actions});
+
+  final _FooterSummary summary;
+  final _FooterActions actions;
 
   Future<void> _chooseTransition(BuildContext context) async {
-    final chosen = await showTransitionSheet(context, transition);
-    if (chosen != null) onTransition(chosen);
+    final chosen = await showTransitionSheet(context, summary.transition);
+    if (chosen != null) actions.onTransition(chosen);
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+        padding: const EdgeInsets.fromLTRB(12, 4, 20, 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                Expanded(child: Text('${total.inSeconds} s')),
+                TextButton.icon(
+                  onPressed: actions.onMoments,
+                  icon: const Icon(Icons.format_list_bulleted),
+                  label: Text('Moments (${summary.momentCount})'),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text('${summary.total.inSeconds} s')),
                 TextButton.icon(
                   onPressed: () => unawaited(_chooseTransition(context)),
                   icon: const Icon(Icons.swap_horiz),
-                  label: Text(transition.label),
+                  label: Text(summary.transition.label),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            FilledButton(onPressed: onMake, child: const Text('Make the clip')),
+            FilledButton(
+              onPressed: actions.onMake,
+              child: const Text('Make the clip'),
+            ),
           ],
         ),
       ),
