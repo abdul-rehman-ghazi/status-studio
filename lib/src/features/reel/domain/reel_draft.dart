@@ -27,6 +27,7 @@ class ReelDraft {
     this.linesEdited = false,
     this.lyricsShown = true,
     this.fadeEnds = false,
+    this.louderSound = false,
   });
 
   final SourceVideo? video;
@@ -49,6 +50,9 @@ class ReelDraft {
   /// Whether the picture fades in from black and out to black (spec FR-33).
   final bool fadeEnds;
 
+  /// Whether quiet sound is raised at export (spec FR-42).
+  final bool louderSound;
+
   /// Starts the reel on [video]: the clip is the whole video, which the user
   /// trims on Fine-tune (spec FR-1, FR-5). The same video again (Back to
   /// Source, then Get the script) keeps the clip, frame and caption.
@@ -69,6 +73,10 @@ class ReelDraft {
   ReelDraft withFadeEnds() => copyWith(fadeEnds: true);
 
   ReelDraft withoutFadeEnds() => copyWith(fadeEnds: false);
+
+  ReelDraft withLouderSound() => copyWith(louderSound: true);
+
+  ReelDraft withoutLouderSound() => copyWith(louderSound: false);
 
   /// The reel without lyrics (spec FR-29): the caption is emptied, but the
   /// lines stay, so turning the lyrics back on brings them back.
@@ -348,6 +356,7 @@ class ReelDraft {
     bool? linesEdited,
     bool? lyricsShown,
     bool? fadeEnds,
+    bool? louderSound,
   }) {
     return ReelDraft(
       video: video ?? this.video,
@@ -360,6 +369,7 @@ class ReelDraft {
       linesEdited: linesEdited ?? this.linesEdited,
       lyricsShown: lyricsShown ?? this.lyricsShown,
       fadeEnds: fadeEnds ?? this.fadeEnds,
+      louderSound: louderSound ?? this.louderSound,
     );
   }
 
@@ -375,7 +385,8 @@ class ReelDraft {
       other.caption == caption &&
       other.linesEdited == linesEdited &&
       other.lyricsShown == lyricsShown &&
-      other.fadeEnds == fadeEnds;
+      other.fadeEnds == fadeEnds &&
+      other.louderSound == louderSound;
 
   @override
   int get hashCode => Object.hash(
@@ -389,6 +400,7 @@ class ReelDraft {
     linesEdited,
     lyricsShown,
     fadeEnds,
+    louderSound,
   );
 }
 

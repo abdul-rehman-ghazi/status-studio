@@ -42,6 +42,10 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void stopFadingEnds() => state = state.withoutFadeEnds();
 
+  void makeSoundLouder() => state = state.withLouderSound();
+
+  void keepSoundAsIs() => state = state.withoutLouderSound();
+
   void hideLyrics() => state = state.withLyricsHidden();
 
   void showLyrics() => state = state.withLyricsShown();

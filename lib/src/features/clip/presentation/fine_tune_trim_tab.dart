@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
@@ -69,6 +70,9 @@ class FineTuneTrimTab extends ConsumerWidget {
           _LatePictureHint(pictureStart: video.pictureStart),
         const SizedBox(height: 16),
         const _FadeSwitch(),
+        // iOS's audio mix can't go above full volume (spec FR-42).
+        if (defaultTargetPlatform == TargetPlatform.android)
+          const _LouderSoundSwitch(),
       ],
     );
   }
@@ -118,6 +122,28 @@ class _FadeSwitch extends ConsumerWidget {
       value: fading,
       onChanged: (on) =>
           on ? controller.fadeEnds() : controller.stopFadingEnds(),
+    );
+  }
+}
+
+/// Raises quiet sound to a steady level at export (spec FR-42).
+class _LouderSoundSwitch extends ConsumerWidget {
+  const _LouderSoundSwitch();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final louder = ref.watch(reelDraftProvider.select((d) => d.louderSound));
+    final controller = ref.read(reelDraftProvider.notifier);
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Make the sound louder'),
+      subtitle: const Text(
+        'Quiet sound is raised to a steady level, and loud peaks are held '
+        'down. You hear it in the saved reel.',
+      ),
+      value: louder,
+      onChanged: (on) =>
+          on ? controller.makeSoundLouder() : controller.keepSoundAsIs(),
     );
   }
 }

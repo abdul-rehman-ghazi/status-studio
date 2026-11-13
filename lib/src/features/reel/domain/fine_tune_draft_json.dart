@@ -21,6 +21,7 @@ Map<String, Object?> fineTuneDraftToJson(FineTuneDraft draft) => {
   'language': draft.language.whisperCode,
   'lyricsShown': draft.lyricsShown,
   'fadeEnds': draft.fadeEnds,
+  'louderSound': draft.louderSound,
   'linesEdited': draft.linesEdited,
   if (draft.lines case final lines?) 'lines': _linesToJson(lines),
   'clip': {
@@ -59,6 +60,10 @@ FineTuneDraft _draftFromJson(
         : _boolean(json['lyricsShown']),
     // Files kept before M38 have no fade (spec FR-33).
     fadeEnds: json['fadeEnds'] == null ? false : _boolean(json['fadeEnds']),
+    // Files kept before M52 have no boost (spec FR-42).
+    louderSound: json['louderSound'] == null
+        ? false
+        : _boolean(json['louderSound']),
     lines: lines,
     clip: _clipFromJson(_object(json['clip'])),
     frame: _frameFromJson(_object(json['frame'])),

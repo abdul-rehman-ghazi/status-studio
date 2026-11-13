@@ -42,6 +42,7 @@ class FineTuneDraft {
     required this.language,
     required this.lyricsShown,
     this.fadeEnds = false,
+    this.louderSound = false,
     required this.lines,
     required this.clip,
     required this.frame,
@@ -63,6 +64,7 @@ class FineTuneDraft {
       language: draft.language,
       lyricsShown: draft.lyricsShown,
       fadeEnds: draft.fadeEnds,
+      louderSound: draft.louderSound,
       lines: _keptLines(draft),
       clip: clip,
       frame: draft.frame,
@@ -82,6 +84,9 @@ class FineTuneDraft {
 
   /// The picture fades in and out (spec FR-33).
   final bool fadeEnds;
+
+  /// Quiet sound is raised at export (spec FR-42).
+  final bool louderSound;
   final KeptLines? lines;
   final ClipRange clip;
   final FrameSettings frame;
@@ -133,6 +138,7 @@ class FineTuneDraft {
       linesEdited: linesEdited,
       lyricsShown: lyricsShown,
       fadeEnds: fadeEnds,
+      louderSound: louderSound,
     );
   }
 
@@ -155,6 +161,7 @@ class FineTuneDraft {
         caption: look,
         lyricsShown: lyricsShown,
         fadeEnds: fadeEnds,
+        louderSound: louderSound,
       );
     }
     final stopped = ReelDraft(
@@ -171,6 +178,7 @@ class FineTuneDraft {
       caption: look,
       lyricsShown: lyricsShown,
       fadeEnds: fadeEnds,
+      louderSound: louderSound,
     );
   }
 
@@ -181,6 +189,7 @@ class FineTuneDraft {
       other.language == language &&
       other.lyricsShown == lyricsShown &&
       other.fadeEnds == fadeEnds &&
+      other.louderSound == louderSound &&
       other.lines == lines &&
       other.clip == clip &&
       other.frame == frame &&
@@ -194,6 +203,7 @@ class FineTuneDraft {
     language,
     lyricsShown,
     fadeEnds,
+    louderSound,
     lines,
     clip,
     frame,
