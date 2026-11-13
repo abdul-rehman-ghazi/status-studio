@@ -174,7 +174,17 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         return;
       }
       setState(() => _preparingPlay = null);
-      await showCutPlayer(context, file, cut);
+      await showCutPlayer(
+        context,
+        CutPlayerStart(
+          file: file,
+          cut: cut,
+          nudge: _nudgerFor(cut),
+          download: (moved) => ref
+              .read(cutPreviewerProvider)
+              .prepare(widget.request.video, moved),
+        ),
+      );
     } on Object {
       // Any failure only means the moment can't be played; say so.
       if (!mounted) {
@@ -313,6 +323,26 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       videoLength: widget.request.video.duration,
     ),
   );
+
+  /// The Play sheet's nudges (spec FR-39), applied to the card as the
+  /// card's own are. The moment is found by its times, which change with
+  /// each nudge; the list can't be reordered while the sheet is open.
+  TopicCut Function({Duration startBy, Duration endBy}) _nudgerFor(
+    TopicCut cut,
+  ) {
+    var current = cut;
+    return ({startBy = Duration.zero, endBy = Duration.zero}) {
+      final index = (_cuts ?? const []).indexWhere(
+        (review) => review.cut == current,
+      );
+      if (index < 0) {
+        return current;
+      }
+      _nudge(index, startBy: startBy, endBy: endBy);
+      current = _cuts![index].cut;
+      return current;
+    };
+  }
 
   void _toggle(int index) => _edit((cuts) => toggleCut(cuts, index));
 
