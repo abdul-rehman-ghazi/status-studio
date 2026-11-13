@@ -38,6 +38,14 @@ class JoiningCuts extends MakingProgress {
   final double fraction;
 }
 
+/// Media3 writing one AV1 moment as H.264 (spec FR-46): there is nothing
+/// to join, but a kept AV1 video would be converted anyway (M31).
+class ConvertingCut extends MakingProgress {
+  const ConvertingCut(this.fraction);
+
+  final double fraction;
+}
+
 /// Fingerprinting and keeping the joined file (FR-1).
 class KeepingClip extends MakingProgress {
   const KeepingClip();

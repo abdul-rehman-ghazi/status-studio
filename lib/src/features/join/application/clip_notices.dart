@@ -3,8 +3,12 @@ import 'package:status_studio/src/features/background/application/background_wor
 import 'package:status_studio/src/features/background/domain/work_notice.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 
-/// Downloading takes most of a run; the join the rest.
-const _downloadShare = 0.8;
+/// Downloading takes most of a joined run; the join the rest.
+const _joinedDownloadShare = 0.8;
+
+/// One moment isn't joined (spec FR-46), so its download is the whole run.
+double _downloadShareOf(int cutCount) =>
+    cutCount == 1 ? 1 : _joinedDownloadShare;
 
 /// The notifications for Make the clip (spec FR-16, FR-37).
 class ClipNotices implements JobNotices<MakingProgress> {
@@ -27,14 +31,27 @@ class ClipNotices implements JobNotices<MakingProgress> {
   ProgressNotice progress(MakingProgress event) => switch (event) {
     ReadingStreams() => starting,
     DownloadingCut(:final number, :final count) => ProgressNotice(
-      title: 'Downloading cut $number of $count',
+      title: count == 1
+          ? 'Downloading the cut'
+          : 'Downloading cut $number of $count',
       text: clipName,
-      percent: _percent((number - 1 + event.fraction) / count * _downloadShare),
+      percent: _percent(
+        (number - 1 + event.fraction) / count * _downloadShareOf(count),
+      ),
     ),
     JoiningCuts(:final fraction) => ProgressNotice(
       title: 'Joining the cuts',
       text: clipName,
-      percent: _percent(_downloadShare + fraction * (1 - _downloadShare)),
+      percent: _percent(
+        _joinedDownloadShare + fraction * (1 - _joinedDownloadShare),
+      ),
+    ),
+    // The rare AV1 moment's bar starts again: its download already filled
+    // the notification.
+    ConvertingCut(:final fraction) => ProgressNotice(
+      title: 'Converting the cut',
+      text: clipName,
+      percent: _percent(fraction),
     ),
     KeepingClip() => ProgressNotice(
       title: 'Keeping the clip',

@@ -480,7 +480,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       _making = const ReadingStreams();
     });
     try {
-      final video = await ref.read(backgroundClipMakerProvider).make(
+      final made = await ref.read(backgroundClipMakerProvider).make(
         ClipOrder(
           request: widget.request,
           cuts: ticked,
@@ -497,7 +497,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       // The joined clip's own Recent row takes the session's place.
       unawaited(_saver.delete(widget.request.video.videoId));
       ref.invalidate(isVideoKeptProvider);
-      ref.read(reelDraftProvider.notifier).setVideo(video);
+      ref.read(reelDraftProvider.notifier).setVideoOn(made.video, made.clip);
       await context.push(AppRoutes.fineTune);
     } on DownloadCancelledException {
       if (mounted) setState(() => _making = null);

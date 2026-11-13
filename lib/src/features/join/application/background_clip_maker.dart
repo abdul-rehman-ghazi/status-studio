@@ -4,7 +4,6 @@ import 'package:status_studio/src/features/join/application/clip_maker.dart';
 import 'package:status_studio/src/features/join/application/clip_notices.dart';
 import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
-import 'package:status_studio/src/features/source/domain/source_video.dart';
 
 /// Make the clip kept running when the user leaves the app (spec FR-16,
 /// FR-37): the foreground service and its notification while it runs, and
@@ -17,19 +16,19 @@ class BackgroundClipMaker {
   final BackgroundWork background;
 
   /// As [ClipMaker.make]; a cancel ends the notification quietly.
-  Future<SourceVideo> make(
+  Future<MadeClip> make(
     ClipOrder order,
     void Function(MakingProgress progress) onProgress,
   ) async {
     final notices = ClipNotices(order.request.video.title);
     background.showProgress(notices.job, notices.starting);
     try {
-      final video = await maker.make(order, (progress) {
+      final made = await maker.make(order, (progress) {
         background.showProgress(notices.job, notices.progress(progress));
         onProgress(progress);
       });
       background.finish(notices.job, notices.done);
-      return video;
+      return made;
     } on DownloadCancelledException {
       background.cancel(notices.job);
       rethrow;

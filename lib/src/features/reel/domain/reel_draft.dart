@@ -70,6 +70,20 @@ class ReelDraft {
     );
   }
 
+  /// Starts the reel on [clip] of [video]: one moment kept from a link
+  /// opens on the moment, not on the seconds its file has around it (spec
+  /// FR-46). The same video again keeps its clip, as [withVideo] does.
+  ReelDraft withVideoOn(SourceVideo video, ClipRange clip) {
+    if (video.videoId == this.video?.videoId) {
+      return withVideo(video);
+    }
+    return ReelDraft(
+      video: video,
+      language: language,
+      clip: clip.startingNoEarlierThan(video.pictureStart),
+    );
+  }
+
   ReelDraft withFadeEnds() => copyWith(fadeEnds: true);
 
   ReelDraft withoutFadeEnds() => copyWith(fadeEnds: false);

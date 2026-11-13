@@ -31,6 +31,9 @@ class ReelDraftController extends Notifier<ReelDraft> {
 
   void setVideo(SourceVideo video) => state = state.withVideo(video);
 
+  void setVideoOn(SourceVideo video, ClipRange clip) =>
+      state = state.withVideoOn(video, clip);
+
   void setLanguage(ScriptLanguage language) =>
       state = state.copyWith(language: language);
 

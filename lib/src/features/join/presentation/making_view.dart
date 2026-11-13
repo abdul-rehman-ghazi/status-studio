@@ -40,15 +40,17 @@ class MakingView extends StatelessWidget {
 
 String _stepOf(MakingProgress progress) => switch (progress) {
   ReadingStreams() => "Reading the video's streams",
+  DownloadingCut(count: 1) => 'Downloading the cut',
   DownloadingCut(:final number, :final count) =>
     'Downloading cut $number of $count',
   JoiningCuts() => 'Joining the cuts',
+  ConvertingCut() => 'Converting the cut',
   KeepingClip() => 'Keeping the clip',
 };
 
 double? _fractionOf(MakingProgress progress) => switch (progress) {
   DownloadingCut() => progress.fraction,
-  JoiningCuts(:final fraction) => fraction,
+  JoiningCuts(:final fraction) || ConvertingCut(:final fraction) => fraction,
   ReadingStreams() || KeepingClip() => null,
 };
 
