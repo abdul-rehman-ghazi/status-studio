@@ -14,7 +14,7 @@ const _streamsKeptFor = Duration(hours: 1);
 
 /// How much the Play sheet shows before and after a moment, so a nudge
 /// can be heard (spec FR-39).
-const previewMargin = Duration(seconds: 3);
+const previewMargin = Duration(seconds: 5);
 
 /// Streams read for a video, and when.
 typedef _ReadStreams = ({CutStreams streams, DateTime readAt});

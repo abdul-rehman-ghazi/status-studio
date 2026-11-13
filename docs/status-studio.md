@@ -488,7 +488,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Spent by Make the clip:** once the clip is joined and kept (FR-37), the session is deleted; the joined clip's own fine-tune row ("From a link · Fine-tune …", FR-24) takes its place.
 
 **FR-39 Trim while playing (M49, Android only).** Asked by the owner (2026-11-13): "fine tune clips required while playing mode to see what part is now included". Choices made with the owner from mockups (2026-11-13).
-- **Play on a card** (FR-37) downloads the moment with 3 s before and after it (clamped to the video), at up to 480p as before (*Claude's call* on 3 s).
+- **Play on a card** (FR-37) downloads the moment with 5 s before and after it (clamped to the video), at up to 480p as before (the owner chose 5 s, 2026-11-13).
 - **The sheet's bar** covers that whole stretch: the included part in the accent colour, before and after it grey, with the playhead; a tap or drag seeks. While the playhead is outside the included part, the picture is dimmed with "Not in the clip" over it.
 - **Start − + and End − +** under the bar, each with its exact time to a tenth of a second, move the edge by 0.5 s under the card's rules (FR-36: never under 2 s, never outside the video, a ticked cut never into another ticked one). A nudge changes the card at once and counts as an edit (Find again asks first; the session is kept, FR-38).
 - **After a nudge** the player jumps to 2 s before the edge that moved and plays to 2 s past it, then pauses, so the new start or stop is heard (*Claude's call* on 2 s). A nudge past the downloaded stretch first downloads the moment again with its margins (a spinner over the picture).
@@ -1010,7 +1010,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M46 Download and join | Only the cuts download; joined with the transition into one video that opens Fine-tune, a scene per cut (FR-37) | Built, branch `m46-download-and-join` (stacked on `m45-find-the-topic`), merged into `dev` (2026-11-13). Range download and stream-copy mux checked from the Mac; Kotlin compiles. Lyrics translated into the output language (task 1 design with the owner). Phone checks are the owner's: the join's layers, blends and sound on the Redmi, Play, and the translation with a Groq key. Tests not run |
 | M47 F-Droid | ML Kit face detection replaced by an open model; built from source for F-Droid's main repository | Designed (2026-11-12), not started |
 | M48 Continue a link | A link left on Review cuts has a Recent row; Continue reopens the cuts as left (FR-38) | Built, branch `m48-continue-a-link` (stacked on `m46-download-and-join`), merged into `dev` with M43–M46 (2026-11-13). Analyze clean (two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
-| M49 Trim while playing | Play on a card shows the moment with 3 s around it, what is included, and nudges that replay the edge (FR-39) | In progress, branch `m49-trim-while-playing` (from `dev`) |
+| M49 Trim while playing | Play on a card shows the moment with 5 s around it, what is included, and nudges that replay the edge (FR-39) | In progress, branch `m49-trim-while-playing` (from `dev`) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1697,7 +1697,7 @@ Request (2026-11-13): "recent... continue not showing for youtube links". A join
 Request (2026-11-13): FR-39. Design questions answered by the owner: the Review cuts Play sheet (not Fine-tune), replay around the moved edge, dim and label outside the included part, the card's words unchanged. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** FR-39, these tasks.
-- [x] **2. Moment with margins.** `previewWindowFor` and `previewMargin` in `cut_previewer.dart`; `CutPreviewer.prepare` downloads the moment with 3 s on both sides, clamped to the video. **New tests to write:** the window with margins, clamped at both ends; a kept file covering it is reused.
+- [x] **2. Moment with margins.** `previewWindowFor` and `previewMargin` in `cut_previewer.dart`; `CutPreviewer.prepare` downloads the moment with 5 s on both sides (the owner, after 3 s was proposed), clamped to the video. **New tests to write:** the window with margins, clamped at both ends; a kept file covering it is reused.
 - [ ] **3. The sheet.** The bar over the downloaded stretch (included part, playhead, seek), the dim and label outside, Start/End − + with times, the replay around a moved edge, the download when a nudge passes the stretch; Review cuts applies the sheet's nudges with `nudgeCut`. **Stale tests:** anything calling `showCutPlayer` (new parameters). **New tests to write:** a nudge in the sheet changes the card and marks the cuts edited; a refused nudge leaves the edge; the replay window clamped to the stretch; the label shows outside the included part.
 - [ ] **4. Status.** §12 status row, §13 entry; push.
 
