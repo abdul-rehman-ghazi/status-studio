@@ -1,9 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:status_studio/src/core/ffmpeg/jpeg_size.dart';
 import 'package:status_studio/src/features/style/data/body_model.dart';
+import 'package:status_studio/src/features/style/data/face_model.dart';
 import 'package:status_studio/src/features/style/domain/subject_box.dart';
 
 abstract interface class SubjectDetector {
@@ -18,32 +17,18 @@ abstract interface class SubjectDetector {
   Future<void> close();
 }
 
-/// ML Kit face detection with the bundled model and EfficientDet-Lite0 for
-/// bodies, both on the phone (spec FR-23, FR-27). Each is set up on first use,
-/// so a run that only looks at faces never loads the body model. Faces: fast
-/// mode and small faces allowed; no landmarks, contours or smiles.
+/// BlazeFace full range for faces and EfficientDet-Lite0 for bodies, both
+/// on the phone through TensorFlow Lite (spec FR-23, FR-27; ML Kit until
+/// M47). Each is set up on first use, so a run that only looks at faces never
+/// loads the body model.
 class OnDeviceDetector implements SubjectDetector {
-  FaceDetector? _faces;
+  Future<FaceModel>? _faces;
   Future<BodyModel>? _bodies;
 
   @override
   Future<List<SubjectBox>> facesIn(File frame) async {
-    final detector = _faces ??= FaceDetector(
-      options: FaceDetectorOptions(minFaceSize: 0.05),
-    );
-    final size = jpegSize(await frame.readAsBytes());
-    final faces = await detector.processImage(
-      InputImage.fromFilePath(frame.path),
-    );
-    return [
-      for (final face in faces)
-        SubjectBox(
-          left: face.boundingBox.left / size.width,
-          top: face.boundingBox.top / size.height,
-          width: face.boundingBox.width / size.width,
-          height: face.boundingBox.height / size.height,
-        ),
-    ];
+    final model = await (_faces ??= FaceModel.open());
+    return model.facesIn(frame);
   }
 
   @override
@@ -54,19 +39,22 @@ class OnDeviceDetector implements SubjectDetector {
 
   @override
   Future<void> close() async {
-    await _faces?.close();
+    final faces = _faces;
+    if (faces != null) {
+      await _closeQuietly(() async => (await faces).close());
+    }
     final bodies = _bodies;
     if (bodies != null) {
-      await _closeBodies(bodies);
+      await _closeQuietly(() async => (await bodies).close());
     }
   }
 
   /// A model that never opened has nothing to close, and its failure was
   /// already reported by the call that needed it; closing must not throw it
-  /// again and end a run that can go on with faces and spots.
-  Future<void> _closeBodies(Future<BodyModel> opening) async {
+  /// again and end a run that can go on with the other model and spots.
+  Future<void> _closeQuietly(Future<void> Function() closeModel) async {
     try {
-      await (await opening).close();
+      await closeModel();
     } on Object {
       return;
     }

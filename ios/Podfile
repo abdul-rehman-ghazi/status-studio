@@ -1,4 +1,4 @@
-# ML Kit (face detection, GoogleMLKit 9) needs 15.5 (spec §10 item 9).
+# 15.5 was set for ML Kit (removed in M47); kept, since nothing is gained by lowering it.
 platform :ios, '15.5'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
