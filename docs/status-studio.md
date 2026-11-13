@@ -1036,7 +1036,7 @@ Not collected: photos and videos (the video never leaves the phone), personal in
 | M49 Trim while playing | Play on a card shows the moment with 5 s around it, what is included, and nudges that replay the edge (FR-39); Update words rewrites a trimmed or added moment's words (FR-40) | Built, branch `m49-trim-while-playing` (from `dev`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
 | M50 Script from the audio | Captions in another language than the output are left; Groq writes the transcript from the audio in the output language; Add a moment groups lines (FR-36) | Built, branch `m50-script-from-audio` (stacked on `m49-trim-while-playing`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's (a Hindi-captioned Urdu talk with Urdu output: the audio downloads, Groq writes Urdu, Add a moment shows Urdu). Tests not run |
 | M51 Script first | No topic needed: Get the script, read it on Review cuts, add moments from it, search a topic later (FR-41) | Built, branch `m51-script-first` (stacked on `m50-script-from-audio`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
-| M52 Louder sound | A Trim tab switch raises quiet sound to a steady level with a limiter, measured at export (FR-42) | In progress, branch `m52-louder-sound` (stacked on `m51-script-first`) |
+| M52 Louder sound | A Trim tab switch raises quiet sound to a steady level with a limiter, measured at export (FR-42) | Built, branch `m52-louder-sound` (stacked on `m51-script-first`), pushed, not merged. Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain); Kotlin compiles. The phone check is the owner's (a quiet clip comes out louder without crackle; `loudnorm` is in the min FFmpeg build). Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is a later idea (FR-28 reserved, not planned).
 
@@ -1761,7 +1761,7 @@ Request (2026-11-13): FR-42. Tests are the owner's; `fvm flutter analyze` only, 
 - [x] **2. The gain.** `export/domain/sound_boost.dart`: the loudness read from `loudnorm`'s JSON in FFmpeg's log, and the gain from it (target −14 LUFS, 0 to +15 dB, none under +0.5 dB or at −70 LUFS or lower). `LoudnessMeter` runs FFmpeg over the clip's range; `FfmpegRunner.runForLog` returns the log of a run that succeeded. **New tests to write:** the JSON read from a real log; no JSON is an error; the gain for −24 LUFS is +10 dB; held at +15 dB; none for a loud clip, under +0.5 dB and for silence.
 - [x] **3. The switch and the draft.** `louderSound` on `ReelDraft` and `FineTuneDraft` (JSON, start-over), the controller's `makeSoundLouder`/`keepSoundAsIs`, the Trim tab switch on Android. **New tests to write:** off by default and for a new video; kept JSON with and without it; start-over keeps it; the switch shows on Android only.
 - [x] **4. The render.** `RenderJob.soundGain` and `soundGain` in the spec map; `Media3Renderer` measures when the switch is on, and renders without the boost when it can't measure; Kotlin `RenderSpec.soundGain` and `LoudnessBoost` in `ReelRenderer`'s audio effects. **New tests to write:** `soundGain` in the map only when above 1; a failed measurement renders without it.
-- [ ] **5. Status.** §12 row, §13 entry; push.
+- [x] **5. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -2033,6 +2033,11 @@ Request (2026-11-13): FR-42. Tests are the owner's; `fvm flutter analyze` only, 
 - The same video set again, or a kept clip restored, starting before the picture start, starts at it.
 - `SourceVideo.fromJson` without `pictureStartMs` reads 0; `toJson` writes it.
 - The Trim tab shows the late-picture hint only when the picture start is above 0.
+- **Louder sound (FR-42, M52):**
+  - `loudnessFromLog` reads `input_i` from a `loudnorm` JSON log, reads `-inf` as silence, and throws when there is no JSON.
+  - The gain for −24 LUFS is +10 dB; −40 LUFS is held at +15 dB; −10 LUFS, −14.3 LUFS and −70 LUFS give 1.
+  - `louderSound` is off for a new reel and a new video, kept through the fine-tune JSON (absent reads off) and a start-over.
+  - The spec map has `soundGain` only above 1; a measurement that throws renders without it.
 
 ## 14. Device checks (removed)
 
