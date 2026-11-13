@@ -116,23 +116,77 @@ class _ReelSeekBar extends StatelessWidget {
           0,
           durationMilliseconds,
         );
-        return SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: context.palette.accent,
-            thumbColor: context.palette.accent,
-            // Fixed light colour: the track sits on the video in both themes.
-            inactiveTrackColor: PictureMarkColors.light.withValues(alpha: 0.4),
-          ),
-          child: Slider(
-            value: playedMilliseconds.toDouble(),
-            max: durationMilliseconds.toDouble(),
-            semanticFormatterCallback: (_) => 'Seek',
-            onChanged: (milliseconds) => unawaited(
-              player.seekTo(Duration(milliseconds: milliseconds.round())),
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _trackInset),
+                child: _OutlinedTrack(
+                  playedFraction: playedMilliseconds / durationMilliseconds,
+                ),
+              ),
             ),
-          ),
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                overlayShape: SliderComponentShape.noOverlay,
+                // The outline and fill are drawn by _OutlinedTrack, as on
+                // Fine-tune's seek bar.
+                activeTrackColor: Colors.transparent,
+                inactiveTrackColor: Colors.transparent,
+                thumbColor: context.palette.accent,
+              ),
+              child: Slider(
+                value: playedMilliseconds.toDouble(),
+                max: durationMilliseconds.toDouble(),
+                semanticFormatterCallback: (_) => 'Seek',
+                onChanged: (milliseconds) => unawaited(
+                  player.seekTo(Duration(milliseconds: milliseconds.round())),
+                ),
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+}
+
+const _trackInset = 10.0;
+const _trackHeight = 8.0;
+
+/// The whole reel as an outline, filled up to the played position.
+class _OutlinedTrack extends StatelessWidget {
+  const _OutlinedTrack({required this.playedFraction});
+
+  final double playedFraction;
+
+  @override
+  Widget build(BuildContext context) {
+    final shape = BorderRadius.circular(_trackHeight / 2);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        height: _trackHeight,
+        width: double.infinity,
+        child: DecoratedBox(
+          // Fixed light colour: the track sits on the video in both themes.
+          decoration: BoxDecoration(
+            borderRadius: shape,
+            border: Border.all(color: PictureMarkColors.light),
+          ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: playedFraction.clamp(0, 1),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: context.palette.accent,
+                borderRadius: shape,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
