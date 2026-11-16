@@ -18,9 +18,9 @@ AntiFeatures:
     en-US: Writes scripts with Groq's hosted speech-to-text and chat models, using the user's own key; downloads parts of linked videos from YouTube and other sites through yt-dlp; Update downloader in Settings fetches yt-dlp from GitHub (the weekly automatic update is off in this build).
 
 Builds:
-  - versionName: 0.1.0
-    versionCode: 1
-    commit: v0.1.0
+  - versionName: 0.1.1
+    versionCode: 2
+    commit: v0.1.1
     output: build/app/outputs/flutter-apk/app-release.apk
     srclibs:
       - flutter@3.47.8
@@ -39,5 +39,5 @@ Builds:
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 0.1.0
-CurrentVersionCode: 1
+CurrentVersion: 0.1.1
+CurrentVersionCode: 2

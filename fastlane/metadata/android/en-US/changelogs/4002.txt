@@ -1,0 +1,1 @@
+Smaller reels: exported at 4 Mbit/s instead of 8-9. Frees storage: a link's audio is deleted once its script is saved, an imported video with no script, fine-tune or reel is deleted after 7 days, and files left by an interrupted export are cleaned up.
