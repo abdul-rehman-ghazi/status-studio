@@ -1,14 +1,15 @@
 # Status Studio
 
-Turn any YouTube video into a short clip for WhatsApp Status, Reels, TikTok or Shorts, on your phone.
+Turn a video into a short clip for WhatsApp Status, Reels, TikTok or Shorts, on your phone.
 
-Paste a link. The app writes out the video's script on the device, in whatever language it's in. Tap the line where your clip starts and the line where it ends, pick a size, add a caption, and share. The speech-to-text and translation run offline after the first model download.
+Share or pick a video you trimmed, or paste a link to a long talk (Android) and pick the moments from its script. Trim, choose a size and what the crop follows at every scene (a face, a body or a fixed spot), add lyrics written by Groq's Whisper with your own free key or typed, and export with the app's name and logo.
 
-> **Status:** early setup. The app skeleton, dependencies and fonts are in place; the features below are being built milestone by milestone.
+> **Status:** released for Android: [download the latest APK](https://github.com/abdul-rehman-ghazi/status-studio/releases/latest). iOS builds but has never run on a device.
 
 ## Documentation
 
 - **Project document:** [`docs/status-studio.md`](docs/status-studio.md). The spec (flow, requirements, domain rules, error states, decisions, measurements), milestones and their status, device checks and known issues, all in one file.
+- **Privacy policy:** [`PRIVACY.md`](PRIVACY.md). Your video never leaves your phone; only what Groq needs is sent, with your key and after you agree.
 - **Design canvas:** clickable prototype, all screens, build plan and logo options: https://claude.ai/artifact/HcKksQmAu8ZYBfQdbnr2RN
 
 ## Roadmap
