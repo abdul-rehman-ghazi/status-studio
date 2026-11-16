@@ -37,9 +37,10 @@ Future<void> startNewFrom(
 };
 
 /// Review cuts on the saved script in its language, with no moments; with
-/// no saved script it writes one, as Get the script does. A link whose
-/// facts weren't kept (before M53) is read again on From a link
-/// (*Claude's call*).
+/// no saved script it writes one, as Get the script does. A YouTube link
+/// whose facts weren't kept (before M53) is read again on From a link
+/// (*Claude's call*); another site's page can't be rebuilt from its key,
+/// so From a link opens empty (M75).
 Future<void> _newFromLink(
   BuildContext context,
   WidgetRef ref,
@@ -47,8 +48,15 @@ Future<void> _newFromLink(
 ) async {
   final video = target.group.facts.linkedVideo;
   if (video == null) {
-    final link = IncomingLink(youTubeWatchUrl(target.videoKey));
-    unawaited(context.push(AppRoutes.link, extra: link));
+    final key = target.videoKey;
+    unawaited(
+      context.push(
+        AppRoutes.link,
+        extra: isYouTubeVideoKey(key)
+            ? IncomingLink(youTubeWatchUrl(key))
+            : null,
+      ),
+    );
     return;
   }
   if (!await clearUnfinishedLinkWork(context, ref, target.videoKey)) {

@@ -25,6 +25,10 @@ String parseVideoLink(String link) {
   return uri.toString();
 }
 
+/// Whether [videoKey] is a YouTube ID rather than another site's key
+/// (spec FR-50).
+bool isYouTubeVideoKey(String videoKey) => _videoIdPattern.hasMatch(videoKey);
+
 /// A YouTube page, as yt-dlp reads it.
 String youTubeWatchUrl(String videoId) =>
     'https://www.youtube.com/watch?v=$videoId';
