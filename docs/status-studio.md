@@ -1166,6 +1166,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M60 Privacy policy | The policy rewritten for links, yt-dlp, Groq's chat use and today's storage rules; published as `PRIVACY.md` and linked from About (§9.1, FR-31) | Built, branch `m60-privacy-policy` (from `dev`), merged into `dev` (2026-11-16); `PRIVACY.md` is live there (About's link points at the `dev` copy). Analyze clean. Tests not run |
 | M61 Known issues | The two small §15 bugs (the "(detected)" language label, Style's first-line preview): both gone since M30/M54; their dead code removed | Built, branch `m61-known-issues` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M62 Spec checkboxes | §12's stale unchecked tasks closed or ticked from the code and git history; the owner's test tasks no longer carry a checkbox | Built, branch `m62-spec-checkboxes` (from `dev`), merged into `dev` (2026-11-16). Docs only |
+| M63 README | The README's later sections (status, features, tech stack, structure, distribution, signing, releasing, licence) brought up to date; asked by the owner (2026-11-16) | Built, branch `m63-readme` (from `dev`), pushed, not merged. Docs only |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
