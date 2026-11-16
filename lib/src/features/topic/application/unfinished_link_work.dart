@@ -15,12 +15,12 @@ import 'package:status_studio/src/features/topic/domain/link_session.dart';
 @immutable
 class UnfinishedLinkWork {
   const UnfinishedLinkWork({
-    required this.youTubeId,
+    required this.videoKey,
     required this.session,
     required this.joinedClipIds,
   });
 
-  final String youTubeId;
+  final String videoKey;
   final LinkSession? session;
 
   /// The fingerprints of the joined clips, each kept in `sources/<id>/`.
@@ -54,19 +54,19 @@ class UnfinishedLinkWorks {
   /// Lets the lists that show unfinished work read again.
   final VoidCallback onDeleted;
 
-  Future<UnfinishedLinkWork> unfinishedLinkWork(String youTubeId) async {
-    final session = await (await stores.topics()).session(youTubeId);
+  Future<UnfinishedLinkWork> unfinishedLinkWork(String videoKey) async {
+    final session = await (await stores.topics()).session(videoKey);
     return UnfinishedLinkWork(
-      youTubeId: youTubeId,
+      videoKey: videoKey,
       session: session,
-      joinedClipIds: await _unfinishedJoinedClips(youTubeId),
+      joinedClipIds: await _unfinishedJoinedClips(videoKey),
     );
   }
 
   /// Deletes the session, and each joined clip's fine-tune and kept file.
   /// Reels already made from them stay.
   Future<void> delete(UnfinishedLinkWork work) async {
-    await (await stores.topics()).deleteSession(work.youTubeId);
+    await (await stores.topics()).deleteSession(work.videoKey);
     final drafts = await stores.drafts();
     final sources = await stores.sources();
     for (final videoId in work.joinedClipIds) {
@@ -76,11 +76,11 @@ class UnfinishedLinkWorks {
     onDeleted();
   }
 
-  Future<List<String>> _unfinishedJoinedClips(String youTubeId) async {
+  Future<List<String>> _unfinishedJoinedClips(String videoKey) async {
     final drafts = await (await stores.drafts()).list();
     return [
       for (final draft in drafts)
-        if ((await stores.links.read(draft.videoId))?.youtubeId == youTubeId)
+        if ((await stores.links.read(draft.videoId))?.videoKey == videoKey)
           draft.videoId,
     ];
   }

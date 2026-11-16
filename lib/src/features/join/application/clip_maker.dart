@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
+import 'package:status_studio/src/features/join/application/whole_video.dart';
 import 'package:status_studio/src/features/join/data/clip_joiner.dart';
 import 'package:status_studio/src/features/join/data/cut_downloader.dart';
 import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
@@ -16,6 +17,7 @@ import 'package:status_studio/src/features/join/domain/linked_clip.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 import 'package:status_studio/src/features/source/data/local_video_importer.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
@@ -28,11 +30,15 @@ class ClipOrder {
     required this.request,
     required this.cuts,
     required this.transition,
+    this.wholeVideo = WholeVideoAnswer.notAsked,
   });
 
   final TopicRequest request;
   final List<TopicCut> cuts;
   final ClipTransition transition;
+
+  /// Whether a site without parts may give its whole video (spec FR-50).
+  final WholeVideoAnswer wholeVideo;
 
   /// How far each cut is downloaded past its ends: one moment has nothing
   /// to blend into (spec FR-46).
@@ -116,21 +122,63 @@ class ClipMaker {
     }
   }
 
+  /// The parts around each cut; the whole video for a site that offers no
+  /// parts (spec FR-50).
   Future<_FetchedCuts> _downloadCuts(ClipOrder order, _MakingRun run) async {
-    final youtubeId = order.request.video.videoId;
+    final video = order.request.video;
     run.onProgress(const ReadingStreams());
-    var streams = streamsForClip(await _services.streams.read(youtubeId));
+    final formats = await _services.streams.read(video);
+    try {
+      return await _downloadParts(order, run, streamsForClip(formats));
+    } on NotDownloadableInPartsException catch (partsFailure) {
+      final stream = wholeStreamOrThrow(video, formats, partsFailure);
+      return _downloadWhole(order, run, stream);
+    }
+  }
+
+  Future<_FetchedCuts> _downloadParts(
+    ClipOrder order,
+    _MakingRun run,
+    CutStreams firstStreams,
+  ) async {
+    final video = order.request.video;
+    var streams = firstStreams;
     final downloaded = <DownloadedCut>[];
     for (var index = 0; index < order.cuts.length; index++) {
       final download = _CutDownload(order, index, run);
       try {
         downloaded.add(await download.fetch(_services.cuts, streams));
       } on ExpiredStreamUrlException {
-        streams = await _freshStreams(youtubeId);
+        streams = await _freshStreams(video);
         downloaded.add(await _fetchAgain(download, streams));
       }
     }
     return (cuts: downloaded, streams: streams);
+  }
+
+  /// Every cut is a stretch of the one file; its bytes show as one cut's.
+  Future<_FetchedCuts> _downloadWhole(
+    ClipOrder order,
+    _MakingRun run,
+    StreamFormat stream,
+  ) async {
+    final clock = Stopwatch()..start();
+    final file = await fetchWholeVideo(
+      _services.cuts,
+      WholeVideoOrder(
+        request: WholeVideoRequest(video: order.request.video, stream: stream),
+        answer: order.wholeVideo,
+        watch: CutDownloadWatch(
+          cancel: run.cancel,
+          onBytes: (received, total) =>
+              run.onProgress(_downloadingOne(received, total, clock)),
+        ),
+      ),
+    );
+    return (
+      cuts: [for (final cut in order.cuts) DownloadedCut(cut: cut, file: file)],
+      streams: CutStreams(video: stream, audio: stream),
+    );
   }
 
   Future<MadeClip> _joinAndKeep(
@@ -209,10 +257,10 @@ class ClipMaker {
     }
   }
 
-  Future<CutStreams> _freshStreams(String youtubeId) async =>
-      streamsForClip(await _services.streams.read(youtubeId));
+  Future<CutStreams> _freshStreams(LinkedVideo video) async =>
+      streamsForClip(await _services.streams.read(video));
 
-  /// Links that expire again right after a fresh read count as a YouTube
+  /// Links that expire again right after a fresh read count as a site
   /// change, which a newer yt-dlp may handle (spec §8).
   Future<DownloadedCut> _fetchAgain(
     _CutDownload download,
@@ -221,7 +269,7 @@ class ClipMaker {
     try {
       return await download.fetch(_services.cuts, streams);
     } on ExpiredStreamUrlException catch (error) {
-      throw YouTubeChangedException('Stream links keep expiring: $error');
+      throw SiteChangedException('Stream links keep expiring: $error');
     }
   }
 
@@ -270,7 +318,7 @@ class ClipMaker {
     await _services.links.save(
       video.videoId,
       LinkedClip(
-        youtubeId: linked.videoId,
+        videoKey: linked.videoKey,
         title: linked.title,
         channel: linked.channel,
         outputLanguage: order.request.outputLanguage,
@@ -281,6 +329,21 @@ class ClipMaker {
     );
     return video;
   }
+}
+
+DownloadingCut _downloadingOne(
+  int receivedBytes,
+  int totalBytes,
+  Stopwatch clock,
+) {
+  final seconds = clock.elapsedMicroseconds / Duration.microsecondsPerSecond;
+  return DownloadingCut(
+    number: 1,
+    count: 1,
+    receivedBytes: receivedBytes,
+    totalBytes: totalBytes,
+    bytesPerSecond: seconds > 0 ? receivedBytes / seconds : 0,
+  );
 }
 
 /// One cut's download with its progress: number, size and speed.
@@ -300,7 +363,7 @@ class _CutDownload {
     _report(0, 0);
     final file = await cuts.download(
       CutRequest(
-        youtubeId: order.request.video.videoId,
+        videoKey: order.request.video.videoKey,
         window: downloadWindowFor(
           cut,
           order.margin,

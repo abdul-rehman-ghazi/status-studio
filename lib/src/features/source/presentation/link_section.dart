@@ -16,7 +16,7 @@ import 'package:status_studio/src/features/topic/presentation/script_fields.dart
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
-/// From a link (spec FR-35, Android only): paste or share a YouTube link,
+/// From a link (spec FR-35, FR-50, Android only): paste or share a link,
 /// read what the video is, then the output language and Get the script
 /// (FR-43).
 class LinkSection extends ConsumerStatefulWidget {
@@ -58,14 +58,14 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionLabel('YouTube link'),
+        const SectionLabel('Video link'),
         TextField(
           controller: _linkField,
           keyboardType: TextInputType.url,
           textInputAction: TextInputAction.go,
           onSubmitted: (_) => _readLink(),
           decoration: InputDecoration(
-            hintText: 'Paste a YouTube link',
+            hintText: 'Paste a video link',
             suffixIcon: IconButton(
               tooltip: 'Paste',
               icon: const Icon(Icons.content_paste),
@@ -83,7 +83,7 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
         if (_video case final video?) ...[
           const SizedBox(height: 8),
           ScriptFields(
-            key: ValueKey(video.videoId),
+            key: ValueKey(video.videoKey),
             video: video,
             onGet: (request) => unawaited(_getScript(request)),
           ),
@@ -95,7 +95,7 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
   /// One unfinished piece of work per linked video (spec FR-43): starting
   /// again asks first, then deletes the old one.
   Future<void> _getScript(TopicRequest request) async {
-    if (!await clearUnfinishedLinkWork(context, ref, request.video.videoId)) {
+    if (!await clearUnfinishedLinkWork(context, ref, request.video.videoKey)) {
       return;
     }
     if (mounted) await context.push(AppRoutes.reviewCuts, extra: request);
@@ -181,6 +181,7 @@ class _LinkedVideoSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = [
+      if (!video.isYouTube) video.site,
       if (video.channel.isNotEmpty) video.channel,
       formatTimestamp(video.duration),
     ].join(' · ');
@@ -202,7 +203,8 @@ class _LinkedVideoSummary extends StatelessWidget {
   }
 }
 
-/// YouTube's own thumbnail, 16:9; its icon when there is none or it fails.
+/// The site's own thumbnail, 16:9; its icon when there is none or it
+/// fails.
 class _LinkThumbnail extends StatelessWidget {
   const _LinkThumbnail({required this.url});
 

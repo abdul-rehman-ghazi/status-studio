@@ -20,9 +20,9 @@ class LinkSessionSaver {
   Future<void> save(LinkSession session) =>
       _enqueue(() async => (await store()).saveSession(session));
 
-  /// The clip was made from [youTubeId], so its session is spent.
-  Future<void> delete(String youTubeId) =>
-      _enqueue(() async => (await store()).deleteSession(youTubeId));
+  /// The clip was made from [videoKey], so its session is spent.
+  Future<void> delete(String videoKey) =>
+      _enqueue(() async => (await store()).deleteSession(videoKey));
 
   /// Keeps the link card's facts for History (spec FR-44).
   Future<void> saveVideo(LinkedVideo video) =>

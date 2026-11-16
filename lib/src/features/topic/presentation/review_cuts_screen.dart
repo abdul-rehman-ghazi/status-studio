@@ -8,6 +8,7 @@ import 'package:status_studio/src/core/presentation/screen_title.dart';
 import 'package:status_studio/src/features/join/application/background_clip_maker.dart';
 import 'package:status_studio/src/features/join/application/clip_maker.dart';
 import 'package:status_studio/src/features/join/application/cut_previewer.dart';
+import 'package:status_studio/src/features/join/application/whole_video.dart';
 import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/join/presentation/cut_player_sheet.dart';
@@ -71,6 +72,9 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   var _momentsOpen = false;
   TopicCut? _preparingPlay;
   Object? _makeFailure;
+
+  /// Asked once while the screen is open (spec FR-50, *Claude's call*).
+  var _wholeVideo = WholeVideoAnswer.notAsked;
 
   @override
   void initState() {
@@ -212,25 +216,28 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   /// The reels made from this linked video, for the used marks (spec
   /// FR-44).
   List<RecentReel> _reelsOfThisVideo() {
-    final youtubeId = widget.request.video.videoId;
+    final videoKey = widget.request.video.videoKey;
     final reels = ref.watch(recentReelsProvider).value ?? const [];
     return [
       for (final reel in reels)
-        if (reel.youtubeId == youtubeId) reel,
+        if (reel.videoKey == videoKey) reel,
     ];
   }
 
   /// Downloads the moment at up to 480p, then plays it (spec FR-37). One
-  /// at a time.
+  /// at a time. A site without parts asks first (FR-50).
   Future<void> _play(TopicCut cut) async {
     if (_preparingPlay != null) {
       return;
     }
     setState(() => _preparingPlay = cut);
     try {
-      final file = await ref
-          .read(cutPreviewerProvider)
-          .prepare(widget.request.video, cut);
+      final order = PreviewOrder(
+        video: widget.request.video,
+        cut: cut,
+        wholeVideo: _wholeVideo,
+      );
+      final file = await ref.read(cutPreviewerProvider).prepare(order);
       if (!mounted) {
         return;
       }
@@ -241,11 +248,18 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
           file: file,
           cut: cut,
           nudge: _nudgerFor(cut),
-          download: (moved) => ref
-              .read(cutPreviewerProvider)
-              .prepare(widget.request.video, moved),
+          download: (moved) =>
+              ref.read(cutPreviewerProvider).prepare(order.withCut(moved)),
         ),
       );
+    } on WholeFileNeededException catch (needed) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _preparingPlay = null);
+      if (await _allowWholeVideo(needed)) {
+        await _play(cut);
+      }
     } on Object {
       // Any failure only means the moment can't be played; say so.
       if (!mounted) {
@@ -295,7 +309,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     try {
       final store = await ref.read(topicStoreProvider.future);
       final saved = await store.savedBlocks(
-        request.video.videoId,
+        request.video.videoKey,
         request.outputLanguage,
       );
       return saved != null;
@@ -512,6 +526,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
           request: widget.request,
           cuts: ticked,
           transition: _transition,
+          wholeVideo: _wholeVideo,
         ),
         (progress) {
           if (mounted) setState(() => _making = progress);
@@ -522,12 +537,20 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       }
       setState(() => _making = null);
       // The joined clip's own Recent row takes the session's place.
-      unawaited(_saver.delete(widget.request.video.videoId));
+      unawaited(_saver.delete(widget.request.video.videoKey));
       ref.invalidate(isVideoKeptProvider);
       ref.read(reelDraftProvider.notifier).setVideoOn(made.video, made.clip);
       await context.push(AppRoutes.fineTune);
     } on DownloadCancelledException {
       if (mounted) setState(() => _making = null);
+    } on WholeFileNeededException catch (needed) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _making = null);
+      if (await _allowWholeVideo(needed)) {
+        await _make();
+      }
     } on Object catch (failure) {
       // Every failure shows on the screen; none may reach the zone.
       if (mounted) {
@@ -537,6 +560,23 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         });
       }
     }
+  }
+
+  /// Download keeps the answer while the screen is open; Cancel returns
+  /// to the moments (spec FR-50).
+  Future<bool> _allowWholeVideo(WholeFileNeededException needed) async {
+    final allowed = await _confirm(
+      title: 'Whole video',
+      message:
+          'This site only offers the whole video '
+          '(${wholeVideoSizeLabel(needed.totalBytes)}). Download it?',
+      confirmLabel: 'Download',
+      backLabel: 'Cancel',
+    );
+    if (allowed && mounted) {
+      setState(() => _wholeVideo = WholeVideoAnswer.allowed);
+    }
+    return allowed && mounted;
   }
 
   Future<bool> _confirmLongScript() => _confirm(
@@ -553,6 +593,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     required String title,
     required String message,
     required String confirmLabel,
+    String backLabel = 'Back',
   }) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -562,7 +603,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Back'),
+            child: Text(backLabel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),

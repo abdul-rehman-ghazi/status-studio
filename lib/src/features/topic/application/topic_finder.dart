@@ -58,9 +58,9 @@ class TopicFinder {
     _Holder<List<TranscriptBlock>> result,
   ) async* {
     final store = await services.store;
-    final youTubeId = request.video.videoId;
+    final videoKey = request.video.videoKey;
     final language = request.outputLanguage;
-    final saved = await store.savedBlocks(youTubeId, language);
+    final saved = await store.savedBlocks(videoKey, language);
     if (saved != null) {
       result.value = saved;
       return;
@@ -74,7 +74,7 @@ class TopicFinder {
       yield* _writtenByGroq(request, lines);
     }
     result.value = blocksFromLines(lines.value);
-    await store.saveBlocks(youTubeId, language, result.value);
+    await store.saveBlocks(videoKey, language, result.value);
     // Only after the save: until then the audio and pieces let an
     // interrupted Groq run resume. A transcript in another language
     // downloads the audio again (FR-47).

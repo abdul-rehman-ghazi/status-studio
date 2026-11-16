@@ -9,7 +9,7 @@ import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 @immutable
 class LinkedClip {
   const LinkedClip({
-    required this.youtubeId,
+    required this.videoKey,
     required this.title,
     required this.channel,
     required this.outputLanguage,
@@ -21,7 +21,7 @@ class LinkedClip {
   /// Throws [FormatException] for a JSON that isn't a saved linked clip.
   factory LinkedClip.fromJson(Map<String, Object?> json) {
     if (json case {
-      'youtubeId': final String youtubeId,
+      'youtubeId': final String videoKey,
       'title': final String title,
       'channel': final String channel,
       'outputLanguage': final String languageCode,
@@ -29,7 +29,7 @@ class LinkedClip {
       'joinTimesMs': final List<Object?> joinTimesMs,
     }) {
       return LinkedClip(
-        youtubeId: youtubeId,
+        videoKey: videoKey,
         title: title,
         channel: channel,
         outputLanguage: _languageOf(languageCode),
@@ -48,7 +48,7 @@ class LinkedClip {
     throw const FormatException('Not a saved linked clip.');
   }
 
-  final String youtubeId;
+  final String videoKey;
   final String title;
   final String channel;
 
@@ -65,7 +65,7 @@ class LinkedClip {
   final List<JoinedCut> cuts;
 
   Map<String, Object?> toJson() => {
-    'youtubeId': youtubeId,
+    'youtubeId': videoKey,
     'title': title,
     'channel': channel,
     'outputLanguage': outputLanguage.whisperCode,

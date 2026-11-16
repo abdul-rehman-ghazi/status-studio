@@ -32,6 +32,10 @@ class BackgroundClipMaker {
     } on DownloadCancelledException {
       background.cancel(notices.job);
       rethrow;
+    } on WholeFileNeededException {
+      // Review cuts asks on screen; nothing failed (spec FR-50).
+      background.cancel(notices.job);
+      rethrow;
     } on Object catch (error) {
       background.finish(notices.job, notices.failed(error));
       rethrow;

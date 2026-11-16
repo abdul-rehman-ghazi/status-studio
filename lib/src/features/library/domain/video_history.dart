@@ -15,18 +15,18 @@ sealed class HistoryVideo {
   const HistoryVideo();
 }
 
-/// A linked video, by its YouTube ID.
+/// A linked video, by its key (spec FR-50).
 final class LinkedVideoKey extends HistoryVideo {
-  const LinkedVideoKey(this.youtubeId);
+  const LinkedVideoKey(this.videoKey);
 
-  final String youtubeId;
+  final String videoKey;
 
   @override
   bool operator ==(Object other) =>
-      other is LinkedVideoKey && other.youtubeId == youtubeId;
+      other is LinkedVideoKey && other.videoKey == videoKey;
 
   @override
-  int get hashCode => youtubeId.hashCode;
+  int get hashCode => videoKey.hashCode;
 }
 
 /// A video shared or chosen on the phone, by its fingerprint (FR-1).
@@ -155,10 +155,10 @@ class LinkFacts {
   /// `link.json` of each joined clip, by the clip's fingerprint.
   final Map<String, LinkedClip> joinedClips;
 
-  /// `video.json` of each linked video, by YouTube ID.
+  /// `video.json` of each linked video, by video key.
   final Map<String, LinkedVideo> videos;
 
-  /// The transcripts saved under `topics/`, by YouTube ID.
+  /// The transcripts saved under `topics/`, by video key.
   final Map<String, List<SavedLinkScript>> transcripts;
 
   /// Title and length of local videos known only from their reels.
@@ -177,9 +177,9 @@ List<VideoHistory> historyOf(HistorySources sources) {
   HistoryVideo keyOf(String videoId) => _keyOf(videoId, sources.links);
 
   for (final reel in sources.reels) {
-    final youtubeId = reel.youtubeId;
+    final videoKey = reel.videoKey;
     groupOf(
-      youtubeId == null ? keyOf(reel.sourceVideoId) : LinkedVideoKey(youtubeId),
+      videoKey == null ? keyOf(reel.sourceVideoId) : LinkedVideoKey(videoKey),
     ).addReel(reel);
   }
   for (final script in sources.scripts) {
@@ -190,12 +190,12 @@ List<VideoHistory> historyOf(HistorySources sources) {
         .addUnfinished(UnfinishedFineTune(fineTune));
   }
   for (final session in sources.linkSessions) {
-    groupOf(LinkedVideoKey(session.request.video.videoId))
+    groupOf(LinkedVideoKey(session.request.video.videoKey))
         .addUnfinished(UnfinishedLink(session));
   }
-  for (final MapEntry(key: youtubeId, value: saved)
+  for (final MapEntry(key: videoKey, value: saved)
       in sources.links.transcripts.entries) {
-    saved.forEach(groupOf(LinkedVideoKey(youtubeId)).addLinkScript);
+    saved.forEach(groupOf(LinkedVideoKey(videoKey)).addLinkScript);
   }
   return [
     for (final MapEntry(:key, :value) in groups.entries)
@@ -208,7 +208,7 @@ HistoryVideo _keyOf(String videoId, LinkFacts links) {
     return LinkedVideoKey(videoId.substring(_youTubeScriptPrefix.length));
   }
   if (links.joinedClips[videoId] case final joined?) {
-    return LinkedVideoKey(joined.youtubeId);
+    return LinkedVideoKey(joined.videoKey);
   }
   return LocalVideoKey(videoId);
 }
@@ -244,7 +244,7 @@ class _Group {
   VideoHistory build(HistoryVideo key, LinkFacts links) {
     reels.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final facts = switch (key) {
-      LinkedVideoKey(:final youtubeId) => _linkFacts(youtubeId, links),
+      LinkedVideoKey(:final videoKey) => _linkFacts(videoKey, links),
       LocalVideoKey(:final videoId) => _localFacts(videoId, links),
     };
     return VideoHistory(
@@ -259,12 +259,12 @@ class _Group {
 
   /// A joined clip's own lyrics scripts fold in, but only the YouTube
   /// video's script counts as its script.
-  VideoFacts _linkFacts(String youtubeId, LinkFacts links) {
+  VideoFacts _linkFacts(String videoKey, LinkFacts links) {
     final session = switch (unfinished) {
       UnfinishedLink(:final session) => session,
       _ => null,
     };
-    final video = links.videos[youtubeId] ?? session?.request.video;
+    final video = links.videos[videoKey] ?? session?.request.video;
     final youTubeScripts = [
       for (final script in videoScripts)
         if (script.video.videoId.startsWith(_youTubeScriptPrefix)) script,
@@ -308,7 +308,7 @@ class _Group {
       _newestScript(videoScripts)?.video.title ??
       reels.firstOrNull?.title ??
       switch (key) {
-        LinkedVideoKey(:final youtubeId) => youtubeId,
+        LinkedVideoKey(:final videoKey) => videoKey,
         LocalVideoKey(:final videoId) => videoId,
       };
 

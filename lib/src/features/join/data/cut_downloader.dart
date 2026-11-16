@@ -15,6 +15,7 @@ import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/segment_index.dart';
 import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
 
 const _firstHeadBytes = 64 * 1024;
 const _maximumHeadBytes = 2 * 1024 * 1024;
@@ -22,16 +23,27 @@ const _maximumHeadBytes = 2 * 1024 * 1024;
 /// Which stretch of which linked video to download, from which streams.
 class CutRequest {
   const CutRequest({
-    required this.youtubeId,
+    required this.videoKey,
     required this.window,
     required this.streams,
   });
 
-  final String youtubeId;
+  final String videoKey;
 
   /// In the linked video's time, margins included.
   final ClipWindow window;
   final CutStreams streams;
+}
+
+/// A site's whole video, from the one stream carrying picture and sound
+/// (spec FR-50).
+class WholeVideoRequest {
+  const WholeVideoRequest({required this.video, required this.stream});
+
+  final LinkedVideo video;
+  final StreamFormat stream;
+
+  String get streamsKey => '$wholeVideoKeyPrefix${stream.formatId}';
 }
 
 /// How a cut download reports back, and how it is stopped.
@@ -47,12 +59,12 @@ class CutDownloadWatch {
 /// One stream's part of a cut: where its bytes are and when it starts.
 class _StreamPlan {
   const _StreamPlan({
-    required this.url,
+    required this.stream,
     required this.ranges,
     required this.segments,
   });
 
-  final Uri url;
+  final StreamFormat stream;
   final List<ByteRange> ranges;
   final List<MediaSegment> segments;
 
@@ -77,7 +89,7 @@ class CutDownloader {
   final RangedDownloader downloader;
   final FfmpegRunner ffmpeg;
 
-  /// `cuts/` in the cache; a cut lives in `<YouTube ID>/` there.
+  /// `cuts/` in the cache; a cut lives in `<video key>/` there.
   final Future<Directory> folder;
 
   /// A cut already downloaded from the same streams that covers the window
@@ -100,14 +112,14 @@ class CutDownloader {
       });
 
   Future<CutFile?> _keptCovering(CutRequest request) async {
-    final cuts = await _cutsFolder(request.youtubeId);
+    final cuts = await _cutsFolder(request.videoKey);
     if (!await cuts.exists()) {
       return null;
     }
     await for (final entry in cuts.list()) {
       final kept = await _readKept(entry);
       if (kept != null &&
-          kept.streamsKey == request.streams.key &&
+          (kept.isWholeVideo || kept.streamsKey == request.streams.key) &&
           _covers(kept.covered, request.window)) {
         return kept;
       }
@@ -135,10 +147,10 @@ class CutDownloader {
   }
 
   Future<CutFile> _download(CutRequest request, CutDownloadWatch watch) async {
-    final video = await _plan(request.streams.video.url, request.window);
-    final audio = await _plan(request.streams.audio.url, request.window);
+    final video = await _plan(request.streams.video, request.window);
+    final audio = await _plan(request.streams.audio, request.window);
     final total = video.totalBytes + audio.totalBytes;
-    final cuts = await _cutsFolder(request.youtubeId);
+    final cuts = await _cutsFolder(request.videoKey);
     final name = '${cuts.path}/${_nameOf(request)}';
     final videoFile = await downloader.downloadRanges(
       _rangedDownload(video, File('$name.video.mp4'), watch.cancel),
@@ -168,14 +180,14 @@ class CutDownloader {
     return cut;
   }
 
-  Future<_StreamPlan> _plan(Uri url, ClipWindow window) async {
-    final index = await _readIndex(url);
+  Future<_StreamPlan> _plan(StreamFormat stream, ClipWindow window) async {
+    final index = await _readIndex(stream);
     final segments = segmentsCovering(index, window);
     if (segments.isEmpty) {
       throw const NoSegmentIndexException();
     }
     return _StreamPlan(
-      url: url,
+      stream: stream,
       ranges: [index.init, mergedRange(segments)],
       segments: segments,
     );
@@ -183,10 +195,14 @@ class CutDownloader {
 
   /// Fetches the start of the stream, doubling the amount until the whole
   /// `sidx` box is in it; past 2 MiB the stream counts as having no index.
-  Future<SegmentIndex> _readIndex(Uri url) async {
+  Future<SegmentIndex> _readIndex(StreamFormat stream) async {
     var length = _firstHeadBytes;
     while (length <= _maximumHeadBytes) {
-      final head = await downloader.fetchHead(url, length);
+      final head = await downloader.fetchHead(
+        stream.url,
+        length,
+        headers: stream.httpHeaders,
+      );
       try {
         return parseSegmentIndex(head);
       } on SegmentIndexNotFoundException catch (missing) {
@@ -195,6 +211,59 @@ class CutDownloader {
       }
     }
     throw const NoSegmentIndexException();
+  }
+
+  /// Whether [request]'s file is already downloaded.
+  Future<bool> hasWhole(WholeVideoRequest request) async =>
+      await _keptWhole(await _wholeJsonFile(request)) != null;
+
+  /// yt-dlp's size for [stream], else the server's; null when neither
+  /// says.
+  Future<int?> wholeSizeOf(StreamFormat stream) async =>
+      stream.sizeBytes ??
+      await guardIo(
+        () => downloader.totalBytesOf(stream.url, headers: stream.httpHeaders),
+      );
+
+  /// Downloads the whole video into `<video key>/whole.<formatId>.mp4`
+  /// (spec FR-50), kept as a cut from time zero to the video's end, or
+  /// returns it when already downloaded.
+  Future<CutFile> downloadWhole(
+    WholeVideoRequest request,
+    CutDownloadWatch watch,
+  ) => guardIo(() async {
+    final json = await _wholeJsonFile(request);
+    final kept = await _keptWhole(json);
+    if (kept != null) {
+      return kept;
+    }
+    final video = await downloader.downloadWhole(
+      WholeDownload(
+        url: request.stream.url,
+        headers: request.stream.httpHeaders,
+        target: File(json.path.replaceFirst(RegExp(r'\.json$'), '.mp4')),
+        cancel: watch.cancel,
+      ),
+      onBytes: watch.onBytes,
+    );
+    final cut = CutFile(
+      file: video,
+      streamsKey: request.streamsKey,
+      fileStart: Duration.zero,
+      covered: ClipWindow(start: Duration.zero, end: request.video.duration),
+    );
+    await json.writeAsString(jsonEncode(cut.toJson()));
+    return cut;
+  });
+
+  /// A video written without its JSON, by a run that stopped between the
+  /// two, is downloaded again.
+  Future<CutFile?> _keptWhole(File json) async =>
+      await json.exists() ? _readKept(json) : null;
+
+  Future<File> _wholeJsonFile(WholeVideoRequest request) async {
+    final cuts = await _cutsFolder(request.video.videoKey);
+    return File('${cuts.path}/${request.streamsKey}.json');
   }
 
   Future<void> _mux({
@@ -215,16 +284,16 @@ class CutDownloader {
     }
   }
 
-  /// Deletes every cut downloaded from [youtubeId] (spec FR-44).
-  Future<void> deleteCutsOf(String youtubeId) async {
-    final cuts = await _cutsFolder(youtubeId);
+  /// Deletes every cut downloaded from [videoKey] (spec FR-44).
+  Future<void> deleteCutsOf(String videoKey) async {
+    final cuts = await _cutsFolder(videoKey);
     if (await cuts.exists()) {
       await cuts.delete(recursive: true);
     }
   }
 
-  Future<Directory> _cutsFolder(String youtubeId) async =>
-      Directory('${(await folder).path}/$youtubeId');
+  Future<Directory> _cutsFolder(String videoKey) async =>
+      Directory('${(await folder).path}/$videoKey');
 }
 
 RangedDownload _rangedDownload(
@@ -232,7 +301,8 @@ RangedDownload _rangedDownload(
   File target,
   DownloadCancel cancel,
 ) => RangedDownload(
-  url: plan.url,
+  url: plan.stream.url,
+  headers: plan.stream.httpHeaders,
   ranges: plan.ranges,
   target: target,
   cancel: cancel,

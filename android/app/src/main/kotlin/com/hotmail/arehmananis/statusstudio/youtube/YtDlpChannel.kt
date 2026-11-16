@@ -13,9 +13,9 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * `status_studio/ytdlp`: `quickVideoInfo(videoId)` and `videoInfo(videoId)` return yt-dlp's `-J`
+ * `status_studio/ytdlp`: `quickVideoInfo(pageUrl)` and `videoInfo(pageUrl)` return yt-dlp's `-J`
  * JSON, without and with solving YouTube's JavaScript challenges; `update()` returns
- * `updated` or `up_to_date`, `version()` the yt-dlp version. `downloadAudio({videoId,
+ * `updated` or `up_to_date`, `version()` the yt-dlp version. `downloadAudio({pageUrl,
  * outputPath})` downloads the audio only and pushes `downloadProgress {processId, fraction}`,
  * where the process ID is the output path; `cancel(processId)` stops it. Failures come back
  * as `ytdlp_failed` with yt-dlp's error output as the message.
@@ -36,8 +36,8 @@ class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "quickVideoInfo" -> withVideoId(call, result) { videoInfo(it, ::quickVideoInfoOptions) }
-            "videoInfo" -> withVideoId(call, result) { videoInfo(it, ::videoInfoOptions) }
+            "quickVideoInfo" -> withPageUrl(call, result) { videoInfo(it, ::quickVideoInfoOptions) }
+            "videoInfo" -> withPageUrl(call, result) { videoInfo(it, ::videoInfoOptions) }
             "update" -> runInBackground(result) { update() }
             "version" -> runInBackground(result) { version() }
             "downloadAudio" -> startAudioDownload(call, result)
@@ -46,27 +46,28 @@ class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
         }
     }
 
-    private fun withVideoId(
+    /** The page goes to yt-dlp as Dart gives it (spec FR-50): any site yt-dlp reads. */
+    private fun withPageUrl(
         call: MethodCall,
         result: MethodChannel.Result,
         work: (String) -> String,
     ) {
-        val videoId = call.arguments as? String
-        if (videoId == null) {
-            result.error("bad_args", "${call.method} needs a video ID.", null)
+        val pageUrl = call.arguments as? String
+        if (pageUrl == null) {
+            result.error("bad_args", "${call.method} needs a page URL.", null)
             return
         }
-        runInBackground(result) { work(videoId) }
+        runInBackground(result) { work(pageUrl) }
     }
 
     private fun startAudioDownload(call: MethodCall, result: MethodChannel.Result) {
-        val videoId = call.argument<String>("videoId")
+        val pageUrl = call.argument<String>("pageUrl")
         val outputPath = call.argument<String>("outputPath")
-        if (videoId == null || outputPath == null) {
-            result.error("bad_args", "downloadAudio needs a video ID and an output path.", null)
+        if (pageUrl == null || outputPath == null) {
+            result.error("bad_args", "downloadAudio needs a page URL and an output path.", null)
             return
         }
-        runInBackground(result, downloads) { downloadAudio(videoId, outputPath) }
+        runInBackground(result, downloads) { downloadAudio(pageUrl, outputPath) }
     }
 
     private fun cancel(call: MethodCall, result: MethodChannel.Result) {
@@ -75,8 +76,8 @@ class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
         result.success(null)
     }
 
-    private fun downloadAudio(videoId: String, outputPath: String): String {
-        val request = YoutubeDLRequest(videoUrl(videoId))
+    private fun downloadAudio(pageUrl: String, outputPath: String): String {
+        val request = YoutubeDLRequest(pageUrl)
         request.addCommands(audioDownloadOptions("${context.cacheDir.absolutePath}/yt-dlp", outputPath))
         ytDlp().execute(request, outputPath) { percent, _, _ ->
             val progress = mapOf("processId" to outputPath, "fraction" to percent / 100.0)
@@ -116,8 +117,8 @@ class YtDlpChannel(private val context: Context, messenger: BinaryMessenger) :
     }
 
     /** Commands go after the library's own options, so `--no-js-runtimes` overrides its QuickJS. */
-    private fun videoInfo(videoId: String, options: (String) -> List<String>): String {
-        val request = YoutubeDLRequest(videoUrl(videoId))
+    private fun videoInfo(pageUrl: String, options: (String) -> List<String>): String {
+        val request = YoutubeDLRequest(pageUrl)
         request.addCommands(options("${context.cacheDir.absolutePath}/yt-dlp"))
         return ytDlp().execute(request).out
     }

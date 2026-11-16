@@ -31,8 +31,8 @@ class StreamRequestFailedException extends OfflineException {
 }
 
 /// The video has no MP4 stream with a segment index, so its cuts can't be
-/// fetched on their own (spec FR-37, §8). The whole video is never
-/// downloaded instead.
+/// fetched on their own (spec FR-37, §8). The whole video is downloaded
+/// instead only from a site other than YouTube, after asking (FR-50).
 class NotDownloadableInPartsException implements Exception {
   const NotDownloadableInPartsException(this.reason);
 
@@ -40,6 +40,18 @@ class NotDownloadableInPartsException implements Exception {
 
   @override
   String toString() => 'NotDownloadableInPartsException: $reason';
+}
+
+/// The site offers the video only as one file, which needs the user's OK
+/// before it is downloaded (spec FR-50).
+class WholeFileNeededException implements Exception {
+  const WholeFileNeededException(this.totalBytes);
+
+  /// Null when neither yt-dlp nor the server gives the size.
+  final int? totalBytes;
+
+  @override
+  String toString() => 'WholeFileNeededException: $totalBytes bytes';
 }
 
 /// The user tapped Cancel while the cuts were downloading (spec FR-37).

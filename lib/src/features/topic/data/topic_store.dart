@@ -29,10 +29,10 @@ class TopicStore {
   /// The transcript in [language], or null when there is none yet (M50: a
   /// transcript in another language is never reused).
   Future<List<TranscriptBlock>?> savedBlocks(
-    String youTubeId,
+    String videoKey,
     ScriptLanguage language,
   ) async {
-    final saved = await _readJson(_blocksFile(youTubeId, language));
+    final saved = await _readJson(_blocksFile(videoKey, language));
     if (saved is! List<Object?>) {
       return null;
     }
@@ -42,12 +42,12 @@ class TopicStore {
     ];
   }
 
-  /// The output languages [youTubeId]'s transcript is saved in, each with
+  /// The output languages [videoKey]'s transcript is saved in, each with
   /// when it was saved, for History (spec FR-44).
-  Future<List<SavedLinkScript>> savedScripts(String youTubeId) async {
+  Future<List<SavedLinkScript>> savedScripts(String videoKey) async {
     final saved = <SavedLinkScript>[];
     for (final language in outputLanguages) {
-      final file = _blocksFile(youTubeId, language);
+      final file = _blocksFile(videoKey, language);
       if (await file.exists()) {
         final savedAt = (await file.stat()).modified;
         saved.add((language: language, savedAt: savedAt));
@@ -57,24 +57,26 @@ class TopicStore {
   }
 
   Future<void> saveBlocks(
-    String youTubeId,
+    String videoKey,
     ScriptLanguage language,
     List<TranscriptBlock> blocks,
-  ) => _writeJson(_blocksFile(youTubeId, language), [
+  ) => _writeJson(_blocksFile(videoKey, language), [
     for (final block in blocks) block.toJson(),
   ]);
 
   /// Keeps [session] for Recent (spec FR-38), one per linked video
   /// (FR-43): a session in another output language replaces it.
-  Future<void> saveSession(LinkSession session) =>
-      _writeJson(_sessionFile(session.request.video.videoId), session.toJson());
+  Future<void> saveSession(LinkSession session) => _writeJson(
+    _sessionFile(session.request.video.videoKey),
+    session.toJson(),
+  );
 
   /// Every readable session, newest first. An unreadable file is skipped
   /// and left on disk.
   Future<List<LinkSession>> sessions() async {
     final sessions = <LinkSession>[];
-    for (final youTubeId in await videoIds()) {
-      if (await session(youTubeId) case final session?) {
+    for (final videoKey in await videoIds()) {
+      if (await session(videoKey) case final session?) {
         sessions.add(session);
       }
     }
@@ -82,10 +84,10 @@ class TopicStore {
     return sessions;
   }
 
-  /// The session of [youTubeId], or null when there is none or it can't be
+  /// The session of [videoKey], or null when there is none or it can't be
   /// read.
-  Future<LinkSession?> session(String youTubeId) async {
-    final saved = await _readJson(_sessionFile(youTubeId));
+  Future<LinkSession?> session(String videoKey) async {
+    final saved = await _readJson(_sessionFile(videoKey));
     if (saved is! Map<String, Object?>) {
       return null;
     }
@@ -96,8 +98,8 @@ class TopicStore {
     }
   }
 
-  Future<void> deleteSession(String youTubeId) async {
-    final file = _sessionFile(youTubeId);
+  Future<void> deleteSession(String videoKey) async {
+    final file = _sessionFile(videoKey);
     if (await file.exists()) {
       await file.delete();
     }
@@ -106,12 +108,12 @@ class TopicStore {
   /// Keeps what the link card read about [video] (spec FR-44): History
   /// shows it, and New opens Review cuts with it, after the session goes.
   Future<void> saveVideo(LinkedVideo video) =>
-      _writeJson(_videoFile(video.videoId), video.toJson());
+      _writeJson(_videoFile(video.videoKey), video.toJson());
 
-  /// Null when [youTubeId] was never opened on Review cuts since M53, or
+  /// Null when [videoKey] was never opened on Review cuts since M53, or
   /// its file can't be read.
-  Future<LinkedVideo?> savedVideo(String youTubeId) async {
-    final saved = await _readJson(_videoFile(youTubeId));
+  Future<LinkedVideo?> savedVideo(String videoKey) async {
+    final saved = await _readJson(_videoFile(videoKey));
     if (saved is! Map<String, Object?>) {
       return null;
     }
@@ -133,10 +135,10 @@ class TopicStore {
     ];
   }
 
-  /// Deletes everything kept for [youTubeId]: transcripts, session and
+  /// Deletes everything kept for [videoKey]: transcripts, session and
   /// facts (spec FR-44, Delete video).
-  Future<void> deleteVideo(String youTubeId) async {
-    final folder = Directory('${root.path}/$youTubeId');
+  Future<void> deleteVideo(String videoKey) async {
+    final folder = Directory('${root.path}/$videoKey');
     if (await folder.exists()) {
       await folder.delete(recursive: true);
     }
@@ -146,8 +148,8 @@ class TopicStore {
   /// Saved transcripts stay: they are the costly part. Cheap and harmless
   /// to repeat, so it runs at every start.
   Future<void> deleteRetired() async {
-    for (final youTubeId in await videoIds()) {
-      await for (final entry in Directory('${root.path}/$youTubeId').list()) {
+    for (final videoKey in await videoIds()) {
+      await for (final entry in Directory('${root.path}/$videoKey').list()) {
         if (entry is File &&
             _retiredFileName.hasMatch(entry.uri.pathSegments.last)) {
           await entry.delete();
@@ -158,14 +160,13 @@ class TopicStore {
 
   /// `transcript.json`, written before M50 in whatever language the
   /// captions had, is no longer read; it goes only with Delete video.
-  File _blocksFile(String youTubeId, ScriptLanguage language) =>
-      File('${root.path}/$youTubeId/transcript_${language.whisperCode}.json');
+  File _blocksFile(String videoKey, ScriptLanguage language) =>
+      File('${root.path}/$videoKey/transcript_${language.whisperCode}.json');
 
-  File _sessionFile(String youTubeId) =>
-      File('${root.path}/$youTubeId/session.json');
+  File _sessionFile(String videoKey) =>
+      File('${root.path}/$videoKey/session.json');
 
-  File _videoFile(String youTubeId) =>
-      File('${root.path}/$youTubeId/video.json');
+  File _videoFile(String videoKey) => File('${root.path}/$videoKey/video.json');
 
   Future<Object?> _readJson(File file) async {
     try {

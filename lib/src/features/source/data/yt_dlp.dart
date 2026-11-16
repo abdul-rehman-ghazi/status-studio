@@ -16,11 +16,12 @@ enum YtDlpUpdate { updated, upToDate }
 abstract interface class YtDlp {
   /// Without a JavaScript runtime: about twice as fast, but only YouTube
   /// clients that need no challenge solving answer (spec §10 Q4).
-  Future<Map<String, Object?>> quickVideoInfo(String videoId);
+  /// [pageUrl] is any page yt-dlp reads (FR-50).
+  Future<Map<String, Object?>> quickVideoInfo(String pageUrl);
 
   /// With QuickJS solving YouTube's challenges, for videos the quick run
   /// can't read.
-  Future<Map<String, Object?>> videoInfo(String videoId);
+  Future<Map<String, Object?>> videoInfo(String pageUrl);
 
   /// Fetches the newest stable yt-dlp (about 3 MB).
   Future<YtDlpUpdate> update();
@@ -28,9 +29,10 @@ abstract interface class YtDlp {
   Future<String> version();
 
   /// Downloads the audio only to [outputPath] (spec FR-36), reporting the
-  /// fraction done to [onProgress]. The file appears only once whole.
+  /// fraction done to [onProgress]. The file appears only once whole. A
+  /// site with no sound-only stream gives its smallest whole file (FR-50).
   Future<void> downloadAudio({
-    required String videoId,
+    required String pageUrl,
     required String outputPath,
     required void Function(double fraction) onProgress,
   });
@@ -49,14 +51,14 @@ class PlatformYtDlp implements YtDlp {
 
   @override
   Future<void> downloadAudio({
-    required String videoId,
+    required String pageUrl,
     required String outputPath,
     required void Function(double fraction) onProgress,
   }) async {
     _progressListeners[outputPath] = onProgress;
     try {
       await _call<String>('downloadAudio', {
-        'videoId': videoId,
+        'pageUrl': pageUrl,
         'outputPath': outputPath,
       });
     } finally {
@@ -81,12 +83,12 @@ class PlatformYtDlp implements YtDlp {
   }
 
   @override
-  Future<Map<String, Object?>> quickVideoInfo(String videoId) =>
-      _info('quickVideoInfo', videoId);
+  Future<Map<String, Object?>> quickVideoInfo(String pageUrl) =>
+      _info('quickVideoInfo', pageUrl);
 
   @override
-  Future<Map<String, Object?>> videoInfo(String videoId) =>
-      _info('videoInfo', videoId);
+  Future<Map<String, Object?>> videoInfo(String pageUrl) =>
+      _info('videoInfo', pageUrl);
 
   @override
   Future<YtDlpUpdate> update() async {
@@ -98,8 +100,8 @@ class PlatformYtDlp implements YtDlp {
   Future<String> version() => _call<String>('version');
 
   /// The JSON is about 600 KB, so it's decoded off the UI thread.
-  Future<Map<String, Object?>> _info(String method, String videoId) async {
-    final json = await _call<String>(method, videoId);
+  Future<Map<String, Object?>> _info(String method, String pageUrl) async {
+    final json = await _call<String>(method, pageUrl);
     return Isolate.run(() => jsonDecode(json) as Map<String, Object?>);
   }
 
@@ -107,7 +109,7 @@ class PlatformYtDlp implements YtDlp {
     try {
       final reply = await _channel.invokeMethod<T>(method, arguments);
       if (reply == null) {
-        throw YouTubeChangedException('yt-dlp returned nothing for $method.');
+        throw SiteChangedException('yt-dlp returned nothing for $method.');
       }
       return reply;
     } catch (error, stackTrace) {
@@ -140,20 +142,48 @@ const _offline = [
   'connection reset',
 ];
 
-/// yt-dlp's error output decides (spec §8): a video YouTube won't give,
-/// no network, or anything else, which is taken as YouTube having changed.
+const _unsupported = ['unsupported url'];
+
+/// Instagram's own wording, which also says "not available".
+const _loginWall = ['rate-limit reached', 'login required'];
+
+/// Phrases yt-dlp adds to many errors; read only after the more precise
+/// lists, so YouTube's private and age-restricted videos keep their message.
+const _loginHints = ['log in', 'login', 'sign in', 'cookies'];
+
+/// YouTube asking every app to prove it isn't a bot is not about this video:
+/// a newer yt-dlp or a later try may get through (*Claude's call*, FR-50).
+const _botCheck = ['not a bot'];
+
+/// yt-dlp's error output decides (spec §8, FR-50): a site yt-dlp has no
+/// reader for, a video behind a login, a video the site won't give, no
+/// network, or anything else, which is taken as the site having changed.
 Object mapYtDlpError(Object error) {
   if (error is! PlatformException) {
     return mapIoError(error);
   }
-  final message = (error.message ?? '').toLowerCase();
-  if (_unavailable.any(message.contains)) {
-    return VideoUnavailableException('${error.message}');
+  return _mapYtDlpMessage('${error.message}');
+}
+
+Object _mapYtDlpMessage(String message) {
+  final lowerMessage = message.toLowerCase();
+  bool saysAny(List<String> phrases) => phrases.any(lowerMessage.contains);
+  if (saysAny(_unsupported)) {
+    return UnsupportedSiteException(message);
   }
-  if (_offline.any(message.contains)) {
-    return OfflineException('${error.message}');
+  if (saysAny(_loginWall)) {
+    return LoginRequiredException(message);
   }
-  return YouTubeChangedException('${error.message}');
+  if (saysAny(_unavailable)) {
+    return VideoUnavailableException(message);
+  }
+  if (saysAny(_offline)) {
+    return OfflineException(message);
+  }
+  if (saysAny(_botCheck) || !saysAny(_loginHints)) {
+    return SiteChangedException(message);
+  }
+  return LoginRequiredException(message);
 }
 
 final ytDlpProvider = Provider<YtDlp>((ref) => PlatformYtDlp());

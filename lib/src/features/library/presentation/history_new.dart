@@ -10,6 +10,7 @@ import 'package:status_studio/src/features/reel/application/reel_draft_controlle
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/source/domain/video_link.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/presentation/replace_unfinished_dialog.dart';
 import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
@@ -23,9 +24,9 @@ Future<void> startNewFrom(
   WidgetRef ref,
   VideoHistory group,
 ) => switch (group.key) {
-  LinkedVideoKey(:final youtubeId) => _newFromLink(context, ref, (
+  LinkedVideoKey(:final videoKey) => _newFromLink(context, ref, (
     group: group,
-    youtubeId: youtubeId,
+    videoKey: videoKey,
   )),
   LocalVideoKey(:final videoId) => _newFromLocal(context, ref, (
     group: group,
@@ -40,17 +41,15 @@ Future<void> startNewFrom(
 Future<void> _newFromLink(
   BuildContext context,
   WidgetRef ref,
-  ({VideoHistory group, String youtubeId}) target,
+  ({VideoHistory group, String videoKey}) target,
 ) async {
   final video = target.group.facts.linkedVideo;
   if (video == null) {
-    final link = IncomingLink(
-      'https://www.youtube.com/watch?v=${target.youtubeId}',
-    );
+    final link = IncomingLink(youTubeWatchUrl(target.videoKey));
     unawaited(context.push(AppRoutes.link, extra: link));
     return;
   }
-  if (!await clearUnfinishedLinkWork(context, ref, target.youtubeId)) {
+  if (!await clearUnfinishedLinkWork(context, ref, target.videoKey)) {
     return;
   }
   if (!context.mounted) {
