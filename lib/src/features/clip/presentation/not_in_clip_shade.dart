@@ -12,11 +12,16 @@ class NotInClipShade extends StatelessWidget {
     return IgnorePointer(
       child: ColoredBox(
         color: Colors.black54,
-        child: Center(
-          child: Text(
-            'Not in the clip',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(color: Colors.white),
+        // At the top: the middle belongs to Play (M76).
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(
+              'Not in the clip',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(color: Colors.white),
+            ),
           ),
         ),
       ),
