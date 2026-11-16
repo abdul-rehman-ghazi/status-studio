@@ -1985,7 +1985,7 @@ Request (2026-11-16): FR-49. Tests are the owner's; `fvm flutter analyze` only, 
 Request (2026-11-16): "start with the privacy policy", from the leftovers after 0.1.1: §9.1 still described the app before M44 (scripts kept 90 days, language packs, no links). Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** §9.1 rewritten from the code and the FRs (what is kept and for how long, the three kinds of Groq upload, link requests, yt-dlp's updates, the permissions in the merged manifest), the §4 privacy line, FR-31's privacy row, these tasks.
-- [ ] **2. Publish.** `PRIVACY.md` at the repo root with §9.1's text; README links it.
+- [x] **2. Publish.** `PRIVACY.md` at the repo root with §9.1's text; README links it.
 - [ ] **3. About link.** "Privacy policy" under Open-source licences (FR-31), opening it in the browser through `url_launcher`, with the snackbar when nothing opens it. New tests (owner): §13 "Privacy policy link (M60)".
 - [ ] **4. Status.** §12 row, §13 entry; push.
 
