@@ -63,7 +63,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
      - **HTTP 429:** wait `retry-after` and resend when it's 60 s or less, showing "Waiting for Groq · 0:42 left"; otherwise the §8 error.
      - **HTTP 5xx or 498:** resend once after 2 s, then the §8 error.
      - **Cancel** stops before the next piece.
-- **Automatic language** is inferred from the transcript text (§6.4) and shown, e.g. "Urdu (detected)".
+- **Automatic language** is inferred from the transcript text (§6.4) and shown in the Get steps, e.g. "Found: Urdu" (until M61 this read "Urdu (detected)", a label no screen used after M54).
 - **No speech found** gives the §8 error.
 - **Whole clip:** the script covers the whole video. There are no start and end lines to pick (FR-4).
 
@@ -151,7 +151,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - A reel whose file was deleted outside the app is skipped.
 - **Saved scripts:** every saved script (FR-14) has a row as soon as the video is processed.
   - Reels and scripts share one list, newest first. Empty, it reads "Your reels and scripts will appear here."
-  - A script row shows a script icon, the video's name and `Script · <language> · <video length> · <d MMM>`, where an automatic script names its detected language ("Urdu (detected)").
+  - A script row shows a script icon, the video's name and `Script · <language> · <video length> · <d MMM>`, where an automatic script names its detected language ("Urdu (detected)"). (History has no script rows since M54; the label's code was removed in M61.)
   - Tap opens Fine-tune without Processing. It reopens from the kept `source.<ext>`. When that file is missing, the row says "Choose or share the video again" and the §8 "Video not found" message shows.
   - Long-press offers Delete, which removes that script, its unfinished progress and the kept video.
 - **Fine-tunes to continue (FR-24):** a Continue row replaces the video's script row; long-press offers Delete, which removes the fine-tune and the video's script, as Delete on a script row does (changed 2026-11-06: the script row used to show again).
@@ -1164,6 +1164,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | Built, branch `m58-reel-bitrate` (from `dev`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean; the debug APK builds; the iOS change is not compiled. The phone check is the owner's: a reel's size and look at 4 Mbit/s. Tests not run |
 | M59 Stray reel files | Files in `reels/` that no reel names (a killed render's MP4 and caption PNGs) are deleted at start-up after an hour (FR-49) | Built, branch `m59-stray-reel-files` (stacked on `m58-reel-bitrate`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean. Tests not run |
 | M60 Privacy policy | The policy rewritten for links, yt-dlp, Groq's chat use and today's storage rules; published as `PRIVACY.md` and linked from About (§9.1, FR-31) | Built, branch `m60-privacy-policy` (from `dev`), merged into `dev` (2026-11-16); `PRIVACY.md` is live there (About's link points at the `dev` copy). Analyze clean. Tests not run |
+| M61 Known issues | The two small §15 bugs (the "(detected)" language label, Style's first-line preview): both gone since M30/M54; their dead code removed | Built, branch `m61-known-issues` (from `dev`), pushed, not merged. Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1991,6 +1992,14 @@ Request (2026-11-16): "start with the privacy policy", from the leftovers after 
 - [x] **4. Status.** §12 row, §13 entry; push.
 - [x] **5. Consent copy.** Asked by the owner (2026-11-16): the consent screen's "What is sent" point (FR-30, §7) names translating a linked clip's lyrics, as §9.1 does. **Stale tests:** any that match the old sentence ("…to update a moment's words, the script around it.").
 
+### M61 tasks (branch `m61-known-issues`, from `dev`)
+
+Request (2026-11-16): "fix the two small bugs in §15". Neither shows in today's app: the code behind each lost its last caller in an earlier milestone. Tests are the owner's; Claude runs analyze only.
+
+- [x] **1. Language label.** `scriptLanguageLabel` ("Urdu (detected)") has had no caller since M54 removed Recent; the picker (`ScriptLanguagePicker`) lists "Detect automatically" and the languages, and the Get steps say "Found: Urdu". Removed; FR-3 and FR-11 (§3) brought in line. **Stale tests:** any of `scriptLanguageLabel`.
+- [x] **2. First-line preview.** `ReelPreview` and `ReelPreviewWithoutVideo` (with `_firstLineCaption`, `_SourceFrame`, `_VideoPlaceholder`) have had no caller since M30; Lyrics' `ReelStage` shows the cue due at the playhead (`cueDueAt`). Removed; `previewSourceSize` and `ReelOverlayLayer` stay. **Stale tests:** any that pump `ReelPreview` or `ReelPreviewWithoutVideo`.
+- [x] **3. Status.** §15 entries marked gone, §12 row; push (not merge).
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -2101,7 +2110,7 @@ Request (2026-11-16): "start with the privacy policy", from the leftovers after 
   - The frame arguments use file time (the offset subtracted), the sampling rate falls for long clips and never below 2, and the cut parser reads FFmpeg's times.
   - Replace is asked only when more than one keyframe exists. Cancel, leaving, turning the move off, and a clip or size change stop the run, delete the frames and change nothing; a hand edit during the run wins. The detector is closed after every run.
   - A build without the scene filter is run again without it. The cuts file path is escaped for the filter graph. Until the first frame is looked at the bar is indeterminate.
-- **One decoder at a time (M25 fix):** opening Caption releases Lyrics' player, and opening Export releases Caption's preview player (`ReelPreviewWithoutVideo` in its place); each is made again once the next screen has slid away; going back from Export (or from Done, which replaces it) restores Caption's preview; popping Caption restores Lyrics' player. A double tap on Next or Export opens one screen only, and Back pressed in the frame between the tap and the push opens nothing.
+- **One decoder at a time (M25 fix):** opening Caption releases Lyrics' player, and opening Export releases Caption's preview player (`ReelPreviewWithoutVideo` in its place; Caption went in M30 and `ReelPreviewWithoutVideo` in M61); each is made again once the next screen has slid away; going back from Export (or from Done, which replaces it) restores Caption's preview; popping Caption restores Lyrics' player. A double tap on Next or Export opens one screen only, and Back pressed in the frame between the tap and the push opens nothing.
 - **Moving crop (FR-22):**
   - A glide moves in a straight line and arrives at its keyframe's time; a cut holds the earlier anchor until then and has jumped at exactly that time. Dart and Kotlin share their boundary cases.
   - Before the first keyframe the first anchor holds, and after the last the last.
@@ -2317,8 +2326,8 @@ Removed on 2026-11-10: the owner does all device testing themselves and keeps th
 - **iOS render (M26, from reading the code, not from a phone):** an iPhone HDR clip (10-bit HLG or Dolby Vision) is read as 8-bit Rec. 709, so its colours can look flat; no tone mapping is done. The renderer was never run, so every item under §14's iOS section is open.
 - **iOS launch image (found in M27):** `flutter build ipa` warns that the iOS launch image is still Flutter's placeholder, so iOS likely doesn't show FR-20's dark screen with the logo before Flutter starts. Not a store blocker; replace `LaunchImage` in `ios/Runner/Assets.xcassets` when iOS is next worked on. Since M35 the storyboard's background is the `LaunchBackground` colour set, light or dark with the phone (FR-20).
 - (Removed in M23: there is no download; Processing's first step is "Preparing the audio".)
-- The language list shows both "English (detected)" and "English".
-- **Moving crop (M19):** (a) Style's preview shows the first caption line whatever the time. (b) (Gone in M23: the player holds the whole video, so a keyframe outside the clip can be shown.)
+- (Gone, confirmed in M61: the language list showing both "English (detected)" and "English". The picker lists "Detect automatically" and the languages; the "(detected)" label had no caller after M54 and was removed.)
+- **Moving crop (M19):** (a) (Gone, confirmed in M61: Style's preview showed the first caption line whatever the time. Since M30 Lyrics' player shows the line due at the playhead; the still `ReelPreview` had no caller and was removed.) (b) (Gone in M23: the player holds the whole video, so a keyframe outside the clip can be shown.)
 - **Preview timing (M25):** the Lyrics preview reads the crop from the playhead's estimated position (the platform reports about twice a second), so at a scene cut its crop can sit a few milliseconds off the picture while playing. The export reads each frame's own time and is exact (on the reference clip the detector's cut is the first new frame; a file whose first video timestamp is not 0 could still put FFmpeg's and Media3's clocks tens of milliseconds apart, which §14's frame-by-frame check would show). A fade at cuts was tried and removed at the owner's request.
 - **Bodies (M25):** the detector's output was only judged by eye on 11 frames; false positives on a clip with no person were not measured; a release build's times and the GPU or NNAPI delegates were not tried; the model loads on first use (about 0.8 s, twice per run: once for the pictures, once for the body phase); `tflite_flutter`'s native library is 16 KB page aligned (checked in M27 task 6); the body anchor is provisional (§10 item 7).
 - **Crowd shots (M25):** a shot with dozens of faces offers only the 6 biggest faces and the people the body detector finds (3 foreground people on the reference clip's crowd shots); a face in the crowd can't be chosen, but a spot can.
