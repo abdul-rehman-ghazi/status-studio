@@ -75,6 +75,10 @@ class TopicFinder {
     }
     result.value = blocksFromLines(lines.value);
     await store.saveBlocks(youTubeId, language, result.value);
+    // Only after the save: until then the audio and pieces let an
+    // interrupted Groq run resume. A transcript in another language
+    // downloads the audio again (FR-47).
+    await services.audio.deleteDownloaded(request.video);
   }
 
   Stream<TopicProgress> _writtenByGroq(

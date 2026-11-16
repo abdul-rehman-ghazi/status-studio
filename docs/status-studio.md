@@ -546,7 +546,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - For a local video, the one range is the clip's start and end.
   - For a joined link clip, `link.json` also keeps each cut's source start and end and where it starts in the joined file. A reel's ranges are the part of each cut inside its trim, mapped back to the YouTube video, without the transition margins. A clip joined before M54 has no cut times, so its reels are grouped but have no chips (*Claude's call*).
 - **Used marks on Review cuts:** script blocks that overlap a range used by a reel of this video are tinted and tagged "In <reel name>", naming the newest such reel. A moment card in Your moments that overlaps gets the same tag (*Claude's call*). This is a mark only; a used block can still be chosen. Local videos have no mark, only the chips in History (*Claude's call*).
-- **Retention:** saved scripts and linked transcripts no longer expire. FR-14's 90 days and 200 videos no longer apply to them; they go only with Delete video. Kept files (a local video's copy, a link's `source.m4a`, cut downloads) still go after 90 days unused. Reels: at most 50, as FR-11.
+- **Retention:** saved scripts and linked transcripts no longer expire. FR-14's 90 days and 200 videos no longer apply to them; they go only with Delete video. Kept files (a local video's copy, a link's `source.m4a`, cut downloads) still go after 90 days unused; since M57 a link's `source.m4a` and its pieces go as soon as its transcript is saved (FR-47). Reels: at most 50, as FR-11.
 - **Old data, removed once at the first start after the update:** reels with no recorded source, meaning the record, MP4 and thumbnail (the owner: no "Older reels" section). Copies saved to the gallery stay.
 
 **FR-28 Search the script (M53, Android only).** Reserved on 2026-11-05 and placed here. Asked by the owner (2026-11-13), once the topic search was removed: "will need it to look for context". The owner chose a word search on the phone over a meaning search through Groq.
@@ -579,12 +579,17 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Adding a run doesn't open it; the count on Moments goes up (*Claude's call*).
   - The panel is part of Review cuts, not a route of its own, so a tick, a reorder or Play's download shows at once (*Claude's call*).
 
+**FR-47 Free the storage nothing uses (M57).** Found by the owner (2026-11-16): the app took 2 GB on the phone while History showed three videos. Three leaks, besides the on-device Whisper model of before M10 (`files/ggml-medium.bin`, 539 MB), which the owner deleted by hand and no code removes (the owner: "do not add code").
+- **A link's audio goes once its transcript is saved.** The whole audio (`sources/v_yt_<ID>/source.m4a`) and its cleaned pieces only serve the Groq transcript of FR-36. Once that transcript is saved under `topics/`, the folder is deleted; the `v_yt_` script under `transcripts/` stays. A transcript in another output language downloads the audio again (*Claude's call*: rare, and the audio was 30–50 MB a talk plus as much again in pieces).
+- **A kept video nobody can reach goes after 7 days.** Until M57 a `sources/<videoId>/` folder was kept for 90 days whenever its `transcripts/<videoId>/` folder existed, and saving a video's title (on import) creates that folder. So a video imported and left without a script, a fine-tune or a reel had no History group (M54) yet kept its copy. Now a kept video counts as unused when its `transcripts/` folder holds nothing but its title and last-used time, and no reel records it as its source; such a folder is deleted when nothing in it has changed for 7 days. Its title-only `transcripts/` folder stays (*Claude's call*: a few bytes).
+- **Not changed:** a reel file whose record is gone from the reel list (one such 64 MB file was found and deleted by hand) is not looked for.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, set for ML Kit; kept after ML Kit went in M47, since nothing is gained by lowering it). iOS is built in M26. Store builds become possible (§9, M27).
 - **Responsiveness:** transcription, FFmpeg, waveform peaks and file I/O never block the UI isolate. Every long step shows progress and can be cancelled.
 - **Storage (changed in M23):**
-  - Kept videos: `sources/<videoId>/source.<ext>` in app support, the file the user shared or picked, kept once (FR-1); for an AV1 video, its H.264 copy `source.h264.mp4` instead (M31). It stays while its script or fine-tune is kept (FR-14 retention) and is deleted with them; imported but never scripted, it is deleted after 7 days. Saving a video's title counts as a use, so a video just imported isn't pruned. Cleaned audio pieces (FR-26) are cached beside it.
+  - Kept videos: `sources/<videoId>/source.<ext>` in app support, the file the user shared or picked, kept once (FR-1); for an AV1 video, its H.264 copy `source.h264.mp4` instead (M31). It stays while its script or fine-tune is kept (FR-14 retention) and is deleted with them; imported but never scripted, it is deleted after 7 days (since M57 also when only its title is kept and no reel was made from it, FR-47). Saving a video's title counts as a use, so a video just imported isn't pruned. Cleaned audio pieces (FR-26) are cached beside it.
   - Saved scripts: `transcripts/` in app support (FR-14).
   - Unfinished fine-tunes: `draft-<requested>.json` beside the scripts in `transcripts/<videoId>/` (FR-24); they go with the folder.
   - Exports: `reels/` in app documents.
@@ -1132,6 +1137,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M54 History | A History screen grouping reels, scripts and unfinished work per video, with New, Continue and the source times each reel used; Carry on on Home (FR-44) | Built, branch `m54-history` (stacked on `m53-links-without-topic`), merged into `dev` with M53–M54 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
 | M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | Built, branch `m55-groq-allowance` (from `dev`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Task 7 (same day): Groq sends no audio headers, so the audio is counted on the phone. The phone check is the owner's. Tests not run |
 | M56 One moment, moments sheet | One moment is kept without a join or re-encode; Your moments opens in a sheet from the footer (FR-46) | Built, branch `m56-one-moment-and-moments-sheet` (stacked on `m55-groq-allowance`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's: one moment's kept cut file plays and exports from the moment's place (the stream-copied file's edit list, §10 item 10). Tests not run |
+| M57 Free storage | A link's audio and pieces go once its transcript is saved; a kept video with only its title and no reel goes after 7 days (FR-47) | Built, branch `m57-free-storage` (from `dev`), pushed, not merged (2026-11-16). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1923,6 +1929,15 @@ Request (2026-11-13): FR-46. Tests are the owner's; `fvm flutter analyze` only, 
 - [x] **3. Your moments in a sheet.** `topic/presentation/moments_panel.dart` (`MomentsPanel`, `MomentsPanelContent`; `MomentActions` moves there); `ScriptPage` drops the moments and their header; Review cuts' footer gets Moments (n), and the panel sits over the script page with a shade and closes on ×, Moments, the shade, Back and Make the clip. **New tests to write:** Moments opens the panel with the cards; × and Back close it; ticking in the panel updates the footer's total; no moments shows the empty text; the script page shows no moment cards. **Stale:** `script_page_test.dart` cases that find "Your moments" or a card on the page.
 - [x] **4. Status.** §12 row, §13 entries; push.
 
+### M57 tasks (branch `m57-free-storage`, from `dev`)
+
+Request (2026-11-16): FR-47. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-47, §4 Storage, FR-44 retention, this list and the §12 row.
+- [x] **2. A link's audio goes with its transcript saved.** `LinkedAudioDownloader.deleteDownloaded(video)` deletes `sources/v_yt_<ID>/` through `SourceCache.deleteVideo`; `TopicFinder` calls it after `TopicStore.saveBlocks`. **New tests to write:** after a Groq transcript is saved the `v_yt_` folder is gone; a failed save keeps it; captions leave nothing to delete. **Stale:** none known.
+- [x] **3. Unreachable kept videos go.** `deleteOrphanedSources` keeps a source only when its `transcripts/` folder holds more than `video.json` and `last_used`, or a reel's `sourceVideoId` names it; `cleanUpOnStart` takes a `CleanupPlaces` value (sources, scripts, reel source IDs from `RecentReelsRepository.load`), and the 7-day age is a constant. **New tests to write:** a title-only video older than 7 days is deleted; one with a script, a partial, a draft or a reel stays; a title-only video changed within 7 days stays. **Stale:** `deleteOrphanedSources` and `cleanUpOnStart` tests (signature, `maxAge`).
+- [x] **4. Status.** §12 row, §13 entries; push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -2215,6 +2230,11 @@ Request (2026-11-13): FR-46. Tests are the owner's; `fvm flutter analyze` only, 
   - Its `LinkedClip` has no join times and one cut whose joined start is the moment's place in the file; Fine-tune opens on that place.
   - An AV1 moment is converted through the joiner and reports "Converting the cut"; two or more moments are joined as before.
   - Review cuts' footer shows Moments (n); the panel opens and closes on ×, Moments, the shade and Back; a tick in it updates the total; with none it shows the empty text.
+
+- **Free storage (FR-47, M57):**
+  - After a Groq transcript of a link is saved under `topics/`, `sources/v_yt_<ID>/` is gone; a failed save keeps it; captions leave nothing to delete.
+  - A kept video whose `transcripts/` folder holds only `video.json` and `last_used`, with no reel made from it, is deleted after 7 days unchanged; within 7 days it stays.
+  - A script, Groq progress, a fine-tune draft or a reel's `sourceVideoId` keeps it.
 
 - **Faces with BlazeFace (FR-23, M47):**
   - `Letterbox.forFrame` centres a 640 × 360 frame as 192 × 108 at top 42, and a 360 × 640 frame as 108 × 192 at left 42.

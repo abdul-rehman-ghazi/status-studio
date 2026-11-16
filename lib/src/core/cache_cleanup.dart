@@ -1,19 +1,49 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/source/data/video_fingerprint.dart';
 import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 
-/// Deletes the `sources/<id>` folders in [sources] that were imported but
-/// never scripted: no `transcripts/<id>` folder in [transcripts] at all, and
-/// nothing in them changed for [maxAge] (spec §4 Storage). A video whose
-/// script or fine-tune draft is kept is never deleted here; after 90 days
-/// unused its kept files go and its script stays (FR-44). Returns how many
-/// were deleted.
+const _unusedSourceAge = Duration(days: 7);
+
+/// What a `transcripts/<videoId>/` folder holds once a video is imported:
+/// its title and last-used time. Anything else is work worth keeping.
+const _titleOnlyNames = {'video.json', 'last_used'};
+
+/// What keeps a kept video from being deleted as unused (spec FR-47): a
+/// script, Groq progress or a fine-tune draft beside its title, or a reel
+/// made from it, whose New reopens Fine-tune on it.
+@immutable
+class KeptWork {
+  const KeptWork({required this.transcripts, required this.reelSourceIds});
+
+  final Directory transcripts;
+  final Set<String> reelSourceIds;
+
+  bool keeps(String videoId) =>
+      reelSourceIds.contains(videoId) || _hasSavedWork(videoId);
+
+  bool _hasSavedWork(String videoId) {
+    final folder = Directory('${transcripts.path}/$videoId');
+    if (!folder.existsSync()) {
+      return false;
+    }
+    return folder.listSync().any(
+      (entry) => !_titleOnlyNames.contains(_nameOf(entry)),
+    );
+  }
+}
+
+/// Deletes the `sources/<id>` folders in [sources] that [kept] doesn't keep
+/// and in which nothing changed for 7 days (spec §4 Storage, FR-47): a
+/// video imported and left without a script, a fine-tune or a reel has no
+/// History group, so nothing could reach it. After 90 days unused a kept
+/// video's files go even with a script, which stays (FR-44). Returns how
+/// many were deleted.
 Future<int> deleteOrphanedSources(
   Directory sources, {
-  required Directory transcripts,
+  required KeptWork kept,
   required DateTime now,
-  Duration maxAge = const Duration(days: 7),
 }) async {
   if (!await sources.exists()) {
     return 0;
@@ -21,8 +51,8 @@ Future<int> deleteOrphanedSources(
   var deleted = 0;
   await for (final entry in sources.list()) {
     if (entry is Directory &&
-        !_hasTranscripts(entry, transcripts) &&
-        now.difference(_lastChange(entry)) > maxAge) {
+        !kept.keeps(_nameOf(entry)) &&
+        now.difference(_lastChange(entry)) > _unusedSourceAge) {
       await _deleteIfPresent(entry);
       deleted++;
     }
@@ -30,10 +60,8 @@ Future<int> deleteOrphanedSources(
   return deleted;
 }
 
-bool _hasTranscripts(Directory source, Directory transcripts) {
-  final videoId = source.uri.pathSegments.lastWhere((name) => name.isNotEmpty);
-  return Directory('${transcripts.path}/$videoId').existsSync();
-}
+String _nameOf(FileSystemEntity entry) =>
+    entry.uri.pathSegments.lastWhere((name) => name.isNotEmpty);
 
 /// A prune running at the same time may have deleted it first.
 Future<void> _deleteIfPresent(Directory folder) async {
@@ -63,8 +91,7 @@ Future<int> deleteFoldersWithoutFingerprint(Directory root) async {
   }
   var deleted = 0;
   await for (final entry in root.list()) {
-    final name = entry.uri.pathSegments.lastWhere((part) => part.isNotEmpty);
-    if (entry is Directory && !isVideoId(name)) {
+    if (entry is Directory && !isVideoId(_nameOf(entry))) {
       await _deleteIfPresent(entry);
       deleted++;
     }
@@ -72,37 +99,60 @@ Future<int> deleteFoldersWithoutFingerprint(Directory root) async {
   return deleted;
 }
 
+/// Where the start-up cleanup looks.
+@immutable
+class CleanupPlaces {
+  const CleanupPlaces({
+    required this.sources,
+    required this.scripts,
+    required this.reelSourceIds,
+  });
+
+  final Future<Directory> sources;
+  final Future<TranscriptStore> scripts;
+
+  /// Read only when the unused-video pass starts, so a failure to read the
+  /// reels can't surface before anything listens for it.
+  final Future<Set<String>> Function() reelSourceIds;
+}
+
 /// Startup housekeeping: kept videos unused for 90 days, their scripts
 /// staying (FR-44; until M54 the scripts went too, and beyond 200 videos),
-/// videos imported but never scripted, and the
-/// folders of videos from before M23. Each runs even if another fails; the
-/// first failure is then rethrown to be reported.
-Future<void> cleanUpOnStart({
-  required Future<Directory> sources,
-  required Future<TranscriptStore> scripts,
+/// kept videos nothing can reach (FR-47), and the folders of videos from
+/// before M23. Each runs even if another fails; the first failure is then
+/// rethrown to be reported.
+Future<void> cleanUpOnStart(
+  CleanupPlaces places, {
   required DateTime now,
 }) async {
   // First and alone: the other passes list and delete inside these folders.
   Object? firstFailure;
   try {
     await Future.wait([
-      sources.then(deleteFoldersWithoutFingerprint),
-      scripts.then((store) => deleteFoldersWithoutFingerprint(store.root)),
+      places.sources.then(deleteFoldersWithoutFingerprint),
+      places.scripts.then(
+        (store) => deleteFoldersWithoutFingerprint(store.root),
+      ),
     ]);
   } on Object catch (failure) {
     firstFailure = failure;
   }
   await Future.wait([
-    scripts.then((store) => store.deleteUnusedKeptVideos()),
-    Future.wait([sources, scripts]).then(
-      (both) => deleteOrphanedSources(
-        both[0] as Directory,
-        transcripts: (both[1] as TranscriptStore).root,
-        now: now,
-      ),
-    ),
+    places.scripts.then((store) => store.deleteUnusedKeptVideos()),
+    _deleteUnreachableSources(places, now),
   ]);
   if (firstFailure != null) {
     throw firstFailure;
   }
+}
+
+Future<int> _deleteUnreachableSources(
+  CleanupPlaces places,
+  DateTime now,
+) async {
+  final kept = KeptWork(
+    transcripts: (await places.scripts).root,
+    reelSourceIds: await places.reelSourceIds(),
+  );
+  return deleteOrphanedSources(await places.sources, kept: kept, now: now);
 }
