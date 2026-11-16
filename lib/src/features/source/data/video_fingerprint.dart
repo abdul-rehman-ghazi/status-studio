@@ -17,6 +17,13 @@ final _videoIdPattern = RegExp(
   '^$videoIdPrefix([0-9a-f]{$_idHexLength}|yt_[A-Za-z0-9_-]{1,64})\$',
 );
 
+final _fingerprintPattern = RegExp('^$videoIdPrefix[0-9a-f]{$_idHexLength}\$');
+
+/// Whether [videoId] is a kept video's own fingerprint, not a linked
+/// video's audio or key (spec FR-51).
+bool isLocalFingerprint(String videoId) =>
+    _fingerprintPattern.hasMatch(videoId);
+
 /// Whether [folderName] is a current video ID, not one from before M23
 /// (a bare YouTube ID), which the start-up cleanup removes.
 bool isVideoId(String folderName) => _videoIdPattern.hasMatch(folderName);

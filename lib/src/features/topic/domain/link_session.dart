@@ -1,15 +1,16 @@
 import 'package:flutter/foundation.dart';
-import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 
 const _version = 2;
 
-/// A link left on Review cuts, continued from Recent (spec FR-38): one per
-/// linked video since M53 (FR-43).
+/// A video left on Review cuts, continued from Recent (spec FR-38): one per
+/// linked video since M53 (FR-43), and one per kept video since M71
+/// (FR-51).
 @immutable
 class LinkSession {
   const LinkSession({
@@ -63,7 +64,7 @@ class LinkSession {
 }
 
 Map<String, Object?> _requestToJson(TopicRequest request) => {
-  'video': request.video.toJson(),
+  'video': request.source.toJson(),
   'outputLanguage': request.outputLanguage.whisperCode,
 };
 
@@ -73,7 +74,7 @@ TopicRequest _requestFromJson(Map<String, Object?> json) => switch (json) {
     'outputLanguage': final String language,
   } =>
     TopicRequest(
-      video: LinkedVideo.fromJson(video),
+      source: MomentSource.fromJson(video),
       outputLanguage: _languageOf(language),
     ),
   _ => throw const FormatException('Not a topic request.'),

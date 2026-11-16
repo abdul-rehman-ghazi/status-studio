@@ -1,23 +1,35 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
-import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/topic/data/output_language_store.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_usage_text.dart';
 
-/// Output language and Get the script under a read link (spec FR-43).
-class ScriptFields extends StatefulWidget {
-  const ScriptFields({required this.video, required this.onGet, super.key});
+/// Output language and Get the script under a read link (spec FR-43) or a
+/// kept video (FR-51). The last language used is preselected.
+class ScriptFields extends ConsumerStatefulWidget {
+  const ScriptFields({required this.source, required this.onGet, super.key});
 
-  final LinkedVideo video;
+  final MomentSource source;
   final ValueChanged<TopicRequest> onGet;
 
   @override
-  State<ScriptFields> createState() => _ScriptFieldsState();
+  ConsumerState<ScriptFields> createState() => _ScriptFieldsState();
 }
 
-class _ScriptFieldsState extends State<ScriptFields> {
+class _ScriptFieldsState extends ConsumerState<ScriptFields> {
   var _outputLanguage = ScriptLanguage.urdu;
+  var _chosen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_preselectLastLanguage());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,19 +45,45 @@ class _ScriptFieldsState extends State<ScriptFields> {
               DropdownMenuItem(value: language, child: Text(language.label)),
           ],
           onChanged: (language) {
-            if (language != null) setState(() => _outputLanguage = language);
+            if (language == null) {
+              return;
+            }
+            setState(() {
+              _outputLanguage = language;
+              _chosen = true;
+            });
           },
         ),
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: () => widget.onGet(
-            TopicRequest(video: widget.video, outputLanguage: _outputLanguage),
-          ),
+          onPressed: _get,
           icon: const Icon(Icons.subject),
           label: const Text('Get the script'),
         ),
         const GroqUsageHint(),
       ],
+    );
+  }
+
+  /// A choice made before the saved one is read wins.
+  Future<void> _preselectLastLanguage() async {
+    try {
+      final saved = await ref.read(outputLanguageStoreProvider).read();
+      if (mounted && !_chosen) setState(() => _outputLanguage = saved);
+    } on Exception {
+      // Urdu stays preselected.
+    }
+  }
+
+  void _get() {
+    unawaited(
+      ref
+          .read(outputLanguageStoreProvider)
+          .save(_outputLanguage)
+          .catchError((Object _) {}),
+    );
+    widget.onGet(
+      TopicRequest(source: widget.source, outputLanguage: _outputLanguage),
     );
   }
 }

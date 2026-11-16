@@ -25,13 +25,17 @@ import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
 import 'package:status_studio/src/features/topic/domain/cut_edits.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/topic/presentation/moments_panel.dart';
 import 'package:status_studio/src/features/topic/presentation/script_page.dart';
 import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
+import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
+import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_key_settings_route.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_shortfall_question.dart';
@@ -216,7 +220,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   /// The reels made from this linked video, for the used marks (spec
   /// FR-44).
   List<RecentReel> _reelsOfThisVideo() {
-    final videoKey = widget.request.video.videoKey;
+    final videoKey = widget.request.source.key;
     final reels = ref.watch(recentReelsProvider).value ?? const [];
     return [
       for (final reel in reels)
@@ -233,7 +237,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     setState(() => _preparingPlay = cut);
     try {
       final order = PreviewOrder(
-        video: widget.request.video,
+        source: widget.request.source,
         cut: cut,
         wholeVideo: _wholeVideo,
       );
@@ -278,7 +282,9 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       return;
     }
     _keep();
-    unawaited(_saver.saveVideo(widget.request.video));
+    if (widget.request.source case LinkedMoments(:final video)) {
+      unawaited(_saver.saveVideo(video));
+    }
     _find();
   }
 
@@ -300,7 +306,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     if (!mounted) {
       return false;
     }
-    return goOnWhenGroqIsShort(context, ref, request.video.duration);
+    return goOnWhenGroqIsShort(context, ref, request.source.duration);
   }
 
   /// An unreadable store counts as no script: asking is the safe side.
@@ -309,11 +315,32 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     try {
       final store = await ref.read(topicStoreProvider.future);
       final saved = await store.savedBlocks(
-        request.video.videoKey,
+        request.source.key,
         request.outputLanguage,
       );
-      return saved != null;
+      return saved != null || await _isLyricsScriptSaved();
     } on Exception {
+      return false;
+    }
+  }
+
+  /// A kept video's script saved by Lyrics (spec FR-14, FR-51) is reused
+  /// too, so it sends nothing.
+  Future<bool> _isLyricsScriptSaved() async {
+    final request = widget.request;
+    if (request.source is! LocalMoments) {
+      return false;
+    }
+    final scripts = await ref.read(transcriptStoreProvider.future);
+    try {
+      await scripts.load(
+        TranscriptKey(
+          videoId: request.source.key,
+          language: request.outputLanguage,
+        ),
+      );
+      return true;
+    } on NoSavedTranscriptException {
       return false;
     }
   }
@@ -475,7 +502,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     (cuts) => nudgeCut(
       cuts,
       CutNudge(index: index, startBy: startBy, endBy: endBy),
-      videoLength: widget.request.video.duration,
+      videoLength: widget.request.source.duration,
     ),
   );
 
@@ -518,7 +545,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     setState(() {
       _makeFailure = null;
       _momentsOpen = false;
-      _making = const ReadingStreams();
+      _making = _firstMakingStep();
     });
     try {
       final made = await ref.read(backgroundClipMakerProvider).make(
@@ -537,7 +564,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       }
       setState(() => _making = null);
       // The joined clip's own Recent row takes the session's place.
-      unawaited(_saver.delete(widget.request.video.videoKey));
+      unawaited(_saver.delete(widget.request.source.key));
       ref.invalidate(isVideoKeptProvider);
       ref.read(reelDraftProvider.notifier).setVideoOn(made.video, made.clip);
       await context.push(AppRoutes.fineTune);
@@ -561,6 +588,13 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       }
     }
   }
+
+  /// A kept video downloads nothing, so its run starts at the join (spec
+  /// FR-51).
+  MakingProgress _firstMakingStep() => switch (widget.request.source) {
+    LinkedMoments() => const ReadingStreams(),
+    LocalMoments() => const JoiningCuts(0),
+  };
 
   /// Download keeps the answer while the screen is open; Cancel returns
   /// to the moments (spec FR-50).

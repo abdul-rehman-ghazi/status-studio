@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/join/domain/joined_cut.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 
 /// What a clip joined from a link keeps beside its video (spec FR-37):
 /// where it came from and where its cuts meet. A `topic` written before
@@ -16,6 +17,7 @@ class LinkedClip {
     required this.transition,
     required this.joinTimes,
     required this.cuts,
+    this.sourceKind = MomentSourceKind.link,
   });
 
   /// Throws [FormatException] for a JSON that isn't a saved linked clip.
@@ -38,6 +40,10 @@ class LinkedClip {
           for (final time in joinTimesMs)
             if (time is int) Duration(milliseconds: time),
         ],
+        // A clip joined before M71 has no kind: it came from a link.
+        sourceKind: json['kind'] == MomentSourceKind.local.name
+            ? MomentSourceKind.local
+            : MomentSourceKind.link,
         // A clip joined before M54 kept no cut times (spec FR-44).
         cuts: switch (json['cuts']) {
           final List<Object?> cuts => cuts.map(JoinedCut.fromJson).toList(),
@@ -48,6 +54,8 @@ class LinkedClip {
     throw const FormatException('Not a saved linked clip.');
   }
 
+  /// The source's key: a link's video key, or a kept video's fingerprint
+  /// (spec FR-51).
   final String videoKey;
   final String title;
   final String channel;
@@ -64,7 +72,10 @@ class LinkedClip {
   /// M54.
   final List<JoinedCut> cuts;
 
+  final MomentSourceKind sourceKind;
+
   Map<String, Object?> toJson() => {
+    if (sourceKind == MomentSourceKind.local) 'kind': sourceKind.name,
     'youtubeId': videoKey,
     'title': title,
     'channel': channel,

@@ -345,7 +345,7 @@ class _LinkSessionRow extends ConsumerWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const _LinkThumbnail(),
-      title: ScriptText(session.request.video.title, maxLines: 1),
+      title: ScriptText(session.request.source.title, maxLines: 1),
       subtitle: Text(
         'Script · Review cuts · '
         '${formatDayMonth(session.savedAt.toLocal())}',

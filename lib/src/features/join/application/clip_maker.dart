@@ -6,6 +6,7 @@ import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/join/application/whole_video.dart';
 import 'package:status_studio/src/features/join/data/clip_joiner.dart';
 import 'package:status_studio/src/features/join/data/cut_downloader.dart';
+import 'package:status_studio/src/features/join/data/kept_video_cut.dart';
 import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/join/data/linked_streams_reader.dart';
 import 'package:status_studio/src/features/join/domain/cut_window.dart';
@@ -17,10 +18,12 @@ import 'package:status_studio/src/features/join/domain/linked_clip.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 import 'package:status_studio/src/features/source/data/local_video_importer.dart';
+import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 
@@ -59,7 +62,9 @@ class MadeClip {
 typedef _CutLayout = ({List<Duration> joinTimes, List<JoinedCut> cuts});
 
 /// The downloaded cuts and the streams they came from, the last ones read.
-typedef _FetchedCuts = ({List<DownloadedCut> cuts, CutStreams streams});
+/// [pictureIsH264] is false only for an AV1 picture, which a phone may not
+/// decode for the join.
+typedef _FetchedCuts = ({List<DownloadedCut> cuts, bool pictureIsH264});
 
 class ClipMakerServices {
   const ClipMakerServices({
@@ -69,6 +74,7 @@ class ClipMakerServices {
     required this.importer,
     required this.links,
     required this.joinsFolder,
+    required this.sources,
   });
 
   final LinkedStreamsReader streams;
@@ -80,6 +86,9 @@ class ClipMakerServices {
   /// In the cache, which the importer owns, so the joined file is moved
   /// into `sources/` rather than copied.
   final Future<Directory> joinsFolder;
+
+  /// Where a kept video's file is (spec FR-51).
+  final Future<SourceCache> sources;
 }
 
 /// One run of Make the clip: what Cancel must stop.
@@ -110,8 +119,11 @@ class ClipMaker {
   ) async {
     final run = _run = _MakingRun(onProgress);
     try {
+      if (order.request.source case LocalMoments(:final video)) {
+        return await _makeFromKept(order, video, run);
+      }
       final fetched = await _downloadCuts(order, run);
-      if (fetched.cuts case [final only] when fetched.streams.video.isH264) {
+      if (fetched.cuts case [final only] when fetched.pictureIsH264) {
         return await _keepOne(only, order, run);
       }
       return await _joinAndKeep(fetched, order, run);
@@ -122,10 +134,34 @@ class ClipMaker {
     }
   }
 
+  /// Nothing downloads (spec FR-51): each cut is the kept file itself. One
+  /// moment opens on the kept video at the moment, with no copy; several
+  /// join as FR-37 joins.
+  Future<MadeClip> _makeFromKept(
+    ClipOrder order,
+    SourceVideo video,
+    _MakingRun run,
+  ) async {
+    if (order.cuts case [final only]) {
+      return MadeClip(
+        video: video,
+        clip: _withinPlayable(
+          ClipRange(start: only.start, end: only.end),
+          video,
+        ),
+      );
+    }
+    final kept = keptVideoCut(await _services.sources, video);
+    final cuts = [
+      for (final cut in order.cuts) DownloadedCut(cut: cut, file: kept),
+    ];
+    return _joinAndKeep((cuts: cuts, pictureIsH264: true), order, run);
+  }
+
   /// The parts around each cut; the whole video for a site that offers no
   /// parts (spec FR-50).
   Future<_FetchedCuts> _downloadCuts(ClipOrder order, _MakingRun run) async {
-    final video = order.request.video;
+    final video = _linkedVideoOf(order);
     run.onProgress(const ReadingStreams());
     final formats = await _services.streams.read(video);
     try {
@@ -141,7 +177,7 @@ class ClipMaker {
     _MakingRun run,
     CutStreams firstStreams,
   ) async {
-    final video = order.request.video;
+    final video = _linkedVideoOf(order);
     var streams = firstStreams;
     final downloaded = <DownloadedCut>[];
     for (var index = 0; index < order.cuts.length; index++) {
@@ -153,7 +189,7 @@ class ClipMaker {
         downloaded.add(await _fetchAgain(download, streams));
       }
     }
-    return (cuts: downloaded, streams: streams);
+    return (cuts: downloaded, pictureIsH264: streams.video.isH264);
   }
 
   /// Every cut is a stretch of the one file; its bytes show as one cut's.
@@ -166,7 +202,10 @@ class ClipMaker {
     final file = await fetchWholeVideo(
       _services.cuts,
       WholeVideoOrder(
-        request: WholeVideoRequest(video: order.request.video, stream: stream),
+        request: WholeVideoRequest(
+          video: _linkedVideoOf(order),
+          stream: stream,
+        ),
         answer: order.wholeVideo,
         watch: CutDownloadWatch(
           cancel: run.cancel,
@@ -177,7 +216,7 @@ class ClipMaker {
     );
     return (
       cuts: [for (final cut in order.cuts) DownloadedCut(cut: cut, file: file)],
-      streams: CutStreams(video: stream, audio: stream),
+      pictureIsH264: stream.isH264,
     );
   }
 
@@ -187,7 +226,7 @@ class ClipMaker {
     _MakingRun run,
   ) async {
     final plan = planJoin(fetched.cuts, order.transition);
-    final joined = await _join(plan, fetched.streams, run);
+    final joined = await _join(plan, fetched, run);
     run.onProgress(const KeepingClip());
     final video = await _keep(joined, order, (
       joinTimes: plan.joinTimes,
@@ -275,7 +314,11 @@ class ClipMaker {
 
   /// One cut reaches here only with an AV1 picture, which the join writes
   /// as H.264 (spec FR-46).
-  Future<File> _join(JoinPlan plan, CutStreams streams, _MakingRun run) async {
+  Future<File> _join(
+    JoinPlan plan,
+    _FetchedCuts fetched,
+    _MakingRun run,
+  ) async {
     run.cancel.throwIfCancelled();
     final output = await _newJoinedFile();
     final MakingProgress Function(double fraction) step = plan.cuts.length == 1
@@ -292,7 +335,7 @@ class ClipMaker {
       );
     } on JoinFailedException {
       run.cancel.throwIfCancelled();
-      if (!streams.video.isH264) {
+      if (!fetched.pictureIsH264) {
         throw const CutsNotDecodableException('The phone decodes no AV1.');
       }
       rethrow;
@@ -312,15 +355,19 @@ class ClipMaker {
     // name in Recent.
     final video = await importer.importVideo(
       path: joined.path,
-      displayName: '${order.request.video.title}.mp4',
+      displayName: '${order.request.source.title}.mp4',
     );
-    final linked = order.request.video;
+    final source = order.request.source;
     await _services.links.save(
       video.videoId,
       LinkedClip(
-        videoKey: linked.videoKey,
-        title: linked.title,
-        channel: linked.channel,
+        videoKey: source.key,
+        title: source.title,
+        channel: switch (source) {
+          LinkedMoments(:final video) => video.channel,
+          LocalMoments() => '',
+        },
+        sourceKind: source.kind,
         outputLanguage: order.request.outputLanguage,
         transition: order.transition,
         joinTimes: layout.joinTimes,
@@ -330,6 +377,12 @@ class ClipMaker {
     return video;
   }
 }
+
+/// Only a link's cuts download.
+LinkedVideo _linkedVideoOf(ClipOrder order) => switch (order.request.source) {
+  LinkedMoments(:final video) => video,
+  LocalMoments() => throw UnsupportedError('A kept video has no link.'),
+};
 
 DownloadingCut _downloadingOne(
   int receivedBytes,
@@ -363,11 +416,11 @@ class _CutDownload {
     _report(0, 0);
     final file = await cuts.download(
       CutRequest(
-        videoKey: order.request.video.videoKey,
+        videoKey: order.request.source.key,
         window: downloadWindowFor(
           cut,
           order.margin,
-          order.request.video.duration,
+          order.request.source.duration,
         ),
         streams: streams,
       ),
@@ -401,6 +454,7 @@ final clipMakerProvider = Provider<ClipMaker>(
       joinsFolder: getTemporaryDirectory().then(
         (cache) => Directory('${cache.path}/joins'),
       ),
+      sources: ref.watch(sourceCacheProvider.future),
     ),
   ),
 );

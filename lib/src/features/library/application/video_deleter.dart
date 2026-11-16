@@ -50,7 +50,7 @@ class VideoDeleter {
       case LinkedVideoKey(:final videoKey):
         await _deleteLinked(videoKey);
       case LocalVideoKey(:final videoId):
-        await _deleteFingerprint(videoId);
+        await _deleteLocal(videoId);
     }
     for (final reel in video.reels) {
       await stores.reels.delete(reel.id);
@@ -67,6 +67,16 @@ class VideoDeleter {
     await _deleteFingerprint('v_yt_$videoKey');
     await (await stores.topics()).deleteVideo(videoKey);
     await stores.cuts.deleteCutsOf(videoKey);
+  }
+
+  /// Every clip joined from its moments goes too, and its Review cuts
+  /// session and moments' script (spec FR-51).
+  Future<void> _deleteLocal(String videoId) async {
+    for (final clipId in await _joinedClipsOf(videoId)) {
+      await _deleteFingerprint(clipId);
+    }
+    await _deleteFingerprint(videoId);
+    await (await stores.topics()).deleteVideo(videoId);
   }
 
   Future<void> _deleteFingerprint(String videoId) async {

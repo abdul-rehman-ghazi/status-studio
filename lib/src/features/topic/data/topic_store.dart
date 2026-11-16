@@ -66,10 +66,8 @@ class TopicStore {
 
   /// Keeps [session] for Recent (spec FR-38), one per linked video
   /// (FR-43): a session in another output language replaces it.
-  Future<void> saveSession(LinkSession session) => _writeJson(
-    _sessionFile(session.request.video.videoKey),
-    session.toJson(),
-  );
+  Future<void> saveSession(LinkSession session) =>
+      _writeJson(_sessionFile(session.request.source.key), session.toJson());
 
   /// Every readable session, newest first. An unreadable file is skipped
   /// and left on disk.

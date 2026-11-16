@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/source/domain/video_link.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/presentation/replace_unfinished_dialog.dart';
 import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
@@ -56,7 +58,7 @@ Future<void> _newFromLink(
     return;
   }
   final request = TopicRequest(
-    video: video,
+    source: LinkedMoments(video),
     outputLanguage: _outputLanguageOf(target.group),
   );
   unawaited(context.push(AppRoutes.reviewCuts, extra: request));
@@ -69,8 +71,9 @@ ScriptLanguage _outputLanguageOf(VideoHistory group) {
   return outputLanguages.contains(saved) ? saved! : ScriptLanguage.urdu;
 }
 
-/// Fine-tune · Video on the kept file, with the saved script read back
-/// (FR-14). A kept fine-tune is replaced only after asking.
+/// On Android, Review cuts on the kept video's saved script, as a link's
+/// New does (spec FR-51, owner 2026-11-16); on iOS, which has no Review
+/// cuts, Fine-tune · Video as before.
 Future<void> _newFromLocal(
   BuildContext context,
   WidgetRef ref,
@@ -81,6 +84,45 @@ Future<void> _newFromLocal(
     if (context.mounted) askForTheVideoAgain(context, ref, target.videoId);
     return;
   }
+  if (!context.mounted) {
+    return;
+  }
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    await _momentsFromLocal(context, ref, (group: target.group, video: video));
+    return;
+  }
+  await _wholeVideoFromLocal(context, ref, (group: target.group, video: video));
+}
+
+/// Review cuts with no moments, after asking when unfinished work of the
+/// video would go (FR-44).
+Future<void> _momentsFromLocal(
+  BuildContext context,
+  WidgetRef ref,
+  ({VideoHistory group, SourceVideo video}) target,
+) async {
+  final video = target.video;
+  if (!await clearUnfinishedLinkWork(context, ref, video.videoId)) {
+    return;
+  }
+  if (!context.mounted) {
+    return;
+  }
+  final request = TopicRequest(
+    source: LocalMoments(video),
+    outputLanguage: _outputLanguageOf(target.group),
+  );
+  unawaited(context.push(AppRoutes.reviewCuts, extra: request));
+}
+
+/// Fine-tune · Video on the kept file, with the saved script read back
+/// (FR-14). A kept fine-tune is replaced only after asking.
+Future<void> _wholeVideoFromLocal(
+  BuildContext context,
+  WidgetRef ref,
+  ({VideoHistory group, SourceVideo video}) target,
+) async {
+  final video = target.video;
   if (target.group.unfinished case UnfinishedFineTune(:final fineTune)) {
     if (!context.mounted || !await askToReplaceUnfinished(context)) {
       return;

@@ -350,6 +350,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     if (linked != null) {
       return LinkedLyricsGetCard(
         outputLanguage: linked.outputLanguage,
+        sourceKind: linked.sourceKind,
         onGet: _getLyrics,
         onType: () => unawaited(_typeLyrics()),
       );
