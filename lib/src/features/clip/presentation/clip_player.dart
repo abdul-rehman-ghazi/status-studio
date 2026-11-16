@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/core/presentation/auto_hiding_controls.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
@@ -260,21 +261,24 @@ class _ClipPlayerState extends ConsumerState<ClipPlayer> with RouteAware {
     } else {
       picture = AspectRatio(aspectRatio: value.aspectRatio, child: video);
     }
-    final stage = Stack(
-      children: [
-        picture,
-        // With onlyRange the player never leaves the clip.
-        if (value.isInitialized && widget.onlyRange == null)
-          Positioned.fill(
-            child: OutsideClipShade(
-              playhead: widget.playhead,
-              clip: widget.clip,
+    final stage = AutoHidingControls(
+      player: _player,
+      picture: Stack(
+        children: [
+          picture,
+          // With onlyRange the player never leaves the clip.
+          if (value.isInitialized && widget.onlyRange == null)
+            Positioned.fill(
+              child: OutsideClipShade(
+                playhead: widget.playhead,
+                clip: widget.clip,
+              ),
             ),
-          ),
-        if (value.isInitialized && widget.videoOverlay != null)
-          Positioned.fill(child: widget.videoOverlay!),
-        ..._playButtons(),
-      ],
+          if (value.isInitialized && widget.videoOverlay != null)
+            Positioned.fill(child: widget.videoOverlay!),
+        ],
+      ),
+      controls: _playButtons(),
     );
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
