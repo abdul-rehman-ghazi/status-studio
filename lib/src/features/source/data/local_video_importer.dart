@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:status_studio/src/core/ffmpeg/local_video_facts.dart';
 import 'package:status_studio/src/core/ffmpeg/media_probe.dart';
+import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/source/data/free_storage.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
@@ -120,7 +121,7 @@ class LocalVideoImporter {
   ) async {
     return SourceVideo(
       videoId: await videoFingerprint(file),
-      title: _titleOf(displayName, file.path),
+      title: _titleOf(displayName, file.path, facts),
       duration: facts.duration,
       pictureStart: facts.pictureStart,
     );
@@ -308,16 +309,40 @@ class LocalVideoImporter {
   }
 }
 
+/// The file's name, unless Android's photo picker hid it behind a media ID
+/// (spec FR-1, M67): then the video's own title tag, else the day it was
+/// recorded, else a plain word.
+String _titleOf(String displayName, String path, LocalVideoFacts facts) {
+  final named = _fileTitleOf(displayName, path);
+  if (!_isPickerMediaId(named)) {
+    return named;
+  }
+  if (facts.embeddedTitle.isNotEmpty) {
+    return facts.embeddedTitle;
+  }
+  final recordedAt = facts.recordedAt;
+  if (recordedAt == null) {
+    return _plainTitle;
+  }
+  return '$_plainTitle, ${formatDayMonthYear(recordedAt.toLocal())}';
+}
+
+const _plainTitle = 'Video';
+
+/// The photo picker names every item by its number, such as `1000000463`,
+/// and gives no other name without a storage permission.
+bool _isPickerMediaId(String name) => RegExp(r'^\d+$').hasMatch(name);
+
 /// The sender's name without its extension; the file's own name when the
 /// sender gave none, and a plain word when that is empty too.
-String _titleOf(String displayName, String path) {
+String _fileTitleOf(String displayName, String path) {
   for (final name in [displayName, path.split(Platform.pathSeparator).last]) {
     final title = _withoutExtension(name).trim();
     if (title.isNotEmpty) {
       return title;
     }
   }
-  return 'Video';
+  return _plainTitle;
 }
 
 String _withoutExtension(String name) {

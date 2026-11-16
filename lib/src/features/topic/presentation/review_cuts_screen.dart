@@ -32,6 +32,7 @@ import 'package:status_studio/src/features/topic/presentation/script_page.dart';
 import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_key_settings_route.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_shortfall_question.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
@@ -615,7 +616,7 @@ class _SearchProgress extends StatelessWidget {
       };
 }
 
-class _FailureView extends StatelessWidget {
+class _FailureView extends ConsumerWidget {
   const _FailureView({
     required this.failure,
     required this.onTryAgain,
@@ -627,7 +628,7 @@ class _FailureView extends StatelessWidget {
   final VoidCallback onBack;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -650,7 +651,7 @@ class _FailureView extends StatelessWidget {
           const SizedBox(height: 20),
           if (failure is NoGroqKeyException)
             FilledButton(
-              onPressed: () => context.push(AppRoutes.groqSettings),
+              onPressed: () => unawaited(_openKeySettings(context, ref)),
               child: const Text('Settings'),
             )
           else
@@ -660,6 +661,14 @@ class _FailureView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Back from Settings with a key saved, the failed step runs again; without
+  /// one the failure stays (spec §8, M67).
+  Future<void> _openKeySettings(BuildContext context, WidgetRef ref) async {
+    if (await keySavedAfterGroqSettings(context, ref)) {
+      onTryAgain();
+    }
   }
 }
 

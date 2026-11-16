@@ -22,6 +22,10 @@ const _shortMonths = [
 String formatDayMonth(DateTime date) =>
     '${date.day} ${_shortMonths[date.month - 1]}';
 
+/// A date as `d MMM yyyy`, e.g. `7 Oct 2026`.
+String formatDayMonthYear(DateTime date) =>
+    '${formatDayMonth(date)} ${date.year}';
+
 String _clockFace(Duration time) {
   final seconds = _twoDigits(time.inSeconds % 60);
   if (time.inHours == 0) {

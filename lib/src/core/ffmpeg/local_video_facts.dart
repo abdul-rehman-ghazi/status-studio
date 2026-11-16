@@ -13,6 +13,8 @@ class LocalVideoFacts {
     required this.hasAudio,
     required this.videoCodec,
     required this.pictureStart,
+    this.embeddedTitle = '',
+    this.recordedAt,
   });
 
   final Duration duration;
@@ -31,6 +33,14 @@ class LocalVideoFacts {
   /// trimmed elsewhere can keep its sound from zero but start its picture
   /// later; players and the renderer can't start before the picture (M41).
   final Duration pictureStart;
+
+  /// The container's `title` tag, empty when it has none. Downloaded videos
+  /// often carry one; phone recordings don't.
+  final String embeddedTitle;
+
+  /// The container's `creation_time` tag, when the file has one: phone
+  /// recordings do.
+  final DateTime? recordedAt;
 
   /// The bundled FFmpeg has no AV1 decoder (no dav1d, no MediaCodec), so it
   /// can't sample frames or make thumbnails of an AV1 video; such a video is
@@ -83,7 +93,28 @@ LocalVideoFacts parseLocalVideoFacts(String probeJson) {
         ? video['codec_name']! as String
         : '',
     pictureStart: _pictureStartOf(format, video),
+    embeddedTitle: _embeddedTitleOf(format),
+    recordedAt: _recordedAtOf(format, video),
   );
+}
+
+String _embeddedTitleOf(Map<String, Object?> format) {
+  final title = _asObject(format['tags'])['title'];
+  return title is String ? title.trim() : '';
+}
+
+DateTime? _recordedAtOf(
+  Map<String, Object?> format,
+  Map<String, Object?> videoStream,
+) {
+  for (final tags in [format['tags'], videoStream['tags']]) {
+    final stamp = _asObject(tags)['creation_time'];
+    final recordedAt = stamp is String ? DateTime.tryParse(stamp) : null;
+    if (recordedAt != null) {
+      return recordedAt;
+    }
+  }
+  return null;
 }
 
 /// The video stream's start against the file's own, so a file whose times

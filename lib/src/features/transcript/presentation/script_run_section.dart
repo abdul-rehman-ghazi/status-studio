@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:status_studio/src/core/error_messages.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/work_amount.dart';
@@ -14,7 +13,7 @@ import 'package:status_studio/src/features/transcript/application/script_progres
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
 import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
-import 'package:status_studio/src/routing/app_router.dart';
+import 'package:status_studio/src/features/transcript/presentation/groq_key_settings_route.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 /// Whether the reel's script is being written now (spec FR-3).
@@ -205,7 +204,7 @@ class _RunFailed extends ConsumerWidget {
       case _FailureAction.consent:
         unawaited(_askConsentThenRetry(context, ref));
       case _FailureAction.settings:
-        context.push(AppRoutes.groqSettings);
+        unawaited(_openKeySettingsThenRetry(context, ref));
       // The Get card comes back, with its language choice.
       case _FailureAction.dismiss || _FailureAction.anotherLanguage:
         ref.read(scriptProgressProvider.notifier).cancel();
@@ -217,6 +216,17 @@ void _retryScript(WidgetRef ref) {
   final draft = ref.read(reelDraftProvider);
   if (draft.video case final video?) {
     ref.read(scriptProgressProvider.notifier).start(video, draft.language);
+  }
+}
+
+/// Back from Settings with a key saved, the run carries on; without one the
+/// failure stays (spec §8, M67).
+Future<void> _openKeySettingsThenRetry(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  if (await keySavedAfterGroqSettings(context, ref)) {
+    _retryScript(ref);
   }
 }
 
