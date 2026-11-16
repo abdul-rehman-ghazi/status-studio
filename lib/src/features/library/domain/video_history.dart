@@ -7,6 +7,7 @@ import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 
 /// Which video a History group is (spec FR-44).
@@ -190,7 +191,7 @@ List<VideoHistory> historyOf(HistorySources sources) {
         .addUnfinished(UnfinishedFineTune(fineTune));
   }
   for (final session in sources.linkSessions) {
-    groupOf(LinkedVideoKey(session.request.video.videoKey))
+    groupOf(LinkedVideoKey(session.request.source.key))
         .addUnfinished(UnfinishedLink(session));
   }
   for (final MapEntry(key: videoKey, value: saved)
@@ -264,7 +265,12 @@ class _Group {
       UnfinishedLink(:final session) => session,
       _ => null,
     };
-    final video = links.videos[videoKey] ?? session?.request.video;
+    final video =
+        links.videos[videoKey] ??
+        switch (session?.request.source) {
+          LinkedMoments(:final video) => video,
+          _ => null,
+        };
     final youTubeScripts = [
       for (final script in videoScripts)
         if (script.video.videoId.startsWith(_youTubeScriptPrefix)) script,

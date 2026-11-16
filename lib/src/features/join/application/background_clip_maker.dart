@@ -20,7 +20,7 @@ class BackgroundClipMaker {
     ClipOrder order,
     void Function(MakingProgress progress) onProgress,
   ) async {
-    final notices = ClipNotices(order.request.video.title);
+    final notices = ClipNotices(order.request.source.title);
     background.showProgress(notices.job, notices.starting);
     try {
       final made = await maker.make(order, (progress) {

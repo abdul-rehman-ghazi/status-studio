@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/data/linked_audio_downloader.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/data/topic_store.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_errors.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
@@ -38,7 +39,7 @@ class TopicFinder {
   /// network and script errors.
   Stream<TopicProgress> find(TopicRequest request) async* {
     if (isTooLongForTopics(request)) {
-      throw LinkTooLongException(request.video.duration);
+      throw LinkTooLongException(request.source.duration);
     }
     final transcript = _Holder<List<TranscriptBlock>>();
     yield* _transcriptBlocks(request, transcript);
@@ -47,8 +48,11 @@ class TopicFinder {
 
   /// Stops an audio download under way; the stream's own cancel stops the
   /// rest at its next step.
-  Future<void> cancel(TopicRequest request) =>
-      services.audio.cancel(request.video);
+  Future<void> cancel(TopicRequest request) async {
+    if (request.source case LinkedMoments(:final video)) {
+      await services.audio.cancel(video);
+    }
+  }
 
   /// The transcript in the output language (spec FR-36, M50): YouTube's
   /// captions when they are in it, else written by Groq from the audio in
@@ -58,7 +62,7 @@ class TopicFinder {
     _Holder<List<TranscriptBlock>> result,
   ) async* {
     final store = await services.store;
-    final videoKey = request.video.videoKey;
+    final videoKey = request.source.key;
     final language = request.outputLanguage;
     final saved = await store.savedBlocks(videoKey, language);
     if (saved != null) {
@@ -78,14 +82,19 @@ class TopicFinder {
     // Only after the save: until then the audio and pieces let an
     // interrupted Groq run resume. A transcript in another language
     // downloads the audio again (FR-47).
-    await services.audio.deleteDownloaded(request.video);
+    if (request.source case LinkedMoments(:final video)) {
+      await services.audio.deleteDownloaded(video);
+    }
   }
 
   Stream<TopicProgress> _writtenByGroq(
     TopicRequest request,
     _Holder<List<TranscriptLine>> result,
   ) async* {
-    final video = request.video;
+    final video = switch (request.source) {
+      LinkedMoments(:final video) => video,
+      LocalMoments() => throw UnsupportedError('M71 task 3'),
+    };
     final downloaded = StreamController<double>();
     final download =
         services.audio

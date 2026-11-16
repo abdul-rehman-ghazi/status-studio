@@ -11,6 +11,7 @@ import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/source/domain/video_link.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/presentation/replace_unfinished_dialog.dart';
 import 'package:status_studio/src/features/transcript/application/script_opening_notice.dart';
@@ -56,7 +57,7 @@ Future<void> _newFromLink(
     return;
   }
   final request = TopicRequest(
-    video: video,
+    source: LinkedMoments(video),
     outputLanguage: _outputLanguageOf(target.group),
   );
   unawaited(context.push(AppRoutes.reviewCuts, extra: request));

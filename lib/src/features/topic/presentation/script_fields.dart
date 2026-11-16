@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_usage_text.dart';
 
@@ -39,7 +40,10 @@ class _ScriptFieldsState extends State<ScriptFields> {
         const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: () => widget.onGet(
-            TopicRequest(video: widget.video, outputLanguage: _outputLanguage),
+            TopicRequest(
+              source: LinkedMoments(widget.video),
+              outputLanguage: _outputLanguage,
+            ),
           ),
           icon: const Icon(Icons.subject),
           label: const Text('Get the script'),

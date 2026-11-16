@@ -21,6 +21,7 @@ import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_cut.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 
@@ -125,7 +126,7 @@ class ClipMaker {
   /// The parts around each cut; the whole video for a site that offers no
   /// parts (spec FR-50).
   Future<_FetchedCuts> _downloadCuts(ClipOrder order, _MakingRun run) async {
-    final video = order.request.video;
+    final video = _linkedVideoOf(order);
     run.onProgress(const ReadingStreams());
     final formats = await _services.streams.read(video);
     try {
@@ -141,7 +142,7 @@ class ClipMaker {
     _MakingRun run,
     CutStreams firstStreams,
   ) async {
-    final video = order.request.video;
+    final video = _linkedVideoOf(order);
     var streams = firstStreams;
     final downloaded = <DownloadedCut>[];
     for (var index = 0; index < order.cuts.length; index++) {
@@ -166,7 +167,10 @@ class ClipMaker {
     final file = await fetchWholeVideo(
       _services.cuts,
       WholeVideoOrder(
-        request: WholeVideoRequest(video: order.request.video, stream: stream),
+        request: WholeVideoRequest(
+          video: _linkedVideoOf(order),
+          stream: stream,
+        ),
         answer: order.wholeVideo,
         watch: CutDownloadWatch(
           cancel: run.cancel,
@@ -312,15 +316,19 @@ class ClipMaker {
     // name in Recent.
     final video = await importer.importVideo(
       path: joined.path,
-      displayName: '${order.request.video.title}.mp4',
+      displayName: '${order.request.source.title}.mp4',
     );
-    final linked = order.request.video;
+    final source = order.request.source;
     await _services.links.save(
       video.videoId,
       LinkedClip(
-        videoKey: linked.videoKey,
-        title: linked.title,
-        channel: linked.channel,
+        videoKey: source.key,
+        title: source.title,
+        channel: switch (source) {
+          LinkedMoments(:final video) => video.channel,
+          LocalMoments() => '',
+        },
+        sourceKind: source.kind,
         outputLanguage: order.request.outputLanguage,
         transition: order.transition,
         joinTimes: layout.joinTimes,
@@ -330,6 +338,12 @@ class ClipMaker {
     return video;
   }
 }
+
+/// Only a link's cuts download.
+LinkedVideo _linkedVideoOf(ClipOrder order) => switch (order.request.source) {
+  LinkedMoments(:final video) => video,
+  LocalMoments() => throw UnsupportedError('A kept video has no link.'),
+};
 
 DownloadingCut _downloadingOne(
   int receivedBytes,
@@ -363,11 +377,11 @@ class _CutDownload {
     _report(0, 0);
     final file = await cuts.download(
       CutRequest(
-        videoKey: order.request.video.videoKey,
+        videoKey: order.request.source.key,
         window: downloadWindowFor(
           cut,
           order.margin,
-          order.request.video.duration,
+          order.request.source.duration,
         ),
         streams: streams,
       ),

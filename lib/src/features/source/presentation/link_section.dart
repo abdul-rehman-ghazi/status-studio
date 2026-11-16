@@ -95,7 +95,7 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
   /// One unfinished piece of work per linked video (spec FR-43): starting
   /// again asks first, then deletes the old one.
   Future<void> _getScript(TopicRequest request) async {
-    if (!await clearUnfinishedLinkWork(context, ref, request.video.videoKey)) {
+    if (!await clearUnfinishedLinkWork(context, ref, request.source.key)) {
       return;
     }
     if (mounted) await context.push(AppRoutes.reviewCuts, extra: request);
