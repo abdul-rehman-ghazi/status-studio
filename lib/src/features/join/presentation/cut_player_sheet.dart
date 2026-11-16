@@ -298,7 +298,10 @@ class _TrimBar extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTapDown: (details) => seekTo(details.localPosition.dx),
           onHorizontalDragUpdate: (details) => seekTo(details.localPosition.dx),
+          // The full width: the bar no longer sits in a Row beside Play
+          // (M76), and a Column lets a child be as narrow as it likes.
           child: SizedBox(
+            width: double.infinity,
             height: 40,
             child: CustomPaint(
               painter: _TrimBarPainter(
