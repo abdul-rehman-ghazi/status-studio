@@ -390,7 +390,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
     - Read fresh for every message (free memory and the network change), on the phone only. The version comes from `package_info_plus`.
   - **No app for it** (no mail app, a tablet that can't call): a snack bar "No email app found. Write to arehmananis@hotmail.com.", "Couldn't open WhatsApp. Message +92 347 8330955.", or "This device can't make calls. Call +92 347 8330955."
 - **About** (`about_section.dart`): the Trim logo (§7) at 48 dp, "Status Studio", "Version <version> (<build>)" (from `package_info_plus`, so it follows `pubspec.yaml`), and "Turns a video you have trimmed into a short status clip, with its lyrics in any language." Then (M43) "Free software under the GNU GPL, version 3. Source code: github.com/abdul-rehman-ghazi/status-studio". Then "Open-source licences", Flutter's licence page with the same name, version and logo.
-- **Not in M33:** a privacy policy row (§9.1, waits for hosting).
+- **Privacy policy (M60):** under Open-source licences, a "Privacy policy" link that opens `PRIVACY.md` on GitHub (§9.1) in the browser. With no browser on the phone, a snackbar: "No browser could open the privacy policy. It is at github.com/abdul-rehman-ghazi/status-studio." (Not in M33: it waited for hosting.)
 - **Calls made by Claude, not the owner:** the category names, icons and subtitles; Email and WhatsApp stay off until there's text; the message layout above.
 
 **FR-32 Theme choice (M35).** Until M35 the app was dark only. Asked by the owner (2026-11-10); the owner chose the light colours, the place in Settings, the default and the launch behaviour from mockups the same day.
@@ -605,7 +605,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - Copies and other files are written to `.part` files and renamed when complete.
   - Every start deletes folders whose name isn't a fingerprint ID (`v_` and 16 hex digits): old YouTube data.
 - **Data use:** nothing is downloaded. The only upload is the cleaned script audio pieces (about 16 kHz mono FLAC), to Groq (the Fix with Groq lines went in M36).
-- **Privacy:** nothing leaves the device except language-pack downloads and, to write a script (FR-12a), audio pieces sent to Groq with the user's key. The video itself never leaves the phone. Until M47 Google ML Kit sent its own anonymous usage, performance and per-installation ID (§9.2, found in M27); since M47 no library in the app sends anything of its own (M47 task 4).
+- **Privacy (rewritten in M60):** nothing of the user's leaves the device except, after FR-30's consent, what Groq needs (the cleaned audio pieces of FR-12a, and the script text of FR-37's translation and FR-40's Update words), and, for a link (Android), yt-dlp's requests to the video's site for the parts kept and its weekly update from GitHub (FR-35). The video itself never leaves the phone. No library in the app sends anything of its own since M47 (§9.1 is the published wording).
 - **Large text (M34):** the phone's text size is followed up to **1.3×** and no further (`maxTextScale` in `app.dart`, `MediaQuery.withClampedTextScaling`). The owner chose a cap over unlimited growth (2026-11-10), so every screen keeps its layout; users at the largest system sizes get less than they asked for. The reel preview and the export draw captions at a fixed size with no text scaling at all (`reel_preview.dart`).
   - **App bar titles** stay on one line and shrink to the room left (`ScreenTitle`), next to the back button and the step label.
   - **Type hierarchy:** section labels 16 sp semi-bold (`SectionLabel`, also "Recent" on Home and "Groq API key"), body text 14 sp, list rows 14 sp with 12 sp muted subtitles (the theme's `listTileTheme`), hints 12 sp muted (`HintText`). A section label is never smaller than what it holds. Android 14 and later scale small text more than large text (12 sp and 14 sp both end near 24 at 200%), which is why labels and body are two steps apart.
@@ -847,24 +847,38 @@ Each error is a typed exception from the data layer. Screens map them to these m
 
 ### 9.1 Privacy policy (M27 task 3)
 
-**Hosting (changed in M43):** the stores are gone, so no store needs the URL. Once the repo is public (M43 task 6) the policy can live in it as `PRIVACY.md`, linked from the release page and the IzzyOnDroid and F-Droid listings. Fill the `<date>` field before publishing (the contact email was filled in M33). M44 adds the link downloads to the text and M45 the transcript and topic sent to Groq, each when built. The "Google ML Kit" paragraph goes in M47 if the open face model replaces it.
+**Hosting (changed in M43, published in M60):** `PRIVACY.md` at the repo root holds the published copy, at github.com/abdul-rehman-ghazi/status-studio/blob/dev/PRIVACY.md; About links to it (FR-31). This section is the source: change both together and give the new version a new date. Rewritten in M60 (2026-11-16) for what the app does since M44–M59: link downloads and yt-dlp's updates, the script text sent to Groq's chat model (Update words, FR-40; translated lyrics, FR-37), scripts kept until deleted (FR-44), the storage rules of FR-47 and FR-49, the Groq allowance count (FR-45), and no ML Kit (M47); the language packs, gone since M30, are dropped.
 
 > **Status Studio privacy policy**
 >
-> Effective `<date it is published>`.
+> Effective 16 November 2026.
 >
 > Status Studio turns a video you choose into a short clip with lyrics. It has no server and no accounts. We, the developer, receive none of your data.
 >
-> **What stays on your phone.** The videos you share into the app or pick, copied into the app's own storage. The lyrics written for them, kept for 90 days. Finding faces and bodies for the crop happens on your phone too. Unfinished work, so you can carry on later. The clips you export. Your settings, including whether you agreed to send audio to Groq. If you add a Groq API key, it is kept in the phone's secure storage (Android Keystore or iOS Keychain) and is sent only to Groq, to authorise your own requests. You can delete videos, lyrics and clips in the app, and uninstalling the app deletes all of it.
+> **What stays on your phone.**
+> - The videos you share into the app or pick, copied into the app's own storage. A copy nothing uses any more is deleted: after 7 days when it has no script, fine-tune or reel, and otherwise after 90 days unused.
+> - The scripts (lyrics) written for your videos, kept until you delete the video in History, so another clip from the same video doesn't need its script written again.
+> - From a video link (Android): the parts of the video you keep, and its script. The sound downloaded to write the script is deleted once the script is saved.
+> - Unfinished work, so you can carry on later. The clips you export. Your settings, including whether you agreed to send to Groq, and a count of how much sound you sent to Groq in the last day, to show how much of Groq's free allowance is left.
+> - Finding faces and bodies for the crop, cleaning the voice and making the clip all happen on your phone.
+> - If you add a Groq API key, it is kept in the phone's secure storage (Android Keystore or iOS Keychain) and is sent only to Groq, to authorise your own requests.
+>
+> You can delete videos, scripts and clips in the app's History, and uninstalling the app deletes all of it.
 >
 > **What leaves your phone, and only when you ask.**
-> - *Groq.* When you tap Get lyrics from Groq and agree, the app sends your video's sound (cleaned, one channel, in pieces) to Groq, an AI service run by Groq, Inc., using your own Groq key, to write the lyrics. The picture is never sent. Groq handles this under its own terms and privacy policy (groq.com), as the service you signed up for when you made your key. You can withdraw your agreement in Settings at any time, and nothing more is sent after that. A clip made without lyrics sends nothing.
+> - *Groq.* Status Studio sends to Groq, an AI service run by Groq, Inc., using your own Groq key, and only after you agree once on its "Send to Groq?" screen:
+>   - to write lyrics or a linked video's script: the video's sound, cleaned to one channel, in pieces;
+>   - to update a moment's words, or to translate a linked clip's lyrics into the language you chose: the words of the script involved.
+>
+>   The picture is never sent. Groq handles this under its own terms and privacy policy (groq.com), as the service you signed up for when you made your key. You can withdraw your agreement in Settings at any time, and nothing more is sent after that. A clip made from your own video without lyrics sends nothing.
+> - *Video links (Android).* When you paste or share a link, the app uses yt-dlp to read the video's details from the site that hosts it (YouTube, for example) and downloads only what it needs: the sound, to write the script, and the parts you keep. The site sees these requests as it would if you watched the video there, including your IP address, and its own privacy policy applies. Nothing else about you is sent.
+> - *Downloader updates (Android).* yt-dlp, which reads links, updates itself from GitHub about once a week and when you tap Update downloader in Settings (builds from F-Droid update only when you tap it). GitHub sees the request, including your IP address; nothing else is sent.
 > - *Saving and sharing.* Save puts the clip in your photo library. Share hands it to the app you choose in your phone's share sheet.
-> - *Support.* If you write to us from Settings, the app opens your own email or WhatsApp app with your message, your phone's model, system version, processor, memory, screen size and connection type (such as Wi-Fi), and the app's version filled in. You see it before you send it, and we receive only what you send. Nothing is sent by Status Studio itself.
+> - *Support.* If you write to us from Settings, the app opens your own email or WhatsApp app with your message, your phone's model, system version, processor, memory, screen size and connection type (such as Wi-Fi), and the app's version filled in. You see it before you send it, and we receive only what you send. Calling us from Settings opens your phone app. Nothing is sent by Status Studio itself.
 >
-> **What we don't do.** No advertising, no analytics of our own, no tracking, no selling or sharing of your data, no accounts.
+> **What we don't do.** No advertising, no analytics, no tracking, no selling or sharing of your data, no accounts. The app contains no Google Play Services, Firebase or other analytics libraries.
 >
-> **Permissions.** Photo library (add only), to save clips. Notifications, to tell you when work is done. Internet, for Groq and the language packs, and network state, to name the connection type in a support message. On Android, a foreground service, so writing lyrics and exporting continue when you leave the app.
+> **Permissions.** Internet, for Groq, video links and downloader updates. Network state, to name the connection type in a support message. Notifications, to tell you when work is done, and on Android a foreground service and a wake lock, so writing scripts, downloading and exporting carry on when you leave the app or the screen turns off. Adding to the photo library, to save clips (storage access on Android 10 and older). Two Android permissions come with the notification library and are not used by the app: starting at boot and vibrating.
 >
 > **Children.** Status Studio is not directed at children under 13.
 >
@@ -1149,6 +1163,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M57 Free storage | A link's audio and pieces go once its transcript is saved; a kept video with only its title and no reel goes after 7 days (FR-47) | Built, branch `m57-free-storage` (from `dev`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Tests not run |
 | M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | Built, branch `m58-reel-bitrate` (from `dev`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean; the debug APK builds; the iOS change is not compiled. The phone check is the owner's: a reel's size and look at 4 Mbit/s. Tests not run |
 | M59 Stray reel files | Files in `reels/` that no reel names (a killed render's MP4 and caption PNGs) are deleted at start-up after an hour (FR-49) | Built, branch `m59-stray-reel-files` (stacked on `m58-reel-bitrate`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean. Tests not run |
+| M60 Privacy policy | The policy rewritten for links, yt-dlp, Groq's chat use and today's storage rules; published as `PRIVACY.md` and linked from About (§9.1, FR-31) | In progress, branch `m60-privacy-policy` (from `dev`) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1964,6 +1979,15 @@ Request (2026-11-16): FR-49. Tests are the owner's; `fvm flutter analyze` only, 
 - [x] **1. Spec.** FR-49, this list and the §12 row.
 - [x] **2. Delete stray files.** `RecentReelsRepository.deleteStrayFiles(folder, now:)` deletes the files in `folder` whose names no stored entry's `videoPath` or `thumbnailPath` has, changed over an hour before `now`; `reelsDirectory()` in `renderer.dart` is public, and start-up cleanup in `main.dart` calls it after `deleteWithoutSource`. **New tests to write:** an unnamed MP4 and PNG over an hour old are deleted; a stored reel's MP4 and thumbnail stay; an unreadable entry's files stay; a file changed within the hour stays; a missing folder deletes nothing. **Stale:** none known.
 - [x] **3. Status.** §12 row, §13 entry; push.
+
+### M60 tasks (branch `m60-privacy-policy`, from `dev`)
+
+Request (2026-11-16): "start with the privacy policy", from the leftovers after 0.1.1: §9.1 still described the app before M44 (scripts kept 90 days, language packs, no links). Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** §9.1 rewritten from the code and the FRs (what is kept and for how long, the three kinds of Groq upload, link requests, yt-dlp's updates, the permissions in the merged manifest), the §4 privacy line, FR-31's privacy row, these tasks.
+- [ ] **2. Publish.** `PRIVACY.md` at the repo root with §9.1's text; README links it.
+- [ ] **3. About link.** "Privacy policy" under Open-source licences (FR-31), opening it in the browser through `url_launcher`, with the snackbar when nothing opens it. New tests (owner): §13 "Privacy policy link (M60)".
+- [ ] **4. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
