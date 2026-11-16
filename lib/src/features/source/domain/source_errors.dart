@@ -9,8 +9,8 @@ class VideoUnavailableException implements Exception {
   String toString() => 'VideoUnavailableException: $reason';
 }
 
-/// YouTube answered in a way yt-dlp couldn't read: usually a YouTube change
-/// that a newer yt-dlp handles (spec §8, FR-35).
+/// The site answered in a way yt-dlp couldn't read: usually a site change
+/// that a newer yt-dlp handles (spec §8, FR-35, FR-50).
 class SiteChangedException implements Exception {
   const SiteChangedException(this.reason);
 
@@ -18,6 +18,27 @@ class SiteChangedException implements Exception {
 
   @override
   String toString() => 'SiteChangedException: $reason';
+}
+
+/// yt-dlp has no reader for the link's site (spec §8, FR-50).
+class UnsupportedSiteException implements Exception {
+  const UnsupportedSiteException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'UnsupportedSiteException: $reason';
+}
+
+/// The site shows the video only to a signed-in user; the app takes no
+/// cookies or accounts (spec §8, FR-50).
+class LoginRequiredException implements Exception {
+  const LoginRequiredException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'LoginRequiredException: $reason';
 }
 
 /// The network dropped during a download (spec §8).

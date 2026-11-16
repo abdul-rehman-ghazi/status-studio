@@ -19,7 +19,7 @@ class LinkedAudioDownloader {
   final YtDlp ytDlp;
   final Future<SourceCache> sources;
 
-  /// A finished earlier download is reused without asking YouTube again.
+  /// A finished earlier download is reused without asking the site again.
   Future<SourceVideo> download(
     LinkedVideo video, {
     required void Function(double fraction) onProgress,
@@ -31,7 +31,7 @@ class LinkedAudioDownloader {
     if (!await audio.exists()) {
       await audio.parent.create(recursive: true);
       await ytDlp.downloadAudio(
-        videoId: video.videoKey,
+        pageUrl: video.pageUrl,
         outputPath: audio.path,
         onProgress: onProgress,
       );

@@ -91,10 +91,10 @@ class VideoInChannel(private val context: Context, messenger: BinaryMessenger) :
         return true
     }
 
-    /** A YouTube link shared as text (spec FR-35); other text is left alone. */
+    /** A web link shared as text (spec FR-35, FR-50); text without one is left alone. */
     private fun receiveLink(intent: Intent): Boolean {
         if (intent.action != Intent.ACTION_SEND || intent.type != "text/plain") return false
-        val link = firstYouTubeLink(intent.getStringExtra(Intent.EXTRA_TEXT)) ?: return false
+        val link = firstWebLink(intent.getStringExtra(Intent.EXTRA_TEXT)) ?: return false
         deliveries.deliver("incomingLink", mapOf("link" to link))
         return true
     }

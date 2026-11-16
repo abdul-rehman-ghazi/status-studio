@@ -3,6 +3,7 @@ import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/linked_formats_json.dart';
 import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 import 'package:status_studio/src/features/source/data/yt_dlp.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 
 /// Reads a linked video's streams afresh (spec FR-37): their links expire
@@ -16,10 +17,10 @@ class LinkedStreamsReader {
   /// fails or finds no MP4 stream. Throws [VideoUnavailableException],
   /// [OfflineException], [SiteChangedException] or
   /// [NotDownloadableInPartsException].
-  Future<LinkedFormats> read(String videoKey) async {
+  Future<LinkedFormats> read(LinkedVideo video) async {
     try {
       final quick = linkedFormatsFromYtDlpJson(
-        await ytDlp.quickVideoInfo(videoKey),
+        await ytDlp.quickVideoInfo(video.pageUrl),
       );
       if (_hasMp4Streams(quick)) {
         return quick;
@@ -27,7 +28,7 @@ class LinkedStreamsReader {
     } on SiteChangedException {
       // The run with QuickJS below may still read it.
     }
-    return linkedFormatsFromYtDlpJson(await ytDlp.videoInfo(videoKey));
+    return linkedFormatsFromYtDlpJson(await ytDlp.videoInfo(video.pageUrl));
   }
 }
 

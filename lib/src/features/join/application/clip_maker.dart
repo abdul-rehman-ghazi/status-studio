@@ -16,6 +16,7 @@ import 'package:status_studio/src/features/join/domain/linked_clip.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 import 'package:status_studio/src/features/source/data/local_video_importer.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/topic/domain/clip_transition.dart';
@@ -117,16 +118,16 @@ class ClipMaker {
   }
 
   Future<_FetchedCuts> _downloadCuts(ClipOrder order, _MakingRun run) async {
-    final videoKey = order.request.video.videoKey;
+    final video = order.request.video;
     run.onProgress(const ReadingStreams());
-    var streams = streamsForClip(await _services.streams.read(videoKey));
+    var streams = streamsForClip(await _services.streams.read(video));
     final downloaded = <DownloadedCut>[];
     for (var index = 0; index < order.cuts.length; index++) {
       final download = _CutDownload(order, index, run);
       try {
         downloaded.add(await download.fetch(_services.cuts, streams));
       } on ExpiredStreamUrlException {
-        streams = await _freshStreams(videoKey);
+        streams = await _freshStreams(video);
         downloaded.add(await _fetchAgain(download, streams));
       }
     }
@@ -209,10 +210,10 @@ class ClipMaker {
     }
   }
 
-  Future<CutStreams> _freshStreams(String videoKey) async =>
-      streamsForClip(await _services.streams.read(videoKey));
+  Future<CutStreams> _freshStreams(LinkedVideo video) async =>
+      streamsForClip(await _services.streams.read(video));
 
-  /// Links that expire again right after a fresh read count as a YouTube
+  /// Links that expire again right after a fresh read count as a site
   /// change, which a newer yt-dlp may handle (spec §8).
   Future<DownloadedCut> _fetchAgain(
     _CutDownload download,

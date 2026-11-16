@@ -26,13 +26,14 @@ fun quickVideoInfoOptions(cacheDir: String): List<String> =
 
 /**
  * The audio only, for Groq to write the script when the video has no captions (spec FR-36).
- * yt-dlp writes `<outputPath>.part` and renames it when whole, so a file at [outputPath] is
+ * A site with no sound-only stream gives its smallest whole file, whose sound the script uses
+ * (FR-50). yt-dlp writes `<outputPath>.part` and renames it when whole, so a file at [outputPath] is
  * complete.
  */
 fun audioDownloadOptions(cacheDir: String, outputPath: String): List<String> =
     listOf(
         "-f",
-        "bestaudio[ext=m4a]/bestaudio",
+        "bestaudio[ext=m4a]/bestaudio/worst",
         "--no-playlist",
         "--no-warnings",
         "--no-mtime",
@@ -41,5 +42,3 @@ fun audioDownloadOptions(cacheDir: String, outputPath: String): List<String> =
         "-o",
         outputPath,
     )
-
-fun videoUrl(videoId: String): String = "https://www.youtube.com/watch?v=$videoId"

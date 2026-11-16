@@ -123,9 +123,11 @@ fun failureCodeOf(error: Exception): String {
     return "copy_failed"
 }
 
-private val youTubeLinkPattern =
-    Regex("""https?://(?:www\.|m\.)?(?:youtube\.com|youtu\.be)/\S+""", RegexOption.IGNORE_CASE)
+private val webLinkPattern = Regex("""https?://[^\s/?#]+\.[^\s/?#]+\S*""", RegexOption.IGNORE_CASE)
 
-/** The YouTube app shares "Title https://youtu.be/…", so the link is picked out of the text. */
-fun firstYouTubeLink(sharedText: String?): String? =
-    sharedText?.let { youTubeLinkPattern.find(it)?.value }
+/**
+ * YouTube, Facebook and Instagram share text such as "Title https://youtu.be/…", so the first
+ * `http` or `https` link is picked out of it (spec FR-35, FR-50).
+ */
+fun firstWebLink(sharedText: String?): String? =
+    sharedText?.let { webLinkPattern.find(it)?.value }
