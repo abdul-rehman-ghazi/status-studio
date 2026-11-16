@@ -10,6 +10,7 @@ import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/source/application/linked_video_reader.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/presentation/replace_unfinished_dialog.dart';
 import 'package:status_studio/src/features/topic/presentation/script_fields.dart';
@@ -84,7 +85,7 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
           const SizedBox(height: 8),
           ScriptFields(
             key: ValueKey(video.videoKey),
-            video: video,
+            source: LinkedMoments(video),
             onGet: (request) => unawaited(_getScript(request)),
           ),
         ],

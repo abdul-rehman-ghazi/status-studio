@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,10 @@ import 'package:status_studio/src/features/source/data/video_picker.dart';
 import 'package:status_studio/src/features/source/domain/incoming_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
+import 'package:status_studio/src/features/topic/domain/topic_request.dart';
+import 'package:status_studio/src/features/topic/presentation/replace_unfinished_dialog.dart';
+import 'package:status_studio/src/features/topic/presentation/script_fields.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -26,7 +31,9 @@ import 'package:status_studio/src/theme/app_theme.dart';
 ///
 /// A [sharedVideo] is imported at once; like a picked one, it waits for the
 /// user to choose a script or none (spec FR-29), so nothing is uploaded
-/// unasked.
+/// unasked. On Android the kept video's card is followed by Output
+/// language, Get the script (Review cuts) and Use the whole video
+/// (Fine-tune) (FR-51); iOS keeps Next: video.
 class SourceScreen extends ConsumerStatefulWidget {
   const SourceScreen({this.sharedVideo, super.key});
 
@@ -38,6 +45,9 @@ class SourceScreen extends ConsumerStatefulWidget {
 
 class _SourceScreenState extends ConsumerState<SourceScreen> {
   Future<SourceVideo>? _videoRequest;
+
+  /// The kept video, once [_videoRequest] succeeds.
+  SourceVideo? _video;
 
   /// Counts imports, so only the newest one's conversion shows on the card.
   var _importNumber = 0;
@@ -53,7 +63,9 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
       return;
     }
     // The card's FutureBuilder reports a failed import.
-    _videoRequest = _importVideo(shared.path, shared.displayName)..ignore();
+    final request = _importVideo(shared.path, shared.displayName)..ignore();
+    _videoRequest = request;
+    unawaited(_keepWhenImported(request));
   }
 
   @override
@@ -81,15 +93,64 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
           const HintText(
             'Trim it in another app first, or share it to Status Studio.',
           ),
+          if (_momentsOffered) ?_momentChoices(),
         ],
       ),
-      bottomNavigationBar: BottomAction(
-        child: FilledButton(
-          onPressed: hasVideo ? () => unawaited(_openVideoStep()) : null,
-          child: const Text('Next: video'),
-        ),
-      ),
+      bottomNavigationBar: _momentsOffered
+          ? null
+          : BottomAction(
+              child: FilledButton(
+                onPressed: hasVideo ? () => unawaited(_openVideoStep()) : null,
+                child: const Text('Next: video'),
+              ),
+            ),
     );
+  }
+
+  /// Review cuts and the join exist on Android only (spec FR-51).
+  bool get _momentsOffered => defaultTargetPlatform == TargetPlatform.android;
+
+  Widget? _momentChoices() {
+    final video = _video;
+    if (video == null) {
+      return null;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 16),
+        ScriptFields(
+          key: ValueKey(video.videoId),
+          source: LocalMoments(video),
+          onGet: (request) => unawaited(_getScript(request)),
+        ),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () => unawaited(_openVideoStep()),
+          child: const Text('Use the whole video'),
+        ),
+      ],
+    );
+  }
+
+  /// One unfinished piece of work per video (spec FR-43, FR-51): starting
+  /// again asks first, then deletes the old one.
+  Future<void> _getScript(TopicRequest request) async {
+    if (!await clearUnfinishedLinkWork(context, ref, request.source.key)) {
+      return;
+    }
+    if (mounted) await context.push(AppRoutes.reviewCuts, extra: request);
+  }
+
+  Future<void> _keepWhenImported(Future<SourceVideo> request) async {
+    try {
+      final video = await request;
+      if (mounted && identical(request, _videoRequest)) {
+        setState(() => _video = video);
+      }
+    } on Object {
+      // The card shows why.
+    }
   }
 
   Future<void> _chooseVideo() async {
@@ -126,7 +187,9 @@ class _SourceScreenState extends ConsumerState<SourceScreen> {
     request.ignore();
     setState(() {
       _videoRequest = request;
+      _video = null;
     });
+    unawaited(_keepWhenImported(request));
   }
 
   Future<SourceVideo> _importVideo(String path, String displayName) async {
