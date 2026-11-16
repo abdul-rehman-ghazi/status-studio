@@ -9,6 +9,7 @@ import 'package:status_studio/src/core/cache_cleanup.dart';
 import 'package:status_studio/src/features/appearance/application/theme_choice_controller.dart';
 import 'package:status_studio/src/features/appearance/data/theme_choice_store.dart';
 import 'package:status_studio/src/features/appearance/domain/theme_choice.dart';
+import 'package:status_studio/src/features/export/application/renderer.dart';
 import 'package:status_studio/src/features/library/data/recent_reels_repository.dart';
 import 'package:status_studio/src/features/source/application/yt_dlp_updater.dart';
 import 'package:status_studio/src/features/source/data/source_cache.dart';
@@ -62,6 +63,12 @@ Future<Set<String>> _reelSourceIds(ProviderContainer container) async {
 /// them rather than keep an "Older reels" section (FR-44).
 Future<void> _deleteReelsWithoutSource(ProviderContainer container) =>
     container.read(recentReelsRepositoryProvider).deleteWithoutSource();
+
+/// A render killed halfway leaves its MP4 and caption images (FR-49).
+Future<void> _deleteStrayReelFiles(ProviderContainer container) async =>
+    container
+        .read(recentReelsRepositoryProvider)
+        .deleteStrayFiles(await reelsDirectory(), now: DateTime.now());
 
 /// F-Droid's build turns the weekly update off with
 /// `--dart-define=WEEKLY_YTDLP_UPDATES=false`, as F-Droid's build of Seal
@@ -138,6 +145,7 @@ Future<void> _cleanUp(ProviderContainer container) async {
     );
     await _deleteOldTopics(container);
     await _deleteReelsWithoutSource(container);
+    await _deleteStrayReelFiles(container);
   } on Object catch (error, stackTrace) {
     // A failed cleanup only leaves old files behind; report and carry on.
     FlutterError.reportError(

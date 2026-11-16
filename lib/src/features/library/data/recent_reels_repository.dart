@@ -7,6 +7,7 @@ import 'package:status_studio/src/core/preferences.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 
 const _key = 'recentReels';
+const _strayFileAge = Duration(hours: 1);
 
 /// Finished reels, newest first, at most [maximum] (spec FR-11). Entries
 /// live in preferences; their MP4s and thumbnails in `documents/reels/`.
@@ -70,6 +71,31 @@ class RecentReelsRepository {
     ));
   }
 
+  /// Deletes the files in [folder] that no stored entry names as its MP4
+  /// or thumbnail and that haven't changed for an hour before [now] (spec
+  /// FR-49): what a render killed halfway leaves. The hour spares a render
+  /// still running when the app's screen starts again.
+  Future<void> deleteStrayFiles(
+    Directory folder, {
+    required DateTime now,
+  }) async {
+    final stored = await _stored();
+    // A list that can't be read at all names nothing, so nothing is known
+    // to be stray.
+    if (stored.unreadable.any((entry) => entry is! Map<String, Object?>) ||
+        !await folder.exists()) {
+      return;
+    }
+    final named = _namedFiles(stored);
+    await for (final entry in folder.list()) {
+      if (entry is File &&
+          !named.contains(_fileName(entry.path)) &&
+          now.difference(entry.lastModifiedSync()) > _strayFileAge) {
+        await entry.delete();
+      }
+    }
+  }
+
   Future<_StoredReels> _stored() async {
     final json = await preferences.getString(_key);
     if (json == null) {
@@ -119,12 +145,27 @@ void _deleteEntryFiles(Object? entry) {
   if (entry is! Map<String, Object?>) {
     return;
   }
-  for (final path in [entry['videoPath'], entry['thumbnailPath']]) {
-    if (path is String) {
-      _deleteFile(path);
-    }
-  }
+  _entryPaths(entry).forEach(_deleteFile);
 }
+
+List<String> _entryPaths(Map<String, Object?> entry) => [
+  for (final path in [entry['videoPath'], entry['thumbnailPath']])
+    if (path is String) path,
+];
+
+/// The names of every file a stored entry points at, readable or not.
+Set<String> _namedFiles(_StoredReels stored) => {
+  for (final reel in stored.reels) ...[
+    _fileName(reel.videoPath),
+    _fileName(reel.thumbnailPath),
+  ],
+  for (final entry in stored.unreadable.whereType<Map<String, Object?>>())
+    ..._entryPaths(entry).map(_fileName),
+};
+
+/// Compared by name, since every reel's files sit in the one folder and a
+/// stored path may spell the app's folder differently (`/data/user/0`).
+String _fileName(String path) => path.substring(path.lastIndexOf('/') + 1);
 
 void _deleteFile(String path) {
   final file = File(path);
