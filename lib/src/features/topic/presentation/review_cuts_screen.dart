@@ -237,10 +237,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     setState(() => _preparingPlay = cut);
     try {
       final order = PreviewOrder(
-        video: switch (widget.request.source) {
-          LinkedMoments(:final video) => video,
-          LocalMoments() => throw UnsupportedError('M71 task 4'),
-        },
+        source: widget.request.source,
         cut: cut,
         wholeVideo: _wholeVideo,
       );
@@ -548,7 +545,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     setState(() {
       _makeFailure = null;
       _momentsOpen = false;
-      _making = const ReadingStreams();
+      _making = _firstMakingStep();
     });
     try {
       final made = await ref.read(backgroundClipMakerProvider).make(
@@ -591,6 +588,13 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       }
     }
   }
+
+  /// A kept video downloads nothing, so its run starts at the join (spec
+  /// FR-51).
+  MakingProgress _firstMakingStep() => switch (widget.request.source) {
+    LinkedMoments() => const ReadingStreams(),
+    LocalMoments() => const JoiningCuts(0),
+  };
 
   /// Download keeps the answer while the screen is open; Cancel returns
   /// to the moments (spec FR-50).

@@ -6,6 +6,7 @@ import 'package:status_studio/src/features/clip/domain/clip_range.dart';
 import 'package:status_studio/src/features/join/application/whole_video.dart';
 import 'package:status_studio/src/features/join/data/clip_joiner.dart';
 import 'package:status_studio/src/features/join/data/cut_downloader.dart';
+import 'package:status_studio/src/features/join/data/kept_video_cut.dart';
 import 'package:status_studio/src/features/join/data/linked_clip_store.dart';
 import 'package:status_studio/src/features/join/data/linked_streams_reader.dart';
 import 'package:status_studio/src/features/join/domain/cut_window.dart';
@@ -17,6 +18,7 @@ import 'package:status_studio/src/features/join/domain/linked_clip.dart';
 import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 import 'package:status_studio/src/features/source/data/local_video_importer.dart';
+import 'package:status_studio/src/features/source/data/source_cache.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
@@ -60,7 +62,9 @@ class MadeClip {
 typedef _CutLayout = ({List<Duration> joinTimes, List<JoinedCut> cuts});
 
 /// The downloaded cuts and the streams they came from, the last ones read.
-typedef _FetchedCuts = ({List<DownloadedCut> cuts, CutStreams streams});
+/// [pictureIsH264] is false only for an AV1 picture, which a phone may not
+/// decode for the join.
+typedef _FetchedCuts = ({List<DownloadedCut> cuts, bool pictureIsH264});
 
 class ClipMakerServices {
   const ClipMakerServices({
@@ -70,6 +74,7 @@ class ClipMakerServices {
     required this.importer,
     required this.links,
     required this.joinsFolder,
+    required this.sources,
   });
 
   final LinkedStreamsReader streams;
@@ -81,6 +86,9 @@ class ClipMakerServices {
   /// In the cache, which the importer owns, so the joined file is moved
   /// into `sources/` rather than copied.
   final Future<Directory> joinsFolder;
+
+  /// Where a kept video's file is (spec FR-51).
+  final Future<SourceCache> sources;
 }
 
 /// One run of Make the clip: what Cancel must stop.
@@ -111,8 +119,11 @@ class ClipMaker {
   ) async {
     final run = _run = _MakingRun(onProgress);
     try {
+      if (order.request.source case LocalMoments(:final video)) {
+        return await _makeFromKept(order, video, run);
+      }
       final fetched = await _downloadCuts(order, run);
-      if (fetched.cuts case [final only] when fetched.streams.video.isH264) {
+      if (fetched.cuts case [final only] when fetched.pictureIsH264) {
         return await _keepOne(only, order, run);
       }
       return await _joinAndKeep(fetched, order, run);
@@ -121,6 +132,30 @@ class ClipMaker {
         _run = null;
       }
     }
+  }
+
+  /// Nothing downloads (spec FR-51): each cut is the kept file itself. One
+  /// moment opens on the kept video at the moment, with no copy; several
+  /// join as FR-37 joins.
+  Future<MadeClip> _makeFromKept(
+    ClipOrder order,
+    SourceVideo video,
+    _MakingRun run,
+  ) async {
+    if (order.cuts case [final only]) {
+      return MadeClip(
+        video: video,
+        clip: _withinPlayable(
+          ClipRange(start: only.start, end: only.end),
+          video,
+        ),
+      );
+    }
+    final kept = keptVideoCut(await _services.sources, video);
+    final cuts = [
+      for (final cut in order.cuts) DownloadedCut(cut: cut, file: kept),
+    ];
+    return _joinAndKeep((cuts: cuts, pictureIsH264: true), order, run);
   }
 
   /// The parts around each cut; the whole video for a site that offers no
@@ -154,7 +189,7 @@ class ClipMaker {
         downloaded.add(await _fetchAgain(download, streams));
       }
     }
-    return (cuts: downloaded, streams: streams);
+    return (cuts: downloaded, pictureIsH264: streams.video.isH264);
   }
 
   /// Every cut is a stretch of the one file; its bytes show as one cut's.
@@ -181,7 +216,7 @@ class ClipMaker {
     );
     return (
       cuts: [for (final cut in order.cuts) DownloadedCut(cut: cut, file: file)],
-      streams: CutStreams(video: stream, audio: stream),
+      pictureIsH264: stream.isH264,
     );
   }
 
@@ -191,7 +226,7 @@ class ClipMaker {
     _MakingRun run,
   ) async {
     final plan = planJoin(fetched.cuts, order.transition);
-    final joined = await _join(plan, fetched.streams, run);
+    final joined = await _join(plan, fetched, run);
     run.onProgress(const KeepingClip());
     final video = await _keep(joined, order, (
       joinTimes: plan.joinTimes,
@@ -279,7 +314,11 @@ class ClipMaker {
 
   /// One cut reaches here only with an AV1 picture, which the join writes
   /// as H.264 (spec FR-46).
-  Future<File> _join(JoinPlan plan, CutStreams streams, _MakingRun run) async {
+  Future<File> _join(
+    JoinPlan plan,
+    _FetchedCuts fetched,
+    _MakingRun run,
+  ) async {
     run.cancel.throwIfCancelled();
     final output = await _newJoinedFile();
     final MakingProgress Function(double fraction) step = plan.cuts.length == 1
@@ -296,7 +335,7 @@ class ClipMaker {
       );
     } on JoinFailedException {
       run.cancel.throwIfCancelled();
-      if (!streams.video.isH264) {
+      if (!fetched.pictureIsH264) {
         throw const CutsNotDecodableException('The phone decodes no AV1.');
       }
       rethrow;
@@ -415,6 +454,7 @@ final clipMakerProvider = Provider<ClipMaker>(
       joinsFolder: getTemporaryDirectory().then(
         (cache) => Directory('${cache.path}/joins'),
       ),
+      sources: ref.watch(sourceCacheProvider.future),
     ),
   ),
 );

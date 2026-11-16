@@ -6,6 +6,10 @@ import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 /// Starts the [CutFile.streamsKey] of a whole video: `whole.<formatId>`.
 const wholeVideoKeyPrefix = 'whole.';
 
+/// The [CutFile.streamsKey] of a kept video used as its own cut (spec
+/// FR-51).
+const keptVideoStreamsKey = 'kept';
+
 /// A stretch of a linked video downloaded as one MP4 (spec FR-37). Times
 /// are in the linked video's time.
 @immutable
