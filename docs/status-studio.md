@@ -1167,6 +1167,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M61 Known issues | The two small §15 bugs (the "(detected)" language label, Style's first-line preview): both gone since M30/M54; their dead code removed | Built, branch `m61-known-issues` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M62 Spec checkboxes | §12's stale unchecked tasks closed or ticked from the code and git history; the owner's test tasks no longer carry a checkbox | Built, branch `m62-spec-checkboxes` (from `dev`), merged into `dev` (2026-11-16). Docs only |
 | M63 README | The README's later sections (status, features, tech stack, structure, distribution, signing, releasing, licence) brought up to date; asked by the owner (2026-11-16) | Built, branch `m63-readme` (from `dev`), merged into `dev` (2026-11-16). Docs only |
+| M64 Check without tests | `tool/check.sh` formats and tests `test/` only when a local copy is there, since the suite is kept outside the repository; asked by the owner (2026-11-16) | Built, branch `m64-check-without-tests` (from `dev`), pushed, not merged. `tool/check.sh` exits 0 (tests skipped) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 

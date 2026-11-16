@@ -83,12 +83,12 @@ fvm flutter run
 Common commands:
 
 ```sh
-fvm flutter analyze
+tool/check.sh        # format and analyze; also runs the tests when a test/ folder is present
 fvm flutter build apk --debug
 fvm flutter build ios --no-codesign   # after `fvm flutter precache --ios` once
 ```
 
-The test suite is not kept in this repository.
+The test suite is not kept in this repository, so `tool/check.sh` skips the tests unless you have a local `test/` folder.
 
 ## Project structure
 
@@ -143,7 +143,7 @@ All are licensed under the SIL Open Font License 1.1. The licence files sit next
 3. Build and check:
 
    ```sh
-   fvm flutter analyze
+   tool/check.sh
    fvm flutter build apk --release --split-per-abi
    ```
 
