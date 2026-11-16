@@ -41,7 +41,7 @@ final rendererProvider = Provider<Renderer>(
       probe: ref.watch(mediaProbeProvider),
       loudnessMeter: ref.watch(loudnessMeterProvider),
       paintOverlay: paintOverlayPng,
-      outputDirectory: _reelsDirectory(),
+      outputDirectory: reelsDirectory(),
     ),
   ),
 );
@@ -62,7 +62,8 @@ Future<ClipSource> _clipSourceFor(Ref ref, ReelDraft draft) async {
   return source;
 }
 
-Future<Directory> _reelsDirectory() async {
+/// Where reels and their thumbnails are written (FR-9, FR-11).
+Future<Directory> reelsDirectory() async {
   final documents = await getApplicationDocumentsDirectory();
   return Directory('${documents.path}/reels');
 }

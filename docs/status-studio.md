@@ -1947,7 +1947,7 @@ Request (2026-11-16): FR-48. Tests are the owner's; `fvm flutter analyze` only, 
 Request (2026-11-16): FR-49. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** FR-49, this list and the §12 row.
-- [ ] **2. Delete stray files.** `RecentReelsRepository.deleteStrayFiles(folder, now:)` deletes the files in `folder` whose names no stored entry's `videoPath` or `thumbnailPath` has, changed over an hour before `now`; `reelsDirectory()` in `renderer.dart` is public, and start-up cleanup in `main.dart` calls it after `deleteWithoutSource`. **New tests to write:** an unnamed MP4 and PNG over an hour old are deleted; a stored reel's MP4 and thumbnail stay; an unreadable entry's files stay; a file changed within the hour stays; a missing folder deletes nothing. **Stale:** none known.
+- [x] **2. Delete stray files.** `RecentReelsRepository.deleteStrayFiles(folder, now:)` deletes the files in `folder` whose names no stored entry's `videoPath` or `thumbnailPath` has, changed over an hour before `now`; `reelsDirectory()` in `renderer.dart` is public, and start-up cleanup in `main.dart` calls it after `deleteWithoutSource`. **New tests to write:** an unnamed MP4 and PNG over an hour old are deleted; a stored reel's MP4 and thumbnail stay; an unreadable entry's files stay; a file changed within the hour stays; a missing folder deletes nothing. **Stale:** none known.
 - [ ] **3. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
