@@ -1,0 +1,1 @@
+A video picked from the gallery gets a real name instead of a number. After saving a Groq key from the "needs a free Groq key" message, the script starts again.
