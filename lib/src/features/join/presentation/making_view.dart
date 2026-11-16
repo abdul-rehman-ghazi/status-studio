@@ -103,10 +103,12 @@ class MakeFailureView extends StatelessWidget {
             const SizedBox(height: 4),
             const Center(child: HintText('Finished cuts are kept.')),
           ],
-          if (failure case JoinFailedException(:final reason)) ...[
+          if (failure
+              case JoinFailedException(:final reason) ||
+                  SiteChangedException(:final reason)) ...[
             const SizedBox(height: 8),
-            // Media3's own words, so a report from the phone says which of
-            // its checks stopped the join.
+            // Media3's or yt-dlp's own words, so a report from the phone
+            // says which of their checks failed (M73).
             SelectableText(
               reason,
               textAlign: TextAlign.center,
