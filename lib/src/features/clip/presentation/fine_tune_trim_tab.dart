@@ -199,30 +199,6 @@ class _ClipWaveform extends ConsumerWidget {
   }
 }
 
-class _LongClipWarning extends StatelessWidget {
-  const _LongClipWarning();
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.tertiary;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Icon(Icons.warning_amber_rounded, size: 18, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Longer than 60 s. WhatsApp Status may cut it.',
-              style: TextStyle(color: color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ClipSummary extends StatelessWidget {
   const _ClipSummary({required this.clip});
 
@@ -242,54 +218,6 @@ class _ClipSummary extends StatelessWidget {
         Text(
           formatSeconds(clip.length),
           style: textTheme.titleMedium?.copyWith(color: context.palette.accent),
-        ),
-      ],
-    );
-  }
-}
-
-class _WholeVideoBar extends StatelessWidget {
-  const _WholeVideoBar({required this.clip, required this.videoDuration});
-
-  final ClipRange clip;
-  final Duration videoDuration;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = videoDuration.inMilliseconds;
-    final startFraction = clip.start.inMilliseconds / total;
-    final lengthFraction = clip.length.inMilliseconds / total;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const Expanded(child: HintText('Whole video')),
-            HintText(formatTimestamp(videoDuration)),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            height: 8,
-            child: LayoutBuilder(
-              builder: (context, constraints) => Stack(
-                children: [
-                  Positioned.fill(
-                    child: ColoredBox(color: context.palette.surface),
-                  ),
-                  Positioned(
-                    left: constraints.maxWidth * startFraction,
-                    width: constraints.maxWidth * lengthFraction,
-                    top: 0,
-                    bottom: 0,
-                    child: ColoredBox(color: context.palette.accent),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ),
       ],
     );
