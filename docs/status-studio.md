@@ -136,6 +136,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Words:** letters, marks and digits only, so punctuation and characters illegal in file names are dropped; joined by `_`. A part with no words is left out; with none at all the name is `reel`.
   - **Same name again:** `-2`, `-3`, … is added, so a new reel never replaces an earlier one. The name is also the reel's id in Recent, and what Save to gallery and Share show.
 - **Output:** MP4 with H.264 video (`video/avc`) and AAC audio (`audio/mp4a-latm`), at the source frame rate, rendered by Media3 Transformer (§5).
+  - **Video bitrate (M58, FR-48):** 4 Mbit/s on both platforms, whatever the output size.
 - **Kept fine-tune:** a finished export deletes the kept fine-tune (FR-24).
 - **Progress:** Media3's own progress.
 - **Cancel:** stops the render, deletes the partial file and returns to Lyrics.
@@ -583,6 +584,10 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **A link's audio goes once its transcript is saved.** The whole audio (`sources/v_yt_<ID>/source.m4a`) and its cleaned pieces only serve the Groq transcript of FR-36. Once that transcript is saved under `topics/`, the folder is deleted; the `v_yt_` script under `transcripts/` stays. A transcript in another output language downloads the audio again (*Claude's call*: rare, and the audio was 30–50 MB a talk plus as much again in pieces).
 - **A kept video nobody can reach goes after 7 days.** Until M57 a `sources/<videoId>/` folder was kept for 90 days whenever its `transcripts/<videoId>/` folder existed, and saving a video's title (on import) creates that folder. So a video imported and left without a script, a fine-tune or a reel had no History group (M54) yet kept its copy. Now a kept video counts as unused when its `transcripts/` folder holds nothing but its title and last-used time, and no reel records it as its source; such a folder is deleted when nothing in it has changed for 7 days. Its title-only `transcripts/` folder stays (*Claude's call*: a few bytes).
 - **Not changed:** a reel file whose record is gone from the reel list (one such 64 MB file was found and deleted by hand) is not looked for.
+
+**FR-48 Smaller reels (M58).** Asked by the owner (2026-11-16): "lower the reel bitrate to 4 Mbps". Reels were 56–70 MB a minute (8–9 Mbit/s): Android let the hardware encoder choose, and iOS asked for 0.12 bits a pixel a frame (about 7.5 Mbit/s at 1080 × 1920). WhatsApp compresses a status further anyway.
+- **Rate:** the reel's video is asked for 4 Mbit/s on Android (Media3 `VideoEncoderSettings`) and iOS (`AVVideoAverageBitRateKey`), about 30 MB a minute with the sound. The encoder's rate mode stays its default (*Claude's call*).
+- **Not changed:** the link join (FR-37) keeps its high rate, since the reel is encoded again from it; the AV1 conversion (M31) keeps Media3's default.
 
 ## 4. Non-functional requirements
 
@@ -1138,6 +1143,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | Built, branch `m55-groq-allowance` (from `dev`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Task 7 (same day): Groq sends no audio headers, so the audio is counted on the phone. The phone check is the owner's. Tests not run |
 | M56 One moment, moments sheet | One moment is kept without a join or re-encode; Your moments opens in a sheet from the footer (FR-46) | Built, branch `m56-one-moment-and-moments-sheet` (stacked on `m55-groq-allowance`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's: one moment's kept cut file plays and exports from the moment's place (the stream-copied file's edit list, §10 item 10). Tests not run |
 | M57 Free storage | A link's audio and pieces go once its transcript is saved; a kept video with only its title and no reel goes after 7 days (FR-47) | Built, branch `m57-free-storage` (from `dev`), pushed, not merged (2026-11-16). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Tests not run |
+| M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | Built, branch `m58-reel-bitrate` (from `dev`), pushed, not merged (2026-11-16). Analyze clean; the debug APK builds; the iOS change is not compiled. The phone check is the owner's: a reel's size and look at 4 Mbit/s. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1938,6 +1944,14 @@ Request (2026-11-16): FR-47. Tests are the owner's; `fvm flutter analyze` only, 
 - [x] **3. Unreachable kept videos go.** `deleteOrphanedSources` keeps a source only when its `transcripts/` folder holds more than `video.json` and `last_used`, or a reel's `sourceVideoId` names it; `cleanUpOnStart` takes a `CleanupPlaces` value (sources, scripts, reel source IDs from `RecentReelsRepository.load`), and the 7-day age is a constant. **New tests to write:** a title-only video older than 7 days is deleted; one with a script, a partial, a draft or a reel stays; a title-only video changed within 7 days stays. **Stale:** `deleteOrphanedSources` and `cleanUpOnStart` tests (signature, `maxAge`).
 - [x] **4. Status.** §12 row, §13 entries; push.
 
+### M58 tasks (branch `m58-reel-bitrate`, from `dev`)
+
+Request (2026-11-16): FR-48. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-48, FR-9 Output, this list and the §12 row.
+- [x] **2. 4 Mbit/s.** `ReelRenderer` sets a `DefaultEncoderFactory` with `VideoEncoderSettings` at 4,000,000 bit/s; `RenderJob.videoSettings` asks `AVVideoAverageBitRateKey` 4,000,000. **New tests to write:** none in Dart; the rate is native. **Stale:** none known.
+- [x] **3. Status.** §12 row, §13 entry; push.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -2235,6 +2249,8 @@ Request (2026-11-16): FR-47. Tests are the owner's; `fvm flutter analyze` only, 
   - After a Groq transcript of a link is saved under `topics/`, `sources/v_yt_<ID>/` is gone; a failed save keeps it; captions leave nothing to delete.
   - A kept video whose `transcripts/` folder holds only `video.json` and `last_used`, with no reel made from it, is deleted after 7 days unchanged; within 7 days it stays.
   - A script, Groq progress, a fine-tune draft or a reel's `sourceVideoId` keeps it.
+
+- **Smaller reels (FR-48, M58):** none in Dart; the 4 Mbit/s rate is set natively (`ReelRenderer`, `RenderJob`).
 
 - **Faces with BlazeFace (FR-23, M47):**
   - `Letterbox.forFrame` centres a 640 × 360 frame as 192 × 108 at top 42, and a 360 × 640 frame as 108 × 192 at left 42.
