@@ -1210,6 +1210,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M73 Link error details | "Couldn't read this video" shows yt-dlp's own error under it, on the link card and after Make the clip, so a failure on the phone can be reported (§8) | Built on branch `m73-link-error-details` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M74 Length from the streams | An Instagram reel read logged out has no length in yt-dlp's answer; the app reads it from the smallest stream's segment index or `mvhd` (FR-50) | Built on branch `m74-length-from-streams` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M75 Whole video from a link | Use the whole video on From a link, up to 5 minutes: the video downloads as one cut and Fine-tune opens (FR-52) | Built on branch `m75-whole-link-video` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
+| M76 Controls that hide | Play and Pause over a playing video fade out after 3 s and come back on a touch, in Fine-tune, Lyrics and Play on a card; Done's player already hid its badge while playing | Built on branch `m76-auto-hiding-controls` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2123,6 +2124,12 @@ Request (2026-11-16): FR-52, Use the whole video for a link, with a cap. Tests a
 
 - [x] **1. Use the whole video.** `ScriptFields` gains `onUseWhole` (From a link passes it; Source keeps its own button), off past `longestWholeLink` (5 minutes) with its hint; both buttons save the output language. `ClipOrder.wholeVideo` is one cut from 0 to the end, the Cut transition, and the whole file allowed. `WholeLinkScreen` (`/link/whole`) runs it through `BackgroundClipMaker` with `MakingView` and `MakeFailureView`, then replaces itself with Fine-tune. **Stale tests:** `ScriptFields` tests (a third button on From a link). New cases: the button's cap, `ClipOrder.wholeVideo`, the screen's success, cancel and failure.
 - [x] **2. History for a whole video.** Asked by the owner (2026-11-16): "what about history when whole clip is used … from link". `WholeLinkScreen` keeps the link's `video.json` as Review cuts does; without it the History row showed the raw key with no thumbnail, and its New built a YouTube URL from any key. History's New now builds the watch URL only for a YouTube key (`isYouTubeVideoKey`) and otherwise opens From a link empty. **Stale tests:** History New cases for a link without facts.
+
+### M76 tasks (branch `m76-auto-hiding-controls`, from `dev`)
+
+Request (2026-11-16): "preview player, is not auto hiding play pause button", then "all player". Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
+
+- [x] **1. Controls that hide.** `AutoHidingControls` (`core/presentation/`) lays a player's controls over its picture: shown while paused; faded out 3 s after playing starts or after the last touch (*Claude's call*); back on any touch on the picture, which still reaches what is under it (the crop window drags at once). `ClipPlayer` (Fine-tune · Video and Lyrics) puts Play/Pause and Play the clip in it, in the middle or the corner as before. Play on a card's sheet (FR-39) moves Play/Pause from beside the bar onto the picture, in it, and the bar takes the full width (*Claude's call*, so every player behaves alike). Done's `ReelPlayer` is unchanged: its Play badge already shows only while paused, and a tap anywhere pauses. **Stale tests:** cut player sheet tests that find Play/Pause in the bar's row; player tests that expect the buttons while playing. New cases: hidden 3 s after play, back on a touch, always shown while paused.
 
 ## 13. Behaviour that must stay covered by tests
 

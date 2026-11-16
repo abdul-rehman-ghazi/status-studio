@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:status_studio/src/core/presentation/auto_hiding_controls.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
@@ -204,29 +205,36 @@ class _CutPlayerSheetState extends ConsumerState<_CutPlayerSheet> {
             AspectRatio(
               aspectRatio: showsPicture ? player.value.aspectRatio : 16 / 9,
               child: showsPicture
-                  ? _Picture(player: player, isIncluded: _isIncluded)
+                  ? AutoHidingControls(
+                      player: player,
+                      picture: _Picture(
+                        player: player,
+                        isIncluded: _isIncluded,
+                      ),
+                      controls: [
+                        Positioned.fill(
+                          child: Center(
+                            child: IconButton.filled(
+                              tooltip: _isPlaying ? 'Pause' : 'Play',
+                              iconSize: 32,
+                              icon: Icon(
+                                _isPlaying ? Icons.pause : Icons.play_arrow,
+                              ),
+                              onPressed: () => unawaited(_togglePlay()),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
                   : const Center(child: CircularProgressIndicator()),
             ),
-            Row(
-              children: [
-                IconButton(
-                  tooltip: _isPlaying ? 'Pause' : 'Play',
-                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-                  onPressed: showsPicture
-                      ? () => unawaited(_togglePlay())
-                      : null,
-                ),
-                Expanded(
-                  child: _TrimBar(
-                    reading: (
-                      range: _range,
-                      included: ClipWindow(start: _cut.start, end: _cut.end),
-                      position: _clampedToRange(_position),
-                    ),
-                    onSeek: (time) => unawaited(_seek(time)),
-                  ),
-                ),
-              ],
+            _TrimBar(
+              reading: (
+                range: _range,
+                included: ClipWindow(start: _cut.start, end: _cut.end),
+                position: _clampedToRange(_position),
+              ),
+              onSeek: (time) => unawaited(_seek(time)),
             ),
             _EdgeNudges(
               label: 'Start',
