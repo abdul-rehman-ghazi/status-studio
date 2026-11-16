@@ -1142,7 +1142,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | Built, branch `m55-groq-allowance` (from `dev`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Task 7 (same day): Groq sends no audio headers, so the audio is counted on the phone. The phone check is the owner's. Tests not run |
 | M56 One moment, moments sheet | One moment is kept without a join or re-encode; Your moments opens in a sheet from the footer (FR-46) | Built, branch `m56-one-moment-and-moments-sheet` (stacked on `m55-groq-allowance`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's: one moment's kept cut file plays and exports from the moment's place (the stream-copied file's edit list, §10 item 10). Tests not run |
 | M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | Built, branch `m58-reel-bitrate` (from `dev`), pushed, not merged (2026-11-16). Analyze clean; the debug APK builds; the iOS change is not compiled. The phone check is the owner's: a reel's size and look at 4 Mbit/s. Tests not run |
-| M59 Stray reel files | Files in `reels/` that no reel names (a killed render's MP4 and caption PNGs) are deleted at start-up after an hour (FR-49) | In progress, branch `m59-stray-reel-files` (stacked on `m58-reel-bitrate`). Tests not run |
+| M59 Stray reel files | Files in `reels/` that no reel names (a killed render's MP4 and caption PNGs) are deleted at start-up after an hour (FR-49) | Built, branch `m59-stray-reel-files` (stacked on `m58-reel-bitrate`), pushed, not merged (2026-11-16). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1948,7 +1948,7 @@ Request (2026-11-16): FR-49. Tests are the owner's; `fvm flutter analyze` only, 
 
 - [x] **1. Spec.** FR-49, this list and the §12 row.
 - [x] **2. Delete stray files.** `RecentReelsRepository.deleteStrayFiles(folder, now:)` deletes the files in `folder` whose names no stored entry's `videoPath` or `thumbnailPath` has, changed over an hour before `now`; `reelsDirectory()` in `renderer.dart` is public, and start-up cleanup in `main.dart` calls it after `deleteWithoutSource`. **New tests to write:** an unnamed MP4 and PNG over an hour old are deleted; a stored reel's MP4 and thumbnail stay; an unreadable entry's files stay; a file changed within the hour stays; a missing folder deletes nothing. **Stale:** none known.
-- [ ] **3. Status.** §12 row, §13 entry; push.
+- [x] **3. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -2244,6 +2244,8 @@ Request (2026-11-16): FR-49. Tests are the owner's; `fvm flutter analyze` only, 
   - Review cuts' footer shows Moments (n); the panel opens and closes on ×, Moments, the shade and Back; a tick in it updates the total; with none it shows the empty text.
 
 - **Smaller reels (FR-48, M58):** none in Dart; the 4 Mbit/s rate is set natively (`ReelRenderer`, `RenderJob`).
+
+- **Stray reel files (FR-49, M59):** files in `reels/` no stored entry names, over an hour old, are deleted at start-up; a stored reel's MP4 and thumbnail, an unreadable entry's files and a file changed within the hour stay; a list that can't be read at all deletes nothing.
 
 - **Faces with BlazeFace (FR-23, M47):**
   - `Letterbox.forFrame` centres a 640 × 360 frame as 192 × 108 at top 42, and a 360 × 640 frame as 108 × 192 at left 42.
