@@ -2019,7 +2019,7 @@ Found 2026-11-16 while taking F-Droid screenshots on the owner's Pixel 6a (Andro
 - [x] **1. First crash.** FFmpeg Kit's native library registers `AbiDetect` methods by name on load; R8 had removed `getNativeCpuAbi`, so `RegisterNatives` threw inside `GeneratedPluginRegistrant`, the plugins after it (`jni_flutter` among them) were never registered, and `path_provider_android`'s first JNI call aborted with "JNI is not initialized".
 - [x] **2. Second crash, with a keep rule for FFmpeg Kit.** youtubedl-android's start-up unzip failed in Apache Commons Compress (`ExtraFieldUtils` creates `AsiExtraField` by reflection: "is not a concrete class"). Jackson reads yt-dlp's JSON by reflection too, which only runs on a link.
 - [x] **3. Fix.** `isMinifyEnabled = false` and `isShrinkResources = false` for release in `android/app/build.gradle.kts` (*Claude's call*: keep rules would have to cover FFmpeg Kit, Commons Compress, Jackson and youtubedl-android's mappers, and a missed one only shows at run time). The arm64 APK grows from 46.0 to 53.6 MB. A release build starts with no plugin or JNI errors. F-Droid's build uses the same Gradle file, so it is fixed too.
-- [ ] **4. Release 0.1.2 (the owner's go-ahead).** Build number 3, changelogs for 3, 1003, 2003 and 4003, tag, GitHub release; the F-Droid recipe and the IzzyOnDroid request then name 0.1.2.
+- [x] **4. Release 0.1.2 (the owner's go-ahead, 2026-11-16).** Version `0.1.2+3` (codes 1003, 2003, 4003), changelogs for 3, 1003, 2003 and 4003, tag `v0.1.2` on `dev`, GitHub release with one signed APK per ABI and `SHA256SUMS.txt`; the F-Droid recipe names 0.1.2. The IzzyOnDroid request (#901, written for 0.1.0) is the owner's to update.
 
 ### M66 tasks (branch `m66-fdroid-images`, from `dev`)
 
