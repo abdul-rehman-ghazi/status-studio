@@ -11,10 +11,10 @@ const _idHexLength = 16;
 /// Every video ID starts with this; folders named otherwise are older.
 const videoIdPrefix = 'v_';
 
-/// A fingerprint, or `yt_` and an 11-character YouTube ID for a linked
-/// video's audio (spec FR-36).
+/// A fingerprint, or `yt_` and a linked video's key for its audio (spec
+/// FR-36): a YouTube ID, or `<site>_<id>` of up to 64 characters (FR-50).
 final _videoIdPattern = RegExp(
-  '^$videoIdPrefix([0-9a-f]{$_idHexLength}|yt_[A-Za-z0-9_-]{11})\$',
+  '^$videoIdPrefix([0-9a-f]{$_idHexLength}|yt_[A-Za-z0-9_-]{1,64})\$',
 );
 
 /// Whether [folderName] is a current video ID, not one from before M23
