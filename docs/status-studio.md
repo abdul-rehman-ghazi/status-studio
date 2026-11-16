@@ -1934,7 +1934,7 @@ Request (2026-11-13): FR-46. Tests are the owner's; `fvm flutter analyze` only, 
 Request (2026-11-16): FR-48. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** FR-48, FR-9 Output, this list and the §12 row.
-- [ ] **2. 4 Mbit/s.** `ReelRenderer` sets a `DefaultEncoderFactory` with `VideoEncoderSettings` at 4,000,000 bit/s; `RenderJob.videoSettings` asks `AVVideoAverageBitRateKey` 4,000,000. **New tests to write:** none in Dart; the rate is native. **Stale:** none known.
+- [x] **2. 4 Mbit/s.**** `ReelRenderer` sets a `DefaultEncoderFactory` with `VideoEncoderSettings` at 4,000,000 bit/s; `RenderJob.videoSettings` asks `AVVideoAverageBitRateKey` 4,000,000. **New tests to write:** none in Dart; the rate is native. **Stale:** none known.
 - [ ] **3. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests

@@ -253,7 +253,8 @@ final class RenderJob {
             throw RenderSpecError(message: "Can't encode \(spec.videoMimeType).")
         }
         let framesPerSecond = Double(frameRate > 0 ? min(frameRate, 30) : 30)
-        let bitsPerPixel = 0.12
+        // The same rate as Android's reel (spec FR-48), whatever the output size.
+        let reelVideoBitRate = 4_000_000
         return [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: spec.outputWidth,
@@ -264,7 +265,7 @@ final class RenderJob {
                 AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
             ],
             AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: Int(Double(spec.outputWidth * spec.outputHeight) * framesPerSecond * bitsPerPixel),
+                AVVideoAverageBitRateKey: reelVideoBitRate,
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
                 AVVideoExpectedSourceFrameRateKey: framesPerSecond,
                 AVVideoMaxKeyFrameIntervalDurationKey: 2,

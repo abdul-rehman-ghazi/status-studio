@@ -17,15 +17,18 @@ import androidx.media3.effect.GaussianBlurWithFrameOverlaid
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
 import java.io.File
 
 private const val PROGRESS_INTERVAL_MS = 250L
+private const val REEL_VIDEO_BITRATE = 4_000_000
 
 /**
  * Renders one reel at a time with Media3 Transformer: trim, frame, overlay, then hardware
@@ -59,6 +62,7 @@ class ReelRenderer(private val context: Context) {
         val transformer = Transformer.Builder(context)
             .setVideoMimeType(spec.videoMimeType)
             .setAudioMimeType(spec.audioMimeType)
+            .setEncoderFactory(reelEncoderFactory())
             .addListener(completionListener(listener))
             .build()
         // Busy only once `start` has succeeded: a spec Media3 rejects must not
@@ -84,6 +88,16 @@ class ReelRenderer(private val context: Context) {
         mainHandler.removeCallbacks(current.poll)
         running = null
         return current
+    }
+
+    /** Left to itself the hardware encoder chose 8–9 Mbit/s, about 65 MB a minute (FR-48). */
+    private fun reelEncoderFactory(): DefaultEncoderFactory {
+        val settings = VideoEncoderSettings.Builder()
+            .setBitrate(REEL_VIDEO_BITRATE)
+            .build()
+        return DefaultEncoderFactory.Builder(context)
+            .setRequestedVideoEncoderSettings(settings)
+            .build()
     }
 
     private fun completionListener(listener: Listener) =
