@@ -1169,6 +1169,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M63 README | The README's later sections (status, features, tech stack, structure, distribution, signing, releasing, licence) brought up to date; asked by the owner (2026-11-16) | Built, branch `m63-readme` (from `dev`), merged into `dev` (2026-11-16). Docs only |
 | M64 Check without tests | `tool/check.sh` formats and tests `test/` only when a local copy is there, since the suite is kept outside the repository; asked by the owner (2026-11-16) | Built, branch `m64-check-without-tests` (from `dev`), merged into `dev` (2026-11-16). `tool/check.sh` exits 0 (tests skipped) |
 | M65 Release crash | Release APKs crashed at start: R8 broke FFmpeg Kit's JNI binding and youtubedl-android's reflection; R8 is off for release builds | Built, branch `m65-release-crash` (from `dev`), merged into `dev` (2026-11-16). A release build starts on a Pixel 6a (Android 17). Released in 0.1.2 |
+| M66 F-Droid images | Phone screenshots, icon and feature graphic for F-Droid's fastlane metadata; two small bugs found on the way (§15) | Built, branch `m66-fdroid-images` (from `dev`), pushed, not merged. Images only |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2020,6 +2021,14 @@ Found 2026-11-16 while taking F-Droid screenshots on the owner's Pixel 6a (Andro
 - [x] **3. Fix.** `isMinifyEnabled = false` and `isShrinkResources = false` for release in `android/app/build.gradle.kts` (*Claude's call*: keep rules would have to cover FFmpeg Kit, Commons Compress, Jackson and youtubedl-android's mappers, and a missed one only shows at run time). The arm64 APK grows from 46.0 to 53.6 MB. A release build starts with no plugin or JNI errors. F-Droid's build uses the same Gradle file, so it is fixed too.
 - [ ] **4. Release 0.1.2 (the owner's go-ahead).** Build number 3, changelogs for 3, 1003, 2003 and 4003, tag, GitHub release; the F-Droid recipe and the IzzyOnDroid request then name 0.1.2.
 
+### M66 tasks (branch `m66-fdroid-images`, from `dev`)
+
+Request (2026-11-16): "Get the screenshots, images/icon.png and generate images/featureGraphic.png", on the owner's Pixel 6a, then the link flow too. Taken with a release build of `m65-release-crash` (0.1.1 crashed at start, M65), the status bar in demo mode, a 45 s sample cut from `assets/videos/`, and the reference link `s6kE_uP3xH4`.
+
+- [x] **1. Screenshots.** `fastlane/metadata/android/en-US/images/phoneScreenshots/1.png`–`8.png`, 1080 × 2400: Home with Carry on, From a link, Review cuts with a selection, the scene choice (a face and a body), the crop's scene strip, Lyrics in Nastaliq, the Style sheet, Done. Two notification icons that demo mode left in the status bar are painted over in the bar's colour.
+- [x] **2. Icon and feature graphic.** `images/icon.png` (512 × 512, from `assets/branding/logo_1024.png`) and `images/featureGraphic.png` (1024 × 500: logo, name and tagline in Inter on the dark background, and the exported reel from Done).
+- [x] **3. Bugs found** (§15): a video from the photo picker is named by its media ID; the Groq key error stays after a key is saved.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -2350,4 +2359,6 @@ Removed on 2026-11-10: the owner does all device testing themselves and keeps th
 - **Moving crop (M19):** (a) (Gone, confirmed in M61: Style's preview showed the first caption line whatever the time. Since M30 Lyrics' player shows the line due at the playhead; the still `ReelPreview` had no caller and was removed.) (b) (Gone in M23: the player holds the whole video, so a keyframe outside the clip can be shown.)
 - **Preview timing (M25):** the Lyrics preview reads the crop from the playhead's estimated position (the platform reports about twice a second), so at a scene cut its crop can sit a few milliseconds off the picture while playing. The export reads each frame's own time and is exact (on the reference clip the detector's cut is the first new frame; a file whose first video timestamp is not 0 could still put FFmpeg's and Media3's clocks tens of milliseconds apart, which §14's frame-by-frame check would show). A fade at cuts was tried and removed at the owner's request.
 - **Bodies (M25):** the detector's output was only judged by eye on 11 frames; false positives on a clip with no person were not measured; a release build's times and the GPU or NNAPI delegates were not tried; the model loads on first use (about 0.8 s, twice per run: once for the pictures, once for the body phase); `tflite_flutter`'s native library is 16 KB page aligned (checked in M27 task 6); the body anchor is provisional (§10 item 7).
+- **Picker names (found in M66):** a video chosen with Android's photo picker shows its media ID ("1000000463") as its name on Source and in History, since the picker hands over a `content://media/picker/…/1000000463` URI with no display name read. Sharing a video in is not affected.
+- **Stale key error (found in M66):** on Lyrics, "Writing a script needs a free Groq key." stays after the user saves a key through its Settings button and comes back; Dismiss clears it.
 - **Crowd shots (M25):** a shot with dozens of faces offers only the 6 biggest faces and the people the body detector finds (3 foreground people on the reference clip's crowd shots); a face in the crowd can't be chosen, but a spot can.
