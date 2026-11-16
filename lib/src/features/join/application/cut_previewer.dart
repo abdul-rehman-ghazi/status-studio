@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
+import 'package:status_studio/src/features/join/application/whole_video.dart';
 import 'package:status_studio/src/features/join/data/cut_downloader.dart';
 import 'package:status_studio/src/features/join/data/linked_streams_reader.dart';
 import 'package:status_studio/src/features/join/domain/cut_file.dart';
@@ -16,12 +17,31 @@ const _streamsKeptFor = Duration(hours: 1);
 /// can be heard (spec FR-39).
 const previewMargin = Duration(seconds: 5);
 
-/// Streams read for a video, and when.
-typedef _ReadStreams = ({CutStreams streams, DateTime readAt});
+/// Formats read for a video, and when.
+typedef _ReadFormats = ({LinkedFormats formats, DateTime readAt});
+
+/// One Play on a card, and what the user said to a whole video (spec
+/// FR-50).
+class PreviewOrder {
+  const PreviewOrder({
+    required this.video,
+    required this.cut,
+    this.wholeVideo = WholeVideoAnswer.notAsked,
+  });
+
+  final LinkedVideo video;
+  final TopicCut cut;
+  final WholeVideoAnswer wholeVideo;
+
+  /// The same order for a nudged moment.
+  PreviewOrder withCut(TopicCut moved) =>
+      PreviewOrder(video: video, cut: moved, wholeVideo: wholeVideo);
+}
 
 /// Play on a card (spec FR-37, FR-39): the moment with [previewMargin]
 /// around it, at up to 480p, downloaded into the cache as a cut is, and
-/// reused when played again.
+/// reused when played again. A site without parts gives its whole video
+/// once allowed, which Make the clip then reuses (FR-50).
 class CutPreviewer {
   CutPreviewer({required this.streams, required this.cuts});
 
@@ -30,42 +50,64 @@ class CutPreviewer {
 
   /// Reading streams takes yt-dlp several seconds, so they are kept for
   /// the next card.
-  final _read = <String, _ReadStreams>{};
+  final _read = <String, _ReadFormats>{};
 
-  /// Throws as [CutDownloader.download] and [LinkedStreamsReader.read] do.
-  Future<CutFile> prepare(LinkedVideo video, TopicCut cut) async {
+  /// Throws as [CutDownloader.download] and [LinkedStreamsReader.read] do,
+  /// and [WholeFileNeededException] until a whole video is allowed.
+  Future<CutFile> prepare(PreviewOrder order) async {
+    final video = order.video;
     try {
-      return await _download(video, cut, await _streamsFor(video));
+      return await _prepareFrom(await _formatsFor(video), order);
     } on ExpiredStreamUrlException {
       _read.remove(video.videoKey);
-      return _download(video, cut, await _streamsFor(video));
+      return _prepareFrom(await _formatsFor(video), order);
     }
   }
 
-  Future<CutStreams> _streamsFor(LinkedVideo video) async {
+  Future<LinkedFormats> _formatsFor(LinkedVideo video) async {
     final kept = _read[video.videoKey];
     if (kept != null &&
         DateTime.now().difference(kept.readAt) < _streamsKeptFor) {
-      return kept.streams;
+      return kept.formats;
     }
-    final read = streamsForPreview(await streams.read(video));
-    _read[video.videoKey] = (streams: read, readAt: DateTime.now());
+    final read = await streams.read(video);
+    _read[video.videoKey] = (formats: read, readAt: DateTime.now());
     return read;
   }
 
-  Future<CutFile> _download(
-    LinkedVideo video,
-    TopicCut cut,
-    CutStreams streams,
-  ) => cuts.download(
-    CutRequest(
-      videoKey: video.videoKey,
-      window: previewWindowFor(cut, video.duration),
-      streams: streams,
-    ),
-    CutDownloadWatch(cancel: DownloadCancel(), onBytes: (_, _) {}),
-  );
+  Future<CutFile> _prepareFrom(
+    LinkedFormats formats,
+    PreviewOrder order,
+  ) async {
+    try {
+      return await _downloadPart(order, streamsForPreview(formats));
+    } on NotDownloadableInPartsException catch (partsFailure) {
+      final stream = wholeStreamOrThrow(order.video, formats, partsFailure);
+      return fetchWholeVideo(
+        cuts,
+        WholeVideoOrder(
+          request: WholeVideoRequest(video: order.video, stream: stream),
+          answer: order.wholeVideo,
+          watch: _unwatched(),
+        ),
+      );
+    }
+  }
+
+  Future<CutFile> _downloadPart(PreviewOrder order, CutStreams streams) =>
+      cuts.download(
+        CutRequest(
+          videoKey: order.video.videoKey,
+          window: previewWindowFor(order.cut, order.video.duration),
+          streams: streams,
+        ),
+        _unwatched(),
+      );
 }
+
+/// Play shows no bytes and has no Cancel.
+CutDownloadWatch _unwatched() =>
+    CutDownloadWatch(cancel: DownloadCancel(), onBytes: (_, _) {});
 
 /// [cut] with [previewMargin] on both sides, clamped to the video.
 ClipWindow previewWindowFor(TopicCut cut, Duration videoLength) {

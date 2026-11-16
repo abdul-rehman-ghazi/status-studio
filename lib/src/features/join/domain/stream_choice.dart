@@ -23,6 +23,7 @@ class StreamFormat {
     required this.bitrate,
     this.isDefaultTrack = true,
     this.httpHeaders = const {},
+    this.sizeBytes,
   });
 
   /// yt-dlp's ID, e.g. `299`, or `140-drc` for dynamic-range-compressed
@@ -51,6 +52,10 @@ class StreamFormat {
   /// (spec FR-50).
   final Map<String, String> httpHeaders;
 
+  /// yt-dlp's `filesize`, else its `filesize_approx`; null when it gives
+  /// neither.
+  final int? sizeBytes;
+
   /// Only MP4 streams carry the segment index the cuts are fetched by.
   bool get isMp4 => container == _mp4;
 
@@ -68,7 +73,8 @@ class StreamFormat {
       other.height == height &&
       other.bitrate == bitrate &&
       other.isDefaultTrack == isDefaultTrack &&
-      mapEquals(other.httpHeaders, httpHeaders);
+      mapEquals(other.httpHeaders, httpHeaders) &&
+      other.sizeBytes == sizeBytes;
 
   @override
   int get hashCode => Object.hash(
@@ -83,17 +89,26 @@ class StreamFormat {
       for (final MapEntry(:key, :value) in httpHeaders.entries)
         Object.hash(key, value),
     ]),
+    sizeBytes,
   );
 }
 
 /// Everything a linked video offers, split into picture-only and
-/// sound-only streams (YouTube offers no stream with both, §10 item 10).
+/// sound-only streams (YouTube offers none with both worth taking, §10
+/// item 10), and the files carrying both (spec FR-50).
 @immutable
 class LinkedFormats {
-  const LinkedFormats({required this.video, required this.audio});
+  const LinkedFormats({
+    required this.video,
+    required this.audio,
+    this.whole = const [],
+  });
 
   final List<StreamFormat> video;
   final List<StreamFormat> audio;
+
+  /// Picture and sound in one file, for a site without parts.
+  final List<StreamFormat> whole;
 }
 
 /// The two streams a cut is made from.
@@ -142,6 +157,12 @@ StreamFormat pickVideoStream(
   }
   throw const NotDownloadableInPartsException('No MP4 video stream.');
 }
+
+/// The file a site without parts gives whole (spec FR-50): MP4 only, as
+/// [pickVideoStream] picks for the clip. Throws
+/// [NotDownloadableInPartsException] when there is none.
+StreamFormat pickWholeStream(List<StreamFormat> streams) =>
+    pickVideoStream(streams, maxHeight: clipVideoHeight);
 
 /// MP4 (`m4a`) only: the original track over dubs, a regular stream over a
 /// dynamic-range-compressed one, then the highest bitrate.

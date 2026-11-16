@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/clip/domain/clip_window.dart';
 
+/// Starts the [CutFile.streamsKey] of a whole video: `whole.<formatId>`.
+const wholeVideoKeyPrefix = 'whole.';
+
 /// A stretch of a linked video downloaded as one MP4 (spec FR-37). Times
 /// are in the linked video's time.
 @immutable
@@ -46,6 +49,10 @@ class CutFile {
 
   /// The stretch both picture and sound cover.
   final ClipWindow covered;
+
+  /// A site's whole video, downloaded because it offers no parts (spec
+  /// FR-50); it covers every moment, whatever streams a request names.
+  bool get isWholeVideo => streamsKey.startsWith(wholeVideoKeyPrefix);
 
   /// Where video time [time] is in the file.
   Duration positionOf(Duration time) => time - fileStart;

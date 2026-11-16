@@ -55,8 +55,13 @@ double? _fractionOf(MakingProgress progress) => switch (progress) {
 };
 
 /// "3.1 MB of 7.8 MB · 1.2 MB/s"; the size is known once the segment
-/// indexes are read.
+/// indexes are read. A whole video whose size the server doesn't give
+/// shows only what arrived (spec FR-50).
 String _amountOf(DownloadingCut progress) {
+  if (progress.totalBytes == 0 && progress.receivedBytes > 0) {
+    return '${_megabytes(progress.receivedBytes)} · '
+        '${_megabytes(progress.bytesPerSecond.round())}/s';
+  }
   if (progress.totalBytes == 0) {
     return 'Reading the cut\'s place in the video';
   }

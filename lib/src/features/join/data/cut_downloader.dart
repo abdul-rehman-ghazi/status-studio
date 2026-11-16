@@ -15,6 +15,7 @@ import 'package:status_studio/src/features/join/domain/join_errors.dart';
 import 'package:status_studio/src/features/join/domain/segment_index.dart';
 import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 import 'package:status_studio/src/features/source/data/io_error_mapping.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
 
 const _firstHeadBytes = 64 * 1024;
 const _maximumHeadBytes = 2 * 1024 * 1024;
@@ -32,6 +33,17 @@ class CutRequest {
   /// In the linked video's time, margins included.
   final ClipWindow window;
   final CutStreams streams;
+}
+
+/// A site's whole video, from the one stream carrying picture and sound
+/// (spec FR-50).
+class WholeVideoRequest {
+  const WholeVideoRequest({required this.video, required this.stream});
+
+  final LinkedVideo video;
+  final StreamFormat stream;
+
+  String get streamsKey => '$wholeVideoKeyPrefix${stream.formatId}';
 }
 
 /// How a cut download reports back, and how it is stopped.
@@ -107,7 +119,7 @@ class CutDownloader {
     await for (final entry in cuts.list()) {
       final kept = await _readKept(entry);
       if (kept != null &&
-          kept.streamsKey == request.streams.key &&
+          (kept.isWholeVideo || kept.streamsKey == request.streams.key) &&
           _covers(kept.covered, request.window)) {
         return kept;
       }
@@ -199,6 +211,59 @@ class CutDownloader {
       }
     }
     throw const NoSegmentIndexException();
+  }
+
+  /// Whether [request]'s file is already downloaded.
+  Future<bool> hasWhole(WholeVideoRequest request) async =>
+      await _keptWhole(await _wholeJsonFile(request)) != null;
+
+  /// yt-dlp's size for [stream], else the server's; null when neither
+  /// says.
+  Future<int?> wholeSizeOf(StreamFormat stream) async =>
+      stream.sizeBytes ??
+      await guardIo(
+        () => downloader.totalBytesOf(stream.url, headers: stream.httpHeaders),
+      );
+
+  /// Downloads the whole video into `<video key>/whole.<formatId>.mp4`
+  /// (spec FR-50), kept as a cut from time zero to the video's end, or
+  /// returns it when already downloaded.
+  Future<CutFile> downloadWhole(
+    WholeVideoRequest request,
+    CutDownloadWatch watch,
+  ) => guardIo(() async {
+    final json = await _wholeJsonFile(request);
+    final kept = await _keptWhole(json);
+    if (kept != null) {
+      return kept;
+    }
+    final video = await downloader.downloadWhole(
+      WholeDownload(
+        url: request.stream.url,
+        headers: request.stream.httpHeaders,
+        target: File(json.path.replaceFirst(RegExp(r'\.json$'), '.mp4')),
+        cancel: watch.cancel,
+      ),
+      onBytes: watch.onBytes,
+    );
+    final cut = CutFile(
+      file: video,
+      streamsKey: request.streamsKey,
+      fileStart: Duration.zero,
+      covered: ClipWindow(start: Duration.zero, end: request.video.duration),
+    );
+    await json.writeAsString(jsonEncode(cut.toJson()));
+    return cut;
+  });
+
+  /// A video written without its JSON, by a run that stopped between the
+  /// two, is downloaded again.
+  Future<CutFile?> _keptWhole(File json) async =>
+      await json.exists() ? _readKept(json) : null;
+
+  Future<File> _wholeJsonFile(WholeVideoRequest request) async {
+    final cuts = await _cutsFolder(request.video.videoKey);
+    return File('${cuts.path}/${request.streamsKey}.json');
   }
 
   Future<void> _mux({
