@@ -1934,7 +1934,7 @@ Request (2026-11-13): FR-46. Tests are the owner's; `fvm flutter analyze` only, 
 Request (2026-11-16): FR-47. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
 
 - [x] **1. Spec.** FR-47, §4 Storage, FR-44 retention, this list and the §12 row.
-- [ ] **2. A link's audio goes with its transcript saved.** `LinkedAudioDownloader.deleteDownloaded(video)` deletes `sources/v_yt_<ID>/` through `SourceCache.deleteVideo`; `TopicFinder` calls it after `TopicStore.saveBlocks`. **New tests to write:** after a Groq transcript is saved the `v_yt_` folder is gone; a failed save keeps it; captions leave nothing to delete. **Stale:** none known.
+- [x] **2. A link's audio goes with its transcript saved.** `LinkedAudioDownloader.deleteDownloaded(video)` deletes `sources/v_yt_<ID>/` through `SourceCache.deleteVideo`; `TopicFinder` calls it after `TopicStore.saveBlocks`. **New tests to write:** after a Groq transcript is saved the `v_yt_` folder is gone; a failed save keeps it; captions leave nothing to delete. **Stale:** none known.
 - [ ] **3. Unreachable kept videos go.** `deleteOrphanedSources` keeps a source only when its `transcripts/` folder holds more than `video.json` and `last_used`, or a reel's `sourceVideoId` names it; `cleanUpOnStart` takes a `CleanupPlaces` value (sources, scripts, reel source IDs from `RecentReelsRepository.load`), and the 7-day age is a constant. **New tests to write:** a title-only video older than 7 days is deleted; one with a script, a partial, a draft or a reel stays; a title-only video changed within 7 days stays. **Stale:** `deleteOrphanedSources` and `cleanUpOnStart` tests (signature, `maxAge`).
 - [ ] **4. Status.** §12 row, §13 entries; push.
 

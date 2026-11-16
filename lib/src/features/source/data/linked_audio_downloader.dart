@@ -43,6 +43,11 @@ class LinkedAudioDownloader {
     );
   }
 
+  /// Deletes the audio and its cleaned pieces (spec FR-47). The `v_yt_`
+  /// script under `transcripts/` stays.
+  Future<void> deleteDownloaded(LinkedVideo video) async =>
+      (await sources).deleteVideo(scriptVideoIdFor(video));
+
   Future<void> cancel(LinkedVideo video) async {
     final audio = (await sources).localVideoFile(
       scriptVideoIdFor(video),
