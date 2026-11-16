@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/source/data/linked_audio_downloader.dart';
+import 'package:status_studio/src/features/source/domain/linked_video.dart';
+import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/topic/application/topic_progress.dart';
 import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/topic/domain/moment_source.dart';
@@ -27,9 +29,9 @@ class TopicFinderServices {
   final Future<TopicStore> store;
 }
 
-/// Gets the script of a linked video, cheapest first (spec FR-36, FR-43):
-/// the user picks every moment from it. It is saved, so the same link
-/// again sends nothing.
+/// Gets the script of a linked or kept video, cheapest first (spec FR-36,
+/// FR-43, FR-51): the user picks every moment from it. It is saved, so the
+/// same video again sends nothing.
 class TopicFinder {
   const TopicFinder(this.services);
 
@@ -87,14 +89,33 @@ class TopicFinder {
     }
   }
 
+  /// From a link, the audio is downloaded first; a kept video's own file
+  /// is cleaned and sent, as Lyrics does (spec FR-51). A saved script for
+  /// the video and language (FR-14) opens without sending anything.
   Stream<TopicProgress> _writtenByGroq(
     TopicRequest request,
     _Holder<List<TranscriptLine>> result,
   ) async* {
-    final video = switch (request.source) {
-      LinkedMoments(:final video) => video,
-      LocalMoments() => throw UnsupportedError('M71 task 3'),
-    };
+    final audio = _Holder<SourceVideo>();
+    switch (request.source) {
+      case LinkedMoments(:final video):
+        yield* _downloadedAudio(video, audio);
+      case LocalMoments(:final video):
+        audio.value = video;
+    }
+    await for (final progress in services.scripts.run(
+      audio.value,
+      request.outputLanguage,
+    )) {
+      yield TopicStep(progress.stage.label, fraction: progress.fraction);
+      result.value = progress.transcript.lines;
+    }
+  }
+
+  Stream<TopicProgress> _downloadedAudio(
+    LinkedVideo video,
+    _Holder<SourceVideo> result,
+  ) async* {
     final downloaded = StreamController<double>();
     final download =
         services.audio
@@ -104,14 +125,7 @@ class TopicFinder {
     await for (final fraction in downloaded.stream) {
       yield TopicStep('Downloading the audio', fraction: fraction);
     }
-    final audio = await download;
-    await for (final progress in services.scripts.run(
-      audio,
-      request.outputLanguage,
-    )) {
-      yield TopicStep(progress.stage.label, fraction: progress.fraction);
-      result.value = progress.transcript.lines;
-    }
+    result.value = await download;
   }
 }
 

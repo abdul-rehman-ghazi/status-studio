@@ -32,7 +32,10 @@ import 'package:status_studio/src/features/topic/domain/transcript_block.dart';
 import 'package:status_studio/src/features/topic/presentation/moments_panel.dart';
 import 'package:status_studio/src/features/topic/presentation/script_page.dart';
 import 'package:status_studio/src/features/topic/presentation/transition_picker.dart';
+import 'package:status_studio/src/features/transcript/data/transcript_store.dart';
 import 'package:status_studio/src/features/transcript/domain/groq_errors.dart';
+import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
+import 'package:status_studio/src/features/transcript/domain/transcript_errors.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_consent_screen.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_key_settings_route.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_shortfall_question.dart';
@@ -318,8 +321,29 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
         request.source.key,
         request.outputLanguage,
       );
-      return saved != null;
+      return saved != null || await _isLyricsScriptSaved();
     } on Exception {
+      return false;
+    }
+  }
+
+  /// A kept video's script saved by Lyrics (spec FR-14, FR-51) is reused
+  /// too, so it sends nothing.
+  Future<bool> _isLyricsScriptSaved() async {
+    final request = widget.request;
+    if (request.source is! LocalMoments) {
+      return false;
+    }
+    final scripts = await ref.read(transcriptStoreProvider.future);
+    try {
+      await scripts.load(
+        TranscriptKey(
+          videoId: request.source.key,
+          language: request.outputLanguage,
+        ),
+      );
+      return true;
+    } on NoSavedTranscriptException {
       return false;
     }
   }
