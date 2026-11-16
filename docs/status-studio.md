@@ -1163,7 +1163,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M57 Free storage | A link's audio and pieces go once its transcript is saved; a kept video with only its title and no reel goes after 7 days (FR-47) | Built, branch `m57-free-storage` (from `dev`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Tests not run |
 | M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | Built, branch `m58-reel-bitrate` (from `dev`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean; the debug APK builds; the iOS change is not compiled. The phone check is the owner's: a reel's size and look at 4 Mbit/s. Tests not run |
 | M59 Stray reel files | Files in `reels/` that no reel names (a killed render's MP4 and caption PNGs) are deleted at start-up after an hour (FR-49) | Built, branch `m59-stray-reel-files` (stacked on `m58-reel-bitrate`), merged into `dev` with M57–M59 (2026-11-16). Analyze clean. Tests not run |
-| M60 Privacy policy | The policy rewritten for links, yt-dlp, Groq's chat use and today's storage rules; published as `PRIVACY.md` and linked from About (§9.1, FR-31) | In progress, branch `m60-privacy-policy` (from `dev`) |
+| M60 Privacy policy | The policy rewritten for links, yt-dlp, Groq's chat use and today's storage rules; published as `PRIVACY.md` and linked from About (§9.1, FR-31) | Built, branch `m60-privacy-policy` (from `dev`), pushed, not merged. `PRIVACY.md` is live once merged into `dev` (About's link points at the `dev` copy). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1986,8 +1986,8 @@ Request (2026-11-16): "start with the privacy policy", from the leftovers after 
 
 - [x] **1. Spec.** §9.1 rewritten from the code and the FRs (what is kept and for how long, the three kinds of Groq upload, link requests, yt-dlp's updates, the permissions in the merged manifest), the §4 privacy line, FR-31's privacy row, these tasks.
 - [x] **2. Publish.** `PRIVACY.md` at the repo root with §9.1's text; README links it.
-- [ ] **3. About link.** "Privacy policy" under Open-source licences (FR-31), opening it in the browser through `url_launcher`, with the snackbar when nothing opens it. New tests (owner): §13 "Privacy policy link (M60)".
-- [ ] **4. Status.** §12 row, §13 entry; push.
+- [x] **3. About link.** "Privacy policy" under Open-source licences (FR-31), opening it in the browser through `url_launcher`, with the snackbar when nothing opens it. New tests (owner): §13 "Privacy policy link (M60)".
+- [x] **4. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -2299,6 +2299,11 @@ Request (2026-11-16): "start with the privacy policy", from the leftovers after 
   - A box reaching into the padding is clamped to the frame (0 to 1).
   - `OnDeviceDetector` opens the face model on the first `facesIn` only, and `close` doesn't throw when a model failed to open.
   - The F-Droid build (`WEEKLY_YTDLP_UPDATES=false`) skips the weekly yt-dlp update at start-up; Update downloader still runs.
+
+- **Privacy policy link (FR-31, M60):**
+  - About shows "Privacy policy" under Open-source licences; a tap asks `privacyPolicyOpenerProvider` to open it.
+  - `PrivacyPolicyOpener.open` launches the `PRIVACY.md` URL in an outside app and throws `NoBrowserException` when the launch returns false or raises a `PlatformException`.
+  - With `NoBrowserException` About shows the snackbar "No browser could open the privacy policy. It is at github.com/abdul-rehman-ghazi/status-studio."
 
 ## 14. Device checks (removed)
 

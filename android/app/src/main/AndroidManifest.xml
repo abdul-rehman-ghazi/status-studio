@@ -88,7 +88,8 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- Support in Settings (spec FR-31): email, WhatsApp's wa.me link and the dialer. -->
+        <!-- Support in Settings (spec FR-31): email, WhatsApp's wa.me link and the dialer;
+             https also opens the privacy policy from About (M60). -->
         <intent>
             <action android:name="android.intent.action.SENDTO"/>
             <data android:scheme="mailto"/>
