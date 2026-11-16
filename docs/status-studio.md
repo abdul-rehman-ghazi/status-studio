@@ -22,6 +22,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | 2 | Source | `/source` | "Choose a video" from the gallery, or the video shared into the app (FR-1);  a card with thumbnail, name and length; Next: video (changed in M30: the language, Get the script and Make it without lyrics moved to Lyrics). On Android since M71: Output language, Get the script (Review cuts) and Use the whole video (Fine-tune) under the card in place of Next (FR-51) |
 | 2a | From a link | `/link` | Android (M44, own screen since 2026-11-12): a YouTube link read into a card, then Output language and Get the script (FR-35, FR-43; topic and length until M53). Opened from Home's From a YouTube link or by a shared link |
 | 2b | Review cuts | `/link/cuts` | Android (M45): getting the script, then the script page (since M53 always): Search the script, the script's blocks to choose runs from, the transition and Make the clip, which downloads the ticked moments and joins them (M46) before Fine-tune opens; your moments open in a sheet from the footer's Moments (M56) (FR-43, FR-28, FR-37, FR-46). Since M71 also for a kept video from Source, with nothing downloaded (FR-51) |
+| 2c | Whole video | `/link/whole` | Android (M75): Use the whole video's download, with the making view, then Fine-tune in its place (FR-52) |
 | 3 | Processing (removed) | — | Removed in M30: the script run (clean the voice, write with Groq, detect the language, line up timestamps) shows on Fine-tune · Lyrics (FR-21). The number stays so references keep working |
 | 4 | Script (removed) | — | Removed in M25 (task 7): it was a read-only list that Fine-tune · Lyrics repeats, editable. Language, Fix with Groq and the saved-script line moved to Fine-tune · Lyrics. The number stays so references keep working |
 | 5 | Fine-tune · Video | `/fine-tune` | "Step 1 of 2" (M30): plays the kept video file with Trim and Crop tabs under it. Trim: the clip's start and end, nudged by ±0.5 s (FR-5; the waveform until M72). Crop: size, fill and crop (FR-6), and the crop that moves at each scene, with the scene strip, New position here and Follow the person (FR-22, FR-27) |
@@ -617,6 +618,11 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **In the background (FR-16):** as for links.
 - **Not changed:** iOS (no Review cuts and no join there); a video shared while a reel is open asks first (FR-1).
 
+**FR-52 Use the whole video from a link (M75, Android only).** Asked by the owner (2026-11-16): "make script/clip/moment step optional, else complete clip will be used", then "Yes, Use the whole video for link with cap". The local side already had it (FR-51's Use the whole video).
+- **From a link:** under Get the script, a text button **Use the whole video**, on for a video up to 5 minutes (*Claude's call*: reels and Shorts are at most 3 minutes, and a status is shorter still). For a longer one it is off, with "For a video up to 5 minutes. Pick moments from a longer one." The output language chosen above it is kept, as Get the script keeps it.
+- **Tap:** the link's unfinished work goes after asking, as for Get the script (FR-43). A screen titled "Whole video" downloads the video as Make the clip downloads one cut from start to end (FR-37's streams in parts, or FR-50's whole file without asking, since the user asked for all of it), with the making view, Cancel, the notification and the §8 failures with Try again and Back. Fine-tune · Video then opens on the kept clip in its place.
+- **The clip:** kept as a clip joined from the link (`link.json` with the output language, one cut over the whole video), so Lyrics comes in the output language (FR-37) and History groups it under the link (FR-44).
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, set for ML Kit; kept after ML Kit went in M47, since nothing is gained by lowering it). iOS is built in M26. Store builds become possible (§9, M27).
@@ -1203,6 +1209,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M72 Trim without the waveform | Fine-tune · Video's Trim tab loses its waveform, which the owner found not useful (FR-5) | Built on branch `m72-trim-without-waveform` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M73 Link error details | "Couldn't read this video" shows yt-dlp's own error under it, on the link card and after Make the clip, so a failure on the phone can be reported (§8) | Built on branch `m73-link-error-details` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M74 Length from the streams | An Instagram reel read logged out has no length in yt-dlp's answer; the app reads it from the smallest stream's segment index or `mvhd` (FR-50) | Built on branch `m74-length-from-streams` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
+| M75 Whole video from a link | Use the whole video on From a link, up to 5 minutes: the video downloads as one cut and Fine-tune opens (FR-52) | Built on branch `m75-whole-link-video` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2109,6 +2116,12 @@ Request (2026-11-16): an Instagram reel gives "Couldn't read this video." on Rea
 Found on the phone (2026-11-16): an Instagram reel gave "Couldn't read this video." with "yt-dlp gave no ID, title or length." Checked from the Mac with yt-dlp 2026.10.26 on two public reels from yt-dlp's own tests (`Chunk8-jurw`, `CDUMkliABpa`): logged out, Instagram's answer has the ID, the title ("Video by <user>") and formats but `duration: null`. Its DASH streams are plain `https` MP4s with a `sidx` in the first 64 KB (13.50 s, as their segments add up); its whole files have `moov` first, whose `mvhd` says 13.55 s. So the parts path of FR-37 works for Instagram once the length is known. Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
 
 - [x] **1. Length from the streams.** When yt-dlp's JSON has formats but no `duration`, `LinkedVideoReader` asks `StreamLengthReader`, which tries the smallest MP4 sound stream, picture stream and whole file in turn (`CutDownloader.streamLength`: the end of the segment index, else `parseMovieLength`, the `mvhd` of a `moov` that comes first; a zero length, as a fragmented stream's `mvhd` has, doesn't count). None stating it gives §8 "Couldn't read this video." with "Neither yt-dlp nor the streams give the length." **Stale tests:** `LinkedVideoReader` fakes (it takes `lengths`); new cases belong to `parseMovieLength` (version 0 and 1, zero length, no `moov` before `mdat`) and `StreamLengthReader` (order of kinds, the next kind after one without a length). *Claude's call:* at most three streams are tried, one per kind, so a video without any length costs at most six small requests.
+
+### M75 tasks (branch `m75-whole-link-video`, from `dev`)
+
+Request (2026-11-16): FR-52, Use the whole video for a link, with a cap. Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
+
+- [x] **1. Use the whole video.** `ScriptFields` gains `onUseWhole` (From a link passes it; Source keeps its own button), off past `longestWholeLink` (5 minutes) with its hint; both buttons save the output language. `ClipOrder.wholeVideo` is one cut from 0 to the end, the Cut transition, and the whole file allowed. `WholeLinkScreen` (`/link/whole`) runs it through `BackgroundClipMaker` with `MakingView` and `MakeFailureView`, then replaces itself with Fine-tune. **Stale tests:** `ScriptFields` tests (a third button on From a link). New cases: the button's cap, `ClipOrder.wholeVideo`, the screen's success, cancel and failure.
 
 ## 13. Behaviour that must stay covered by tests
 

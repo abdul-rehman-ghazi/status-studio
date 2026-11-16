@@ -36,6 +36,15 @@ class ClipOrder {
     this.wholeVideo = WholeVideoAnswer.notAsked,
   });
 
+  /// Use the whole video on From a link (spec FR-52): one cut from start
+  /// to end, downloaded without asking, since the user asked for all of it.
+  ClipOrder.wholeVideo(this.request)
+    : cuts = [
+        TopicCut(start: Duration.zero, end: request.source.duration, text: ''),
+      ],
+      transition = ClipTransition.cut,
+      wholeVideo = WholeVideoAnswer.allowed;
+
   final TopicRequest request;
   final List<TopicCut> cuts;
   final ClipTransition transition;
