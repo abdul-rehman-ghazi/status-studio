@@ -11,13 +11,13 @@ class VideoUnavailableException implements Exception {
 
 /// YouTube answered in a way yt-dlp couldn't read: usually a YouTube change
 /// that a newer yt-dlp handles (spec §8, FR-35).
-class YouTubeChangedException implements Exception {
-  const YouTubeChangedException(this.reason);
+class SiteChangedException implements Exception {
+  const SiteChangedException(this.reason);
 
   final String reason;
 
   @override
-  String toString() => 'YouTubeChangedException: $reason';
+  String toString() => 'SiteChangedException: $reason';
 }
 
 /// The network dropped during a download (spec §8).

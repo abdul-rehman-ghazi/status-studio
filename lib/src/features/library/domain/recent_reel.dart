@@ -35,8 +35,9 @@ abstract class RecentReel with _$RecentReel {
     /// The fingerprint of the video it was rendered from.
     required String sourceVideoId,
 
-    /// The YouTube video a joined link clip came from; null otherwise.
-    String? youtubeId,
+    /// The key of the linked video a joined clip came from (FR-50); null
+    /// otherwise.
+    @JsonKey(name: 'youtubeId') String? videoKey,
 
     /// What it used of its source, in source order (spec FR-44).
     @_SourceRangesConverter() required List<SourceRange> usedRanges,
@@ -57,7 +58,7 @@ abstract class RecentReel with _$RecentReel {
     ...const _OutputSizeConverter().toJson(size),
     'createdAt': createdAt.toIso8601String(),
     'sourceVideoId': sourceVideoId,
-    'youtubeId': youtubeId,
+    'youtubeId': videoKey,
     'usedRanges': const _SourceRangesConverter().toJson(usedRanges),
   };
 }

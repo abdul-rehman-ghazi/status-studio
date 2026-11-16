@@ -22,12 +22,12 @@ const _maximumHeadBytes = 2 * 1024 * 1024;
 /// Which stretch of which linked video to download, from which streams.
 class CutRequest {
   const CutRequest({
-    required this.youtubeId,
+    required this.videoKey,
     required this.window,
     required this.streams,
   });
 
-  final String youtubeId;
+  final String videoKey;
 
   /// In the linked video's time, margins included.
   final ClipWindow window;
@@ -77,7 +77,7 @@ class CutDownloader {
   final RangedDownloader downloader;
   final FfmpegRunner ffmpeg;
 
-  /// `cuts/` in the cache; a cut lives in `<YouTube ID>/` there.
+  /// `cuts/` in the cache; a cut lives in `<video key>/` there.
   final Future<Directory> folder;
 
   /// A cut already downloaded from the same streams that covers the window
@@ -100,7 +100,7 @@ class CutDownloader {
       });
 
   Future<CutFile?> _keptCovering(CutRequest request) async {
-    final cuts = await _cutsFolder(request.youtubeId);
+    final cuts = await _cutsFolder(request.videoKey);
     if (!await cuts.exists()) {
       return null;
     }
@@ -138,7 +138,7 @@ class CutDownloader {
     final video = await _plan(request.streams.video.url, request.window);
     final audio = await _plan(request.streams.audio.url, request.window);
     final total = video.totalBytes + audio.totalBytes;
-    final cuts = await _cutsFolder(request.youtubeId);
+    final cuts = await _cutsFolder(request.videoKey);
     final name = '${cuts.path}/${_nameOf(request)}';
     final videoFile = await downloader.downloadRanges(
       _rangedDownload(video, File('$name.video.mp4'), watch.cancel),
@@ -215,16 +215,16 @@ class CutDownloader {
     }
   }
 
-  /// Deletes every cut downloaded from [youtubeId] (spec FR-44).
-  Future<void> deleteCutsOf(String youtubeId) async {
-    final cuts = await _cutsFolder(youtubeId);
+  /// Deletes every cut downloaded from [videoKey] (spec FR-44).
+  Future<void> deleteCutsOf(String videoKey) async {
+    final cuts = await _cutsFolder(videoKey);
     if (await cuts.exists()) {
       await cuts.delete(recursive: true);
     }
   }
 
-  Future<Directory> _cutsFolder(String youtubeId) async =>
-      Directory('${(await folder).path}/$youtubeId');
+  Future<Directory> _cutsFolder(String videoKey) async =>
+      Directory('${(await folder).path}/$videoKey');
 }
 
 RangedDownload _rangedDownload(

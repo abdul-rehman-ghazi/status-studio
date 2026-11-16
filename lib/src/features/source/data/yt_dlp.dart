@@ -107,7 +107,7 @@ class PlatformYtDlp implements YtDlp {
     try {
       final reply = await _channel.invokeMethod<T>(method, arguments);
       if (reply == null) {
-        throw YouTubeChangedException('yt-dlp returned nothing for $method.');
+        throw SiteChangedException('yt-dlp returned nothing for $method.');
       }
       return reply;
     } catch (error, stackTrace) {
@@ -153,7 +153,7 @@ Object mapYtDlpError(Object error) {
   if (_offline.any(message.contains)) {
     return OfflineException('${error.message}');
   }
-  return YouTubeChangedException('${error.message}');
+  return SiteChangedException('${error.message}');
 }
 
 final ytDlpProvider = Provider<YtDlp>((ref) => PlatformYtDlp());

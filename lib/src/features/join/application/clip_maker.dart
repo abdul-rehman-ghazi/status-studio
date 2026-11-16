@@ -117,16 +117,16 @@ class ClipMaker {
   }
 
   Future<_FetchedCuts> _downloadCuts(ClipOrder order, _MakingRun run) async {
-    final youtubeId = order.request.video.videoId;
+    final videoKey = order.request.video.videoKey;
     run.onProgress(const ReadingStreams());
-    var streams = streamsForClip(await _services.streams.read(youtubeId));
+    var streams = streamsForClip(await _services.streams.read(videoKey));
     final downloaded = <DownloadedCut>[];
     for (var index = 0; index < order.cuts.length; index++) {
       final download = _CutDownload(order, index, run);
       try {
         downloaded.add(await download.fetch(_services.cuts, streams));
       } on ExpiredStreamUrlException {
-        streams = await _freshStreams(youtubeId);
+        streams = await _freshStreams(videoKey);
         downloaded.add(await _fetchAgain(download, streams));
       }
     }
@@ -209,8 +209,8 @@ class ClipMaker {
     }
   }
 
-  Future<CutStreams> _freshStreams(String youtubeId) async =>
-      streamsForClip(await _services.streams.read(youtubeId));
+  Future<CutStreams> _freshStreams(String videoKey) async =>
+      streamsForClip(await _services.streams.read(videoKey));
 
   /// Links that expire again right after a fresh read count as a YouTube
   /// change, which a newer yt-dlp may handle (spec §8).
@@ -221,7 +221,7 @@ class ClipMaker {
     try {
       return await download.fetch(_services.cuts, streams);
     } on ExpiredStreamUrlException catch (error) {
-      throw YouTubeChangedException('Stream links keep expiring: $error');
+      throw SiteChangedException('Stream links keep expiring: $error');
     }
   }
 
@@ -270,7 +270,7 @@ class ClipMaker {
     await _services.links.save(
       video.videoId,
       LinkedClip(
-        youtubeId: linked.videoId,
+        videoKey: linked.videoKey,
         title: linked.title,
         channel: linked.channel,
         outputLanguage: order.request.outputLanguage,
@@ -300,7 +300,7 @@ class _CutDownload {
     _report(0, 0);
     final file = await cuts.download(
       CutRequest(
-        youtubeId: order.request.video.videoId,
+        videoKey: order.request.video.videoKey,
         window: downloadWindowFor(
           cut,
           order.margin,

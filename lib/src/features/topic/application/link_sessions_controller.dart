@@ -19,7 +19,7 @@ class LinkSessionsController extends AsyncNotifier<List<LinkSession>> {
   /// sends nothing to Groq.
   Future<void> delete(LinkSession session) async {
     final store = await ref.read(topicStoreProvider.future);
-    await store.deleteSession(session.request.video.videoId);
+    await store.deleteSession(session.request.video.videoKey);
     ref.invalidateSelf();
     await future;
   }

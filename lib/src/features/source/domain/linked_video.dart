@@ -1,11 +1,42 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:status_studio/src/features/source/domain/source_errors.dart';
+import 'package:status_studio/src/features/source/domain/video_link.dart';
 import 'package:status_studio/src/features/transcript/domain/youtube_captions.dart';
 
-/// What the link card shows about a linked video (spec FR-35), read from
-/// yt-dlp's `-J` JSON.
+/// yt-dlp's `extractor_key` for YouTube; links kept before M70 have no site
+/// and are YouTube (spec FR-50).
+const youTubeSite = 'Youtube';
+
+const _maxKeyLength = 64;
+final _unsafeKeyCharacters = RegExp(r'[^A-Za-z0-9_-]');
+
+/// The key that names a linked video's folders and records (spec FR-50):
+/// YouTube's ID as before M70, else `<site>_<id>` made safe for a file
+/// name, with a long ID replaced by the start of its SHA-256.
+String videoKeyFor(String site, String id) {
+  if (site == youTubeSite) {
+    return id;
+  }
+  final sitePrefix = '${site.toLowerCase()}_'.replaceAll(
+    _unsafeKeyCharacters,
+    '_',
+  );
+  final key = '$sitePrefix$id'.replaceAll(_unsafeKeyCharacters, '_');
+  if (key.length <= _maxKeyLength) {
+    return key;
+  }
+  return '$sitePrefix${sha256.convert(utf8.encode(id)).toString().substring(0, 16)}';
+}
+
+/// What the link card shows about a linked video (spec FR-35, FR-50), read
+/// from yt-dlp's `-J` JSON.
 class LinkedVideo {
   const LinkedVideo({
-    required this.videoId,
+    required this.videoKey,
+    required this.pageUrl,
+    required this.site,
     required this.title,
     required this.channel,
     required this.duration,
@@ -14,21 +45,31 @@ class LinkedVideo {
     required this.captionsLanguage,
   });
 
-  /// Throws [YouTubeChangedException] when the JSON lacks the title or the
-  /// length, or lists no formats: yt-dlp read the page but not the video.
-  factory LinkedVideo.fromYtDlpJson(Map<String, Object?> info) {
+  /// Throws [SiteChangedException] when the JSON lacks the ID, the title or
+  /// the length, or lists no formats: yt-dlp read the page but not the
+  /// video. [pastedPageUrl] is the page when yt-dlp names none.
+  factory LinkedVideo.fromYtDlpJson(
+    Map<String, Object?> info, {
+    required String pastedPageUrl,
+  }) {
+    final id = _textOrNull(info['id']);
     final title = info['title'];
     final durationSeconds = info['duration'];
     final formats = info['formats'];
-    if (title is! String || durationSeconds is! num) {
-      throw const YouTubeChangedException('yt-dlp gave no title or length.');
+    if (id == null || title is! String || durationSeconds is! num) {
+      throw const SiteChangedException('yt-dlp gave no ID, title or length.');
     }
     if (formats is! List || formats.isEmpty) {
-      throw const YouTubeChangedException('yt-dlp found no formats.');
+      throw const SiteChangedException('yt-dlp found no formats.');
     }
-    final captions = pickTopicCaptions(info);
+    final site = _textOrNull(info['extractor_key']) ?? youTubeSite;
+    // Only YouTube's json3 tracks are read (FR-50); other sites' scripts
+    // come from Groq.
+    final captions = site == youTubeSite ? pickTopicCaptions(info) : null;
     return LinkedVideo(
-      videoId: '${info['id']}',
+      videoKey: videoKeyFor(site, id),
+      pageUrl: _textOrNull(info['webpage_url']) ?? pastedPageUrl,
+      site: site,
       title: title,
       channel: _channelOf(info),
       duration: Duration(milliseconds: (durationSeconds * 1000).round()),
@@ -50,7 +91,10 @@ class LinkedVideo {
       'captionsUrl': final String? captionsUrl,
     } =>
       LinkedVideo(
-        videoId: id,
+        videoKey: id,
+        // Links kept before M70 have neither: they are YouTube.
+        pageUrl: json['pageUrl'] as String? ?? youTubeWatchUrl(id),
+        site: json['site'] as String? ?? youTubeSite,
         title: title,
         channel: channel,
         duration: Duration(milliseconds: durationMs),
@@ -62,15 +106,21 @@ class LinkedVideo {
     _ => throw const FormatException('Not a linked video.'),
   };
 
-  /// YouTube's 11-character ID.
-  final String videoId;
+  /// Names the video's folders and records; see [videoKeyFor].
+  final String videoKey;
+
+  /// The page yt-dlp reads the video from.
+  final String pageUrl;
+
+  /// yt-dlp's name for the site, e.g. `Facebook`, `Instagram`, `Youtube`.
+  final String site;
   final String title;
 
   /// Empty when yt-dlp names neither a channel nor an uploader.
   final String channel;
   final Duration duration;
 
-  /// Null when YouTube offers no thumbnail; the card then shows its icon.
+  /// Null when the site offers no thumbnail; the card then shows its icon.
   final String? thumbnailUrl;
 
   /// The caption track the topic search may read (FR-36); null when Groq
@@ -82,8 +132,12 @@ class LinkedVideo {
   /// link kept before M50.
   final String? captionsLanguage;
 
+  bool get isYouTube => site == youTubeSite;
+
   Map<String, Object?> toJson() => {
-    'id': videoId,
+    'id': videoKey,
+    'pageUrl': pageUrl,
+    'site': site,
     'title': title,
     'channel': channel,
     'durationMs': duration.inMilliseconds,

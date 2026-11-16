@@ -47,8 +47,8 @@ class VideoDeleter {
 
   Future<void> deleteVideo(VideoHistory video) async {
     switch (video.key) {
-      case LinkedVideoKey(:final youtubeId):
-        await _deleteLinked(youtubeId);
+      case LinkedVideoKey(:final videoKey):
+        await _deleteLinked(videoKey);
       case LocalVideoKey(:final videoId):
         await _deleteFingerprint(videoId);
     }
@@ -60,13 +60,13 @@ class VideoDeleter {
 
   /// Every clip joined from it goes too, and the audio its script was
   /// written from (`v_yt_<ID>`).
-  Future<void> _deleteLinked(String youtubeId) async {
-    for (final clipId in await _joinedClipsOf(youtubeId)) {
+  Future<void> _deleteLinked(String videoKey) async {
+    for (final clipId in await _joinedClipsOf(videoKey)) {
       await _deleteFingerprint(clipId);
     }
-    await _deleteFingerprint('v_yt_$youtubeId');
-    await (await stores.topics()).deleteVideo(youtubeId);
-    await stores.cuts.deleteCutsOf(youtubeId);
+    await _deleteFingerprint('v_yt_$videoKey');
+    await (await stores.topics()).deleteVideo(videoKey);
+    await stores.cuts.deleteCutsOf(videoKey);
   }
 
   Future<void> _deleteFingerprint(String videoId) async {
@@ -74,11 +74,11 @@ class VideoDeleter {
     await (await stores.sources()).deleteVideo(videoId);
   }
 
-  Future<List<String>> _joinedClipsOf(String youtubeId) async {
+  Future<List<String>> _joinedClipsOf(String videoKey) async {
     final videoIds = await (await stores.sources()).videoIds();
     return [
       for (final videoId in videoIds)
-        if ((await stores.links.read(videoId))?.youtubeId == youtubeId) videoId,
+        if ((await stores.links.read(videoId))?.videoKey == videoKey) videoId,
     ];
   }
 }

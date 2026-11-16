@@ -41,7 +41,7 @@ class RecentReelsController extends AsyncNotifier<List<RecentReel>> {
       size: size,
       createdAt: DateTime.now(),
       sourceVideoId: source.videoId,
-      youtubeId: source.linked?.youtubeId,
+      videoKey: source.linked?.videoKey,
       usedRanges: source.usedRanges,
     );
     await _writeThumbnail(reel);

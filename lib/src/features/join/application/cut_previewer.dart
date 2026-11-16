@@ -35,21 +35,21 @@ class CutPreviewer {
   /// Throws as [CutDownloader.download] and [LinkedStreamsReader.read] do.
   Future<CutFile> prepare(LinkedVideo video, TopicCut cut) async {
     try {
-      return await _download(video, cut, await _streamsFor(video.videoId));
+      return await _download(video, cut, await _streamsFor(video.videoKey));
     } on ExpiredStreamUrlException {
-      _read.remove(video.videoId);
-      return _download(video, cut, await _streamsFor(video.videoId));
+      _read.remove(video.videoKey);
+      return _download(video, cut, await _streamsFor(video.videoKey));
     }
   }
 
-  Future<CutStreams> _streamsFor(String youtubeId) async {
-    final kept = _read[youtubeId];
+  Future<CutStreams> _streamsFor(String videoKey) async {
+    final kept = _read[videoKey];
     if (kept != null &&
         DateTime.now().difference(kept.readAt) < _streamsKeptFor) {
       return kept.streams;
     }
-    final read = streamsForPreview(await streams.read(youtubeId));
-    _read[youtubeId] = (streams: read, readAt: DateTime.now());
+    final read = streamsForPreview(await streams.read(videoKey));
+    _read[videoKey] = (streams: read, readAt: DateTime.now());
     return read;
   }
 
@@ -59,7 +59,7 @@ class CutPreviewer {
     CutStreams streams,
   ) => cuts.download(
     CutRequest(
-      youtubeId: video.videoId,
+      videoKey: video.videoKey,
       window: previewWindowFor(cut, video.duration),
       streams: streams,
     ),

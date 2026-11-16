@@ -32,10 +32,10 @@ Future<bool> askToReplaceUnfinished(BuildContext context) async {
 Future<bool> clearUnfinishedLinkWork(
   BuildContext context,
   WidgetRef ref,
-  String youTubeId,
+  String videoKey,
 ) async {
   final works = ref.read(unfinishedLinkWorksProvider);
-  final unfinished = await works.unfinishedLinkWork(youTubeId);
+  final unfinished = await works.unfinishedLinkWork(videoKey);
   if (unfinished.isEmpty) {
     return true;
   }

@@ -19,8 +19,9 @@ mixin _$RecentReel {
  String get id;/// The caption's first line, shown in the list.
  String get title; String get videoPath; String get thumbnailPath;@JsonKey(name: 'durationMs')@MillisecondsConverter() Duration get duration;/// The MP4's frame size, shown on Done.
 @JsonKey(readValue: readWholeObject)@_OutputSizeConverter() OutputSize get size; DateTime get createdAt;/// The fingerprint of the video it was rendered from.
- String get sourceVideoId;/// The YouTube video a joined link clip came from; null otherwise.
- String? get youtubeId;/// What it used of its source, in source order (spec FR-44).
+ String get sourceVideoId;/// The key of the linked video a joined clip came from (FR-50); null
+/// otherwise.
+@JsonKey(name: 'youtubeId') String? get videoKey;/// What it used of its source, in source order (spec FR-44).
 @_SourceRangesConverter() List<SourceRange> get usedRanges;
 /// Create a copy of RecentReel
 /// with the given fields replaced by the non-null parameter values.
@@ -33,20 +34,20 @@ $RecentReelCopyWith<RecentReel> get copyWith => _$RecentReelCopyWithImpl<RecentR
 @override
 bool operator ==(Object other) {
   final _this = this as RecentReel;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecentReel&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.videoPath, _this.videoPath) || other.videoPath == _this.videoPath)&&(identical(other.thumbnailPath, _this.thumbnailPath) || other.thumbnailPath == _this.thumbnailPath)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.size, _this.size) || other.size == _this.size)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.sourceVideoId, _this.sourceVideoId) || other.sourceVideoId == _this.sourceVideoId)&&(identical(other.youtubeId, _this.youtubeId) || other.youtubeId == _this.youtubeId)&&const DeepCollectionEquality().equals(other.usedRanges, _this.usedRanges));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RecentReel&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.videoPath, _this.videoPath) || other.videoPath == _this.videoPath)&&(identical(other.thumbnailPath, _this.thumbnailPath) || other.thumbnailPath == _this.thumbnailPath)&&(identical(other.duration, _this.duration) || other.duration == _this.duration)&&(identical(other.size, _this.size) || other.size == _this.size)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.sourceVideoId, _this.sourceVideoId) || other.sourceVideoId == _this.sourceVideoId)&&(identical(other.videoKey, _this.videoKey) || other.videoKey == _this.videoKey)&&const DeepCollectionEquality().equals(other.usedRanges, _this.usedRanges));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as RecentReel;
-  return Object.hash(runtimeType,_this.id,_this.title,_this.videoPath,_this.thumbnailPath,_this.duration,_this.size,_this.createdAt,_this.sourceVideoId,_this.youtubeId,const DeepCollectionEquality().hash(_this.usedRanges));
+  return Object.hash(runtimeType,_this.id,_this.title,_this.videoPath,_this.thumbnailPath,_this.duration,_this.size,_this.createdAt,_this.sourceVideoId,_this.videoKey,const DeepCollectionEquality().hash(_this.usedRanges));
 }
 
 @override
 String toString() {
   final _this = this as RecentReel;
-  return 'RecentReel(id: ${_this.id}, title: ${_this.title}, videoPath: ${_this.videoPath}, thumbnailPath: ${_this.thumbnailPath}, duration: ${_this.duration}, size: ${_this.size}, createdAt: ${_this.createdAt}, sourceVideoId: ${_this.sourceVideoId}, youtubeId: ${_this.youtubeId}, usedRanges: ${_this.usedRanges})';
+  return 'RecentReel(id: ${_this.id}, title: ${_this.title}, videoPath: ${_this.videoPath}, thumbnailPath: ${_this.thumbnailPath}, duration: ${_this.duration}, size: ${_this.size}, createdAt: ${_this.createdAt}, sourceVideoId: ${_this.sourceVideoId}, videoKey: ${_this.videoKey}, usedRanges: ${_this.usedRanges})';
 }
 
 
@@ -57,7 +58,7 @@ abstract mixin class $RecentReelCopyWith<$Res>  {
   factory $RecentReelCopyWith(RecentReel value, $Res Function(RecentReel) _then) = _$RecentReelCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, String videoPath, String thumbnailPath,@JsonKey(name: 'durationMs')@MillisecondsConverter() Duration duration,@JsonKey(readValue: readWholeObject)@_OutputSizeConverter() OutputSize size, DateTime createdAt, String sourceVideoId, String? youtubeId,@_SourceRangesConverter() List<SourceRange> usedRanges
+ String id, String title, String videoPath, String thumbnailPath,@JsonKey(name: 'durationMs')@MillisecondsConverter() Duration duration,@JsonKey(readValue: readWholeObject)@_OutputSizeConverter() OutputSize size, DateTime createdAt, String sourceVideoId,@JsonKey(name: 'youtubeId') String? videoKey,@_SourceRangesConverter() List<SourceRange> usedRanges
 });
 
 
@@ -74,7 +75,7 @@ class _$RecentReelCopyWithImpl<$Res>
 
 /// Create a copy of RecentReel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? videoPath = null,Object? thumbnailPath = null,Object? duration = null,Object? size = null,Object? createdAt = null,Object? sourceVideoId = null,Object? youtubeId = freezed,Object? usedRanges = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? videoPath = null,Object? thumbnailPath = null,Object? duration = null,Object? size = null,Object? createdAt = null,Object? sourceVideoId = null,Object? videoKey = freezed,Object? usedRanges = null,}) {
   return _then(RecentReel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -84,7 +85,7 @@ as String,duration: null == duration ? _self.duration : duration // ignore: cast
 as Duration,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
 as OutputSize,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,sourceVideoId: null == sourceVideoId ? _self.sourceVideoId : sourceVideoId // ignore: cast_nullable_to_non_nullable
-as String,youtubeId: freezed == youtubeId ? _self.youtubeId : youtubeId // ignore: cast_nullable_to_non_nullable
+as String,videoKey: freezed == videoKey ? _self.videoKey : videoKey // ignore: cast_nullable_to_non_nullable
 as String?,usedRanges: null == usedRanges ? _self.usedRanges : usedRanges // ignore: cast_nullable_to_non_nullable
 as List<SourceRange>,
   ));
@@ -171,10 +172,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String videoPath,  String thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter()  Duration duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter()  OutputSize size,  DateTime createdAt,  String sourceVideoId,  String? youtubeId, @_SourceRangesConverter()  List<SourceRange> usedRanges)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String videoPath,  String thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter()  Duration duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter()  OutputSize size,  DateTime createdAt,  String sourceVideoId, @JsonKey(name: 'youtubeId')  String? videoKey, @_SourceRangesConverter()  List<SourceRange> usedRanges)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _RecentReel() when $default != null:
-return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.duration,_that.size,_that.createdAt,_that.sourceVideoId,_that.youtubeId,_that.usedRanges);case _:
+return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.duration,_that.size,_that.createdAt,_that.sourceVideoId,_that.videoKey,_that.usedRanges);case _:
   return orElse();
 
 }
@@ -192,10 +193,10 @@ return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.d
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String videoPath,  String thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter()  Duration duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter()  OutputSize size,  DateTime createdAt,  String sourceVideoId,  String? youtubeId, @_SourceRangesConverter()  List<SourceRange> usedRanges)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String videoPath,  String thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter()  Duration duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter()  OutputSize size,  DateTime createdAt,  String sourceVideoId, @JsonKey(name: 'youtubeId')  String? videoKey, @_SourceRangesConverter()  List<SourceRange> usedRanges)  $default,) {final _that = this;
 switch (_that) {
 case _RecentReel():
-return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.duration,_that.size,_that.createdAt,_that.sourceVideoId,_that.youtubeId,_that.usedRanges);case _:
+return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.duration,_that.size,_that.createdAt,_that.sourceVideoId,_that.videoKey,_that.usedRanges);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -212,10 +213,10 @@ return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.d
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String videoPath,  String thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter()  Duration duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter()  OutputSize size,  DateTime createdAt,  String sourceVideoId,  String? youtubeId, @_SourceRangesConverter()  List<SourceRange> usedRanges)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String videoPath,  String thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter()  Duration duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter()  OutputSize size,  DateTime createdAt,  String sourceVideoId, @JsonKey(name: 'youtubeId')  String? videoKey, @_SourceRangesConverter()  List<SourceRange> usedRanges)?  $default,) {final _that = this;
 switch (_that) {
 case _RecentReel() when $default != null:
-return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.duration,_that.size,_that.createdAt,_that.sourceVideoId,_that.youtubeId,_that.usedRanges);case _:
+return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.duration,_that.size,_that.createdAt,_that.sourceVideoId,_that.videoKey,_that.usedRanges);case _:
   return null;
 
 }
@@ -227,7 +228,7 @@ return $default(_that.id,_that.title,_that.videoPath,_that.thumbnailPath,_that.d
 
 @JsonSerializable(createToJson: false)
 class _RecentReel extends RecentReel {
-  const _RecentReel({required this.id, required this.title, required this.videoPath, required this.thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter() required this.duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter() required this.size, required this.createdAt, required this.sourceVideoId, this.youtubeId, @_SourceRangesConverter() required  List<SourceRange> usedRanges}): _usedRanges = usedRanges,super._();
+  const _RecentReel({required this.id, required this.title, required this.videoPath, required this.thumbnailPath, @JsonKey(name: 'durationMs')@MillisecondsConverter() required this.duration, @JsonKey(readValue: readWholeObject)@_OutputSizeConverter() required this.size, required this.createdAt, required this.sourceVideoId, @JsonKey(name: 'youtubeId') this.videoKey, @_SourceRangesConverter() required  List<SourceRange> usedRanges}): _usedRanges = usedRanges,super._();
   factory _RecentReel.fromJson(Map<String, dynamic> json) => _$RecentReelFromJson(json);
 
 @override final  String id;
@@ -241,8 +242,9 @@ class _RecentReel extends RecentReel {
 @override final  DateTime createdAt;
 /// The fingerprint of the video it was rendered from.
 @override final  String sourceVideoId;
-/// The YouTube video a joined link clip came from; null otherwise.
-@override final  String? youtubeId;
+/// The key of the linked video a joined clip came from (FR-50); null
+/// otherwise.
+@override@JsonKey(name: 'youtubeId') final  String? videoKey;
 /// What it used of its source, in source order (spec FR-44).
  final  List<SourceRange> _usedRanges;
 /// What it used of its source, in source order (spec FR-44).
@@ -263,18 +265,18 @@ _$RecentReelCopyWith<_RecentReel> get copyWith => __$RecentReelCopyWithImpl<_Rec
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecentReel&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.videoPath, videoPath) || other.videoPath == videoPath)&&(identical(other.thumbnailPath, thumbnailPath) || other.thumbnailPath == thumbnailPath)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.size, size) || other.size == size)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.sourceVideoId, sourceVideoId) || other.sourceVideoId == sourceVideoId)&&(identical(other.youtubeId, youtubeId) || other.youtubeId == youtubeId)&&const DeepCollectionEquality().equals(other.usedRanges, _usedRanges));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RecentReel&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.videoPath, videoPath) || other.videoPath == videoPath)&&(identical(other.thumbnailPath, thumbnailPath) || other.thumbnailPath == thumbnailPath)&&(identical(other.duration, duration) || other.duration == duration)&&(identical(other.size, size) || other.size == size)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.sourceVideoId, sourceVideoId) || other.sourceVideoId == sourceVideoId)&&(identical(other.videoKey, videoKey) || other.videoKey == videoKey)&&const DeepCollectionEquality().equals(other.usedRanges, _usedRanges));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,title,videoPath,thumbnailPath,duration,size,createdAt,sourceVideoId,youtubeId,const DeepCollectionEquality().hash(_usedRanges));
+    return Object.hash(runtimeType,id,title,videoPath,thumbnailPath,duration,size,createdAt,sourceVideoId,videoKey,const DeepCollectionEquality().hash(_usedRanges));
 }
 
 @override
 String toString() {
-    return 'RecentReel(id: $id, title: $title, videoPath: $videoPath, thumbnailPath: $thumbnailPath, duration: $duration, size: $size, createdAt: $createdAt, sourceVideoId: $sourceVideoId, youtubeId: $youtubeId, usedRanges: $usedRanges)';
+    return 'RecentReel(id: $id, title: $title, videoPath: $videoPath, thumbnailPath: $thumbnailPath, duration: $duration, size: $size, createdAt: $createdAt, sourceVideoId: $sourceVideoId, videoKey: $videoKey, usedRanges: $usedRanges)';
 }
 
 
@@ -285,7 +287,7 @@ abstract mixin class _$RecentReelCopyWith<$Res> implements $RecentReelCopyWith<$
   factory _$RecentReelCopyWith(_RecentReel value, $Res Function(_RecentReel) _then) = __$RecentReelCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, String videoPath, String thumbnailPath,@JsonKey(name: 'durationMs')@MillisecondsConverter() Duration duration,@JsonKey(readValue: readWholeObject)@_OutputSizeConverter() OutputSize size, DateTime createdAt, String sourceVideoId, String? youtubeId,@_SourceRangesConverter() List<SourceRange> usedRanges
+ String id, String title, String videoPath, String thumbnailPath,@JsonKey(name: 'durationMs')@MillisecondsConverter() Duration duration,@JsonKey(readValue: readWholeObject)@_OutputSizeConverter() OutputSize size, DateTime createdAt, String sourceVideoId,@JsonKey(name: 'youtubeId') String? videoKey,@_SourceRangesConverter() List<SourceRange> usedRanges
 });
 
 
@@ -302,7 +304,7 @@ class __$RecentReelCopyWithImpl<$Res>
 
 /// Create a copy of RecentReel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? videoPath = null,Object? thumbnailPath = null,Object? duration = null,Object? size = null,Object? createdAt = null,Object? sourceVideoId = null,Object? youtubeId = freezed,Object? usedRanges = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? videoPath = null,Object? thumbnailPath = null,Object? duration = null,Object? size = null,Object? createdAt = null,Object? sourceVideoId = null,Object? videoKey = freezed,Object? usedRanges = null,}) {
   return _then(_RecentReel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -312,7 +314,7 @@ as String,duration: null == duration ? _self.duration : duration // ignore: cast
 as Duration,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
 as OutputSize,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,sourceVideoId: null == sourceVideoId ? _self.sourceVideoId : sourceVideoId // ignore: cast_nullable_to_non_nullable
-as String,youtubeId: freezed == youtubeId ? _self.youtubeId : youtubeId // ignore: cast_nullable_to_non_nullable
+as String,videoKey: freezed == videoKey ? _self.videoKey : videoKey // ignore: cast_nullable_to_non_nullable
 as String?,usedRanges: null == usedRanges ? _self._usedRanges : usedRanges // ignore: cast_nullable_to_non_nullable
 as List<SourceRange>,
   ));

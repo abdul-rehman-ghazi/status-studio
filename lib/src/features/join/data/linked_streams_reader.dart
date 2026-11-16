@@ -14,20 +14,20 @@ class LinkedStreamsReader {
 
   /// Without JavaScript first, as FR-35 reads; with QuickJS when that run
   /// fails or finds no MP4 stream. Throws [VideoUnavailableException],
-  /// [OfflineException], [YouTubeChangedException] or
+  /// [OfflineException], [SiteChangedException] or
   /// [NotDownloadableInPartsException].
-  Future<LinkedFormats> read(String youtubeId) async {
+  Future<LinkedFormats> read(String videoKey) async {
     try {
       final quick = linkedFormatsFromYtDlpJson(
-        await ytDlp.quickVideoInfo(youtubeId),
+        await ytDlp.quickVideoInfo(videoKey),
       );
       if (_hasMp4Streams(quick)) {
         return quick;
       }
-    } on YouTubeChangedException {
+    } on SiteChangedException {
       // The run with QuickJS below may still read it.
     }
-    return linkedFormatsFromYtDlpJson(await ytDlp.videoInfo(youtubeId));
+    return linkedFormatsFromYtDlpJson(await ytDlp.videoInfo(videoKey));
   }
 }
 

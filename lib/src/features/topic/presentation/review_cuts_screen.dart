@@ -212,11 +212,11 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
   /// The reels made from this linked video, for the used marks (spec
   /// FR-44).
   List<RecentReel> _reelsOfThisVideo() {
-    final youtubeId = widget.request.video.videoId;
+    final videoKey = widget.request.video.videoKey;
     final reels = ref.watch(recentReelsProvider).value ?? const [];
     return [
       for (final reel in reels)
-        if (reel.youtubeId == youtubeId) reel,
+        if (reel.videoKey == videoKey) reel,
     ];
   }
 
@@ -295,7 +295,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
     try {
       final store = await ref.read(topicStoreProvider.future);
       final saved = await store.savedBlocks(
-        request.video.videoId,
+        request.video.videoKey,
         request.outputLanguage,
       );
       return saved != null;
@@ -522,7 +522,7 @@ class _ReviewCutsScreenState extends ConsumerState<ReviewCutsScreen> {
       }
       setState(() => _making = null);
       // The joined clip's own Recent row takes the session's place.
-      unawaited(_saver.delete(widget.request.video.videoId));
+      unawaited(_saver.delete(widget.request.video.videoKey));
       ref.invalidate(isVideoKeptProvider);
       ref.read(reelDraftProvider.notifier).setVideoOn(made.video, made.clip);
       await context.push(AppRoutes.fineTune);

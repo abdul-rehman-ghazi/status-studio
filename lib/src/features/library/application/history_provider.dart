@@ -32,7 +32,7 @@ final historyProvider = FutureProvider.autoDispose<List<VideoHistory>>((
       videoId: ?await ref.watch(linkedClipProvider(videoId).future),
   };
   final topics = await ref.watch(topicStoreProvider.future);
-  final youTubeIds = await topics.videoIds();
+  final videoKeys = await topics.videoIds();
   return historyOf(
     HistorySources(
       reels: reels,
@@ -41,10 +41,10 @@ final historyProvider = FutureProvider.autoDispose<List<VideoHistory>>((
       linkSessions: sessions,
       links: LinkFacts(
         joinedClips: joinedClips,
-        videos: await _savedLinkedVideos(topics, youTubeIds),
+        videos: await _savedLinkedVideos(topics, videoKeys),
         transcripts: {
-          for (final youTubeId in youTubeIds)
-            youTubeId: await topics.savedScripts(youTubeId),
+          for (final videoKey in videoKeys)
+            videoKey: await topics.savedScripts(videoKey),
         },
         localVideos: await _localVideosOfReels(
           await ref.watch(transcriptStoreProvider.future),
@@ -57,10 +57,10 @@ final historyProvider = FutureProvider.autoDispose<List<VideoHistory>>((
 
 Future<Map<String, LinkedVideo>> _savedLinkedVideos(
   TopicStore topics,
-  List<String> youTubeIds,
+  List<String> videoKeys,
 ) async => {
-  for (final youTubeId in youTubeIds)
-    youTubeId: ?await topics.savedVideo(youTubeId),
+  for (final videoKey in videoKeys)
+    videoKey: ?await topics.savedVideo(videoKey),
 };
 
 /// A local video whose scripts were deleted is still known by the title
@@ -71,7 +71,7 @@ Future<Map<String, SourceVideo>> _localVideosOfReels(
 ) async {
   final videos = <String, SourceVideo>{};
   for (final reel in reels) {
-    if (reel.youtubeId != null || videos.containsKey(reel.sourceVideoId)) {
+    if (reel.videoKey != null || videos.containsKey(reel.sourceVideoId)) {
       continue;
     }
     try {
