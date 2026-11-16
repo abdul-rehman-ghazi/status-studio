@@ -23,10 +23,15 @@ String errorMessageFor(Object error) {
     InsufficientStorageException() => 'Not enough space on your phone.',
     VideoUnreadableException() => "Can't read this video.",
     VideoUnavailableException() => "This video can't be downloaded.",
-    InvalidLinkException() => "That doesn't look like a YouTube link.",
+    InvalidLinkException() => "That doesn't look like a link.",
+    UnsupportedSiteException() =>
+      "The downloader can't read videos from this site.",
+    LoginRequiredException() =>
+      "This video needs a login to the site, which the app can't do. "
+          'Try a public video.',
     SiteChangedException() =>
-      "Couldn't read this video from YouTube. Update the downloader in "
-          'Settings, or try again later.',
+      "Couldn't read this video. Update the downloader in Settings, or try "
+          'again later.',
     VideoNotConvertibleException() =>
       "This phone can't convert this AV1 video. Save it as H.264 (MP4) in "
           'your editor and share it again.',

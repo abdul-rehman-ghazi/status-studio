@@ -50,7 +50,7 @@ class _DownloaderSectionState extends ConsumerState<DownloaderSection> {
         ],
         const SizedBox(height: 12),
         const HintText(
-          'YouTube changes often, so the downloader checks for a new yt-dlp '
+          'Video sites change often, so the downloader checks for a new yt-dlp '
           'once a week.',
         ),
       ],
