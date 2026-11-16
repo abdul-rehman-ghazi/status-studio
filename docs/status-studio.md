@@ -1168,7 +1168,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M62 Spec checkboxes | §12's stale unchecked tasks closed or ticked from the code and git history; the owner's test tasks no longer carry a checkbox | Built, branch `m62-spec-checkboxes` (from `dev`), merged into `dev` (2026-11-16). Docs only |
 | M63 README | The README's later sections (status, features, tech stack, structure, distribution, signing, releasing, licence) brought up to date; asked by the owner (2026-11-16) | Built, branch `m63-readme` (from `dev`), merged into `dev` (2026-11-16). Docs only |
 | M64 Check without tests | `tool/check.sh` formats and tests `test/` only when a local copy is there, since the suite is kept outside the repository; asked by the owner (2026-11-16) | Built, branch `m64-check-without-tests` (from `dev`), merged into `dev` (2026-11-16). `tool/check.sh` exits 0 (tests skipped) |
-| M65 Release crash | Release APKs crashed at start: R8 broke FFmpeg Kit's JNI binding and youtubedl-android's reflection; R8 is off for release builds | Built, branch `m65-release-crash` (from `dev`), pushed, not merged. A release build starts on a Pixel 6a (Android 17). Needs a release (0.1.2) |
+| M65 Release crash | Release APKs crashed at start: R8 broke FFmpeg Kit's JNI binding and youtubedl-android's reflection; R8 is off for release builds | Built, branch `m65-release-crash` (from `dev`), merged into `dev` (2026-11-16). A release build starts on a Pixel 6a (Android 17). Released in 0.1.2 |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
