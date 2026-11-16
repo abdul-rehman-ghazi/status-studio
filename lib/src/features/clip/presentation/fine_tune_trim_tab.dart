@@ -6,19 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/clip/application/clip_playhead.dart';
-import 'package:status_studio/src/features/clip/application/waveform_provider.dart';
 import 'package:status_studio/src/features/clip/domain/clip_range.dart';
-import 'package:status_studio/src/features/clip/domain/waveform.dart';
-import 'package:status_studio/src/features/clip/presentation/waveform_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
-import 'package:status_studio/src/features/source/application/clip_source_controller.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
 const _edgeReplay = Duration(seconds: 2);
 
-/// Fine-tune · Video's Trim tab: the clip's length, its waveform, and its
-/// start and end with the nudges (spec FR-5).
+/// Fine-tune · Video's Trim tab: the clip's length, and its start and end
+/// with the nudges (spec FR-5; the waveform went in M72).
 class FineTuneTrimTab extends ConsumerWidget {
   const FineTuneTrimTab({
     super.key,
@@ -39,8 +35,6 @@ class FineTuneTrimTab extends ConsumerWidget {
       children: [
         _ClipSummary(clip: clip),
         // if (isLongerThanStatusLimit(clip)) const _LongClipWarning(),
-        const SizedBox(height: 16),
-        _ClipWaveform(video: video, clip: clip),
         const SizedBox(height: 16),
         // _WholeVideoBar(clip: clip, videoDuration: video.duration),
         const SizedBox(height: 20),
@@ -169,33 +163,6 @@ class _LouderSoundSwitch extends ConsumerWidget {
       onChanged: (on) =>
           on ? controller.makeSoundLouder() : controller.keepSoundAsIs(),
     );
-  }
-}
-
-/// The waveform of the downloaded window; empty space until it's ready.
-class _ClipWaveform extends ConsumerWidget {
-  const _ClipWaveform({required this.video, required this.clip});
-
-  final SourceVideo video;
-  final ClipRange clip;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final source = ref
-        .watch(clipSourceProvider(video.videoId))
-        .unwrapPrevious()
-        .value;
-    if (source == null) {
-      return const SizedBox(height: 56);
-    }
-    final shown = waveformWindowFor(source, clip, video.duration);
-    final peaks = ref
-        .watch(waveformProvider((source: source, shown: shown)))
-        .value;
-    if (peaks == null) {
-      return const SizedBox(height: 56);
-    }
-    return WaveformView(peaks: peaks, window: shown, clip: clip);
   }
 }
 
