@@ -24,7 +24,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 | 2b | Review cuts | `/link/cuts` | Android (M45): getting the script, then the script page (since M53 always): Search the script, the script's blocks to choose runs from, the transition and Make the clip, which downloads the ticked moments and joins them (M46) before Fine-tune opens; your moments open in a sheet from the footer's Moments (M56) (FR-43, FR-28, FR-37, FR-46). Since M71 also for a kept video from Source, with nothing downloaded (FR-51) |
 | 3 | Processing (removed) | — | Removed in M30: the script run (clean the voice, write with Groq, detect the language, line up timestamps) shows on Fine-tune · Lyrics (FR-21). The number stays so references keep working |
 | 4 | Script (removed) | — | Removed in M25 (task 7): it was a read-only list that Fine-tune · Lyrics repeats, editable. Language, Fix with Groq and the saved-script line moved to Fine-tune · Lyrics. The number stays so references keep working |
-| 5 | Fine-tune · Video | `/fine-tune` | "Step 1 of 2" (M30): plays the kept video file with Trim and Crop tabs under it. Trim: the clip's start and end, nudged by ±0.5 s, and the waveform (FR-5). Crop: size, fill and crop (FR-6), and the crop that moves at each scene, with the scene strip, New position here and Follow the person (FR-22, FR-27) |
+| 5 | Fine-tune · Video | `/fine-tune` | "Step 1 of 2" (M30): plays the kept video file with Trim and Crop tabs under it. Trim: the clip's start and end, nudged by ±0.5 s (FR-5; the waveform until M72). Crop: size, fill and crop (FR-6), and the crop that moves at each scene, with the scene strip, New position here and Follow the person (FR-22, FR-27) |
 | 5b | Fine-tune · Lyrics | `/fine-tune/lyrics` | "Step 2 of 2" (M30): everything about the lyrics. The Show lyrics switch, Get lyrics from Groq or Type them myself, the run's progress, the line list with Style and Get again, and Export reel (FR-21) |
 | 6 | Style (removed) | — | Removed in M30: caption position and size are in the Style sheet on Lyrics (FR-7); the caption is always the lines, in their own language |
 | 7 | Export | `/export` | Render with progress; Cancel returns to Lyrics |
@@ -70,7 +70,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 **FR-4 Line selection (removed in M23).** The user no longer taps a start and an end line: the video is already the clip. `ClipRange` defaults to the whole video (FR-5), and every line counts as selected. The tap rules, the highlight and the Next-when-both-set rule went away. The number stays so code and history keep their references.
 
 **FR-5 Fine-tune (two steps since M19; changed in M23).** Both steps keep their own player over the same kept video file (FR-1); Next on step 1 opens step 2, and Back returns.
-- **Step 1, Video** (`/fine-tune`, "Step 1 of 2" since M30; "Step 2 of 4" before). The player is pinned; under it the **Trim** tab holds the range, nudges, set-to-playhead and waveform below, and the **Crop** tab holds the frame (FR-6) and the moving crop (FR-22). Trim opens first; the tab stays as last used while the reel is open:
+- **Step 1, Video** (`/fine-tune`, "Step 1 of 2" since M30; "Step 2 of 4" before). The player is pinned; under it the **Trim** tab holds the range, nudges and set-to-playhead (the waveform below them until M72), and the **Crop** tab holds the frame (FR-6) and the moving crop (FR-22). Trim opens first; the tab stays as last used while the reel is open:
   - **Opening:** the player opens the kept video file at once. Nothing is downloaded (changed in M23).
   - **Player:** pinned above the scrolling rest; play, pause, and a seek bar over the whole video, drawn as an outline with only the clip range filled; the time already played is not coloured, so it never hides the clip range. The bar and its time follow the interpolated playhead, so they move smoothly between the player's reports; a report that differs a little is blended in, a big one is a seek. The time has a fixed width with equal-width digits, so the bar never changes size. Play starts where the seek bar is and does not stop at the clip end. (A "Play clip" button, which sought to the clip start and played, was removed after M30: the video arrives trimmed, so it duplicated play. It came back in M41, now stopping at the clip end, because the nudges and set-to-playhead trim the clip further.)
   - **Outside the clip (owner, 2026-11-13):** while the playhead is before the clip start or at or past its end, the picture is dimmed with "Not in the clip" over it, as in the Play sheet on Review cuts (FR-39); the crop window and the buttons stay usable over it. Step 2, Lyrics, never leaves the clip, so it has no shade.
@@ -80,7 +80,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Nudges:** buttons move start or end by 0.5 s. A nudge is ignored when it would make the clip shorter than **3 s** or move it outside the video. Both ends can be nudged, so a clip over 60 s can be shortened from either side. A clip that starts out invalid still accepts nudges towards a valid range; only nudges that make a rule worse are ignored.
   - **Hear a nudge (owner, 2026-11-13):** after a nudge that moves an edge, the player jumps to 2 s before the new edge and plays to 2 s past it, then pauses, as in the Play sheet (FR-39); both ends are held inside the video. A nudge the rules ignore replays nothing. Play, Pause, Play the clip or a drag on the bar ends the replay. Set to the playhead doesn't replay: the video is already there.
   - **Set to the playhead:** tapping the Start time, or the End time, sets it to where the video is now, rounded to 0.1 s. The nudge rules apply: a time that would leave the clip under **3 s**, or outside the video, changes nothing. It does nothing until the player is ready.
-  - **Waveform:** 60 bars over the whole video, with the clip highlighted.
+  - **Waveform (removed in M72):** 60 bars over the whole video, with the clip highlighted, until the owner found it not useful (2026-11-16).
   - **Long-clip warning:** above 60.0 s, "Longer than 60 s. WhatsApp Status may cut it." It never blocks.
   - **Frame:** size, fill, keep in view and free crop (FR-6), and a crop that moves (FR-22). The crop window is drawn over the player.
 - **Step 2, Lyrics** (`/fine-tune/lyrics`, "Step 2 of 2" since M30): FR-21, which since M30 holds everything about the lyrics, including the script run that Processing showed.
@@ -1198,8 +1198,9 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M66 F-Droid images | Phone screenshots, icon and feature graphic for F-Droid's fastlane metadata; two small bugs found on the way (§15) | Built, branch `m66-fdroid-images` (from `dev`), merged into `dev` (2026-11-16). Images only |
 | M67 Picker names, key error | The two §15 bugs from M66: a picked video named by its media ID, and the key error staying after a key is saved | Built, branch `m67-picker-name-key-error` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M68 Release 0.1.3 | M67's two fixes released: version `0.1.3+4` (codes 1004, 2004, 4004), tag `v0.1.3`, GitHub release with one signed APK per ABI and `SHA256SUMS.txt`; the F-Droid recipe names 0.1.3 | Released 2026-11-16 on `dev`. Analyze clean. Tests not run |
-| M70 Links from other sites | Any link yt-dlp reads, Facebook and Instagram first: links by page URL, keys per site, request headers, and the whole file after asking when a site has no parts (FR-50) | Built on branch `m70-any-site-links` (from `dev`), pushed, not merged. Analyze clean. Tests not run |
-| M71 Moments from my videos | A local video goes through script, moments and Fine-tune as a link does, nothing downloaded; Use the whole video keeps the old way; Android only (FR-51) | Built on branch `m71-local-moments` (stacked on `m70-any-site-links`), pushed, not merged. Analyze clean. Tests not run |
+| M70 Links from other sites | Any link yt-dlp reads, Facebook and Instagram first: links by page URL, keys per site, request headers, and the whole file after asking when a site has no parts (FR-50) | Built on branch `m70-any-site-links` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
+| M71 Moments from my videos | A local video goes through script, moments and Fine-tune as a link does, nothing downloaded; Use the whole video keeps the old way; Android only (FR-51) | Built on branch `m71-local-moments` (stacked on `m70-any-site-links`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
+| M72 Trim without the waveform | Fine-tune · Video's Trim tab loses its waveform, which the owner found not useful (FR-5) | Built on branch `m72-trim-without-waveform` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2089,6 +2090,12 @@ Request (2026-11-16): FR-51, a local video goes through script, moments and Fine
 - [x] **5. Lyrics, Continue and History.** Lyrics' Get card names Source for a local clip; Carry on rows and History's New and Continue for local sessions; joined reels group under their source video. **Stale tests:** History grouping (a session, joined clip, reel or moments' script keyed by a `v_<16 hex>` fingerprint now groups under that kept video), Carry on rows, `LinkedLyricsGetCard` (takes `sourceKind`), History New on a local row (Review cuts on Android), Delete video on a local row. *Claude's call:* a key is a kept video when it is a `v_<16 hex>` fingerprint (`isLocalFingerprint`), else a link. Delete video on a kept video also deletes the clips joined from it and its Review cuts session and moments' script, as a link's does. On iOS, New on a kept video still opens Fine-tune.
 - [x] **6. Status.** FR-1 and FR-44 point to FR-51; screens table rows 2 and 2b; §12 row; §13 cases; push (not merge).
 
+### M72 tasks (branch `m72-trim-without-waveform`, from `dev`)
+
+Request (2026-11-16): "fine tune video > trim waveform is not useful. remove it". Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
+
+- [x] **1. No waveform.** `fine_tune_trim_tab.dart` drops `_ClipWaveform`; `waveform_view.dart`, `waveform_provider.dart` and `clip/domain/waveform.dart` are deleted (nothing else used them). FR-5, the screens table and §13 say so. **Stale tests:** the waveform tests (`waveform_test`, the waveform view and provider tests) and Trim tab tests that find the waveform.
+
 ## 13. Behaviour that must stay covered by tests
 
 - **Links (removed in M23):** the YouTube link tests went with the links.
@@ -2119,10 +2126,7 @@ Request (2026-11-16): FR-51, a local video goes through script, moments and Fine
   - Lines keep absolute times across piece boundaries.
   - A killed run resumes from the next piece.
   - A saved script opens without Processing.
-- **Waveform:**
-  - It maps samples to video time when the window starts after 0.
-  - Very short audio still gives the requested number of bars.
-  - Silence gives flat bars, not NaN.
+- **Waveform (removed in M72):** its cases went with it.
   - The warning appears at 60.5 s and not at 60.0 s.
 - **Render:**
   - Free crop is right for 720p and vertical sources.
