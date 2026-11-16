@@ -11,6 +11,8 @@ import 'package:status_studio/src/features/join/domain/making_progress.dart';
 import 'package:status_studio/src/features/join/presentation/making_view.dart';
 import 'package:status_studio/src/features/reel/application/reel_draft_controller.dart';
 import 'package:status_studio/src/features/source/application/is_video_kept.dart';
+import 'package:status_studio/src/features/topic/application/link_session_saver.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/routing/app_router.dart';
 
@@ -33,7 +35,17 @@ class _WholeLinkScreenState extends ConsumerState<WholeLinkScreen> {
   @override
   void initState() {
     super.initState();
+    _keepLinkFacts();
     WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_make()));
+  }
+
+  /// History's row for the link shows its title and thumbnail, and its New
+  /// reads the page again, from these facts (spec FR-44, FR-52), as Review
+  /// cuts keeps them.
+  void _keepLinkFacts() {
+    if (widget.request.source case LinkedMoments(:final video)) {
+      unawaited(ref.read(linkSessionSaverProvider).saveVideo(video));
+    }
   }
 
   @override
