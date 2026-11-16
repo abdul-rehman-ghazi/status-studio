@@ -47,12 +47,12 @@ class CutDownloadWatch {
 /// One stream's part of a cut: where its bytes are and when it starts.
 class _StreamPlan {
   const _StreamPlan({
-    required this.url,
+    required this.stream,
     required this.ranges,
     required this.segments,
   });
 
-  final Uri url;
+  final StreamFormat stream;
   final List<ByteRange> ranges;
   final List<MediaSegment> segments;
 
@@ -135,8 +135,8 @@ class CutDownloader {
   }
 
   Future<CutFile> _download(CutRequest request, CutDownloadWatch watch) async {
-    final video = await _plan(request.streams.video.url, request.window);
-    final audio = await _plan(request.streams.audio.url, request.window);
+    final video = await _plan(request.streams.video, request.window);
+    final audio = await _plan(request.streams.audio, request.window);
     final total = video.totalBytes + audio.totalBytes;
     final cuts = await _cutsFolder(request.videoKey);
     final name = '${cuts.path}/${_nameOf(request)}';
@@ -168,14 +168,14 @@ class CutDownloader {
     return cut;
   }
 
-  Future<_StreamPlan> _plan(Uri url, ClipWindow window) async {
-    final index = await _readIndex(url);
+  Future<_StreamPlan> _plan(StreamFormat stream, ClipWindow window) async {
+    final index = await _readIndex(stream);
     final segments = segmentsCovering(index, window);
     if (segments.isEmpty) {
       throw const NoSegmentIndexException();
     }
     return _StreamPlan(
-      url: url,
+      stream: stream,
       ranges: [index.init, mergedRange(segments)],
       segments: segments,
     );
@@ -183,10 +183,14 @@ class CutDownloader {
 
   /// Fetches the start of the stream, doubling the amount until the whole
   /// `sidx` box is in it; past 2 MiB the stream counts as having no index.
-  Future<SegmentIndex> _readIndex(Uri url) async {
+  Future<SegmentIndex> _readIndex(StreamFormat stream) async {
     var length = _firstHeadBytes;
     while (length <= _maximumHeadBytes) {
-      final head = await downloader.fetchHead(url, length);
+      final head = await downloader.fetchHead(
+        stream.url,
+        length,
+        headers: stream.httpHeaders,
+      );
       try {
         return parseSegmentIndex(head);
       } on SegmentIndexNotFoundException catch (missing) {
@@ -232,7 +236,8 @@ RangedDownload _rangedDownload(
   File target,
   DownloadCancel cancel,
 ) => RangedDownload(
-  url: plan.url,
+  url: plan.stream.url,
+  headers: plan.stream.httpHeaders,
   ranges: plan.ranges,
   target: target,
   cancel: cancel,

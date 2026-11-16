@@ -16,9 +16,13 @@ class RangedDownload {
     required this.ranges,
     required this.target,
     required this.cancel,
+    this.headers = const {},
   });
 
   final Uri url;
+
+  /// Sent with every request (spec FR-50).
+  final Map<String, String> headers;
   final List<ByteRange> ranges;
   final File target;
   final DownloadCancel cancel;
@@ -37,9 +41,16 @@ class RangedDownloader {
   /// as offline, so a stalled connection can't hang a download forever.
   final Duration _idleTimeout;
 
-  /// The first [length] bytes of [url].
-  Future<Uint8List> fetchHead(Uri url, int length) async {
-    final response = await _requestRange(url, ByteRange(0, length - 1));
+  /// The first [length] bytes of [url], asked for with [headers].
+  Future<Uint8List> fetchHead(
+    Uri url,
+    int length, {
+    Map<String, String> headers = const {},
+  }) async {
+    final response = await _requestRange((
+      url: url,
+      headers: headers,
+    ), ByteRange(0, length - 1));
     final builder = BytesBuilder(copy: false);
     await _watched(response, url).forEach(builder.add);
     return builder.toBytes();
@@ -75,7 +86,10 @@ class RangedDownloader {
     var received = 0;
     for (final range in download.ranges) {
       download.cancel.throwIfCancelled();
-      final response = await _requestRange(download.url, range);
+      final response = await _requestRange((
+        url: download.url,
+        headers: download.headers,
+      ), range);
       var rangeBytes = 0;
       // Leaving the loop by a throw cancels the response, which drops the
       // connection, so Cancel doesn't wait for the rest of the range.
@@ -94,10 +108,15 @@ class RangedDownloader {
     }
   }
 
-  Future<HttpClientResponse> _requestRange(Uri url, ByteRange range) async {
+  Future<HttpClientResponse> _requestRange(
+    _StreamAddress address,
+    ByteRange range,
+  ) async {
+    final url = address.url;
     final request = await _client
         .getUrl(url)
         .timeout(_idleTimeout, onTimeout: () => throw _stalled(url));
+    address.headers.forEach(request.headers.set);
     request.headers.set(
       HttpHeaders.rangeHeader,
       'bytes=${range.first}-${range.last}',
@@ -121,6 +140,8 @@ class RangedDownloader {
   Stream<List<int>> _watched(HttpClientResponse response, Uri url) => response
       .timeout(_idleTimeout, onTimeout: (sink) => sink.addError(_stalled(url)));
 }
+
+typedef _StreamAddress = ({Uri url, Map<String, String> headers});
 
 OfflineException _stalled(Uri url) =>
     OfflineException('No data for a while from $url.');

@@ -22,6 +22,7 @@ class StreamFormat {
     required this.height,
     required this.bitrate,
     this.isDefaultTrack = true,
+    this.httpHeaders = const {},
   });
 
   /// yt-dlp's ID, e.g. `299`, or `140-drc` for dynamic-range-compressed
@@ -45,6 +46,11 @@ class StreamFormat {
   /// False for dubbed or descriptive audio tracks.
   final bool isDefaultTrack;
 
+  /// yt-dlp's `http_headers` for the stream, sent with every request for
+  /// it, since a site's servers may check the User-Agent or Referer
+  /// (spec FR-50).
+  final Map<String, String> httpHeaders;
+
   /// Only MP4 streams carry the segment index the cuts are fetched by.
   bool get isMp4 => container == _mp4;
 
@@ -61,7 +67,8 @@ class StreamFormat {
       other.codec == codec &&
       other.height == height &&
       other.bitrate == bitrate &&
-      other.isDefaultTrack == isDefaultTrack;
+      other.isDefaultTrack == isDefaultTrack &&
+      mapEquals(other.httpHeaders, httpHeaders);
 
   @override
   int get hashCode => Object.hash(
@@ -72,6 +79,10 @@ class StreamFormat {
     height,
     bitrate,
     isDefaultTrack,
+    Object.hashAllUnordered([
+      for (final MapEntry(:key, :value) in httpHeaders.entries)
+        Object.hash(key, value),
+    ]),
   );
 }
 

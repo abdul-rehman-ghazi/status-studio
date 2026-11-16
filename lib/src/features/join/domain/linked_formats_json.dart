@@ -5,8 +5,8 @@ import 'package:status_studio/src/features/join/domain/stream_choice.dart';
 const _bitsPerKilobit = 1000;
 
 /// The streams in yt-dlp's `-J` JSON that can be fetched in byte ranges:
-/// plain HTTPS with a URL (HLS playlists can't). Adapted from M7's
-/// `yt_dlp_info.dart` (removed in `a5294bf`).
+/// one file at a URL (HLS playlists and fragmented DASH can't). Adapted
+/// from M7's `yt_dlp_info.dart` (removed in `a5294bf`).
 LinkedFormats linkedFormatsFromYtDlpJson(Map<String, Object?> info) {
   final listed = info['formats'];
   final formats = [
@@ -23,10 +23,30 @@ LinkedFormats linkedFormatsFromYtDlpJson(Map<String, Object?> info) {
   );
 }
 
+const _fileProtocols = {'https', 'http'};
+const _dashProtocol = 'http_dash_segments';
+
+/// Facebook and Instagram list each DASH stream as one file, with no
+/// `fragments` list (spec FR-50).
 bool _isRangeFetchable(Map<String, Object?> format) =>
-    format['protocol'] == 'https' &&
+    _isOneFile(format) &&
     format['url'] is String &&
     format['format_id'] is String;
+
+bool _isOneFile(Map<String, Object?> format) {
+  final protocol = format['protocol'];
+  if (_fileProtocols.contains(protocol)) {
+    return true;
+  }
+  return protocol == _dashProtocol && format['fragments'] == null;
+}
+
+/// Only text values: yt-dlp writes every header as text.
+Map<String, String> _httpHeaders(Map<String, Object?> format) => {
+  if (format['http_headers'] case final Map<Object?, Object?> headers)
+    for (final MapEntry(:key, :value) in headers.entries)
+      if (key is String && value is String) key: value,
+};
 
 bool _hasCodec(Object? codec) => codec is String && codec != 'none';
 
@@ -43,6 +63,7 @@ StreamFormat _videoFormat(Map<String, Object?> format) => StreamFormat(
   codec: format['vcodec']! as String,
   height: math.min(_whole(format['width']), _whole(format['height'])),
   bitrate: _bitrate(format, 'vbr'),
+  httpHeaders: _httpHeaders(format),
 );
 
 /// yt-dlp ranks the original track highest (dubs and descriptive audio
@@ -61,6 +82,7 @@ List<StreamFormat> _audioFormats(List<Map<String, Object?>> formats) {
         height: 0,
         bitrate: _bitrate(format, 'abr'),
         isDefaultTrack: preference(format) == top,
+        httpHeaders: _httpHeaders(format),
       ),
   ];
 }
