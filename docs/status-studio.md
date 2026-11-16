@@ -584,6 +584,10 @@ Status Studio turns a video the user has already trimmed in another app, in any 
 - **Rate:** the reel's video is asked for 4 Mbit/s on Android (Media3 `VideoEncoderSettings`) and iOS (`AVVideoAverageBitRateKey`), about 30 MB a minute with the sound. The encoder's rate mode stays its default (*Claude's call*).
 - **Not changed:** the link join (FR-37) keeps its high rate, since the reel is encoded again from it; the AV1 conversion (M31) keeps Media3's default.
 
+**FR-49 Files a killed render leaves (M59).** Found by the owner (2026-11-16): a reel deleted from History left a 10 MB MP4 behind. The app had been force-closed halfway through a render, so the half-written `<name>.mp4` and its caption PNGs stayed with no record; the render again on the next launch saw the name taken and wrote `<name>-2`-style, which was the reel later deleted.
+- **At start-up,** after the reels without a source go (FR-44), every file in `documents/reels/` that no stored reel names (as its MP4 or thumbnail, readable or not) is deleted when it hasn't changed for an hour. The hour keeps a render that is still running in the background safe when the app's screen starts again (*Claude's call*).
+- **Not changed:** a render cut short this way is not resumed or reported; the user renders again.
+
 ## 4. Non-functional requirements
 
 - **Platforms:** Android (minSdk 24) and iOS (deployment target 15.5, set for ML Kit; kept after ML Kit went in M47, since nothing is gained by lowering it). iOS is built in M26. Store builds become possible (§9, M27).
@@ -1138,6 +1142,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | Built, branch `m55-groq-allowance` (from `dev`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Task 7 (same day): Groq sends no audio headers, so the audio is counted on the phone. The phone check is the owner's. Tests not run |
 | M56 One moment, moments sheet | One moment is kept without a join or re-encode; Your moments opens in a sheet from the footer (FR-46) | Built, branch `m56-one-moment-and-moments-sheet` (stacked on `m55-groq-allowance`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's: one moment's kept cut file plays and exports from the moment's place (the stream-copied file's edit list, §10 item 10). Tests not run |
 | M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | Built, branch `m58-reel-bitrate` (from `dev`), pushed, not merged (2026-11-16). Analyze clean; the debug APK builds; the iOS change is not compiled. The phone check is the owner's: a reel's size and look at 4 Mbit/s. Tests not run |
+| M59 Stray reel files | Files in `reels/` that no reel names (a killed render's MP4 and caption PNGs) are deleted at start-up after an hour (FR-49) | In progress, branch `m59-stray-reel-files` (stacked on `m58-reel-bitrate`). Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1936,6 +1941,14 @@ Request (2026-11-16): FR-48. Tests are the owner's; `fvm flutter analyze` only, 
 - [x] **1. Spec.** FR-48, FR-9 Output, this list and the §12 row.
 - [x] **2. 4 Mbit/s.** `ReelRenderer` sets a `DefaultEncoderFactory` with `VideoEncoderSettings` at 4,000,000 bit/s; `RenderJob.videoSettings` asks `AVVideoAverageBitRateKey` 4,000,000. **New tests to write:** none in Dart; the rate is native. **Stale:** none known.
 - [x] **3. Status.** §12 row, §13 entry; push.
+
+### M59 tasks (branch `m59-stray-reel-files`, stacked on `m58-reel-bitrate`)
+
+Request (2026-11-16): FR-49. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-49, this list and the §12 row.
+- [ ] **2. Delete stray files.** `RecentReelsRepository.deleteStrayFiles(folder, now:)` deletes the files in `folder` whose names no stored entry's `videoPath` or `thumbnailPath` has, changed over an hour before `now`; `reelsDirectory()` in `renderer.dart` is public, and start-up cleanup in `main.dart` calls it after `deleteWithoutSource`. **New tests to write:** an unnamed MP4 and PNG over an hour old are deleted; a stored reel's MP4 and thumbnail stay; an unreadable entry's files stay; a file changed within the hour stays; a missing folder deletes nothing. **Stale:** none known.
+- [ ] **3. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
