@@ -136,6 +136,7 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - **Words:** letters, marks and digits only, so punctuation and characters illegal in file names are dropped; joined by `_`. A part with no words is left out; with none at all the name is `reel`.
   - **Same name again:** `-2`, `-3`, … is added, so a new reel never replaces an earlier one. The name is also the reel's id in Recent, and what Save to gallery and Share show.
 - **Output:** MP4 with H.264 video (`video/avc`) and AAC audio (`audio/mp4a-latm`), at the source frame rate, rendered by Media3 Transformer (§5).
+  - **Video bitrate (M58, FR-48):** 4 Mbit/s on both platforms, whatever the output size.
 - **Kept fine-tune:** a finished export deletes the kept fine-tune (FR-24).
 - **Progress:** Media3's own progress.
 - **Cancel:** stops the render, deletes the partial file and returns to Lyrics.
@@ -578,6 +579,10 @@ Status Studio turns a video the user has already trimmed in another app, in any 
   - The ×, Moments again, a tap on the shade over the script, or Back closes it; the script keeps its place. Make the clip closes it.
   - Adding a run doesn't open it; the count on Moments goes up (*Claude's call*).
   - The panel is part of Review cuts, not a route of its own, so a tick, a reorder or Play's download shows at once (*Claude's call*).
+
+**FR-48 Smaller reels (M58).** Asked by the owner (2026-11-16): "lower the reel bitrate to 4 Mbps". Reels were 56–70 MB a minute (8–9 Mbit/s): Android let the hardware encoder choose, and iOS asked for 0.12 bits a pixel a frame (about 7.5 Mbit/s at 1080 × 1920). WhatsApp compresses a status further anyway.
+- **Rate:** the reel's video is asked for 4 Mbit/s on Android (Media3 `VideoEncoderSettings`) and iOS (`AVVideoAverageBitRateKey`), about 30 MB a minute with the sound. The encoder's rate mode stays its default (*Claude's call*).
+- **Not changed:** the link join (FR-37) keeps its high rate, since the reel is encoded again from it; the AV1 conversion (M31) keeps Media3's default.
 
 ## 4. Non-functional requirements
 
@@ -1132,6 +1137,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M54 History | A History screen grouping reels, scripts and unfinished work per video, with New, Continue and the source times each reel used; Carry on on Home (FR-44) | Built, branch `m54-history` (stacked on `m53-links-without-topic`), merged into `dev` with M53–M54 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
 | M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | Built, branch `m55-groq-allowance` (from `dev`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Task 7 (same day): Groq sends no audio headers, so the audio is counted on the phone. The phone check is the owner's. Tests not run |
 | M56 One moment, moments sheet | One moment is kept without a join or re-encode; Your moments opens in a sheet from the footer (FR-46) | Built, branch `m56-one-moment-and-moments-sheet` (stacked on `m55-groq-allowance`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's: one moment's kept cut file plays and exports from the moment's place (the stream-copied file's edit list, §10 item 10). Tests not run |
+| M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | In progress, branch `m58-reel-bitrate` (from `dev`). Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1922,6 +1928,14 @@ Request (2026-11-13): FR-46. Tests are the owner's; `fvm flutter analyze` only, 
 - [x] **2. One moment, no join.** `ClipMaker.make` returns a `MadeClip` (the kept video and the clip to open Fine-tune on). One moment downloads with no margin; with an H.264 picture its file is copied into the joins folder and kept, and `LinkedClip` gets one `JoinedCut` at its place in the file and no join times. An AV1 picture goes through the joiner with `ConvertingCut` progress. The making view and notification read "Downloading the cut" and "Converting the cut"; one moment's download fills the notification's percent. `ReelDraft.withVideoOn(video, clip)` and `ReelDraftController.setVideoOn` start Fine-tune on the moment. **New tests to write:** one H.264 moment calls no joiner and keeps a copy of the cut file; its `LinkedClip` has one cut at the moment's place and no join times; one moment downloads without margins; an AV1 moment is joined with `ConvertingCut`; two moments still join; `withVideoOn` keeps the clip inside the playable range. **Stale:** `ClipMaker` and `BackgroundClipMaker` tests that expect a `SourceVideo`.
 - [x] **3. Your moments in a sheet.** `topic/presentation/moments_panel.dart` (`MomentsPanel`, `MomentsPanelContent`; `MomentActions` moves there); `ScriptPage` drops the moments and their header; Review cuts' footer gets Moments (n), and the panel sits over the script page with a shade and closes on ×, Moments, the shade, Back and Make the clip. **New tests to write:** Moments opens the panel with the cards; × and Back close it; ticking in the panel updates the footer's total; no moments shows the empty text; the script page shows no moment cards. **Stale:** `script_page_test.dart` cases that find "Your moments" or a card on the page.
 - [x] **4. Status.** §12 row, §13 entries; push.
+
+### M58 tasks (branch `m58-reel-bitrate`, from `dev`)
+
+Request (2026-11-16): FR-48. Tests are the owner's; `fvm flutter analyze` only, and each commit says tests were not run.
+
+- [x] **1. Spec.** FR-48, FR-9 Output, this list and the §12 row.
+- [ ] **2. 4 Mbit/s.** `ReelRenderer` sets a `DefaultEncoderFactory` with `VideoEncoderSettings` at 4,000,000 bit/s; `RenderJob.videoSettings` asks `AVVideoAverageBitRateKey` 4,000,000. **New tests to write:** none in Dart; the rate is native. **Stale:** none known.
+- [ ] **3. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
