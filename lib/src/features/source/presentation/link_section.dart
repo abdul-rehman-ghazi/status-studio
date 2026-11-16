@@ -10,6 +10,7 @@ import 'package:status_studio/src/core/presentation/section_label.dart';
 import 'package:status_studio/src/core/time_format.dart';
 import 'package:status_studio/src/features/source/application/linked_video_reader.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
+import 'package:status_studio/src/features/source/domain/source_errors.dart';
 import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/topic/presentation/replace_unfinished_dialog.dart';
@@ -163,15 +164,37 @@ class _LinkedVideoCard extends StatelessWidget {
 
 Widget _cardContent(BuildContext context, AsyncSnapshot<LinkedVideo> snapshot) {
   if (snapshot.error case final error?) {
-    return Text(
-      errorMessageFor(error),
-      style: TextStyle(color: Theme.of(context).colorScheme.error),
-    );
+    return _ReadFailure(error);
   }
   if (snapshot.data case final video?) {
     return _LinkedVideoSummary(video: video);
   }
   return const LinearProgressIndicator();
+}
+
+/// The §8 message, and for a failure the app can't name, yt-dlp's own
+/// words, selectable, so a report from the phone says what broke (M73).
+class _ReadFailure extends StatelessWidget {
+  const _ReadFailure(this.error);
+
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          errorMessageFor(error),
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+        if (error case SiteChangedException(:final reason)) ...[
+          const SizedBox(height: 6),
+          SelectableText(reason, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ],
+    );
+  }
 }
 
 class _LinkedVideoSummary extends StatelessWidget {

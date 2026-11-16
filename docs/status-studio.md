@@ -818,13 +818,13 @@ The Android launch screen (FR-20) draws the same shapes as vector drawables (`la
 | Groq's chat reply isn't the JSON asked for (M45, FR-36) | Review cuts | Groq's answer couldn't be read. Try again. | Find again, Back |
 | No MP4 stream to download in parts (M46, FR-37) | Review cuts | This video can't be downloaded in parts. | Back |
 | No network while downloading the cuts (M46, FR-37) | Review cuts | You're offline. Connect and try again. Finished cuts are kept. | Try again, Back |
-| yt-dlp can't read the streams, or their links keep expiring (M46, FR-37; "from YouTube" until M70) | Review cuts | Couldn't read this video. Update the downloader in Settings, or try again later. | Try again, Back |
+| yt-dlp can't read the streams, or their links keep expiring (M46, FR-37; "from YouTube" until M70) | Review cuts | Couldn't read this video. Update the downloader in Settings, or try again later. Under it, small and selectable, yt-dlp's error (M73). | Try again, Back |
 | The join failed (M46, FR-37) | Review cuts | Couldn't join the cuts. Under it, small and selectable, Media3's error code, message and causes (added after the first phone run failed, 2026-11-12), also logged as `ClipJoiner`. | Try again, Back |
 | An AV1 video this phone can't decode (M46, FR-37) | Review cuts | This phone can't convert this AV1 video. | Back |
 | A cut couldn't be played (M46, FR-37) | Review cuts (snackbar) | Couldn't play this moment. | — |
 | Groq's translation can't be read (M46, FR-37) | Lyrics | Groq couldn't translate the lyrics. | Retry, Back |
 | No network during download (removed in M23: nothing is downloaded; offline errors remain for Groq) | Lyrics (Processing until M30) | You're offline. Connect and try again. | Retry, Back |
-| yt-dlp can't read the video (removed in M23, back in M44; "from YouTube" until M70) | Source (link card) | Couldn't read this video. Update the downloader in Settings, or try again later. | Read link |
+| yt-dlp can't read the video (removed in M23, back in M44; "from YouTube" until M70) | Source (link card) | Couldn't read this video. Update the downloader in Settings, or try again later. Under it, small and selectable, yt-dlp's error or the app's reason (M73, after an Instagram reel failed on the phone, 2026-11-16). | Read link |
 | The video has no audio track, or can't be read (M23) | Source / Processing | Can't read this video. | Choose another video, Back |
 | An AV1 video can't be converted to H.264 on this phone (M31, FR-1) | Source | This phone can't convert this AV1 video. Save it as H.264 (MP4) in your editor and share it again. | Choose another video, Back |
 | The kept source file is missing (M23) | Recent / Continue | Video not found, choose it again. | Choose a video, Back |
@@ -1201,6 +1201,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M70 Links from other sites | Any link yt-dlp reads, Facebook and Instagram first: links by page URL, keys per site, request headers, and the whole file after asking when a site has no parts (FR-50) | Built on branch `m70-any-site-links` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M71 Moments from my videos | A local video goes through script, moments and Fine-tune as a link does, nothing downloaded; Use the whole video keeps the old way; Android only (FR-51) | Built on branch `m71-local-moments` (stacked on `m70-any-site-links`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M72 Trim without the waveform | Fine-tune · Video's Trim tab loses its waveform, which the owner found not useful (FR-5) | Built on branch `m72-trim-without-waveform` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
+| M73 Link error details | "Couldn't read this video" shows yt-dlp's own error under it, on the link card and after Make the clip, so a failure on the phone can be reported (§8) | Built on branch `m73-link-error-details` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2095,6 +2096,12 @@ Request (2026-11-16): FR-51, a local video goes through script, moments and Fine
 Request (2026-11-16): "fine tune video > trim waveform is not useful. remove it". Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
 
 - [x] **1. No waveform.** `fine_tune_trim_tab.dart` drops `_ClipWaveform`; `waveform_view.dart`, `waveform_provider.dart` and `clip/domain/waveform.dart` are deleted (nothing else used them). FR-5, the screens table and §13 say so. **Stale tests:** the waveform tests (`waveform_test`, the waveform view and provider tests) and Trim tab tests that find the waveform.
+
+### M73 tasks (branch `m73-link-error-details`, from `dev`)
+
+Request (2026-11-16): an Instagram reel gives "Couldn't read this video." on Read link, with nothing to say why. Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
+
+- [x] **1. Say why.** The link card and the making view show a `SiteChangedException`'s reason (yt-dlp's error output, or the app's own, e.g. "yt-dlp gave no ID, title or length.") under the §8 message, small and selectable, as the join failure shows Media3's. **Stale tests:** link card and making view tests that expect only the message.
 
 ## 13. Behaviour that must stay covered by tests
 
