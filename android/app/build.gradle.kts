@@ -65,6 +65,13 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release")
+            // Flutter turns R8 on for release builds, but FFmpeg Kit binds JNI
+            // methods by name and youtubedl-android unpacks Python with Commons
+            // Compress and reads yt-dlp's JSON with Jackson, all by reflection,
+            // and none ships keep rules. Shrunk, the app crashed at start (spec
+            // §15, M65). The APK is almost all native code, so R8 saved little.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 

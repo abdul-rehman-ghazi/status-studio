@@ -1168,6 +1168,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M62 Spec checkboxes | §12's stale unchecked tasks closed or ticked from the code and git history; the owner's test tasks no longer carry a checkbox | Built, branch `m62-spec-checkboxes` (from `dev`), merged into `dev` (2026-11-16). Docs only |
 | M63 README | The README's later sections (status, features, tech stack, structure, distribution, signing, releasing, licence) brought up to date; asked by the owner (2026-11-16) | Built, branch `m63-readme` (from `dev`), merged into `dev` (2026-11-16). Docs only |
 | M64 Check without tests | `tool/check.sh` formats and tests `test/` only when a local copy is there, since the suite is kept outside the repository; asked by the owner (2026-11-16) | Built, branch `m64-check-without-tests` (from `dev`), merged into `dev` (2026-11-16). `tool/check.sh` exits 0 (tests skipped) |
+| M65 Release crash | Release APKs crashed at start: R8 broke FFmpeg Kit's JNI binding and youtubedl-android's reflection; R8 is off for release builds | Built, branch `m65-release-crash` (from `dev`), pushed, not merged. A release build starts on a Pixel 6a (Android 17). Needs a release (0.1.2) |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2009,6 +2010,15 @@ Request (2026-11-16): "fix the stale checkboxes in §12". Docs only.
 
 - [x] **1. Done work ticked, with a closing note:** M9 tasks 1, 8 and 9 (and the M9 row, which still said "tasks to write"), M20 task 1 (ran in M25), M25 task 7, M43 task 6.
 - [x] **2. The owner's test tasks** (M28 task 3, M29 task 3, M30 task 7, M31 task 4, M32 task 2, M33 task 2, M34 task 2, M35 task 5, M36 task 3) lose their checkbox: the owner tests outside this document, as from M37 on, and their stale-test lists stay. M47 task 8 (the owner's F-Droid merge request) stays open.
+
+### M65 tasks (branch `m65-release-crash`, from `dev`)
+
+Found 2026-11-16 while taking F-Droid screenshots on the owner's Pixel 6a (Android 17), at the owner's request: the published `v0.1.1` arm64 APK (checksum matching `SHA256SUMS.txt`) closes at start. Release builds are shrunk by R8, which Flutter turns on by default, and nothing kept the code that native libraries and reflection reach by name. `0.1.0` and `0.1.1` were built the same way, so they are likely affected on every phone.
+
+- [x] **1. First crash.** FFmpeg Kit's native library registers `AbiDetect` methods by name on load; R8 had removed `getNativeCpuAbi`, so `RegisterNatives` threw inside `GeneratedPluginRegistrant`, the plugins after it (`jni_flutter` among them) were never registered, and `path_provider_android`'s first JNI call aborted with "JNI is not initialized".
+- [x] **2. Second crash, with a keep rule for FFmpeg Kit.** youtubedl-android's start-up unzip failed in Apache Commons Compress (`ExtraFieldUtils` creates `AsiExtraField` by reflection: "is not a concrete class"). Jackson reads yt-dlp's JSON by reflection too, which only runs on a link.
+- [x] **3. Fix.** `isMinifyEnabled = false` and `isShrinkResources = false` for release in `android/app/build.gradle.kts` (*Claude's call*: keep rules would have to cover FFmpeg Kit, Commons Compress, Jackson and youtubedl-android's mappers, and a missed one only shows at run time). The arm64 APK grows from 46.0 to 53.6 MB. A release build starts with no plugin or JNI errors. F-Droid's build uses the same Gradle file, so it is fixed too.
+- [ ] **4. Release 0.1.2 (the owner's go-ahead).** Build number 3, changelogs for 3, 1003, 2003 and 4003, tag, GitHub release; the F-Droid recipe and the IzzyOnDroid request then name 0.1.2.
 
 ## 13. Behaviour that must stay covered by tests
 
