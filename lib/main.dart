@@ -51,6 +51,13 @@ Future<void> _deleteOldTopics(ProviderContainer container) async {
   await topics.deleteRetired();
 }
 
+/// The videos reels were made from, which the start-up cleanup keeps
+/// (FR-47).
+Future<Set<String>> _reelSourceIds(ProviderContainer container) async {
+  final reels = await container.read(recentReelsRepositoryProvider).load();
+  return {for (final reel in reels) reel.sourceVideoId};
+}
+
 /// Reels made before M54 recorded no source; the owner chose to delete
 /// them rather than keep an "Older reels" section (FR-44).
 Future<void> _deleteReelsWithoutSource(ProviderContainer container) =>
@@ -120,10 +127,13 @@ Future<T> _readSetting<T>(
 Future<void> _cleanUp(ProviderContainer container) async {
   try {
     await cleanUpOnStart(
-      sources: container
-          .read(sourceCacheProvider.future)
-          .then((cache) => cache.root),
-      scripts: container.read(transcriptStoreProvider.future),
+      CleanupPlaces(
+        sources: container
+            .read(sourceCacheProvider.future)
+            .then((cache) => cache.root),
+        scripts: container.read(transcriptStoreProvider.future),
+        reelSourceIds: () => _reelSourceIds(container),
+      ),
       now: DateTime.now(),
     );
     await _deleteOldTopics(container);

@@ -1935,7 +1935,7 @@ Request (2026-11-16): FR-47. Tests are the owner's; `fvm flutter analyze` only, 
 
 - [x] **1. Spec.** FR-47, §4 Storage, FR-44 retention, this list and the §12 row.
 - [x] **2. A link's audio goes with its transcript saved.** `LinkedAudioDownloader.deleteDownloaded(video)` deletes `sources/v_yt_<ID>/` through `SourceCache.deleteVideo`; `TopicFinder` calls it after `TopicStore.saveBlocks`. **New tests to write:** after a Groq transcript is saved the `v_yt_` folder is gone; a failed save keeps it; captions leave nothing to delete. **Stale:** none known.
-- [ ] **3. Unreachable kept videos go.** `deleteOrphanedSources` keeps a source only when its `transcripts/` folder holds more than `video.json` and `last_used`, or a reel's `sourceVideoId` names it; `cleanUpOnStart` takes a `CleanupPlaces` value (sources, scripts, reel source IDs from `RecentReelsRepository.load`), and the 7-day age is a constant. **New tests to write:** a title-only video older than 7 days is deleted; one with a script, a partial, a draft or a reel stays; a title-only video changed within 7 days stays. **Stale:** `deleteOrphanedSources` and `cleanUpOnStart` tests (signature, `maxAge`).
+- [x] **3. Unreachable kept videos go.** `deleteOrphanedSources` keeps a source only when its `transcripts/` folder holds more than `video.json` and `last_used`, or a reel's `sourceVideoId` names it; `cleanUpOnStart` takes a `CleanupPlaces` value (sources, scripts, reel source IDs from `RecentReelsRepository.load`), and the 7-day age is a constant. **New tests to write:** a title-only video older than 7 days is deleted; one with a script, a partial, a draft or a reel stays; a title-only video changed within 7 days stays. **Stale:** `deleteOrphanedSources` and `cleanUpOnStart` tests (signature, `maxAge`).
 - [ ] **4. Status.** §12 row, §13 entries; push.
 
 ## 13. Behaviour that must stay covered by tests
@@ -2230,6 +2230,11 @@ Request (2026-11-16): FR-47. Tests are the owner's; `fvm flutter analyze` only, 
   - Its `LinkedClip` has no join times and one cut whose joined start is the moment's place in the file; Fine-tune opens on that place.
   - An AV1 moment is converted through the joiner and reports "Converting the cut"; two or more moments are joined as before.
   - Review cuts' footer shows Moments (n); the panel opens and closes on ×, Moments, the shade and Back; a tick in it updates the total; with none it shows the empty text.
+
+- **Free storage (FR-47, M57):**
+  - After a Groq transcript of a link is saved under `topics/`, `sources/v_yt_<ID>/` is gone; a failed save keeps it; captions leave nothing to delete.
+  - A kept video whose `transcripts/` folder holds only `video.json` and `last_used`, with no reel made from it, is deleted after 7 days unchanged; within 7 days it stays.
+  - A script, Groq progress, a fine-tune draft or a reel's `sourceVideoId` keeps it.
 
 - **Faces with BlazeFace (FR-23, M47):**
   - `Letterbox.forFrame` centres a 640 × 360 frame as 192 × 108 at top 42, and a 360 × 640 frame as 108 × 192 at left 42.
