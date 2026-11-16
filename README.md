@@ -27,7 +27,7 @@ Status per milestone: [§12 of the project document](docs/status-studio.md#12-mi
 **Two ways in**
 
 - **A video you trimmed:** share it into the app or pick it from the gallery. It is copied into the app once and never changed or uploaded; an AV1 video gets an H.264 copy.
-- **A link (Android only):** paste or share a YouTube link. Groq writes the script in the language you choose, you search it and tick the moments you want, and only those parts download. Several moments are joined with a transition; one is kept as it is. A link you leave can be continued later.
+- **A link (Android only):** paste or share a link from YouTube, Facebook, Instagram or another site yt-dlp reads. Groq writes the script in the language you choose, you search it and tick the moments you want, and only those parts download. Several moments are joined with a transition; one is kept as it is. A link you leave can be continued later.
 
 **Fine-tune · Video**
 
