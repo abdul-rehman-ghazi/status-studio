@@ -213,6 +213,25 @@ class CutDownloader {
     throw const NoSegmentIndexException();
   }
 
+  /// The length [stream] states in its first bytes (spec FR-50, M74): the
+  /// end of its segment index, else its `mvhd`. Throws
+  /// [NoMovieLengthException] when it states neither.
+  Future<Duration> streamLength(StreamFormat stream) => guardIo(() async {
+    try {
+      return (await _readIndex(stream)).segments.last.end;
+    } on NoSegmentIndexException {
+      return parseMovieLength(
+        await downloader.fetchHead(
+          stream.url,
+          _firstHeadBytes,
+          headers: stream.httpHeaders,
+        ),
+      );
+    } on RangeNotSupportedException {
+      throw const NoMovieLengthException();
+    }
+  });
+
   /// Whether [request]'s file is already downloaded.
   Future<bool> hasWhole(WholeVideoRequest request) async =>
       await _keptWhole(await _wholeJsonFile(request)) != null;

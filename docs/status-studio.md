@@ -1202,6 +1202,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M71 Moments from my videos | A local video goes through script, moments and Fine-tune as a link does, nothing downloaded; Use the whole video keeps the old way; Android only (FR-51) | Built on branch `m71-local-moments` (stacked on `m70-any-site-links`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M72 Trim without the waveform | Fine-tune · Video's Trim tab loses its waveform, which the owner found not useful (FR-5) | Built on branch `m72-trim-without-waveform` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M73 Link error details | "Couldn't read this video" shows yt-dlp's own error under it, on the link card and after Make the clip, so a failure on the phone can be reported (§8) | Built on branch `m73-link-error-details` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
+| M74 Length from the streams | An Instagram reel read logged out has no length in yt-dlp's answer; the app reads it from the smallest stream's segment index or `mvhd` (FR-50) | Built on branch `m74-length-from-streams` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2102,6 +2103,12 @@ Request (2026-11-16): "fine tune video > trim waveform is not useful. remove it"
 Request (2026-11-16): an Instagram reel gives "Couldn't read this video." on Read link, with nothing to say why. Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
 
 - [x] **1. Say why.** The link card and the making view show a `SiteChangedException`'s reason (yt-dlp's error output, or the app's own, e.g. "yt-dlp gave no ID, title or length.") under the §8 message, small and selectable, as the join failure shows Media3's. **Stale tests:** link card and making view tests that expect only the message.
+
+### M74 tasks (branch `m74-length-from-streams`, from `dev`)
+
+Found on the phone (2026-11-16): an Instagram reel gave "Couldn't read this video." with "yt-dlp gave no ID, title or length." Checked from the Mac with yt-dlp 2026.10.26 on two public reels from yt-dlp's own tests (`Chunk8-jurw`, `CDUMkliABpa`): logged out, Instagram's answer has the ID, the title ("Video by <user>") and formats but `duration: null`. Its DASH streams are plain `https` MP4s with a `sidx` in the first 64 KB (13.50 s, as their segments add up); its whole files have `moov` first, whose `mvhd` says 13.55 s. So the parts path of FR-37 works for Instagram once the length is known. Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
+
+- [x] **1. Length from the streams.** When yt-dlp's JSON has formats but no `duration`, `LinkedVideoReader` asks `StreamLengthReader`, which tries the smallest MP4 sound stream, picture stream and whole file in turn (`CutDownloader.streamLength`: the end of the segment index, else `parseMovieLength`, the `mvhd` of a `moov` that comes first; a zero length, as a fragmented stream's `mvhd` has, doesn't count). None stating it gives §8 "Couldn't read this video." with "Neither yt-dlp nor the streams give the length." **Stale tests:** `LinkedVideoReader` fakes (it takes `lengths`); new cases belong to `parseMovieLength` (version 0 and 1, zero length, no `moov` before `mdat`) and `StreamLengthReader` (order of kinds, the next kind after one without a length). *Claude's call:* at most three streams are tried, one per kind, so a video without any length costs at most six small requests.
 
 ## 13. Behaviour that must stay covered by tests
 

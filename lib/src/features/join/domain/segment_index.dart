@@ -123,6 +123,75 @@ SegmentIndex parseSegmentIndex(Uint8List head) {
   }
 }
 
+/// A whole MP4 whose `moov` (with its `mvhd`) comes first states its
+/// length there (spec FR-50, M74): Instagram's whole files do. Throws
+/// [NoMovieLengthException] when the head holds no `mvhd`, or a zero
+/// length, as a fragmented stream's does.
+Duration parseMovieLength(Uint8List head) {
+  final data = ByteData.sublistView(head);
+  try {
+    final moov = _topLevelBox(data, 'moov');
+    final mvhd = _childBox(data, moov, 'mvhd');
+    return _movieLength(data, mvhd);
+  } on SegmentIndexNotFoundException {
+    throw const NoMovieLengthException();
+  }
+}
+
+/// The head of an MP4 states no length.
+class NoMovieLengthException implements Exception {
+  const NoMovieLengthException();
+
+  @override
+  String toString() => 'NoMovieLengthException';
+}
+
+_BoxHeader _topLevelBox(ByteData data, String type) {
+  var boxStart = 0;
+  while (true) {
+    final box = _readBoxHeader(data, boxStart);
+    if (box.type == type) {
+      return box;
+    }
+    if (_mediaBoxTypes.contains(box.type) || box.size == 0) {
+      throw const NoMovieLengthException();
+    }
+    boxStart += box.size;
+  }
+}
+
+_BoxHeader _childBox(ByteData data, _BoxHeader parent, String type) {
+  var boxStart = parent.start + parent.headerSize;
+  final parentEnd = parent.start + parent.size;
+  while (boxStart < parentEnd) {
+    final box = _readBoxHeader(data, boxStart);
+    if (box.type == type) {
+      return box;
+    }
+    if (box.size == 0) {
+      break;
+    }
+    boxStart += box.size;
+  }
+  throw const NoMovieLengthException();
+}
+
+/// `mvhd`: version and flags, two times, then the timescale and duration,
+/// 32-bit in version 0 and 64-bit times in version 1.
+Duration _movieLength(ByteData data, _BoxHeader mvhd) {
+  final at = mvhd.start + mvhd.headerSize;
+  _require(data, at + 32);
+  final version = data.getUint8(at);
+  final timescale = data.getUint32(version == 0 ? at + 12 : at + 20);
+  final ticks = version == 0
+      ? data.getUint32(at + 16)
+      : data.getUint64(at + 24);
+  if (timescale == 0 || ticks == 0) {
+    throw const NoMovieLengthException();
+  }
+  return _ticksToDuration(ticks, timescale);
+}
+
 typedef _BoxHeader = ({int start, int size, int headerSize, String type});
 
 _BoxHeader _readBoxHeader(ByteData data, int start) {
