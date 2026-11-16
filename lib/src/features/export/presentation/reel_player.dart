@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:status_studio/src/features/clip/presentation/clip_player.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
@@ -23,57 +24,75 @@ class ReelPlayer extends ConsumerStatefulWidget {
 }
 
 class _ReelPlayerState extends ConsumerState<ReelPlayer> {
-  late final VideoPlayerController _player = ref.read(
-    videoPlayerFactoryProvider,
-  )(File(widget.reel.videoPath));
+  /// A new one each try: a controller that failed to open can't open again.
+  VideoPlayerController? _player;
   var _ready = false;
+
+  /// Why the last try to open failed; null while opening or once open.
+  Object? _failure;
 
   @override
   void initState() {
     super.initState();
-    _player.addListener(_rewindAtEnd);
     unawaited(_open());
   }
 
-  /// A file that won't open keeps the thumbnail: Save and Share still work.
+  /// A file that won't open keeps the thumbnail, with Play to try again
+  /// and the player's reason under it (M77): Save and Share still work.
   Future<void> _open() async {
+    final player = ref.read(videoPlayerFactoryProvider)(
+      File(widget.reel.videoPath),
+    );
+    _player = player;
     try {
-      await _player.initialize();
-    } on Object {
+      await player.initialize();
+    } on Object catch (failure) {
+      _player = null;
+      unawaited(player.dispose());
+      if (mounted) setState(() => _failure = failure);
       return;
     }
+    player.addListener(_rewindAtEnd);
     if (mounted) {
       setState(() => _ready = true);
     }
   }
 
+  void _tryAgain() {
+    setState(() => _failure = null);
+    unawaited(_open());
+  }
+
   void _rewindAtEnd() {
-    if (_player.value.isCompleted) {
-      unawaited(_player.seekTo(Duration.zero));
+    final player = _player;
+    if (player != null && player.value.isCompleted) {
+      unawaited(player.seekTo(Duration.zero));
     }
   }
 
   @override
   void dispose() {
-    _player.removeListener(_rewindAtEnd);
-    unawaited(_player.dispose());
+    final player = _player;
+    player?.removeListener(_rewindAtEnd);
+    if (player != null) unawaited(player.dispose());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      return widget.fallback;
+    final player = _player;
+    if (!_ready || player == null) {
+      return _closedPicture();
     }
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: _togglePlay,
+      onTap: () => unawaited(_togglePlay(player)),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          VideoPlayer(_player),
+          VideoPlayer(player),
           ValueListenableBuilder<VideoPlayerValue>(
-            valueListenable: _player,
+            valueListenable: player,
             builder: (context, value, _) =>
                 value.isPlaying ? const SizedBox.shrink() : const _PlayBadge(),
           ),
@@ -84,15 +103,64 @@ class _ReelPlayerState extends ConsumerState<ReelPlayer> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: _ReelSeekBar(player: _player),
+            child: _ReelSeekBar(player: player),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _togglePlay() =>
-      _player.value.isPlaying ? _player.pause() : _player.play();
+  /// The thumbnail while opening; after a failure, Play to try again.
+  Widget _closedPicture() {
+    final failure = _failure;
+    if (failure == null) {
+      return widget.fallback;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _tryAgain,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          widget.fallback,
+          const _PlayBadge(),
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 8,
+            child: _OpenFailure(failure),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _togglePlay(VideoPlayerController player) =>
+      player.value.isPlaying ? player.pause() : player.play();
+}
+
+/// The player's own words, small, so a report from the phone says why the
+/// reel didn't open (M77).
+class _OpenFailure extends StatelessWidget {
+  const _OpenFailure(this.failure);
+
+  final Object failure;
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = switch (failure) {
+      PlatformException(:final code, :final message) => '$code: $message',
+      _ => '$failure',
+    };
+    return Text(
+      "Couldn't play here. $reason",
+      maxLines: 4,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(color: PictureMarkColors.light),
+    );
+  }
 }
 
 /// Shows how far the reel has played; tap or drag it to seek (spec FR-10).

@@ -1211,6 +1211,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M74 Length from the streams | An Instagram reel read logged out has no length in yt-dlp's answer; the app reads it from the smallest stream's segment index or `mvhd` (FR-50) | Built on branch `m74-length-from-streams` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M75 Whole video from a link | Use the whole video on From a link, up to 5 minutes: the video downloads as one cut and Fine-tune opens (FR-52) | Built on branch `m75-whole-link-video` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 | M76 Controls that hide | Play and Pause over a playing video fade out after 3 s and come back on a touch, in Fine-tune, Lyrics and Play on a card; Done's player already hid its badge while playing | Built on branch `m76-auto-hiding-controls` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
+| M77 Done's player when it won't open | A reel that won't open on Done showed its thumbnail with no Play and no bar; it now shows Play, which tries again, and the player's reason | Built on branch `m77-done-player-retry` (from `dev`), merged into `dev` (2026-11-16). Analyze clean. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2131,6 +2132,12 @@ Request (2026-11-16): "preview player, is not auto hiding play pause button", th
 
 - [x] **1. Controls that hide.** `AutoHidingControls` (`core/presentation/`) lays a player's controls over its picture: shown while paused; faded out 3 s after playing starts or after the last touch (*Claude's call*); back on any touch on the picture, which still reaches what is under it (the crop window drags at once). `ClipPlayer` (Fine-tune · Video and Lyrics) puts Play/Pause and Play the clip in it, in the middle or the corner as before. Play on a card's sheet (FR-39) moves Play/Pause from beside the bar onto the picture, in it, and the bar takes the full width (*Claude's call*, so every player behaves alike). Done's `ReelPlayer` is unchanged: its Play badge already shows only while paused, and a tap anywhere pauses. **Stale tests:** cut player sheet tests that find Play/Pause in the bar's row; player tests that expect the buttons while playing. New cases: hidden 3 s after play, back on a touch, always shown while paused.
 - [x] **2. Fixes from the phone.** Found by the owner (2026-11-16, a screenshot of Play on a card): the moment's bar had shrunk to its playhead dot once it left Play's row (a Column lets a child be as narrow as it likes), and "Not in the clip" sat under Play in the middle of the picture. The bar now takes the full width, and the label sits at the top of the picture in every player that shows it (Play on a card, Fine-tune · Video). **Stale tests:** golden or finder tests that expect the label centred.
+
+### M77 tasks (branch `m77-done-player-retry`, from `dev`)
+
+Found by the owner (2026-11-16, a screenshot of Done after a 62.7 s 1080 × 1920 reel): the thumbnail with no Play and no bar. `ReelPlayer` keeps its fallback with no controls when the player fails to open, so the reel never opened on that phone. A likely cause, not yet confirmed, is that the paused players of Fine-tune and Lyrics, still under Done, hold the phone's video decoders. Tests are the owner's; Claude runs analyze only, and each commit says tests were not run.
+
+- [x] **1. Play to try again, and why.** When the reel won't open, Done shows Play over the thumbnail, a tap opens a new player and tries again, and the player's code and message show small at the bottom of the picture ("Couldn't play here. …"). Save and Share are unchanged. **Stale tests:** `ReelPlayer` tests that expect only the fallback after a failure. New cases: Play and the reason after a failure, a tap opening a new player.
 
 ## 13. Behaviour that must stay covered by tests
 
