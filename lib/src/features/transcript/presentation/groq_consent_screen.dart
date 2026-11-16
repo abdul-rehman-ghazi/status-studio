@@ -12,7 +12,8 @@ const _points = [
       'words, Status Studio sends to Groq, a third-party AI service, using '
       'your own Groq key.',
   "What is sent: the video's sound, cleaned to one channel, in pieces; and, "
-      "to update a moment's words, the script around it.",
+      "to update a moment's words or translate a linked clip's lyrics, the "
+      'words of the script involved.',
   'What is not sent: the picture. Nothing goes to us: Status Studio has '
       'no server and no account.',
   "Groq's terms and privacy policy apply (groq.com). You can withdraw "
