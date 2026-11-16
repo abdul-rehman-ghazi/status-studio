@@ -153,8 +153,8 @@ class _OpenFailure extends StatelessWidget {
       _ => '$failure',
     };
     return Text(
-      "Couldn't play here. $reason",
-      maxLines: 4,
+      "Couldn't play here. ${_withoutClassNames(reason)}",
+      maxLines: 6,
       overflow: TextOverflow.ellipsis,
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.bodySmall
@@ -284,3 +284,10 @@ class _PlayBadge extends StatelessWidget {
     );
   }
 }
+
+final _exceptionClassName = RegExp(r'([a-z0-9_]+\.)+[A-Za-z0-9_]*Exception: ');
+
+/// ExoPlayer's reason without the package names before it, so the part
+/// that says what failed fits.
+String _withoutClassNames(String reason) =>
+    reason.replaceAll(_exceptionClassName, '');

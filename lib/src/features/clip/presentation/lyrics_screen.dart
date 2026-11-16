@@ -179,9 +179,13 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> with RouteAware {
     unawaited(context.push(AppRoutes.export));
   }
 
+  /// Only once Lyrics is on top again: Export replacing itself with Done
+  /// is reported as a pop too, and a player reopened under Done held the
+  /// decoder Done's own player needed (M77). Done's Back pops again, and
+  /// that restores it.
   Future<void> _restorePlayer() async {
     await untilDismissed(ModalRoute.of(context)?.secondaryAnimation);
-    if (mounted) {
+    if (mounted && ModalRoute.of(context)?.isCurrent == true) {
       setState(() => _playerReleased = false);
     }
   }
