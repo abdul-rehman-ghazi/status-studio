@@ -26,6 +26,10 @@ const outputLanguages = [
   ScriptLanguage.english,
 ];
 
+/// Use the whole video on From a link downloads a video up to this long
+/// (spec FR-52, *Claude's call*): reels and Shorts are at most 3 minutes.
+const longestWholeLink = Duration(minutes: 5);
+
 const _longestWithCaptions = Duration(hours: 3);
 const _longestWithoutCaptions = Duration(hours: 2);
 const _warnWithoutCaptions = Duration(hours: 1);

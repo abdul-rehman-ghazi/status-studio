@@ -88,6 +88,7 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
             key: ValueKey(video.videoKey),
             source: LinkedMoments(video),
             onGet: (request) => unawaited(_getScript(request)),
+            onUseWhole: (request) => unawaited(_useWholeVideo(request)),
           ),
         ],
       ],
@@ -101,6 +102,15 @@ class _LinkSectionState extends ConsumerState<LinkSection> {
       return;
     }
     if (mounted) await context.push(AppRoutes.reviewCuts, extra: request);
+  }
+
+  /// The whole video becomes a clip of the link, so it replaces the link's
+  /// unfinished work as Get the script does, after asking (spec FR-52).
+  Future<void> _useWholeVideo(TopicRequest request) async {
+    if (!await clearUnfinishedLinkWork(context, ref, request.source.key)) {
+      return;
+    }
+    if (mounted) await context.push(AppRoutes.wholeLink, extra: request);
   }
 
   Future<void> _paste() async {

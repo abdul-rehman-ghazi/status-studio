@@ -9,6 +9,7 @@ import 'package:status_studio/src/features/clip/presentation/lyrics_screen.dart'
 import 'package:status_studio/src/features/export/presentation/done_screen.dart';
 import 'package:status_studio/src/features/export/presentation/export_screen.dart';
 import 'package:status_studio/src/features/home/presentation/home_screen.dart';
+import 'package:status_studio/src/features/join/presentation/whole_link_screen.dart';
 import 'package:status_studio/src/features/library/presentation/history_screen.dart';
 import 'package:status_studio/src/features/settings/presentation/background_work_section.dart';
 import 'package:status_studio/src/features/settings/presentation/downloader_section.dart';
@@ -27,6 +28,7 @@ abstract final class AppRoutes {
   static const source = '/source';
   static const link = '/link';
   static const reviewCuts = '/link/cuts';
+  static const wholeLink = '/link/whole';
   static const fineTune = '/fine-tune';
   static const lyrics = '/fine-tune/lyrics';
   static const export = '/export';
@@ -105,6 +107,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final LinkSession session => ReviewCutsScreen.continuing(session),
           _ => ReviewCutsScreen(request: state.extra! as TopicRequest),
         },
+      ),
+      GoRoute(
+        path: AppRoutes.wholeLink,
+        builder: (context, state) =>
+            WholeLinkScreen(request: state.extra! as TopicRequest),
       ),
       GoRoute(
         path: AppRoutes.settings,
