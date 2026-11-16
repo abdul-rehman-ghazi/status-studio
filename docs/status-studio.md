@@ -1137,7 +1137,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M54 History | A History screen grouping reels, scripts and unfinished work per video, with New, Continue and the source times each reel used; Carry on on Home (FR-44) | Built, branch `m54-history` (stacked on `m53-links-without-topic`), merged into `dev` with M53–M54 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's. Tests not run |
 | M55 Groq allowance | The audio minutes Groq has left this hour in Settings and beside Get, with a warning before a script that needs more (FR-45) | Built, branch `m55-groq-allowance` (from `dev`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). Task 7 (same day): Groq sends no audio headers, so the audio is counted on the phone. The phone check is the owner's. Tests not run |
 | M56 One moment, moments sheet | One moment is kept without a join or re-encode; Your moments opens in a sheet from the footer (FR-46) | Built, branch `m56-one-moment-and-moments-sheet` (stacked on `m55-groq-allowance`), merged into `dev` with M55–M56 (2026-11-13). Analyze clean (the two old unused-widget warnings in `fine_tune_trim_tab.dart` remain). The phone check is the owner's: one moment's kept cut file plays and exports from the moment's place (the stream-copied file's edit list, §10 item 10). Tests not run |
-| M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | In progress, branch `m58-reel-bitrate` (from `dev`). Tests not run |
+| M58 Smaller reels | The reel's video is encoded at 4 Mbit/s on Android and iOS (FR-48) | Built, branch `m58-reel-bitrate` (from `dev`), pushed, not merged (2026-11-16). Analyze clean; the debug APK builds; the iOS change is not compiled. The phone check is the owner's: a reel's size and look at 4 Mbit/s. Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -1935,7 +1935,7 @@ Request (2026-11-16): FR-48. Tests are the owner's; `fvm flutter analyze` only, 
 
 - [x] **1. Spec.** FR-48, FR-9 Output, this list and the §12 row.
 - [x] **2. 4 Mbit/s.**** `ReelRenderer` sets a `DefaultEncoderFactory` with `VideoEncoderSettings` at 4,000,000 bit/s; `RenderJob.videoSettings` asks `AVVideoAverageBitRateKey` 4,000,000. **New tests to write:** none in Dart; the rate is native. **Stale:** none known.
-- [ ] **3. Status.** §12 row, §13 entry; push.
+- [x] **3. Status.** §12 row, §13 entry; push.
 
 ## 13. Behaviour that must stay covered by tests
 
@@ -2229,6 +2229,8 @@ Request (2026-11-16): FR-48. Tests are the owner's; `fvm flutter analyze` only, 
   - Its `LinkedClip` has no join times and one cut whose joined start is the moment's place in the file; Fine-tune opens on that place.
   - An AV1 moment is converted through the joiner and reports "Converting the cut"; two or more moments are joined as before.
   - Review cuts' footer shows Moments (n); the panel opens and closes on ×, Moments, the shade and Back; a tick in it updates the total; with none it shows the empty text.
+
+- **Smaller reels (FR-48, M58):** none in Dart; the 4 Mbit/s rate is set natively (`ReelRenderer`, `RenderJob`).
 
 - **Faces with BlazeFace (FR-23, M47):**
   - `Letterbox.forFrame` centres a 640 × 360 frame as 192 × 108 at top 42, and a 360 × 640 frame as 108 × 192 at left 42.
