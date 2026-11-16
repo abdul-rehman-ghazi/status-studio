@@ -34,7 +34,10 @@ class Letterbox {
 
   factory Letterbox.forFrame({required int width, required int height}) {
     final longSide = math.max(width, height);
-    final scaledWidth = math.max(1, (width * blazeFaceInputSide / longSide).round());
+    final scaledWidth = math.max(
+      1,
+      (width * blazeFaceInputSide / longSide).round(),
+    );
     final scaledHeight = math.max(
       1,
       (height * blazeFaceInputSide / longSide).round(),
@@ -134,8 +137,7 @@ _Corners _decoded(Float32List boxes, int anchor) {
 }
 
 List<_Candidate> _mergedOverlaps(List<_Candidate> candidates) {
-  final remaining = [...candidates]
-    ..sort((a, b) => b.score.compareTo(a.score));
+  final remaining = [...candidates]..sort((a, b) => b.score.compareTo(a.score));
   final merged = <_Candidate>[];
   while (remaining.isNotEmpty) {
     final best = remaining.first;
@@ -184,14 +186,12 @@ _Corners _weightedBox(List<_Candidate> sameFace) {
 }
 
 SubjectBox _withoutLetterbox(_Corners box, Letterbox letterbox) {
-  double alongX(double inputFraction) => ((inputFraction * blazeFaceInputSide -
-              letterbox.left) /
-          letterbox.width)
-      .clamp(0.0, 1.0);
-  double alongY(double inputFraction) => ((inputFraction * blazeFaceInputSide -
-              letterbox.top) /
-          letterbox.height)
-      .clamp(0.0, 1.0);
+  double alongX(double inputFraction) =>
+      ((inputFraction * blazeFaceInputSide - letterbox.left) / letterbox.width)
+          .clamp(0.0, 1.0);
+  double alongY(double inputFraction) =>
+      ((inputFraction * blazeFaceInputSide - letterbox.top) / letterbox.height)
+          .clamp(0.0, 1.0);
   final left = alongX(box.left);
   final top = alongY(box.top);
   return SubjectBox(

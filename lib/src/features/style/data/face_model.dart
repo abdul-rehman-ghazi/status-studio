@@ -64,10 +64,7 @@ class FaceModel {
     await _isolate
         .runForMultipleInputs(
           [input.buffer.asUint8List()],
-          {
-            _boxesOutput: boxes.buffer,
-            1 - _boxesOutput: scores.buffer,
-          },
+          {_boxesOutput: boxes.buffer, 1 - _boxesOutput: scores.buffer},
         )
         .timeout(_longestInference);
     return BlazeFaceOutput(boxes: boxes, scores: scores, letterbox: letterbox);
@@ -94,9 +91,8 @@ int _boxesOutputOf(Interpreter interpreter) {
 /// values from -1 to 1, the model's input.
 Future<Float32List> _inputOf(Uint8List jpeg, Letterbox letterbox) async {
   final rgba = await _scaledRgba(jpeg, letterbox);
-  final input = Float32List(
-    blazeFaceInputSide * blazeFaceInputSide * _channels,
-  )..fillRange(0, blazeFaceInputSide * blazeFaceInputSide * _channels, -1);
+  final input = Float32List(blazeFaceInputSide * blazeFaceInputSide * _channels)
+    ..fillRange(0, blazeFaceInputSide * blazeFaceInputSide * _channels, -1);
   for (var row = 0; row < letterbox.height; row++) {
     for (var column = 0; column < letterbox.width; column++) {
       final from = (row * letterbox.width + column) * 4;
