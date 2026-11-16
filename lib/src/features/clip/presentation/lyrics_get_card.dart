@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:status_studio/src/core/presentation/hint_text.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
+import 'package:status_studio/src/features/topic/domain/moment_source.dart';
 import 'package:status_studio/src/features/transcript/presentation/groq_usage_text.dart';
 import 'package:status_studio/src/theme/app_theme.dart';
 
@@ -38,17 +39,22 @@ class _LyricsGetCardState extends State<LyricsGetCard> {
   }
 }
 
-/// The Get card of a clip joined from a link (spec FR-37): its lyrics come
-/// in the output language chosen on From a link, so there is no picker.
+/// The Get card of a clip joined from moments (spec FR-37, FR-51): its
+/// lyrics come in the output language chosen on From a link or Source, so
+/// there is no picker.
 class LinkedLyricsGetCard extends StatelessWidget {
   const LinkedLyricsGetCard({
     super.key,
     required this.outputLanguage,
+    required this.sourceKind,
     required this.onGet,
     required this.onType,
   });
 
   final ScriptLanguage outputLanguage;
+
+  /// Names the screen the language was chosen on.
+  final MomentSourceKind sourceKind;
   final ValueChanged<ScriptLanguage> onGet;
   final VoidCallback onType;
 
@@ -56,7 +62,8 @@ class LinkedLyricsGetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _GetCardBody(
       language: Text(
-        'Lyrics in ${outputLanguage.label}, chosen on From a link',
+        'Lyrics in ${outputLanguage.label}, chosen on '
+        '${_chosenOn(sourceKind)}',
         style: Theme.of(context).textTheme.titleSmall,
       ),
       onGet: () => onGet(outputLanguage),
@@ -145,3 +152,8 @@ class ScriptLanguagePicker extends StatelessWidget {
     );
   }
 }
+
+String _chosenOn(MomentSourceKind kind) => switch (kind) {
+  MomentSourceKind.link => 'From a link',
+  MomentSourceKind.local => 'Source',
+};

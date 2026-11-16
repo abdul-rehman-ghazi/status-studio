@@ -2,12 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:status_studio/src/features/join/domain/linked_clip.dart';
 import 'package:status_studio/src/features/library/domain/recent_reel.dart';
 import 'package:status_studio/src/features/reel/domain/fine_tune_draft.dart';
+import 'package:status_studio/src/features/source/data/video_fingerprint.dart';
 import 'package:status_studio/src/features/source/domain/linked_video.dart';
 import 'package:status_studio/src/features/source/domain/script_language.dart';
 import 'package:status_studio/src/features/source/domain/source_video.dart';
 import 'package:status_studio/src/features/topic/data/topic_store.dart';
 import 'package:status_studio/src/features/topic/domain/link_session.dart';
 import 'package:status_studio/src/features/topic/domain/moment_source.dart';
+import 'package:status_studio/src/features/topic/domain/topic_request.dart';
 import 'package:status_studio/src/features/transcript/domain/saved_transcript.dart';
 
 /// Which video a History group is (spec FR-44).
@@ -169,8 +171,8 @@ class LinkFacts {
 const _youTubeScriptPrefix = 'v_yt_';
 
 /// One group per video, newest activity first (spec FR-44). A `v_yt_<ID>`
-/// script and every joined clip fold into their YouTube video; a joined
-/// clip is never a group of its own. A video with nothing to show (no
+/// script and every joined clip fold into their source video, linked or
+/// kept (FR-51); a joined clip is never a group of its own. A video with nothing to show (no
 /// reel, script or unfinished work) has no group.
 List<VideoHistory> historyOf(HistorySources sources) {
   final groups = <HistoryVideo, _Group>{};
@@ -180,7 +182,7 @@ List<VideoHistory> historyOf(HistorySources sources) {
   for (final reel in sources.reels) {
     final videoKey = reel.videoKey;
     groupOf(
-      videoKey == null ? keyOf(reel.sourceVideoId) : LinkedVideoKey(videoKey),
+      videoKey == null ? keyOf(reel.sourceVideoId) : _sourceKeyOf(videoKey),
     ).addReel(reel);
   }
   for (final script in sources.scripts) {
@@ -191,12 +193,12 @@ List<VideoHistory> historyOf(HistorySources sources) {
         .addUnfinished(UnfinishedFineTune(fineTune));
   }
   for (final session in sources.linkSessions) {
-    groupOf(LinkedVideoKey(session.request.source.key))
+    groupOf(_sourceKeyOf(session.request.source.key))
         .addUnfinished(UnfinishedLink(session));
   }
   for (final MapEntry(key: videoKey, value: saved)
       in sources.links.transcripts.entries) {
-    saved.forEach(groupOf(LinkedVideoKey(videoKey)).addLinkScript);
+    saved.forEach(groupOf(_sourceKeyOf(videoKey)).addLinkScript);
   }
   return [
     for (final MapEntry(:key, :value) in groups.entries)
@@ -209,10 +211,15 @@ HistoryVideo _keyOf(String videoId, LinkFacts links) {
     return LinkedVideoKey(videoId.substring(_youTubeScriptPrefix.length));
   }
   if (links.joinedClips[videoId] case final joined?) {
-    return LinkedVideoKey(joined.videoKey);
+    return _sourceKeyOf(joined.videoKey);
   }
   return LocalVideoKey(videoId);
 }
+
+/// A moments source's key: a kept video's fingerprint since M71 (spec
+/// FR-51), else a link's video key.
+HistoryVideo _sourceKeyOf(String key) =>
+    isLocalFingerprint(key) ? LocalVideoKey(key) : LinkedVideoKey(key);
 
 /// A group as it is gathered.
 class _Group {
@@ -289,6 +296,12 @@ class _Group {
         newest?.video ??
         switch (unfinished) {
           UnfinishedFineTune(:final fineTune) => fineTune.video,
+          UnfinishedLink(
+            session: LinkSession(
+              request: TopicRequest(source: LocalMoments(:final video)),
+            ),
+          ) =>
+            video,
           _ => null,
         } ??
         links.localVideos[videoId];
