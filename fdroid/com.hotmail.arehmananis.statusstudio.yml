@@ -10,6 +10,7 @@ AntiFeatures:
 Categories:
   - Multimedia
 License: GPL-3.0-only
+AuthorName: Abdul Rehman Ghazi
 SourceCode: https://github.com/abdul-rehman-ghazi/status-studio
 IssueTracker: https://github.com/abdul-rehman-ghazi/status-studio/issues
 Changelog: https://github.com/abdul-rehman-ghazi/status-studio/releases
@@ -21,9 +22,9 @@ Repo: https://github.com/abdul-rehman-ghazi/status-studio.git
 
 Builds:
   - versionName: 0.1.5
-    versionCode: 6
-    commit: v0.1.5
-    output: build/app/outputs/flutter-apk/app-release.apk
+    versionCode: 1006
+    commit: 072b34648bb8248d77419ae45382dd26132364ff
+    output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     srclibs:
       - flutter@3.47.8
     rm:
@@ -36,10 +37,56 @@ Builds:
       - .pub-cache
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
-      - $$flutter$$/bin/flutter build apk --release --dart-define=WEEKLY_YTDLP_UPDATES=false
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm
+        --dart-define=WEEKLY_YTDLP_UPDATES=false
+    ndk: 28.2.13676358
+
+  - versionName: 0.1.5
+    versionCode: 2006
+    commit: 072b34648bb8248d77419ae45382dd26132364ff
+    output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+    srclibs:
+      - flutter@3.47.8
+    rm:
+      - ios
+    prebuild:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm64
+        --dart-define=WEEKLY_YTDLP_UPDATES=false
+    ndk: 28.2.13676358
+
+  - versionName: 0.1.5
+    versionCode: 4006
+    commit: 072b34648bb8248d77419ae45382dd26132364ff
+    output: build/app/outputs/flutter-apk/app-x86_64-release.apk
+    srclibs:
+      - flutter@3.47.8
+    rm:
+      - ios
+    prebuild:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter config --no-analytics
+      - $$flutter$$/bin/flutter pub get --enforce-lockfile
+    scandelete:
+      - .pub-cache
+    build:
+      - export PUB_CACHE=$(pwd)/.pub-cache
+      - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-x64
+        --dart-define=WEEKLY_YTDLP_UPDATES=false
+    ndk: 28.2.13676358
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
+VercodeOperation:
+  - 1000 + %c
+  - 2000 + %c
+  - 4000 + %c
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
 CurrentVersion: 0.1.5
-CurrentVersionCode: 6
+CurrentVersionCode: 4006

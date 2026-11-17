@@ -1215,6 +1215,7 @@ F-Droid builds every app from source and says it takes no prebuilt binaries. Our
 | M78 Release 0.1.4 | M69–M77 released: links from any site (FR-50), moments from my videos (FR-51), Use the whole video from a link (FR-52), no Trim waveform, hiding play controls, Instagram's missing length, Done's player; version `0.1.4+5` (codes 1005, 2005, 4005), tag `v0.1.4`, GitHub release with one signed APK per ABI and `SHA256SUMS.txt`; the F-Droid recipe names 0.1.4 | Released 2026-11-16 on `dev`. Analyze clean. Tests not run |
 | M79 IzzyOnDroid declined | IzzyOnDroid declined the app (request #901, 2026-11-16): the AI-assistance level is beyond its policy, and the APK is almost twice its size limit. Its APK scan flagged Google's dependency block in the signing block; release builds now leave it out. Distribution text names GitHub releases and F-Droid only | Built on branch `m79-no-dependency-block` (from `dev`), merged into `dev` (2026-11-17). Gradle checked; no Dart changed. Tests not run |
 | M80 Release 0.1.5 | M79 released: the APK no longer carries Google's dependency block; version `0.1.5+6` (codes 1006, 2006, 4006), tag `v0.1.5`, GitHub release with one signed APK per ABI and `SHA256SUMS.txt`; the F-Droid recipe names 0.1.5 | Released 2026-11-17 on `dev`. Tests not run |
+| M81 F-Droid submission | The fdroiddata recipe is made ready for the merge request: AuthorName, the full commit hash, one build per ABI (armeabi-v7a, arm64-v8a, x86_64; codes 1000/2000/4000 + n through VercodeOperation), NDK 28.2.13676358; `fdroid lint` passes. Reproducible builds are off, since the F-Droid build turns the weekly yt-dlp update off. The merge request itself is the owner's | Built on branch `m81-fdroid-submission` (from `dev`). Tests not run |
 
 **Pending ideas (2026-11-05):** "Share from YouTube" is back in M44 (FR-35, 2026-11-12). "Follow automatically" is dropped (automatic follow contradicts "do not assume", FR-27). "Search the script" is FR-28, a word search on Review cuts (M53, 2026-11-13).
 
@@ -2149,6 +2150,14 @@ IzzyOnDroid closed request #901 on 2026-11-16 (codeberg.org/IzzyOnDroid/repodata
 
 - [x] **1. No dependency block in the APK.** `android { dependenciesInfo { includeInApk = false; includeInBundle = false } }` in `android/app/build.gradle.kts`. The block is Google's dependency list encrypted with Google's public key, so nobody else can verify it; F-Droid's scanner flags it too. Takes effect from the next release. **Stale tests:** none.
 - [x] **2. Distribution text.** §1, §9 Distribution, §9.4, README and CLAUDE.md name GitHub releases and F-Droid only, and say IzzyOnDroid declined. The M43 decision list keeps its wording as history.
+
+### M81 tasks (branch `m81-fdroid-submission`, from `dev`)
+
+fdroiddata's merge request template (2026-11-17) asks for an AuthorName, a full commit hash rather than a tag, ABI splits when the APK is large, and reproducible builds or a reason. Tests are the owner's; nothing in the app changes.
+
+- [x] **1. Recipe.** `fdroid/com.hotmail.arehmananis.statusstudio.yml`: `AuthorName`, `commit` as the full hash of `v0.1.5`, three builds with `--split-per-abi --target-platform` (android-arm, android-arm64, android-x64) and codes 1006, 2006, 4006, `ndk: 28.2.13676358` (Flutter 3.47.8's), `VercodeOperation` 1000/2000/4000 + %c, `CurrentVersionCode: 4006`. Checked with `fdroid lint` against fdroiddata's `config/`; `fdroid rewritemeta` leaves it unchanged. At each release, every build's `versionCode` and `commit` change.
+- [x] **2. Reproducible builds: no.** The F-Droid build passes `--dart-define=WEEKLY_YTDLP_UPDATES=false`, so it can't match the GitHub APKs; F-Droid signs with its own key, and users can't switch between the two without reinstalling.
+- [ ] **3. Submit (the owner's).** Fork fdroiddata (public), add the recipe without its comment lines as `metadata/com.hotmail.arehmananis.statusstudio.yml`, open "New app: Status Studio" with the template filled in. Replaces M47 task 8.
 
 ## 13. Behaviour that must stay covered by tests
 
