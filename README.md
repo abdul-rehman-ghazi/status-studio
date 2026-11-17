@@ -16,7 +16,7 @@ Share or pick a video you trimmed, or paste a link to a long talk (Android) and 
 
 Version 0.1.5 is released for Android on [GitHub](https://github.com/abdul-rehman-ghazi/status-studio/releases/latest). Milestones M1–M79 are merged into `dev`. Still to come:
 
-- **F-Droid:** the build recipe is in [`fdroid/`](fdroid/); the merge request to `fdroiddata` is still to be sent.
+- **F-Droid:** the build recipe is in [`fdroid/`](fdroid/). F-Droid wants 3 months of maintenance first, so it will be submitted again in February 2027.
 - **iOS:** builds, but has never run on a device (it needs an iPhone and an Apple Developer account).
 
 Status per milestone: [§12 of the project document](docs/status-studio.md#12-milestones). Known issues: [§15](docs/status-studio.md#15-known-issues-found-on-the-phone-not-fixed).
