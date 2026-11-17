@@ -1,0 +1,1 @@
+Release builds no longer carry Google's encrypted dependency block in the APK signature. No changes to the app itself.

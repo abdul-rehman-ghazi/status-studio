@@ -14,7 +14,7 @@ Share or pick a video you trimmed, or paste a link to a long talk (Android) and 
 
 ## Status and roadmap
 
-Version 0.1.4 is released for Android on [GitHub](https://github.com/abdul-rehman-ghazi/status-studio/releases/latest). Milestones M1–M77 are merged into `dev`. Still to come:
+Version 0.1.5 is released for Android on [GitHub](https://github.com/abdul-rehman-ghazi/status-studio/releases/latest). Milestones M1–M79 are merged into `dev`. Still to come:
 
 - **F-Droid:** the build recipe is in [`fdroid/`](fdroid/); the merge request to `fdroiddata` is still to be sent.
 - **iOS:** builds, but has never run on a device (it needs an iPhone and an Apple Developer account).
