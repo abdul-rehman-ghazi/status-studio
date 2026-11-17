@@ -62,6 +62,13 @@ android {
         }
     }
 
+    // Google's dependency block is encrypted with Google's key, so nobody else can check it;
+    // IzzyOnDroid's scan flags it and F-Droid's reproducible builds want it gone (spec M79).
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release")
