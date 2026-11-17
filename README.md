@@ -16,7 +16,6 @@ Share or pick a video you trimmed, or paste a link to a long talk (Android) and 
 
 Version 0.1.4 is released for Android on [GitHub](https://github.com/abdul-rehman-ghazi/status-studio/releases/latest). Milestones M1–M77 are merged into `dev`. Still to come:
 
-- **IzzyOnDroid:** requested (#901), updated for 0.1.2.
 - **F-Droid:** the build recipe is in [`fdroid/`](fdroid/); the merge request to `fdroiddata` is still to be sent.
 - **iOS:** builds, but has never run on a device (it needs an iPhone and an Apple Developer account).
 
@@ -117,7 +116,7 @@ PRIVACY.md                   Privacy policy (from §9.1 of the spec)
 
 ## Platforms and distribution
 
-- **Android:** primary target. Application ID `com.hotmail.arehmananis.statusstudio`, minimum SDK 24 (required by FFmpeg Kit). Released as signed APKs on GitHub; IzzyOnDroid and F-Droid to follow.
+- **Android:** primary target. Application ID `com.hotmail.arehmananis.statusstudio`, minimum SDK 24 (required by FFmpeg Kit). Released as signed APKs on GitHub; F-Droid to follow. IzzyOnDroid declined the app (its AI-assistance policy and APK size limit).
 - **iOS:** same code, bundle ID `com.hotmail.arehmananis.statusstudio`, deployment target 15.5. No link input. It builds, but has never run on a device.
 
 The app is not on Google Play or the App Store. It uses no non-free SDKs (no Google Play Services, Firebase or analytics), so that F-Droid can build it.
