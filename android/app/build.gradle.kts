@@ -89,6 +89,9 @@ android {
             useLegacyPackaging = true
             // A zip, not an ELF library: stripping it only prints errors.
             keepDebugSymbols += "**/libpython.zip.so"
+            // tflite_flutter opens this only to make a GpuDelegateV2, which the app never
+            // does; leaving it out saves about 1 MB per APK (spec M82).
+            excludes += "**/libtensorflowlite_gpu_jni.so"
         }
     }
 }
