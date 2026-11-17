@@ -38,6 +38,7 @@ Builds:
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm
+        --split-debug-info=build/symbols
         --dart-define=WEEKLY_YTDLP_UPDATES=false
     ndk: 28.2.13676358
 
@@ -58,6 +59,7 @@ Builds:
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm64
+        --split-debug-info=build/symbols
         --dart-define=WEEKLY_YTDLP_UPDATES=false
     ndk: 28.2.13676358
 
@@ -78,6 +80,7 @@ Builds:
     build:
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-x64
+        --split-debug-info=build/symbols
         --dart-define=WEEKLY_YTDLP_UPDATES=false
     ndk: 28.2.13676358
 
