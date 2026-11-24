@@ -23,7 +23,7 @@ Repo: https://github.com/abdul-rehman-ghazi/status-studio.git
 Builds:
   - versionName: 0.1.6
     versionCode: 1007
-    commit: 072b34648bb8248d77419ae45382dd26132364ff
+    commit: 2e8654599b8e38f2913a4c1a580db3981a7b009c
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     srclibs:
       - flutter@3.47.8
@@ -44,7 +44,7 @@ Builds:
 
   - versionName: 0.1.6
     versionCode: 2007
-    commit: 072b34648bb8248d77419ae45382dd26132364ff
+    commit: 2e8654599b8e38f2913a4c1a580db3981a7b009c
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     srclibs:
       - flutter@3.47.8
@@ -65,7 +65,7 @@ Builds:
 
   - versionName: 0.1.6
     versionCode: 4007
-    commit: 072b34648bb8248d77419ae45382dd26132364ff
+    commit: 2e8654599b8e38f2913a4c1a580db3981a7b009c
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
     srclibs:
       - flutter@3.47.8
