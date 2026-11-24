@@ -72,13 +72,16 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release")
-            // Flutter turns R8 on for release builds, but FFmpeg Kit binds JNI
-            // methods by name and youtubedl-android unpacks Python with Commons
-            // Compress and reads yt-dlp's JSON with Jackson, all by reflection,
-            // and none ships keep rules. Shrunk, the app crashed at start (spec
-            // §15, M65). The APK is almost all native code, so R8 saved little.
-            isMinifyEnabled = false
+            // Native code and reflection reach several libraries by name, and none of
+            // them ships keep rules; proguard-rules.pro keeps them. Without it the app
+            // crashed at start (spec M65). Resources stay unshrunk: the notification
+            // plugins find their icon by name (spec M82).
+            isMinifyEnabled = true
             isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 
@@ -89,6 +92,9 @@ android {
             useLegacyPackaging = true
             // A zip, not an ELF library: stripping it only prints errors.
             keepDebugSymbols += "**/libpython.zip.so"
+            // tflite_flutter opens this only to make a GpuDelegateV2, which the app never
+            // does; leaving it out saves about 1 MB per APK (spec M82).
+            excludes += "**/libtensorflowlite_gpu_jni.so"
         }
     }
 }

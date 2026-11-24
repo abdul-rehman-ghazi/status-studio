@@ -138,16 +138,19 @@ All are licensed under the SIL Open Font License 1.1. The licence files sit next
 ## Releasing
 
 1. Raise the build number (`+n`) in `pubspec.yaml`.
-2. Write the changelog in `fastlane/metadata/android/en-US/changelogs/` for `n` (F-Droid's universal build) and for the per-ABI version codes `1000+n`, `2000+n` and `4000+n`.
+2. Write the changelog in `fastlane/metadata/android/en-US/changelogs/` for `n` and for the per-ABI version codes `1000+n`, `2000+n` and `4000+n` (F-Droid builds per ABI too).
 3. Build and check:
 
    ```sh
    tool/check.sh
-   fvm flutter build apk --release --split-per-abi
+   fvm flutter build apk --release --split-per-abi --split-debug-info=$HOME/.status-studio/symbols/X.Y.Z
    ```
+
+   `--split-debug-info` keeps the Dart debug symbols out of the APK (about 0.6 MB smaller) and writes them to that folder. Keep them: `fvm flutter symbolize` needs them to read a crash's Dart stack trace.
 
 4. The APKs are in `build/app/outputs/flutter-apk/` (`app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`, `app-x86_64-release.apk`). Most phones need `arm64-v8a`. Check the signature with `$ANDROID_HOME/build-tools/<version>/apksigner verify --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`.
 5. Tag the release on `dev` (`vX.Y.Z`) and publish a GitHub release with the three APKs and a `SHA256SUMS.txt`.
+6. In `fdroid/com.hotmail.arehmananis.statusstudio.yml`, set each build's `versionName`, `versionCode` and `commit` (the tag's full hash), and `CurrentVersion` and `CurrentVersionCode`.
 
 To regenerate the launcher icon after a logo change: `fvm flutter test tool/export_logo_test.dart`, then `fvm dart run flutter_launcher_icons`. Afterwards, revert its change to `ios/Runner.xcodeproj/project.pbxproj`: the tool sets the wrong build setting.
 
