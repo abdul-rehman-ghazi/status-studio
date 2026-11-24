@@ -1,0 +1,1 @@
+Smaller download: each APK is about 8 MB smaller (arm64 45 MB instead of 54). No changes to how the app works.
